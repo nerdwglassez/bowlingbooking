@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { calculateAvailability } from '@/lib/availability'
-import { parse, isValid } from 'date-fns'
+import { parse, isValid, startOfDay } from 'date-fns'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,26 +16,31 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Parse date (expecting YYYY-MM-DD format)
-    const date = parse(dateParam, 'yyyy-MM-dd', new Date())
-
-    if (!isValid(date)) {
+    // Parse date (expecting YYYY-MM-DD format) and normalize to start of day for DB queries
+    const parsed = parse(dateParam, 'yyyy-MM-dd', new Date())
+    if (!isValid(parsed)) {
       return NextResponse.json(
         { error: 'Invalid date format. Use YYYY-MM-DD' },
         { status: 400 }
       )
     }
+    const date = startOfDay(parsed)
 
     const slots = await calculateAvailability(date)
-
     return NextResponse.json({
       date: dateParam,
       slots,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Availability error:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'Failed to calculate availability', details: error.message },
+      {
+        error:
+          process.env.NODE_ENV === 'development'
+            ? `Unable to load time slots: ${message}`
+            : 'Unable to load time slots. Please try again.',
+      },
       { status: 500 }
     )
   }

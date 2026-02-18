@@ -12,6 +12,7 @@ interface Booking {
   startTime: string
   duration: number
   lane: number
+  lanes?: string | null
   numBowlers: number
   shoeSizes: string | null
   status: string
@@ -32,12 +33,12 @@ export default function BookingDetailsPage() {
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelling, setCancelling] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
 
+  const id = params?.id != null ? (typeof params.id === 'string' ? params.id : params.id[0]) : null
   useEffect(() => {
-    if (params.id) {
-      loadBooking(params.id as string)
-    }
-  }, [params.id])
+    if (id) loadBooking(id)
+  }, [id])
 
   const loadBooking = async (id: string) => {
     try {
@@ -52,6 +53,26 @@ export default function BookingDetailsPage() {
     }
   }
 
+  const downloadPdf = async () => {
+    if (!booking) return
+    setDownloadingPdf(true)
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/receipt`, { credentials: 'include' })
+      if (!res.ok) throw new Error('Failed to download')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `receipt-${booking.id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      alert(err.message || 'Failed to download PDF')
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   const cancelBooking = async () => {
     if (!confirm('Are you sure you want to cancel this booking?')) return
 
@@ -60,29 +81,12 @@ export default function BookingDetailsPage() {
       const response = await fetch(`/api/bookings/${booking!.id}`, {
         method: 'DELETE',
       })
-
-      if (!response.ok) throw new Error('Failed to cancel booking')
-
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Failed to cancel booking')
       router.push('/bookings')
-    } catch (err) {
-      alert('Failed to cancel booking')
+    } catch (err: any) {
+      alert(err.message || 'Failed to cancel booking')
       setCancelling(false)
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'CONFIRMED':
-      case 'PAID':
-        return 'bg-green-100 text-green-800'
-      case 'PENDING':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'CHECKED_IN':
-        return 'bg-blue-100 text-blue-800'
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
     }
   }
 
@@ -107,12 +111,37 @@ export default function BookingDetailsPage() {
     )
   }
 
+  const canCancelOrReschedule =
+    (booking.status === 'PENDING' || booking.status === 'PAID' || booking.status === 'CONFIRMED')
+  const bookingStart = new Date(`${booking.date}T${booking.startTime}`)
+  const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const withinCutoff = bookingStart <= cutoff
+  const cancelRescheduleMessage = withinCutoff
+    ? 'Cancellation and reschedule must be at least 24 hours before the booking. Please contact us for help.'
+    : null
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'CONFIRMED':
+      case 'PAID':
+        return 'bg-green-100 text-green-800'
+      case 'PENDING':
+        return 'bg-yellow-100 text-yellow-800'
+      case 'CHECKED_IN':
+        return 'bg-blue-100 text-blue-800'
+      case 'CANCELLED':
+        return 'bg-red-100 text-red-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   const shoeSizes = booking.shoeSizes ? JSON.parse(booking.shoeSizes) : []
 
   return (
     <main className="min-h-screen p-8 bg-gray-50">
       <div className="max-w-4xl mx-auto">
-        <Link href="/bookings">
+        <Link href="/bookings" className="no-print">
           <Button variant="secondary" className="mb-6">
             ← Back to Bookings
           </Button>
@@ -145,7 +174,11 @@ export default function BookingDetailsPage() {
 
             <div>
               <h2 className="font-semibold mb-2">Lane & Bowlers</h2>
-              <p className="text-gray-600">Lane {booking.lane}</p>
+              <p className="text-gray-600">
+                {booking.lanes
+                  ? `Lanes ${(JSON.parse(booking.lanes) as number[]).join(', ')}`
+                  : `Lane ${booking.lane}`}
+              </p>
               <p className="text-gray-600">
                 {booking.numBowlers} bowler{booking.numBowlers > 1 ? 's' : ''}
               </p>
@@ -177,16 +210,47 @@ export default function BookingDetailsPage() {
           )}
 
           <div className="border-t pt-6">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-4">
               <div>
                 <p className="text-sm text-gray-600">Total Amount</p>
-                <p className="text-2xl font-bold">${booking.totalPrice.toFixed(2)}</p>
+                <p className="text-2xl font-bold">${Number(booking.totalPrice).toFixed(2)}</p>
               </div>
-              {booking.status === 'PENDING' && (
-                <Button variant="danger" onClick={cancelBooking} isLoading={cancelling}>
-                  Cancel Booking
+              <div className="flex items-center gap-2 flex-wrap no-print">
+                <Button
+                  variant="secondary"
+                  onClick={() => window.print()}
+                >
+                  Print receipt
                 </Button>
-              )}
+                <Button
+                  variant="secondary"
+                  onClick={downloadPdf}
+                  isLoading={downloadingPdf}
+                >
+                  Download PDF
+                </Button>
+                {canCancelOrReschedule && (
+                  <>
+                    {cancelRescheduleMessage && (
+                      <p className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded">
+                        {cancelRescheduleMessage}
+                      </p>
+                    )}
+                    {!withinCutoff && (
+                      <>
+                        <Link href={`/bookings/${booking.id}/reschedule`}>
+                          <Button variant="secondary" title="Change date or time">
+                            Modify Booking
+                          </Button>
+                        </Link>
+                        <Button variant="danger" onClick={cancelBooking} isLoading={cancelling}>
+                          Cancel Booking
+                        </Button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

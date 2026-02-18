@@ -4,23 +4,31 @@ import { prisma } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth()
+    const { id } = await params
 
     const booking = await prisma.booking.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         bookingPackages: {
           include: {
             package: true,
           },
         },
+        bookingProducts: {
+          include: {
+            product: true,
+          },
+        },
         user: {
           select: {
             id: true,
             email: true,
+            firstName: true,
+            lastName: true,
           },
         },
       },
@@ -59,13 +67,14 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth()
+    const { id } = await params
 
     const booking = await prisma.booking.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!booking) {
@@ -91,9 +100,19 @@ export async function DELETE(
       )
     }
 
-    // Update status to cancelled instead of deleting
+    // Self-service cancellation cutoff: 24h before start (staff/admin can cancel anytime)
+    const CANCELLATION_CUTOFF_HOURS = 24
+    const bookingStart = new Date(`${booking.date.toISOString().slice(0, 10)}T${booking.startTime}`)
+    const cutoff = new Date(Date.now() + CANCELLATION_CUTOFF_HOURS * 60 * 60 * 1000)
+    if (session.role === 'CUSTOMER' && bookingStart <= cutoff) {
+      return NextResponse.json(
+        { error: `Cancellation must be at least ${CANCELLATION_CUTOFF_HOURS} hours before the booking. Please contact us for help.` },
+        { status: 400 }
+      )
+    }
+
     const cancelledBooking = await prisma.booking.update({
-      where: { id: params.id },
+      where: { id },
       data: { status: 'CANCELLED' },
     })
 

@@ -1,32 +1,36 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 
 interface Booking {
   id: string
+  checkInToken?: string | null
   date: string
   startTime: string
   duration: number
   lane: number
+  lanes?: string | null
   numBowlers: number
   totalPrice: number
   status: string
-  packages: Array<{
-    id: string
-    name: string
-    price: number
+  bookingPackages: Array<{
+    package: {
+      id: string
+      name: string
+      description: string | null
+      price: number
+    }
   }>
 }
 
-export default function BookingConfirmationPage() {
-  const router = useRouter()
+function ConfirmationContent() {
   const searchParams = useSearchParams()
-  const bookingId = searchParams.get('id')
-  
+  const bookingId = searchParams?.get('bookingId') ?? searchParams?.get('id')
+
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,21 +42,18 @@ export default function BookingConfirmationPage() {
       return
     }
 
-    // For now, we'll get the booking from the creation response
-    // In a real app, you might want to fetch it from the API
-    // For MVP, we'll store it in sessionStorage temporarily
-    const bookingData = sessionStorage.getItem('lastBooking')
-    if (bookingData) {
-      try {
-        setBooking(JSON.parse(bookingData))
-        sessionStorage.removeItem('lastBooking')
-      } catch (e) {
-        setError('Failed to load booking details')
-      }
-    } else {
-      setError('Booking not found. Please check your email or dashboard.')
-    }
-    setLoading(false)
+    fetch(`/api/bookings/${bookingId}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Booking not found')
+        return res.json()
+      })
+      .then(data => {
+        setBooking(data.booking)
+      })
+      .catch(() => {
+        setError('Booking not found. Please check your email or dashboard.')
+      })
+      .finally(() => setLoading(false))
   }, [bookingId])
 
   const formatDuration = (minutes: number) => {
@@ -69,6 +70,31 @@ export default function BookingConfirmationPage() {
     const endDate = new Date(startDate.getTime() + duration * 60000)
     return format(endDate, 'HH:mm')
   }
+
+  const addToCalendarUrl = booking
+    ? (() => {
+        const start = new Date(booking.date)
+        const [h, m] = booking.startTime.split(':').map(Number)
+        start.setHours(h, m, 0, 0)
+        const end = new Date(start.getTime() + booking.duration * 60000)
+        const title = encodeURIComponent('Bowling Lane Booking')
+        const dates = `${format(start, 'yyyyMMdd')}T${format(start, 'HHmmss')}Z/${format(end, 'yyyyMMdd')}T${format(end, 'HHmmss')}Z`
+        const details = encodeURIComponent(
+                  booking.lanes
+                    ? `Booking ref: ${booking.id}. Lanes ${(JSON.parse(booking.lanes) as number[]).join(', ')}.`
+                    : `Booking ref: ${booking.id}. Lane ${booking.lane}.`
+                )
+        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}`
+      })()
+    : '#'
+
+  const kioskCheckInData =
+    typeof window !== 'undefined' && booking
+      ? `${window.location.origin}/kiosk/check-in?${booking.checkInToken ? `token=${encodeURIComponent(booking.checkInToken)}` : `booking=${encodeURIComponent(booking.id)}`}`
+      : ''
+  const qrCodeUrl = kioskCheckInData
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(kioskCheckInData)}`
+    : ''
 
   if (loading) {
     return (
@@ -90,12 +116,12 @@ export default function BookingConfirmationPage() {
             <div className="text-center">
               <h1 className="text-2xl font-bold text-red-600 mb-4">Booking Not Found</h1>
               <p className="text-gray-600 mb-6">{error || 'The booking could not be found.'}</p>
-              <div className="flex gap-4 justify-center">
+              <div className="flex gap-4 justify-center flex-wrap">
                 <Link href="/book">
-                  <Button>Book Again</Button>
+                  <Button>Book a Lane</Button>
                 </Link>
                 <Link href="/dashboard">
-                  <Button variant="secondary">Go to Dashboard</Button>
+                  <Button variant="secondary">View My Bookings</Button>
                 </Link>
               </div>
             </div>
@@ -109,7 +135,7 @@ export default function BookingConfirmationPage() {
     <main className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow-md p-6 md:p-8">
-          {/* Success Header */}
+          {/* Success Header (PRD Step 5) */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -126,17 +152,30 @@ export default function BookingConfirmationPage() {
                 />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold mb-2">Booking Confirmed!</h1>
+            <h1 className="text-3xl font-bold mb-2">Your Booking is Confirmed!</h1>
             <p className="text-gray-600">
-              Your booking has been created successfully
+              Confirmation code and details are below.
             </p>
           </div>
 
-          {/* Booking Reference */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-800">
-              <strong>Booking Reference:</strong> {booking.id}
+          {/* Confirmation code (prominent) + QR code */}
+          <div className="border-2 border-blue-200 rounded-xl p-4 mb-6 bg-blue-50/50">
+            <p className="text-sm text-blue-800 font-medium mb-1">Confirmation code</p>
+            <p className="text-xl font-bold text-gray-900 tracking-tight break-all">
+              {booking.id}
             </p>
+            <div className="mt-4 flex flex-col sm:flex-row items-center gap-4">
+              {qrCodeUrl && (
+                <img
+                  src={qrCodeUrl}
+                  alt="QR code for check-in"
+                  className="w-[150px] h-[150px] rounded-lg border border-gray-200 bg-white"
+                />
+              )}
+              <p className="text-sm text-gray-600">
+                Show this QR code or confirmation code at check-in.
+              </p>
+            </div>
           </div>
 
           {/* Booking Details */}
@@ -153,7 +192,7 @@ export default function BookingConfirmationPage() {
                 <div>
                   <dt className="text-sm text-gray-600">Time</dt>
                   <dd className="font-medium">
-                    {booking.startTime} - {calculateEndTime(booking.startTime, booking.duration)}
+                    {booking.startTime} – {calculateEndTime(booking.startTime, booking.duration)}
                   </dd>
                 </div>
                 <div>
@@ -161,8 +200,12 @@ export default function BookingConfirmationPage() {
                   <dd className="font-medium">{formatDuration(booking.duration)}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm text-gray-600">Lane</dt>
-                  <dd className="font-medium">Lane {booking.lane}</dd>
+                  <dt className="text-sm text-gray-600">Lane{booking.lanes ? 's' : ''}</dt>
+                  <dd className="font-medium">
+                    {booking.lanes
+                      ? `Lanes ${(JSON.parse(booking.lanes) as number[]).join(', ')}`
+                      : `Lane ${booking.lane}`}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm text-gray-600">Number of Bowlers</dt>
@@ -170,18 +213,18 @@ export default function BookingConfirmationPage() {
                 </div>
                 <div>
                   <dt className="text-sm text-gray-600">Status</dt>
-                  <dd className="font-medium capitalize">{booking.status.toLowerCase()}</dd>
+                  <dd className="font-medium capitalize">{booking.status.toLowerCase().replace('_', ' ')}</dd>
                 </div>
               </dl>
             </div>
 
-            {booking.packages && booking.packages.length > 0 && (
+            {booking.bookingPackages && booking.bookingPackages.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-2">Packages</h3>
                 <ul className="space-y-2">
-                  {booking.packages.map(pkg => (
-                    <li key={pkg.id} className="text-sm">
-                      {pkg.name} - ${Number(pkg.price).toFixed(2)}
+                  {booking.bookingPackages.map((bp, index) => (
+                    <li key={index} className="text-sm">
+                      {bp.package.name} – ${Number(bp.package.price).toFixed(2)}
                     </li>
                   ))}
                 </ul>
@@ -190,35 +233,39 @@ export default function BookingConfirmationPage() {
 
             <div className="border-t pt-4">
               <div className="flex justify-between items-center">
-                <span className="text-lg font-semibold">Total Price</span>
+                <span className="text-lg font-semibold">Total</span>
                 <span className="text-2xl font-bold">${Number(booking.totalPrice).toFixed(2)}</span>
               </div>
-              <p className="text-sm text-gray-600 mt-2">
-                Payment information will be sent via email
-              </p>
             </div>
           </div>
 
-          {/* Next Steps */}
-          <div className="bg-gray-50 rounded-lg p-6 mb-6">
-            <h3 className="font-semibold mb-2">What's Next?</h3>
-            <ul className="text-sm text-gray-600 space-y-2">
-              <li>• A confirmation email has been sent to your registered email address</li>
-              <li>• Please arrive 10 minutes before your booking time</li>
-              <li>• Present your booking reference at check-in</li>
-              <li>• Payment can be made upon arrival or online (if payment option is available)</li>
-            </ul>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Link href="/dashboard" className="flex-1">
+          {/* Add to Calendar + View My Bookings + Print (PRD Step 5) */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-6 flex-wrap">
+            <a
+              href={addToCalendarUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 min-w-[140px]"
+            >
+              <Button variant="secondary" className="w-full">
+                Add to Calendar
+              </Button>
+            </a>
+            <Link href="/dashboard" className="flex-1 min-w-[140px]">
               <Button className="w-full">View My Bookings</Button>
             </Link>
-            <Link href="/book" className="flex-1">
-              <Button variant="secondary" className="w-full">
-                Book Another Lane
-              </Button>
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto min-w-[140px]"
+              onClick={() => window.print()}
+            >
+              Print
+            </Button>
+          </div>
+
+          <div className="text-center">
+            <Link href="/book" className="text-blue-600 hover:underline text-sm">
+              Book another lane
             </Link>
           </div>
         </div>
@@ -227,4 +274,11 @@ export default function BookingConfirmationPage() {
   )
 }
 
+export default function BookingConfirmationPage() {
+  return (
+    <Suspense fallback={<main className="max-w-2xl mx-auto p-8"><p className="text-gray-600">Loading...</p></main>}>
+      <ConfirmationContent />
+    </Suspense>
+  )
+}
 

@@ -1,0 +1,20 @@
+# Local PostgreSQL for development/testing (no Neon required).
+# Start: docker compose up -d
+# Stop:  docker compose down
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: bowling-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bowling
+    ports:
+      - "5432:5432"
+    volumes:
+      - bowling_pgdata:/var/lib/postgresql/data
+
+volumes:
+  bowling_pgdata:

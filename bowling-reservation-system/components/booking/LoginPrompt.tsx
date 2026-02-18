@@ -19,9 +19,10 @@ export default function LoginPrompt({ onLoginSuccess, onGuestClick, isLoading }:
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
+    mode: 'onChange',
   })
 
   const onSubmit = async (data: LoginInput) => {
@@ -78,7 +79,7 @@ export default function LoginPrompt({ onLoginSuccess, onGuestClick, isLoading }:
             {...register('password')}
           />
 
-          <Button type="submit" isLoading={isLoading} className="w-full">
+          <Button type="submit" isLoading={isLoading} disabled={!isValid || isLoading} className="w-full">
             Sign In
           </Button>
         </form>

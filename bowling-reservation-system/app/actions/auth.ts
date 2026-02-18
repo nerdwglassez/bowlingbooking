@@ -20,7 +20,7 @@ export async function logout() {
   const cookieStore = await cookies()
   cookieStore.delete('session_token')
 
-  redirect('/login')
+  redirect('/book')
 }
 
 

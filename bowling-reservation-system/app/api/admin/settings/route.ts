@@ -5,8 +5,11 @@ import { z } from 'zod'
 
 const settingsSchema = z.object({
   laneRentalPerHour: z.number().min(0),
+  bowlerPricePerPerson: z.number().min(0),
   shoeRental: z.number().min(0),
   taxRate: z.number().min(0).max(1), // 0.08 = 8%
+  totalLanes: z.number().int().min(1).max(100),
+  reserveLanes: z.number().int().min(0).max(100),
 })
 
 export async function GET(request: NextRequest) {

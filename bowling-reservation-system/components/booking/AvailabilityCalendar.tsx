@@ -12,21 +12,38 @@ interface TimeSlot {
 
 interface AvailabilityCalendarProps {
   onTimeSelect?: (date: string, time: string) => void
+  /** Called when user clicks a date pill (so parent can sync selected date). */
+  onDateChange?: (date: string) => void
   selectedDate?: string
   selectedTime?: string
+  /** Minimum lanes required (e.g. 2 for double-lane booking). Slots with fewer are shown unavailable. */
+  minLanes?: number
+  /** When true, do not show the "Select Date" label (e.g. when parent shows "Select a date" in a card). */
+  hideDateLabel?: boolean
 }
 
 export default function AvailabilityCalendar({
   onTimeSelect,
+  onDateChange,
   selectedDate,
   selectedTime,
+  minLanes = 1,
+  hideDateLabel = false,
 }: AvailabilityCalendarProps) {
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
   const [selectedDateState, setSelectedDateState] = useState(
-    selectedDate || format(new Date(), 'yyyy-MM-dd')
+    selectedDate || todayStr
   )
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Sync from parent (e.g. URL pre-fill) so calendar shows the right date
+  useEffect(() => {
+    if (selectedDate) {
+      setSelectedDateState((prev) => (prev !== selectedDate ? selectedDate : prev))
+    }
+  }, [selectedDate])
 
   useEffect(() => {
     loadAvailability(selectedDateState)
@@ -37,28 +54,32 @@ export default function AvailabilityCalendar({
     setError(null)
 
     try {
-      const response = await fetch(`/api/availability?date=${date}`)
-      if (!response.ok) throw new Error('Failed to load availability')
-
-      const data = await response.json()
+      const response = await fetch(`/api/availability?date=${encodeURIComponent(date)}`)
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error((data.error as string) || 'Failed to load time slots')
+      }
       setSlots(data.slots || [])
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load time slots')
       setSlots([])
     } finally {
       setLoading(false)
     }
   }
 
+  const slotAvailableForLanes = (slot: TimeSlot) =>
+    slot.available && slot.availableLanes >= minLanes
+
   const getAvailabilityColor = (slot: TimeSlot) => {
-    if (!slot.available) return 'bg-gray-200 text-gray-400 cursor-not-allowed'
+    if (!slotAvailableForLanes(slot)) return 'bg-gray-200 text-gray-400 cursor-not-allowed'
     if (slot.availableLanes >= 8) return 'bg-green-100 text-green-800 hover:bg-green-200'
     if (slot.availableLanes >= 3) return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
     return 'bg-red-100 text-red-800 hover:bg-red-200'
   }
 
   const getAvailabilityLabel = (slot: TimeSlot) => {
-    if (!slot.available) return 'Full'
+    if (!slotAvailableForLanes(slot)) return minLanes > 1 ? `Need ${minLanes}` : 'Full'
     if (slot.availableLanes >= 8) return `${slot.availableLanes} lanes`
     if (slot.availableLanes >= 3) return `${slot.availableLanes} lanes`
     return `${slot.availableLanes} lane${slot.availableLanes > 1 ? 's' : ''}`
@@ -66,6 +87,7 @@ export default function AvailabilityCalendar({
 
   const handleDateChange = (date: string) => {
     setSelectedDateState(date)
+    onDateChange?.(date)
   }
 
   const handleTimeSelect = (time: string) => {
@@ -77,9 +99,11 @@ export default function AvailabilityCalendar({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Select Date
-        </label>
+        {!hideDateLabel && (
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Date
+          </label>
+        )}
         <div className="flex gap-2 overflow-x-auto pb-2">
           {Array.from({ length: 14 }, (_, i) => {
             const date = addDays(new Date(), i)
@@ -92,7 +116,7 @@ export default function AvailabilityCalendar({
                 key={dateStr}
                 type="button"
                 onClick={() => handleDateChange(dateStr)}
-                className={`px-4 py-2 rounded-lg whitespace-nowrap transition ${
+                className={`px-4 py-2 rounded-lg whitespace-nowrap transition cursor-pointer ${
                   isSelected
                     ? 'bg-blue-600 text-white'
                     : 'bg-white border border-gray-300 hover:bg-gray-50'
@@ -123,14 +147,22 @@ export default function AvailabilityCalendar({
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg space-y-2">
+            <p>{error}</p>
+            <button
+              type="button"
+              onClick={() => loadAvailability(selectedDateState)}
+              className="text-sm font-medium underline hover:no-underline"
+            >
+              Try again
+            </button>
           </div>
         )}
 
         {!loading && !error && slots.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            No available time slots for this date
+          <div className="text-center py-8 text-gray-500 space-y-1">
+            <p>No available time slots for this date.</p>
+            <p className="text-xs">Try another date, or ensure operating hours are set in Admin.</p>
           </div>
         )}
 
@@ -138,18 +170,18 @@ export default function AvailabilityCalendar({
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {slots.map(slot => {
               const isSelected = selectedTime === slot.time
-              const isClickable = slot.available && onTimeSelect
+              const canSelect = slotAvailableForLanes(slot) && onTimeSelect
 
               return (
                 <button
                   key={slot.time}
                   type="button"
-                  onClick={() => isClickable && handleTimeSelect(slot.time)}
-                  disabled={!slot.available}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
-                    isSelected
-                      ? 'ring-2 ring-blue-500 ring-offset-2'
-                      : ''
+                  onClick={() => canSelect && handleTimeSelect(slot.time)}
+                  disabled={!slotAvailableForLanes(slot)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+                  isSelected
+                    ? 'ring-2 ring-blue-500 ring-offset-2'
+                    : ''
                   } ${getAvailabilityColor(slot)}`}
                 >
                   <div>{slot.time}</div>

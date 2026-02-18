@@ -2,14 +2,20 @@ import { prisma } from './db'
 
 export interface PricingSettings {
   laneRentalPerHour: number // in dollars
+  bowlerPricePerPerson: number // in dollars
   shoeRental: number // in dollars
   taxRate: number // as decimal (0.08 = 8%)
+  totalLanes: number
+  reserveLanes: number
 }
 
 const DEFAULT_SETTINGS: PricingSettings = {
   laneRentalPerHour: 30.0,
+  bowlerPricePerPerson: 0.0,
   shoeRental: 5.0,
   taxRate: 0.08,
+  totalLanes: 20,
+  reserveLanes: 0,
 }
 
 /**
@@ -20,7 +26,7 @@ export async function getPricingSettings(): Promise<PricingSettings> {
     const settings = await prisma.settings.findMany({
       where: {
         key: {
-          in: ['laneRentalPerHour', 'shoeRental', 'taxRate'],
+          in: ['laneRentalPerHour', 'bowlerPricePerPerson', 'shoeRental', 'taxRate', 'totalLanes', 'reserveLanes'],
         },
       },
     })
@@ -35,8 +41,11 @@ export async function getPricingSettings(): Promise<PricingSettings> {
     
     return {
       laneRentalPerHour: parseFloat(settingsMap.get('laneRentalPerHour') || String(DEFAULT_SETTINGS.laneRentalPerHour)),
+      bowlerPricePerPerson: parseFloat(settingsMap.get('bowlerPricePerPerson') || String(DEFAULT_SETTINGS.bowlerPricePerPerson)),
       shoeRental: parseFloat(settingsMap.get('shoeRental') || String(DEFAULT_SETTINGS.shoeRental)),
       taxRate: parseFloat(settingsMap.get('taxRate') || String(DEFAULT_SETTINGS.taxRate)),
+      totalLanes: parseInt(settingsMap.get('totalLanes') || String(DEFAULT_SETTINGS.totalLanes), 10),
+      reserveLanes: parseInt(settingsMap.get('reserveLanes') || String(DEFAULT_SETTINGS.reserveLanes), 10),
     }
   } catch (error) {
     console.error('Error loading pricing settings:', error)
@@ -59,6 +68,16 @@ export async function savePricingSettings(settings: PricingSettings): Promise<vo
   })
 
   await prisma.settings.upsert({
+    where: { key: 'bowlerPricePerPerson' },
+    update: { value: String(settings.bowlerPricePerPerson) },
+    create: {
+      key: 'bowlerPricePerPerson',
+      value: String(settings.bowlerPricePerPerson),
+      description: 'Per-bowler base price in dollars (separate from lane and shoes)',
+    },
+  })
+
+  await prisma.settings.upsert({
     where: { key: 'shoeRental' },
     update: { value: String(settings.shoeRental) },
     create: {
@@ -75,6 +94,26 @@ export async function savePricingSettings(settings: PricingSettings): Promise<vo
       key: 'taxRate',
       value: String(settings.taxRate),
       description: 'Tax rate as decimal (0.08 = 8%)',
+    },
+  })
+
+  await prisma.settings.upsert({
+    where: { key: 'totalLanes' },
+    update: { value: String(settings.totalLanes) },
+    create: {
+      key: 'totalLanes',
+      value: String(settings.totalLanes),
+      description: 'Total lanes available at the center',
+    },
+  })
+
+  await prisma.settings.upsert({
+    where: { key: 'reserveLanes' },
+    update: { value: String(settings.reserveLanes) },
+    create: {
+      key: 'reserveLanes',
+      value: String(settings.reserveLanes),
+      description: 'Number of lanes held in reserve and not offered to online booking',
     },
   })
 }

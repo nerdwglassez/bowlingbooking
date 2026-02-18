@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
       data: {
         email: validatedData.email,
         passwordHash,
-        role: 'CUSTOMER', // Default role
+        role: 'CUSTOMER',
+        firstName: validatedData.firstName ?? null,
+        lastName: validatedData.lastName ?? null,
+        phone: validatedData.phone ?? null,
       },
     })
 
@@ -58,6 +61,9 @@ export async function POST(request: NextRequest) {
         user: {
           id: user.id,
           email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
           role: user.role,
         },
       },

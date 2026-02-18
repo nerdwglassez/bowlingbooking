@@ -17,9 +17,10 @@ async function calculateBookingPrice(
 
   const hours = Math.ceil(duration / 60)
   const laneRentalCents = Math.round(pricing.laneRentalPerHour * 100 * hours)
+  const bowlerPriceCents = Math.round(numBowlers * (pricing.bowlerPricePerPerson || 0) * 100)
   const shoeRentalsCents = Math.round(shoeSizes.length * pricing.shoeRental * 100)
   const packageTotal = packagePrices.reduce((sum, price) => sum + price, 0)
-  const subtotal = laneRentalCents + shoeRentalsCents + packageTotal
+  const subtotal = laneRentalCents + bowlerPriceCents + shoeRentalsCents + packageTotal
   const tax = Math.round(subtotal * pricing.taxRate)
   return subtotal + tax
 }
@@ -47,6 +48,8 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             email: true,
+            firstName: true,
+            lastName: true,
           },
         },
         bookingPackages: {

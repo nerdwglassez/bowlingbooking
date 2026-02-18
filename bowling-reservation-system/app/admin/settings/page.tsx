@@ -9,8 +9,11 @@ import Button from '@/components/ui/Button'
 
 const settingsSchema = z.object({
   laneRentalPerHour: z.number().min(0, 'Must be positive'),
+  bowlerPricePerPerson: z.number().min(0, 'Must be positive'),
   shoeRental: z.number().min(0, 'Must be positive'),
   taxRate: z.number().min(0, 'Must be positive').max(1, 'Must be between 0 and 1'),
+  totalLanes: z.number().int().min(1, 'Must be at least 1'),
+  reserveLanes: z.number().int().min(0, 'Must be 0 or greater'),
 })
 
 type SettingsFormData = z.infer<typeof settingsSchema>
@@ -41,8 +44,11 @@ export default function SettingsPage() {
       const data = await response.json()
       reset({
         laneRentalPerHour: data.settings.laneRentalPerHour,
+        bowlerPricePerPerson: data.settings.bowlerPricePerPerson ?? 0,
         shoeRental: data.settings.shoeRental,
         taxRate: data.settings.taxRate,
+        totalLanes: data.settings.totalLanes ?? 20,
+        reserveLanes: data.settings.reserveLanes ?? 0,
       })
     } catch (err: any) {
       setError(err.message)
@@ -118,6 +124,33 @@ export default function SettingsPage() {
             min="0"
             error={errors.shoeRental?.message}
             {...register('shoeRental', { valueAsNumber: true })}
+          />
+
+          <Input
+            label="Bowler Price per Person ($)"
+            type="number"
+            step="0.01"
+            min="0"
+            error={errors.bowlerPricePerPerson?.message}
+            {...register('bowlerPricePerPerson', { valueAsNumber: true })}
+          />
+
+          <Input
+            label="Total Lanes"
+            type="number"
+            step="1"
+            min="1"
+            error={errors.totalLanes?.message}
+            {...register('totalLanes', { valueAsNumber: true })}
+          />
+
+          <Input
+            label="Reserve Lanes"
+            type="number"
+            step="1"
+            min="0"
+            error={errors.reserveLanes?.message}
+            {...register('reserveLanes', { valueAsNumber: true })}
           />
 
           <Input

@@ -11,6 +11,7 @@ interface Booking {
   startTime: string
   duration: number
   lane: number
+  lanes?: string | null
   numBowlers: number
   status: string
   totalPrice: number
@@ -61,6 +62,15 @@ export default function BookingsPage() {
   }
 
   const now = new Date()
+  const getNumLanes = (b: Booking) => {
+    if (!b.lanes) return 1
+    try {
+      const arr = JSON.parse(b.lanes) as number[] | string[]
+      return Array.isArray(arr) ? arr.length : 1
+    } catch {
+      return 1
+    }
+  }
   const filteredBookings = bookings.filter(booking => {
     const bookingDate = new Date(booking.date + 'T' + booking.startTime)
     if (filter === 'upcoming') return bookingDate >= now && booking.status !== 'CANCELLED'
@@ -145,7 +155,9 @@ export default function BookingsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredBookings.map(booking => (
+            {filteredBookings.map(booking => {
+              const bookingDate = new Date(booking.date + 'T' + booking.startTime)
+              return (
               <div key={booking.id} className="bg-white p-6 rounded-lg shadow-md">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -172,7 +184,7 @@ export default function BookingsPage() {
                         </p>
                       )}
                       <p className="font-semibold text-gray-900 mt-2">
-                        Total: ${booking.totalPrice.toFixed(2)}
+                        Total: ${Number(booking.totalPrice).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -180,6 +192,13 @@ export default function BookingsPage() {
                     <Link href={`/bookings/${booking.id}`}>
                       <Button variant="secondary">View Details</Button>
                     </Link>
+                    {bookingDate < now && booking.status !== 'CANCELLED' && (
+                      <Link
+                        href={`/book?date=${booking.date}&time=${booking.startTime}&duration=${booking.duration}&numLanes=${getNumLanes(booking)}`}
+                      >
+                        <Button variant="secondary">Book Again</Button>
+                      </Link>
+                    )}
                     {booking.status === 'PENDING' && (
                       <Button
                         variant="danger"
@@ -191,7 +210,8 @@ export default function BookingsPage() {
                   </div>
                 </div>
               </div>
-            ))}
+            )
+            })}
           </div>
         )}
       </div>

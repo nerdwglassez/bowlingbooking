@@ -25,9 +25,10 @@ export default function GuestCheckout({ onGuestSubmit, onLoginClick, isLoading }
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<GuestFormData>({
     resolver: zodResolver(guestSchema),
+    mode: 'onChange',
   })
 
   return (
@@ -86,10 +87,10 @@ export default function GuestCheckout({ onGuestSubmit, onLoginClick, isLoading }
           />
 
           <p className="text-sm text-gray-600">
-            We'll create an account for you so you can manage your booking. You can set a password later.
+            We&apos;ll create an account for you so you can manage your booking. You can set a password later.
           </p>
 
-          <Button type="submit" isLoading={isLoading} className="w-full">
+          <Button type="submit" isLoading={isLoading} disabled={!isValid || isLoading} className="w-full">
             Continue as Guest
           </Button>
         </form>

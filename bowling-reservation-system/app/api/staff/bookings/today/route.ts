@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
 
     const today = format(new Date(), 'yyyy-MM-dd')
 
+    // Exclude cancelled from dashboard view; they remain in DB for reporting and contact history
     const bookings = await prisma.booking.findMany({
       where: {
         date: new Date(today),
@@ -21,6 +22,8 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             email: true,
+            firstName: true,
+            lastName: true,
           },
         },
         bookingPackages: {

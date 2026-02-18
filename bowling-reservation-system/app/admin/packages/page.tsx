@@ -97,6 +97,8 @@ export default function PackagesPage() {
         return 'bg-blue-100 text-blue-800'
       case 'COMBO':
         return 'bg-green-100 text-green-800'
+      case 'ARCADE':
+        return 'bg-amber-100 text-amber-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -146,6 +148,7 @@ export default function PackagesPage() {
               <option value="PARTY">Party</option>
               <option value="DRINK">Drink</option>
               <option value="COMBO">Combo</option>
+              <option value="ARCADE">Arcade</option>
             </select>
           </div>
         </div>

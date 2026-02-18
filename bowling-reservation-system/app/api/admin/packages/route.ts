@@ -7,8 +7,16 @@ const packageSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   description: z.string().max(500).nullable().optional(),
   price: z.number().min(0, 'Price must be positive'),
-  type: z.enum(['FOOD', 'PARTY', 'DRINK', 'COMBO']),
+  type: z.enum(['FOOD', 'PARTY', 'DRINK', 'COMBO', 'ARCADE']),
   isActive: z.boolean().default(true),
+  imageUrl: z.string().max(500).nullable().optional(),
+  durationMinutes: z.number().int().min(0).nullable().optional(),
+  baseGuestCount: z.number().int().min(0).nullable().optional(),
+  maxCapacity: z.number().int().min(0).nullable().optional(),
+  pricePerExtraGuest: z.number().min(0).nullable().optional(),
+  pricePerExtraLane: z.number().min(0).nullable().optional(),
+  featured: z.boolean().default(false),
+  displayOrder: z.number().int().nullable().optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -29,9 +37,7 @@ export async function GET(request: NextRequest) {
 
     const packages = await prisma.package.findMany({
       where,
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
     })
 
     return NextResponse.json({ packages })
@@ -60,10 +66,18 @@ export async function POST(request: NextRequest) {
     const pkg = await prisma.package.create({
       data: {
         name: validatedData.name,
-        description: validatedData.description || null,
+        description: validatedData.description ?? null,
         price: validatedData.price,
         type: validatedData.type,
         isActive: validatedData.isActive,
+        imageUrl: validatedData.imageUrl ?? null,
+        durationMinutes: validatedData.durationMinutes ?? null,
+        baseGuestCount: validatedData.baseGuestCount ?? null,
+        maxCapacity: validatedData.maxCapacity ?? null,
+        pricePerExtraGuest: validatedData.pricePerExtraGuest ?? null,
+        pricePerExtraLane: validatedData.pricePerExtraLane ?? null,
+        featured: validatedData.featured ?? false,
+        displayOrder: validatedData.displayOrder ?? null,
       },
     })
 

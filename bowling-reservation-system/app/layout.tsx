@@ -5,8 +5,19 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Bowling Alley Reservation System',
-  description: 'Book your lane online',
+  title: 'StrikeZone Bowling – Book a Lane',
+  description: 'Book your lane online at StrikeZone Bowling. Reserve in seconds.',
+  manifest: '/manifest.json',
+  themeColor: '#2563eb',
+  appleWebApp: {
+    capable: true,
+    title: 'StrikeZone',
+    statusBarStyle: 'default',
+  },
+  icons: {
+    icon: '/icon/192',
+    apple: '/icon/192',
+  },
 }
 
 export default function RootLayout({

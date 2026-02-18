@@ -22,13 +22,19 @@ export async function GET(request: NextRequest) {
         role: 'CUSTOMER',
         OR: [
           { email: { contains: query, mode: 'insensitive' } },
-          // Note: We'd need to add phone/name fields to User model for full search
-          // For now, just search by email
+          { firstName: { contains: query, mode: 'insensitive' } },
+          { lastName: { contains: query, mode: 'insensitive' } },
+          { phone: { contains: query } },
         ],
       },
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        tier: true,
+        tierDiscount: true,
         createdAt: true,
         bookings: {
           take: 5,

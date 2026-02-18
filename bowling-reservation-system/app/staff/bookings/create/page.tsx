@@ -8,10 +8,13 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { format } from 'date-fns'
+import { formatTime12Hour } from '@/lib/time'
 
 interface Customer {
   id: string
   email: string
+  firstName?: string | null
+  lastName?: string | null
   createdAt: string
   bookings: Array<{
     id: string
@@ -122,7 +125,7 @@ export default function CreateStaffBookingPage() {
 
   return (
     <div className="px-4 py-6 sm:px-0">
-      <h1 className="text-3xl font-bold mb-6">Create Booking for Walk-In</h1>
+      <h1 className="text-4xl font-semibold tracking-tight mb-6">Create Booking for Walk-In</h1>
 
       {/* Progress indicator */}
       <div className="mb-8">
@@ -146,7 +149,7 @@ export default function CreateStaffBookingPage() {
             </div>
           ))}
         </div>
-        <div className="flex justify-between mt-2 text-sm text-gray-600">
+        <div className="flex justify-between mt-2 text-sm text-slate-600">
           <span>Customer</span>
           <span>Date & Time</span>
           <span>Details</span>
@@ -163,7 +166,7 @@ export default function CreateStaffBookingPage() {
       {/* Step 1: Customer Selection */}
       {step === 1 && (
         <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Select Customer</h2>
+          <h2 className="text-xl font-semibold text-slate-900 mb-4">Select Customer</h2>
           <CustomerSearch
             onSelect={setSelectedCustomer}
             selectedCustomer={selectedCustomer}
@@ -182,7 +185,7 @@ export default function CreateStaffBookingPage() {
       {/* Step 2: Date & Time */}
       {step === 2 && (
         <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Select Date & Time</h2>
+          <h2 className="text-xl font-semibold text-slate-900 mb-4">Select Date & Time</h2>
           <AvailabilityCalendar
             onTimeSelect={handleTimeSelect}
             selectedDate={selectedDate}
@@ -220,7 +223,7 @@ export default function CreateStaffBookingPage() {
       {/* Step 3: Booking Details */}
       {step === 3 && (
         <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Booking Details</h2>
+          <h2 className="text-xl font-semibold text-slate-900 mb-4">Booking Details</h2>
           <div className="space-y-4">
             <Input
               label="Number of Bowlers"
@@ -231,7 +234,7 @@ export default function CreateStaffBookingPage() {
               onChange={(e) => setNumBowlers(Number(e.target.value))}
             />
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Lane Number (optional - will be auto-assigned)
               </label>
               <Input
@@ -244,7 +247,7 @@ export default function CreateStaffBookingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Shoe Rentals (optional)
               </label>
               {shoeSizes.map((size, index) => (
@@ -274,7 +277,7 @@ export default function CreateStaffBookingPage() {
             </div>
             {packages.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   Packages (optional)
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -290,8 +293,8 @@ export default function CreateStaffBookingPage() {
                     >
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-medium text-sm">{pkg.name}</p>
-                          <p className="text-xs text-gray-600">${Number(pkg.price).toFixed(2)}</p>
+                          <p className="text-sm font-semibold text-slate-900">{pkg.name}</p>
+                          <p className="text-xs text-slate-500">${Number(pkg.price).toFixed(2)}</p>
                         </div>
                         <input
                           type="checkbox"
@@ -317,36 +320,40 @@ export default function CreateStaffBookingPage() {
       {/* Step 4: Review */}
       {step === 4 && (
         <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Review Booking</h2>
+          <h2 className="text-xl font-semibold text-slate-900 mb-4">Review Booking</h2>
           <div className="space-y-4">
             <div>
-              <h3 className="font-medium">Customer</h3>
-              <p className="text-gray-600">{selectedCustomer?.email}</p>
-            </div>
-            <div>
-              <h3 className="font-medium">Date & Time</h3>
-              <p className="text-gray-600">
-                {selectedDate && format(new Date(selectedDate), 'EEEE, MMMM d, yyyy')} at{' '}
-                {selectedTime}
+              <h3 className="text-lg font-semibold text-slate-900">Customer</h3>
+              <p className="text-sm text-slate-600">
+                {selectedCustomer
+                  ? [selectedCustomer.firstName, selectedCustomer.lastName].filter(Boolean).join(' ').trim() || selectedCustomer.email
+                  : '—'}
               </p>
-              <p className="text-gray-600">Duration: {duration / 60} hour(s)</p>
             </div>
             <div>
-              <h3 className="font-medium">Details</h3>
-              <p className="text-gray-600">Bowlers: {numBowlers}</p>
+              <h3 className="text-lg font-semibold text-slate-900">Date & Time</h3>
+              <p className="text-sm text-slate-600">
+                {selectedDate && format(new Date(selectedDate), 'EEEE, MMMM d, yyyy')} at{' '}
+                {formatTime12Hour(selectedTime)}
+              </p>
+              <p className="text-sm text-slate-600">Duration: {duration / 60} hour(s)</p>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Details</h3>
+              <p className="text-sm text-slate-600">Bowlers: {numBowlers}</p>
               {shoeSizes.filter(s => s > 0).length > 0 && (
-                <p className="text-gray-600">
+                <p className="text-sm text-slate-600">
                   Shoe Rentals: {shoeSizes.filter(s => s > 0).join(', ')}
                 </p>
               )}
             </div>
             {selectedPackages.length > 0 && (
               <div>
-                <h3 className="font-medium">Packages</h3>
+                <h3 className="text-lg font-semibold text-slate-900">Packages</h3>
                 {selectedPackages.map(pkgId => {
                   const pkg = packages.find(p => p.id === pkgId)
                   return pkg ? (
-                    <p key={pkgId} className="text-gray-600">
+                    <p key={pkgId} className="text-sm text-slate-600">
                       {pkg.name} - ${Number(pkg.price).toFixed(2)}
                     </p>
                   ) : null

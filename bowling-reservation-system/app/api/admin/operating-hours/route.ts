@@ -10,6 +10,10 @@ const operatingHoursSchema = z.object({
   isClosed: z.boolean(),
 })
 
+const bulkHoursSchema = z.object({
+  hours: z.array(operatingHoursSchema).length(7),
+})
+
 export async function GET(request: NextRequest) {
   try {
     await requireAuth('ADMIN')
@@ -91,4 +95,48 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+/** Bulk update all 7 days. Body: { hours: [ { dayOfWeek, openTime, closeTime, isClosed }, ... ] } */
+export async function PATCH(request: NextRequest) {
+  try {
+    await requireAuth('ADMIN')
 
+    const body = await request.json()
+    const parsed = bulkHoursSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const results = await Promise.all(
+      parsed.data.hours.map((h) =>
+        prisma.operatingHours.upsert({
+          where: { dayOfWeek: h.dayOfWeek },
+          update: {
+            openTime: h.isClosed ? null : h.openTime,
+            closeTime: h.isClosed ? null : h.closeTime,
+            isClosed: h.isClosed,
+          },
+          create: {
+            dayOfWeek: h.dayOfWeek,
+            openTime: h.isClosed ? null : h.openTime,
+            closeTime: h.isClosed ? null : h.closeTime,
+            isClosed: h.isClosed,
+          },
+        })
+      )
+    )
+
+    return NextResponse.json({ hours: results })
+  } catch (error: any) {
+    if (error.message?.includes('redirect')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    console.error('Bulk update operating hours error:', error)
+    return NextResponse.json(
+      { error: 'Failed to update operating hours' },
+      { status: 500 }
+    )
+  }
+}

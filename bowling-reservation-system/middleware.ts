@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const sessionToken = request.cookies.get('session_token')?.value
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/register', '/', '/book']
+  const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/', '/book', '/terms', '/kiosk']
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route))
 
   // If accessing protected route without session, redirect to login

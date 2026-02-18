@@ -21,23 +21,26 @@ export async function POST(request: NextRequest) {
       where: { email: validatedData.email },
     })
 
-    let user
     if (existingUser) {
-      // User exists, just create session
-      user = existingUser
-    } else {
-      // Create new user with random password (they can set it later)
-      const randomPassword = crypto.randomUUID()
-      const passwordHash = await hashPassword(randomPassword)
-      
-      user = await prisma.user.create({
-        data: {
-          email: validatedData.email,
-          passwordHash,
-          role: 'CUSTOMER',
-        },
-      })
+      return NextResponse.json(
+        { error: 'An account with this email already exists. Please sign in.' },
+        { status: 409 }
+      )
     }
+
+    // Create new user with random password (they can set it later)
+    const randomPassword = crypto.randomUUID()
+    const passwordHash = await hashPassword(randomPassword)
+    const user = await prisma.user.create({
+      data: {
+        email: validatedData.email,
+        passwordHash,
+        role: 'CUSTOMER',
+        firstName: validatedData.firstName,
+        lastName: validatedData.lastName,
+        phone: validatedData.phone,
+      },
+    })
 
     // Create session
     const token = crypto.randomUUID()
@@ -65,6 +68,9 @@ export async function POST(request: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
         role: user.role,
       },
     })

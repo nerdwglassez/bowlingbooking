@@ -2,33 +2,28 @@
 
 ## Step 1: Create Environment File
 
-Create a `.env.local` file in the root directory with the following content:
+Copy the example env and use the **local database** URL (recommended for development):
 
-```env
-# Database (Neon Postgres)
-DATABASE_URL="postgresql://user:password@host:port/database?sslmode=require"
-
-# App
-NODE_ENV="development"
-NEXTAUTH_SECRET="generate-a-random-secret-here-min-32-chars"
-NEXTAUTH_URL="http://localhost:3000"
-
-# Stripe
-STRIPE_SECRET_KEY="sk_test_..."
-STRIPE_PUBLISHABLE_KEY="pk_test_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-
-# Email (Resend - recommended for simplicity)
-RESEND_API_KEY="re_..."
-EMAIL_FROM="noreply@yourdomain.com"
+```bash
+cp .env.example .env.local
 ```
 
-## Step 2: Set Up Neon Database
+Edit `.env.local` and set `NEXTAUTH_SECRET` (e.g. `openssl rand -base64 32`). The default `DATABASE_URL` points to local PostgreSQL—see Step 2.
 
-1. Go to https://neon.tech and create an account
-2. Create a new project
-3. Copy the connection string
-4. Replace the `DATABASE_URL` in your `.env.local` file
+To use **Neon** instead, replace `DATABASE_URL` with your Neon connection string (see [Neon docs](docs/NEON_DATABASE.md)).
+
+## Step 2: Set Up Database
+
+**Option A – Local PostgreSQL (recommended for development)**
+
+1. Start local Postgres: `npm run db:local:up` (requires Docker), or install Postgres via Homebrew and create a `bowling` database—see [Local database guide](docs/LOCAL_DATABASE.md).
+2. In `.env.local`, keep or set:  
+   `DATABASE_URL="postgresql://postgres:postgres@localhost:5432/bowling"`
+
+**Option B – Neon (cloud)**
+
+1. Go to https://neon.tech and create a project.
+2. Copy the connection string into `DATABASE_URL` in `.env.local`.
 
 ## Step 3: Install Dependencies
 
@@ -42,8 +37,11 @@ npm install
 # Generate Prisma Client
 npm run db:generate
 
-# Push schema to database
-npm run db:push
+# Run migrations (creates/updates tables)
+npm run db:migrate
+
+# Seed initial data (admin user, lanes, etc.)
+npm run db:seed
 ```
 
 ## Step 5: Start Development Server

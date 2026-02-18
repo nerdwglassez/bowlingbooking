@@ -1,5 +1,6 @@
 import { SelectHTMLAttributes, forwardRef } from 'react'
 import { cn } from '@/lib/utils'
+import { ChevronDown } from 'lucide-react'
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
@@ -15,15 +16,21 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             {label}
           </label>
         )}
-        <select
-          ref={ref}
-          className={cn(
-            'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500',
-            error ? 'border-red-500' : 'border-gray-300',
-            className
-          )}
-          {...props}
-        />
+        <div className="relative">
+          <select
+            ref={ref}
+            className={cn(
+              'w-full min-h-[48px] appearance-none rounded-full border bg-white px-6 py-3 pr-10 text-sm font-medium leading-6 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2',
+              error ? 'border-red-500' : 'border-slate-300',
+              className
+            )}
+            {...props}
+          />
+          <ChevronDown
+            className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-600"
+            aria-hidden
+          />
+        </div>
         {error && (
           <p className="mt-1 text-sm text-red-600">{error}</p>
         )}

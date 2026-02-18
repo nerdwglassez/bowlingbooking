@@ -2,5 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Step 1 interaction spec: animations */
+@keyframes step1-skeleton-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+@keyframes step1-stagger-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes step1-button-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+@keyframes step1-toast-slide-in {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes step1-toast-slide-out {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-100%); opacity: 0; }
+}
+@keyframes step1-continue-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+@keyframes step1-summary-highlight {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(99, 102, 241, 0.06); }
+}
 
+.step1-skeleton-pulse {
+  animation: step1-skeleton-pulse 1.5s ease-in-out infinite;
+}
+.step1-stagger-fade-up {
+  animation: step1-stagger-fade-up 0.3s ease-out forwards;
+}
+.step1-continue-pulse {
+  animation: step1-continue-pulse 0.3s ease-out;
+}
+.step1-button-shake {
+  animation: step1-button-shake 0.4s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step1-stagger-fade-up,
+  .step1-button-shake,
+  .step1-continue-pulse,
+  .step1-summary-highlight {
+    animation: none !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Neutralize runtime-injected Next.js portal offsets from preview tooling */
+nextjs-portal {
+  left: unset !important;
+  top: unset !important;
+}
+
+/* Allow immersive subpages to replace the standard staff top nav */
+body.immersive-staff-page .staff-user-nav {
+  display: none !important;
+}
 

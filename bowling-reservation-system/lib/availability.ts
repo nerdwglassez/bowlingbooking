@@ -1,8 +1,9 @@
 import { prisma } from './db'
 import { addMinutes, format, parse, isBefore, isAfter, startOfDay } from 'date-fns'
+import { getPricingSettings } from './settings'
 
 // Configuration
-const TOTAL_LANES = 20 // Total number of lanes
+const DEFAULT_TOTAL_LANES = 20 // Fallback total lanes
 const TIME_SLOT_INTERVAL = 30 // 30-minute intervals
 const DURATION_OPTIONS = [60, 90, 120, 150, 180] // Duration options in minutes
 
@@ -17,42 +18,85 @@ export interface AvailabilityResult {
   slots: TimeSlot[]
 }
 
+/** Default slots when DB is unavailable (e.g. migrations not run). 09:00–22:00, 30-min, all lanes. */
+function getDefaultSlots(totalLanes: number = DEFAULT_TOTAL_LANES): TimeSlot[] {
+  const slots: TimeSlot[] = []
+  let current = parse('09:00', 'HH:mm', new Date())
+  const close = parse('22:00', 'HH:mm', new Date())
+  while (isBefore(current, close)) {
+    slots.push({
+      time: format(current, 'HH:mm'),
+      available: true,
+      availableLanes: totalLanes,
+    })
+    current = addMinutes(current, TIME_SLOT_INTERVAL)
+  }
+  return slots
+}
+
 /**
- * Calculate available time slots for a given date
+ * Calculate available time slots for a given date.
+ * On DB errors (e.g. connection or missing tables), returns default slots so the booking UI still works.
  */
 export async function calculateAvailability(date: Date): Promise<TimeSlot[]> {
-  const dateStr = format(date, 'yyyy-MM-dd')
   const startOfDate = startOfDay(date)
 
-  // Get operating hours for this day
-  const dayOfWeek = date.getDay() // 0 = Sunday, 6 = Saturday
-  const operatingHours = await prisma.operatingHours.findUnique({
-    where: { dayOfWeek },
-  })
+  try {
+    const pricingSettings = await getPricingSettings()
+    const totalLanes = Math.max(1, Math.floor(pricingSettings.totalLanes || DEFAULT_TOTAL_LANES))
+    const reserveLanes = Math.max(0, Math.floor(pricingSettings.reserveLanes || 0))
+    const bookableLaneCount = Math.max(0, totalLanes - reserveLanes)
 
-  // If closed or no operating hours, return empty
-  if (!operatingHours || operatingHours.isClosed || !operatingHours.openTime || !operatingHours.closeTime) {
+    // Check special hours first (date-specific overrides)
+    const specialHours = await prisma.specialHours.findUnique({
+      where: { date: startOfDate },
+    })
+
+  let openTimeStr: string | null
+  let closeTimeStr: string | null
+  let isClosed: boolean
+
+  if (specialHours) {
+    openTimeStr = specialHours.openTime
+    closeTimeStr = specialHours.closeTime
+    isClosed = specialHours.isClosed
+  } else {
+    const dayOfWeek = date.getDay()
+    const operatingHours = await prisma.operatingHours.findUnique({
+      where: { dayOfWeek },
+    })
+    if (operatingHours) {
+      openTimeStr = operatingHours.openTime
+      closeTimeStr = operatingHours.closeTime
+      isClosed = operatingHours.isClosed
+    } else {
+      // No operating hours in DB (e.g. seed not run): use default so users still see time slots
+      openTimeStr = '09:00'
+      closeTimeStr = '22:00'
+      isClosed = false
+    }
+  }
+
+  if (isClosed || !openTimeStr || !closeTimeStr) {
     return []
   }
 
-  // Parse open and close times
-  const openTime = parse(operatingHours.openTime, 'HH:mm', startOfDate)
-  const closeTime = parse(operatingHours.closeTime, 'HH:mm', startOfDate)
+  const openTime = parse(openTimeStr, 'HH:mm', startOfDate)
+  const closeTime = parse(closeTimeStr, 'HH:mm', startOfDate)
 
-  // Get all bookings for this date
+  // Use startOfDate for DB queries so we match the calendar date consistently
   const bookings = await prisma.booking.findMany({
     where: {
-      date: date,
+      date: startOfDate,
       status: {
         not: 'CANCELLED',
       },
     },
   })
 
-  // Get lane blocks for this date
   const laneBlocks = await prisma.laneBlock.findMany({
     where: {
-      date: date,
+      date: startOfDate,
     },
   })
 
@@ -67,17 +111,27 @@ export async function calculateAvailability(date: Date): Promise<TimeSlot[]> {
     // Count booked lanes at this time
     let bookedLanes = new Set<number>()
 
-    // Check bookings that overlap with this time slot
+    // Check bookings that overlap with this time slot (include multi-lane)
     for (const booking of bookings) {
       const bookingStart = parse(booking.startTime, 'HH:mm', startOfDate)
       const bookingEnd = addMinutes(bookingStart, booking.duration)
 
-      // Check if booking overlaps with this time slot
       if (
         (isBefore(currentTime, bookingEnd) || currentTime.getTime() === bookingStart.getTime()) &&
         (isAfter(slotEndTime, bookingStart) || slotEndTime.getTime() === bookingEnd.getTime())
       ) {
-        bookedLanes.add(booking.lane)
+        let lanesForBooking: number[]
+        if (booking.lanes) {
+          try {
+            const parsed = JSON.parse(booking.lanes) as number[] | string[]
+            lanesForBooking = Array.isArray(parsed) ? parsed.map((l) => Number(l)) : [booking.lane]
+          } catch {
+            lanesForBooking = [booking.lane]
+          }
+        } else {
+          lanesForBooking = [booking.lane]
+        }
+        lanesForBooking.forEach((l) => bookedLanes.add(l))
       }
     }
 
@@ -101,7 +155,7 @@ export async function calculateAvailability(date: Date): Promise<TimeSlot[]> {
       }
     }
 
-    const availableLanes = TOTAL_LANES - bookedLanes.size
+    const availableLanes = Math.max(0, bookableLaneCount - bookedLanes.size)
 
     slots.push({
       time: timeStr,
@@ -114,6 +168,11 @@ export async function calculateAvailability(date: Date): Promise<TimeSlot[]> {
   }
 
   return slots
+  } catch (err) {
+    // DB unreachable, tables missing, or other error: return default slots so booking step 1 still works
+    console.error('Availability fallback (using default slots):', err)
+    return getDefaultSlots(DEFAULT_TOTAL_LANES)
+  }
 }
 
 /**
@@ -125,6 +184,10 @@ export async function isTimeSlotAvailable(
   duration: number,
   lane?: number
 ): Promise<{ available: boolean; availableLanes: number[] }> {
+  const pricingSettings = await getPricingSettings()
+  const totalLanes = Math.max(1, Math.floor(pricingSettings.totalLanes || DEFAULT_TOTAL_LANES))
+  const reserveLanes = Math.max(0, Math.floor(pricingSettings.reserveLanes || 0))
+  const maxBookableLane = Math.max(0, totalLanes - reserveLanes)
   const slots = await calculateAvailability(date)
   const targetSlot = slots.find(slot => slot.time === startTime)
 
@@ -155,7 +218,7 @@ export async function isTimeSlotAvailable(
 
   const bookedLanes = new Set<number>()
 
-  // Check bookings
+  // Check bookings (include multi-lane)
   for (const booking of overlappingBookings) {
     const bStart = parse(booking.startTime, 'HH:mm', startOfDate)
     const bEnd = addMinutes(bStart, booking.duration)
@@ -164,7 +227,8 @@ export async function isTimeSlotAvailable(
       (isBefore(bookingStart, bEnd) || bookingStart.getTime() === bStart.getTime()) &&
       (isAfter(bookingEnd, bStart) || bookingEnd.getTime() === bEnd.getTime())
     ) {
-      bookedLanes.add(booking.lane)
+      const lanesForBooking = booking.lanes ? (JSON.parse(booking.lanes) as number[]) : [booking.lane]
+      lanesForBooking.forEach((l) => bookedLanes.add(l))
     }
   }
 
@@ -187,7 +251,7 @@ export async function isTimeSlotAvailable(
   }
 
   // Find available lanes
-  const allLanes = Array.from({ length: TOTAL_LANES }, (_, i) => i + 1)
+  const allLanes = Array.from({ length: maxBookableLane }, (_, i) => i + 1)
   const availableLanes = allLanes.filter(lane => !bookedLanes.has(lane))
 
   // If specific lane requested, check if it's available

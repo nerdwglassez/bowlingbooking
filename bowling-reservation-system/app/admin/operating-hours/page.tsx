@@ -1,10 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
-import Select from '@/components/ui/Select'
 
 const DAYS = [
   { value: 0, label: 'Sunday' },
@@ -27,6 +25,7 @@ export default function OperatingHoursPage() {
   const [hours, setHours] = useState<OperatingHours[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<number | null>(null)
+  const [savingAll, setSavingAll] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -83,6 +82,47 @@ export default function OperatingHoursPage() {
     })
   }
 
+  const getHoursForDay = (dayOfWeek: number): OperatingHours => {
+    return hours.find(h => h.dayOfWeek === dayOfWeek) ?? {
+      dayOfWeek,
+      openTime: null,
+      closeTime: null,
+      isClosed: true,
+    }
+  }
+
+  const copyToAllDays = (fromDayOfWeek: number) => {
+    const source = getHoursForDay(fromDayOfWeek)
+    setHours(
+      DAYS.map(d => ({
+        dayOfWeek: d.value,
+        openTime: source.openTime,
+        closeTime: source.closeTime,
+        isClosed: source.isClosed,
+      }))
+    )
+  }
+
+  const saveAll = async () => {
+    setSavingAll(true)
+    setError(null)
+    try {
+      const ordered = DAYS.map(d => getHoursForDay(d.value))
+      const res = await fetch('/api/admin/operating-hours', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours: ordered }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save all')
+      setHours(data.hours)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSavingAll(false)
+    }
+  }
+
   if (loading) {
     return <div className="p-6">Loading...</div>
   }
@@ -96,6 +136,28 @@ export default function OperatingHoursPage() {
           {error}
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-white rounded-lg shadow">
+        <span className="text-sm font-medium text-gray-700">Copy to all days:</span>
+        <select
+          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          value=""
+          onChange={(e) => {
+            const v = e.target.value
+            if (v !== '') copyToAllDays(Number(v))
+            e.target.value = ''
+          }}
+        >
+          <option value="">Select a day to copy from</option>
+          {DAYS.map(d => (
+            <option key={d.value} value={d.value}>{d.label}</option>
+          ))}
+        </select>
+        <span className="text-sm text-gray-500">Then click Save all days to apply.</span>
+        <Button onClick={saveAll} isLoading={savingAll}>
+          Save all days
+        </Button>
+      </div>
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="divide-y divide-gray-200">

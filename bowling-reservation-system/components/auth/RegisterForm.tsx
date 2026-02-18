@@ -7,19 +7,29 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { registerSchema, type RegisterInput } from '@/lib/validations'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
+import PasswordRequirements from '@/components/ui/PasswordRequirements'
+import { PASSWORD_MAX_LENGTH } from '@/lib/passwordRequirements'
+
+function getPostLoginHref(role?: string) {
+  if (role === 'STAFF' || role === 'MANAGER' || role === 'ADMIN') {
+    return '/staff'
+  }
+  return '/dashboard'
+}
 
 export default function RegisterForm() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-
   const {
     register,
     handleSubmit,
     formState: { errors },
+    watch,
   } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
   })
+  const passwordValue = watch('password', '') ?? ''
 
   const onSubmit = async (data: RegisterInput) => {
     setIsLoading(true)
@@ -42,8 +52,7 @@ export default function RegisterForm() {
         return
       }
 
-      // Redirect to dashboard on success
-      router.push('/dashboard')
+      router.push(getPostLoginHref(result.user?.role))
       router.refresh()
     } catch (err) {
       setError('An unexpected error occurred')
@@ -61,6 +70,21 @@ export default function RegisterForm() {
         </div>
       )}
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Input
+          label="First Name"
+          placeholder="First name"
+          error={errors.firstName?.message}
+          {...register('firstName')}
+        />
+        <Input
+          label="Last Name"
+          placeholder="Last name"
+          error={errors.lastName?.message}
+          {...register('lastName')}
+        />
+      </div>
+
       <Input
         label="Email"
         type="email"
@@ -70,22 +94,23 @@ export default function RegisterForm() {
       />
 
       <Input
+        label="Phone (optional)"
+        type="tel"
+        placeholder="(555) 123-4567"
+        error={errors.phone?.message}
+        {...register('phone')}
+      />
+
+      <Input
         label="Password"
         type="password"
         placeholder="••••••••"
+        autoComplete="new-password"
+        maxLength={PASSWORD_MAX_LENGTH}
         error={errors.password?.message}
         {...register('password')}
       />
-
-      <div className="text-sm text-gray-600">
-        <p>Password must:</p>
-        <ul className="list-disc list-inside mt-1 space-y-1">
-          <li>Be at least 8 characters</li>
-          <li>Contain at least one uppercase letter</li>
-          <li>Contain at least one lowercase letter</li>
-          <li>Contain at least one number</li>
-        </ul>
-      </div>
+      <PasswordRequirements password={passwordValue} className="mt-1 mb-2" />
 
       <Button type="submit" isLoading={isLoading} className="w-full">
         Create Account

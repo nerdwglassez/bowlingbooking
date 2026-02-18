@@ -4,13 +4,14 @@ import { prisma } from '@/lib/db'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth('STAFF')
+    const { id } = await params
 
     const booking = await prisma.booking.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!booking) {
@@ -20,16 +21,19 @@ export async function POST(
       )
     }
 
-    // Only allow check-in for confirmed or paid bookings
+    // Only allow check-in for confirmed or paid bookings (not completed, checked-in, or cancelled)
     if (booking.status !== 'CONFIRMED' && booking.status !== 'PAID') {
-      return NextResponse.json(
-        { error: `Cannot check in booking with status: ${booking.status}` },
-        { status: 400 }
-      )
+      const message =
+        booking.status === 'COMPLETED'
+          ? 'This reservation has been completed and cannot be checked in.'
+          : booking.status === 'CHECKED_IN'
+            ? 'This reservation is already checked in.'
+            : `Cannot check in booking with status: ${booking.status}`
+      return NextResponse.json({ error: message }, { status: 400 })
     }
 
     const updatedBooking = await prisma.booking.update({
-      where: { id: params.id },
+      where: { id },
       data: { status: 'CHECKED_IN' },
       include: {
         user: {

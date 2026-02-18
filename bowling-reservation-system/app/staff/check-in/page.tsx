@@ -1,41 +1,40 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { format } from 'date-fns'
-
-interface Booking {
-  id: string
-  date: string
-  startTime: string
-  duration: number
-  lane: number
-  numBowlers: number
-  status: string
-  user: {
-    id: string
-    email: string
-  }
-}
+import { formatTime12Hour } from '@/lib/time'
+import { customerDisplayName, getBookingLanes } from '@/lib/staff-booking-utils'
+import CheckInModal, { type CheckInBooking } from '@/components/staff/CheckInModal'
 
 export default function CheckInPage() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const [bookings, setBookings] = useState<CheckInBooking[]>([])
   const [loading, setLoading] = useState(false)
-  const [checkingIn, setCheckingIn] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [selectedBooking, setSelectedBooking] = useState<CheckInBooking | null>(null)
 
-  const bookingIdParam = searchParams.get('bookingId')
+  const bookingIdParam = searchParams?.get('bookingId')
 
   useEffect(() => {
     if (bookingIdParam) {
       loadBooking(bookingIdParam)
     }
   }, [bookingIdParam])
+
+  useEffect(() => {
+    if (!selectedBooking) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedBooking(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedBooking])
 
   const loadBooking = async (id: string) => {
     setLoading(true)
@@ -80,7 +79,7 @@ export default function CheckInPage() {
 
       const bookingsData = await bookingsResponse.json()
       const customerIds = customersData.customers.map((c: any) => c.id)
-      const filteredBookings = bookingsData.bookings.filter((b: Booking) =>
+      const filteredBookings = bookingsData.bookings.filter((b: CheckInBooking) =>
         customerIds.includes(b.user.id) &&
         (b.status === 'CONFIRMED' || b.status === 'PAID')
       )
@@ -98,32 +97,21 @@ export default function CheckInPage() {
     }
   }
 
-  const handleCheckIn = async (bookingId: string) => {
-    setCheckingIn(bookingId)
+  const openCheckInModal = (booking: CheckInBooking) => {
     setError(null)
-
-    try {
-      const response = await fetch(`/api/staff/bookings/${bookingId}/check-in`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to check in')
-      }
-
-      // Reload bookings
-      if (searchQuery) {
-        searchBookings()
-      } else if (bookingIdParam) {
-        loadBooking(bookingIdParam)
-      }
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setCheckingIn(null)
-    }
+    setSelectedBooking(booking)
   }
+
+  const refreshRef = useRef<() => void>(() => {})
+  refreshRef.current = () => {
+    if (searchQuery) searchBookings()
+    else if (bookingIdParam) loadBooking(bookingIdParam)
+  }
+  useEffect(() => {
+    const onBookingUpdated = () => refreshRef.current()
+    window.addEventListener('staff:booking-updated', onBookingUpdated)
+    return () => window.removeEventListener('staff:booking-updated', onBookingUpdated)
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -139,7 +127,7 @@ export default function CheckInPage() {
 
   return (
     <div className="px-4 py-6 sm:px-0">
-      <h1 className="text-3xl font-bold mb-6">Check In Customer</h1>
+      <h1 className="text-4xl font-semibold tracking-tight mb-6">Check In Customer</h1>
 
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <div className="flex gap-2">
@@ -148,7 +136,7 @@ export default function CheckInPage() {
             placeholder="Enter customer email or booking ID"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => {
+            onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 searchBookings()
               }
@@ -172,7 +160,7 @@ export default function CheckInPage() {
       {bookings.length > 0 && (
         <div className="bg-white rounded-lg shadow-md">
           <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-xl font-semibold text-slate-900">
               Upcoming Bookings for Today
             </h2>
           </div>
@@ -182,29 +170,28 @@ export default function CheckInPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-semibold text-lg">
-                        {booking.startTime} - Lane {booking.lane}
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        {formatTime12Hour(booking.startTime)} – Lanes {getBookingLanes(booking).join(', ')}
                       </h3>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(booking.status)}`}>
                         {booking.status.replace('_', ' ')}
                       </span>
                     </div>
-                    <p className="text-gray-600">{booking.user.email}</p>
-                    <p className="text-gray-600">
+                    <p className="text-sm text-slate-600">{customerDisplayName(booking.user)}</p>
+                    <p className="text-sm text-slate-600">
                       {booking.numBowlers} bowler{booking.numBowlers > 1 ? 's' : ''} • {booking.duration / 60} hour(s)
                     </p>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-slate-500 mt-1">
                       Booking ID: {booking.id}
                     </p>
                   </div>
                   <div>
                     {booking.status === 'CHECKED_IN' ? (
                       <span className="text-green-600 font-medium">✓ Checked In</span>
+                    ) : booking.status === 'COMPLETED' ? (
+                      <span className="text-slate-500 text-sm">Completed</span>
                     ) : (
-                      <Button
-                        onClick={() => handleCheckIn(booking.id)}
-                        isLoading={checkingIn === booking.id}
-                      >
+                      <Button onClick={() => openCheckInModal(booking)}>
                         Check In
                       </Button>
                     )}
@@ -213,6 +200,15 @@ export default function CheckInPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {selectedBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <CheckInModal
+            initialBooking={selectedBooking}
+            onClose={() => setSelectedBooking(null)}
+          />
         </div>
       )}
     </div>

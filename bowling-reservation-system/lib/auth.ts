@@ -62,8 +62,12 @@ export async function requireAuth(requiredRole?: 'STAFF' | 'ADMIN'): Promise<{ u
     redirect('/login')
   }
 
-  if (requiredRole === 'STAFF' && session.role !== 'STAFF' && session.role !== 'ADMIN') {
-    redirect('/dashboard')
+  // Staff routes: STAFF, MANAGER, ADMIN
+  if (requiredRole === 'STAFF') {
+    const staffRoles = ['STAFF', 'MANAGER', 'ADMIN']
+    if (!staffRoles.includes(session.role)) {
+      redirect('/dashboard')
+    }
   }
 
   if (requiredRole === 'ADMIN' && session.role !== 'ADMIN') {

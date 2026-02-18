@@ -7,19 +7,28 @@ const packageSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   description: z.string().max(500).nullable().optional(),
   price: z.number().min(0, 'Price must be positive'),
-  type: z.enum(['FOOD', 'PARTY', 'DRINK', 'COMBO']),
+  type: z.enum(['FOOD', 'PARTY', 'DRINK', 'COMBO', 'ARCADE']),
   isActive: z.boolean(),
+  imageUrl: z.string().max(500).nullable().optional(),
+  durationMinutes: z.number().int().min(0).nullable().optional(),
+  baseGuestCount: z.number().int().min(0).nullable().optional(),
+  maxCapacity: z.number().int().min(0).nullable().optional(),
+  pricePerExtraGuest: z.number().min(0).nullable().optional(),
+  pricePerExtraLane: z.number().min(0).nullable().optional(),
+  featured: z.boolean().optional(),
+  displayOrder: z.number().int().nullable().optional(),
 })
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth('ADMIN')
+    const { id } = await params
 
     const pkg = await prisma.package.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!pkg) {
@@ -47,22 +56,31 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth('ADMIN')
+    const { id } = await params
 
     const body = await request.json()
     const validatedData = packageSchema.parse(body)
 
     const pkg = await prisma.package.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name: validatedData.name,
-        description: validatedData.description || null,
+        description: validatedData.description ?? null,
         price: validatedData.price,
         type: validatedData.type,
         isActive: validatedData.isActive,
+        imageUrl: validatedData.imageUrl ?? null,
+        durationMinutes: validatedData.durationMinutes ?? null,
+        baseGuestCount: validatedData.baseGuestCount ?? null,
+        maxCapacity: validatedData.maxCapacity ?? null,
+        pricePerExtraGuest: validatedData.pricePerExtraGuest ?? null,
+        pricePerExtraLane: validatedData.pricePerExtraLane ?? null,
+        featured: validatedData.featured ?? false,
+        displayOrder: validatedData.displayOrder ?? null,
       },
     })
 
@@ -96,20 +114,21 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth('ADMIN')
+    const { id } = await params
 
     // Check if package is used in any bookings
     const bookingPackages = await prisma.bookingPackage.findFirst({
-      where: { packageId: params.id },
+      where: { packageId: id },
     })
 
     if (bookingPackages) {
       // Soft delete - just deactivate instead of deleting
       const pkg = await prisma.package.update({
-        where: { id: params.id },
+        where: { id },
         data: { isActive: false },
       })
       return NextResponse.json({
@@ -120,7 +139,7 @@ export async function DELETE(
 
     // Hard delete if no bookings exist
     const pkg = await prisma.package.delete({
-      where: { id: params.id },
+      where: { id },
     })
 
     return NextResponse.json({ package: pkg, message: 'Package deleted' })

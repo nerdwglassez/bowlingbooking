@@ -4,13 +4,14 @@ import { prisma } from '@/lib/db'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth('ADMIN')
+    const { id } = await params
 
     const block = await prisma.laneBlock.delete({
-      where: { id: params.id },
+      where: { id },
     })
 
     return NextResponse.json({ message: 'Lane block deleted', block })

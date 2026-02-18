@@ -3,9 +3,18 @@ import { prisma } from '@/lib/db'
 import { verifyPassword } from '@/lib/auth'
 import { loginSchema } from '@/lib/validations'
 import { cookies } from 'next/headers'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    const limiter = checkRateLimit(rateLimitKey(request, 'login'), 10, 60_000)
+    if (!limiter.allowed) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } }
+      )
+    }
+
     const body = await request.json()
     const validatedData = loginSchema.parse(body)
 
@@ -29,6 +38,27 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid email or password' },
         { status: 401 }
       )
+    }
+
+    // If 2FA is enabled, require TOTP verification before creating session
+    const userWith2fa = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { totpEnabled: true },
+    })
+    if (userWith2fa?.totpEnabled) {
+      const tempToken = crypto.randomUUID()
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+      await prisma.twoFactorTempToken.create({
+        data: {
+          userId: user.id,
+          token: tempToken,
+          expiresAt,
+        },
+      })
+      return NextResponse.json({
+        requiresTwoFactor: true,
+        tempToken,
+      })
     }
 
     // Create session

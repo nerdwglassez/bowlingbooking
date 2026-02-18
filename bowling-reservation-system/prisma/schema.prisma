@@ -13,6 +13,7 @@ datasource db {
 enum UserRole {
   CUSTOMER
   STAFF
+  MANAGER
   ADMIN
 }
 
@@ -26,16 +27,33 @@ enum BookingStatus {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  role         UserRole  @default(CUSTOMER)
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String    @map("password_hash")
+  firstName      String?   @map("first_name")
+  lastName       String?   @map("last_name")
+  phone          String?   // E.164 or display format
+  role           UserRole  @default(CUSTOMER)
+  tier           String?   @default("REGULAR") // REGULAR | VIP
+  tierDiscount   Decimal?  @map("tier_discount") @db.Decimal(5, 2) // e.g. 10 = 10%
+  loyaltyPoints  Int       @default(0) @map("loyalty_points")
+  newsletterOptIn Boolean  @default(false) @map("newsletter_opt_in")
+  emailReminders Boolean  @default(true) @map("email_reminders")   // booking confirmations, reminders
+  smsReminders   Boolean  @default(true) @map("sms_reminders")    // SMS reminders
+  smsPromotions  Boolean  @default(false) @map("sms_promotions")   // SMS promotions
+  lastLapsedEmailSentAt DateTime? @map("last_lapsed_email_sent_at") // marketing: we miss you (throttle)
+  totpSecret      String?  @map("totp_secret")   // base32 secret for TOTP
+  totpEnabled     Boolean  @default(false) @map("totp_enabled")
+  totpSecretPending String? @map("totp_secret_pending") // set during setup, moved to totpSecret on confirm
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  sessions     Session[]
-  bookings     Booking[]
+  sessions              Session[]
+  bookings              Booking[]
+  passwordResetTokens    PasswordResetToken[]
+  twoFactorTempTokens   TwoFactorTempToken[]
+  loyaltyTransactions   LoyaltyTransaction[]
 
   @@map("users")
 }
@@ -54,6 +72,34 @@ model Session {
   @@map("sessions")
 }
 
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model TwoFactorTempToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("two_factor_temp_tokens")
+}
+
 model OperatingHours {
   id        Int      @id @default(autoincrement())
   dayOfWeek Int      @map("day_of_week") // 0 = Sunday, 6 = Saturday
@@ -65,6 +111,19 @@ model OperatingHours {
 
   @@unique([dayOfWeek])
   @@map("operating_hours")
+}
+
+model SpecialHours {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  openTime  String?  @map("open_time") // "09:00" or null if closed
+  closeTime String?  @map("close_time") // "22:00"
+  isClosed  Boolean  @default(false) @map("is_closed")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([date])
+  @@map("special_hours")
 }
 
 model LaneBlock {
@@ -81,19 +140,73 @@ model LaneBlock {
   @@map("lane_blocks")
 }
 
+model RecurringLaneBlock {
+  id         String   @id @default(cuid())
+  dayOfWeek  Int      @map("day_of_week") // 0 = Sunday, 6 = Saturday
+  startTime  String   @map("start_time") // "14:00"
+  endTime    String   @map("end_time") // "16:00"
+  lanes      String   @map("lanes") // JSON array of lane numbers
+  reason     String
+  recurrence String   // "WEEKLY" | "BIWEEKLY"
+  endDate    DateTime? @map("end_date") @db.Date // optional; null = no end
+  createdAt  DateTime @default(now()) @map("created_at")
+  createdBy  String?   @map("created_by") // User ID
+
+  @@index([dayOfWeek])
+  @@map("recurring_lane_blocks")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String   // e.g. "PRICE_OVERRIDE", "REFUND", "EDIT_BOOKING"
+  entityType String   @map("entity_type") // "booking", "user", etc.
+  entityId   String   @map("entity_id")
+  userId     String   @map("user_id") // who performed the action
+  details    String?  // JSON for extra data (reasonCode, notes, oldValue, newValue)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
 model Package {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  price       Decimal  @db.Decimal(10, 2)
-  type        String   // "FOOD", "PARTY", "DRINK"
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(cuid())
+  name               String
+  description        String?
+  price              Decimal  @db.Decimal(10, 2)
+  type               String   // "FOOD", "PARTY", "DRINK"
+  isActive           Boolean  @default(true) @map("is_active")
+  imageUrl           String?  @map("image_url")
+  durationMinutes    Int?     @map("duration_minutes")
+  baseGuestCount     Int?     @map("base_guest_count")
+  maxCapacity        Int?     @map("max_capacity")
+  pricePerExtraGuest Decimal? @map("price_per_extra_guest") @db.Decimal(10, 2)
+  pricePerExtraLane  Decimal? @map("price_per_extra_lane") @db.Decimal(10, 2)
+  featured           Boolean  @default(false)
+  displayOrder       Int?     @map("display_order")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   bookingPackages BookingPackage[]
 
   @@map("packages")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  type        String   // "FOOD" | "DRINK"
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  bookingProducts BookingProduct[]
+
+  @@map("products")
 }
 
 model Booking {
@@ -102,22 +215,47 @@ model Booking {
   date         DateTime      @db.Date
   startTime    String        @map("start_time") // "14:00" format
   duration     Int           // Duration in minutes (60, 90, 120, etc.)
-  lane         Int           // Lane number (1-20)
+  lane         Int           // Primary lane (1-20); use lanes JSON when multiple
+  lanes        String?       @map("lanes") // JSON array of lane numbers for multi-lane booking
   numBowlers   Int           @map("num_bowlers")
   shoeSizes    String?       @map("shoe_sizes") // JSON array: ["8", "9", "10"]
   status       BookingStatus @default(PENDING)
   totalPrice   Decimal       @map("total_price") @db.Decimal(10, 2)
+  // Price override (staff/manager)
+  originalTotalPrice Decimal? @map("original_total_price") @db.Decimal(10, 2)
+  overrideReasonCode String? @map("override_reason_code")
+  overrideNotes     String?  @map("override_notes")
+  overriddenBy      String?  @map("overridden_by") // User ID
+  overriddenAt      DateTime? @map("overridden_at")
+  // Manager approval workflow: STAFF proposes; MANAGER/ADMIN approves
+  overrideStatus    String?  @map("override_status") // PENDING_APPROVAL | APPROVED | REJECTED
+  proposedTotalPrice Decimal? @map("proposed_total_price") @db.Decimal(10, 2)
+  proposedReasonCode String? @map("proposed_reason_code")
+  proposedNotes      String? @map("proposed_notes")
+  proposedBy         String? @map("proposed_by")
+  proposedAt         DateTime? @map("proposed_at")
+  overrideApprovedBy String? @map("override_approved_by")
+  overrideApprovedAt DateTime? @map("override_approved_at")
+  reminderSentAt   DateTime? @map("reminder_sent_at") // 24h reminder sent
+  postVisitEmailSentAt DateTime? @map("post_visit_email_sent_at") // marketing: thanks for visiting
+  loyaltyPointsRedeemed Int?  @map("loyalty_points_redeemed")
+  loyaltyDiscountAmount Decimal? @map("loyalty_discount_amount") @db.Decimal(10, 2)
+  giftCardId   String?   @map("gift_card_id")
+  giftCardAmountApplied Decimal? @map("gift_card_amount_applied") @db.Decimal(10, 2)
+  checkInToken String?   @unique @map("check_in_token") // Short token for kiosk/QR check-in (no auth)
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
   // Relations
   user         User          @relation(fields: [userId], references: [id])
   bookingPackages BookingPackage[]
+  bookingProducts BookingProduct[]
   payments     Payment[]
 
   @@index([userId])
   @@index([date])
   @@index([date, startTime])
+  @@index([checkInToken])
   @@map("bookings")
 }
 
@@ -135,6 +273,20 @@ model BookingPackage {
   @@map("booking_packages")
 }
 
+model BookingProduct {
+  id        String   @id @default(cuid())
+  bookingId String  @map("booking_id")
+  productId String  @map("product_id")
+  quantity  Int      @default(1)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([bookingId])
+  @@index([productId])
+  @@map("booking_products")
+}
+
 model Payment {
   id                    String   @id @default(cuid())
   bookingId             String   @map("booking_id")
@@ -149,6 +301,53 @@ model Payment {
   @@index([bookingId])
   @@index([stripePaymentIntentId])
   @@map("payments")
+}
+
+model LoyaltyTransaction {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  amount      Int      // positive = earn, negative = redeem
+  type        String   // EARN | REDEEM
+  bookingId   String?  @map("booking_id")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("loyalty_transactions")
+}
+
+model GiftCard {
+  id             String   @id @default(cuid())
+  code           String   @unique // e.g. BOWL-XXXX-XXXX
+  initialAmount  Decimal  @map("initial_amount") @db.Decimal(10, 2)
+  balance        Decimal  @map("balance") @db.Decimal(10, 2)
+  status         String   @default("ACTIVE") // ACTIVE | EMPTY | DISABLED
+  purchaserUserId String?  @map("purchaser_user_id")
+  recipientEmail  String?  @map("recipient_email")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([code])
+  @@index([status])
+  @@map("gift_cards")
+}
+
+model ApiKey {
+  id                 String    @id @default(cuid())
+  name               String    @map("name") // e.g. "Partner website"
+  keyPrefix          String    @unique @map("key_prefix") // first 12 chars for lookup, e.g. "bowl_live_ab"
+  keyHash            String    @map("key_hash") // SHA-256 of full key
+  scopes             String    @map("scopes") // comma-separated: availability,bookings:read,bookings:write
+  rateLimitPerMinute Int       @default(60) @map("rate_limit_per_minute")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  lastUsedAt         DateTime? @map("last_used_at")
+  createdBy          String?   @map("created_by") // User id (admin)
+
+  @@index([keyPrefix])
+  @@map("api_keys")
 }
 
 model Settings {
