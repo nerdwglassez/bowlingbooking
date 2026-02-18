@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { sendPasswordResetEmail } from '@/lib/email'
 import { forgotPasswordSchema } from '@/lib/validations'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000 // 1 hour
 const APP_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000'
 
 export async function POST(request: NextRequest) {
   try {
+    const limiter = checkRateLimit(rateLimitKey(request, 'forgot-password'), 5, 60_000)
+    if (!limiter.allowed) {
+      return NextResponse.json(
+        { error: 'Too many reset requests. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } }
+      )
+    }
+
     const body = await request.json()
     const parsed = forgotPasswordSchema.safeParse(body)
     if (!parsed.success) {

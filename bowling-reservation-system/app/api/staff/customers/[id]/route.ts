@@ -98,8 +98,8 @@ export async function PATCH(
     }
 
     const updateData: {
-      firstName?: string
-      lastName?: string
+      firstName?: string | null
+      lastName?: string | null
       email?: string
       tier?: string
       tierDiscount?: number | null

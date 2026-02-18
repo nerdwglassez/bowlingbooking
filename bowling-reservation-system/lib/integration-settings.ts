@@ -153,7 +153,7 @@ export async function getIntegrationConfigMasked<K extends IntegrationId>(
 ): Promise<IntegrationConfigMap[K] | null> {
   const config = await getIntegrationConfig(integrationId)
   if (!config) return null
-  return maskConfig(integrationId, config) as IntegrationConfigMap[K]
+  return maskConfig(integrationId, config as Record<string, unknown>) as IntegrationConfigMap[K]
 }
 
 /**

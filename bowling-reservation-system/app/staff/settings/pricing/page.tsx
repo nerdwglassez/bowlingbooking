@@ -200,7 +200,7 @@ export default function StaffPricingSettingsPage() {
         </p>
       </div>
 
-      {/* Custom Pricing Rules */}
+      {/* Custom Pricing Rules (UI only – not persisted; only default pricing above is applied to bookings) */}
       <div className="mt-8">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-lg font-semibold text-slate-900">Custom Pricing Rules</h3>
@@ -213,6 +213,9 @@ export default function StaffPricingSettingsPage() {
             + Add Rule
           </button>
         </div>
+        <p className="mt-1 text-sm text-amber-700">
+          Only the default pricing above is saved and applied to bookings. Custom rules here are for reference only and are not persisted.
+        </p>
         <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-6">
           {customRules.length === 0 ? (
             <p className="text-center text-sm text-slate-600">

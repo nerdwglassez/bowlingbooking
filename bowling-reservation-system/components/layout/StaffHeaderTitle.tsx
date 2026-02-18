@@ -17,7 +17,6 @@ const STAFF_TITLES: Record<string, string> = {
   '/staff/settings/pricing': 'Pricing',
   '/staff/settings/operating-hours': 'Operating Hours',
   '/staff/settings/blackout-dates': 'Blackout Dates',
-  '/staff/settings/special-hours': 'Special Hours',
   '/staff/pending-overrides': 'Pending Overrides',
   '/staff/audit-log': 'Audit Log',
   '/staff/analytics': 'Analytics',

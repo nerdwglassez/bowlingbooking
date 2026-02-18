@@ -9,6 +9,10 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { format } from 'date-fns'
 import { formatTime12Hour } from '@/lib/time'
+import {
+  calculateBookingPriceWithSettings,
+  type PricingSettingsForBooking,
+} from '@/lib/pricing'
 
 interface Customer {
   id: string
@@ -44,14 +48,24 @@ export default function CreateStaffBookingPage() {
   const [shoeSizes, setShoeSizes] = useState<number[]>([])
   const [packages, setPackages] = useState<Package[]>([])
   const [selectedPackages, setSelectedPackages] = useState<string[]>([])
+  const [pricingSettings, setPricingSettings] = useState<PricingSettingsForBooking | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/packages')
-      .then(res => res.json())
-      .then(data => setPackages(data.packages || []))
-      .catch(err => console.error('Failed to load packages:', err))
+    Promise.all([
+      fetch('/api/packages').then(res => res.json()).then(data => setPackages(data.packages || [])),
+      fetch('/api/pricing').then(res => res.json()).then(data => {
+        if (data.laneRentalPerHour != null) {
+          setPricingSettings({
+            laneRentalPerHour: data.laneRentalPerHour,
+            bowlerPricePerPerson: data.bowlerPricePerPerson ?? 0,
+            shoeRental: data.shoeRental,
+            taxRate: data.taxRate,
+          })
+        }
+      }),
+    ]).catch(err => console.error('Failed to load packages or pricing:', err))
   }, [])
 
   const handleTimeSelect = (date: string, time: string) => {
@@ -165,7 +179,7 @@ export default function CreateStaffBookingPage() {
 
       {/* Step 1: Customer Selection */}
       {step === 1 && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Select Customer</h2>
           <CustomerSearch
             onSelect={setSelectedCustomer}
@@ -184,7 +198,7 @@ export default function CreateStaffBookingPage() {
 
       {/* Step 2: Date & Time */}
       {step === 2 && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Select Date & Time</h2>
           <AvailabilityCalendar
             onTimeSelect={handleTimeSelect}
@@ -222,7 +236,7 @@ export default function CreateStaffBookingPage() {
 
       {/* Step 3: Booking Details */}
       {step === 3 && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Booking Details</h2>
           <div className="space-y-4">
             <Input
@@ -318,8 +332,25 @@ export default function CreateStaffBookingPage() {
       )}
 
       {/* Step 4: Review */}
-      {step === 4 && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+      {step === 4 && (() => {
+        const numShoeRentals = shoeSizes.filter(s => s > 0).length
+        const packagePrices = selectedPackages
+          .map(id => packages.find(p => p.id === id)?.price)
+          .filter((p): p is number => typeof p === 'number')
+        const breakdown = pricingSettings
+          ? calculateBookingPriceWithSettings(
+              pricingSettings,
+              duration,
+              numBowlers,
+              numShoeRentals,
+              packagePrices,
+              0,
+              1
+            )
+          : null
+
+        return (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Review Booking</h2>
           <div className="space-y-4">
             <div>
@@ -341,7 +372,7 @@ export default function CreateStaffBookingPage() {
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Details</h3>
               <p className="text-sm text-slate-600">Bowlers: {numBowlers}</p>
-              {shoeSizes.filter(s => s > 0).length > 0 && (
+              {numShoeRentals > 0 && (
                 <p className="text-sm text-slate-600">
                   Shoe Rentals: {shoeSizes.filter(s => s > 0).join(', ')}
                 </p>
@@ -360,6 +391,47 @@ export default function CreateStaffBookingPage() {
                 })}
               </div>
             )}
+            {breakdown && (
+              <div className="pt-4 border-t border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Price (matches pricing settings)</h3>
+                <div className="space-y-1 text-sm text-slate-600">
+                  <p className="flex justify-between">
+                    <span>Lane rental</span>
+                    <span>${breakdown.lanePrice.toFixed(2)}</span>
+                  </p>
+                  {breakdown.bowlerPrice > 0 && (
+                    <p className="flex justify-between">
+                      <span>Bowlers</span>
+                      <span>${breakdown.bowlerPrice.toFixed(2)}</span>
+                    </p>
+                  )}
+                  {breakdown.shoePrice > 0 && (
+                    <p className="flex justify-between">
+                      <span>Shoe rentals</span>
+                      <span>${breakdown.shoePrice.toFixed(2)}</span>
+                    </p>
+                  )}
+                  {breakdown.packagePrice > 0 && (
+                    <p className="flex justify-between">
+                      <span>Packages</span>
+                      <span>${breakdown.packagePrice.toFixed(2)}</span>
+                    </p>
+                  )}
+                  <p className="flex justify-between font-medium text-slate-900 pt-2">
+                    <span>Subtotal</span>
+                    <span>${breakdown.subtotal.toFixed(2)}</span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span>Tax</span>
+                    <span>${breakdown.tax.toFixed(2)}</span>
+                  </p>
+                  <p className="flex justify-between font-semibold text-slate-900 text-base pt-1">
+                    <span>Total</span>
+                    <span>${breakdown.total.toFixed(2)}</span>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           <div className="mt-6 flex justify-between">
             <Button variant="secondary" onClick={() => setStep(3)}>
@@ -370,7 +442,8 @@ export default function CreateStaffBookingPage() {
             </Button>
           </div>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

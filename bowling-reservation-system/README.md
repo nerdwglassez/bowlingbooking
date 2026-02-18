@@ -4,7 +4,7 @@ A comprehensive online reservation system for bowling alley lane bookings.
 
 ## Tech Stack
 
-- **Framework:** Next.js 14 (App Router)
+- **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript
 - **Database:** PostgreSQL (Neon)
 - **ORM:** Prisma
@@ -75,11 +75,16 @@ bowling-reservation-system/
 - **Phase 7:** Admin package management
 - **Phase 8:** Polish & deployment
 
+## Deploy to Vercel
+
+See **[docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)** for environment variables, database setup, and cron configuration. Push to Git and import the project in Vercel; set `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, and `CRON_SECRET` (and optional Stripe/Resend keys) in the Vercel dashboard.
+
 ## Scripts
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run start` - Start production server
+- `npm run lint` - Run ESLint
 - `npm run db:generate` - Generate Prisma Client
 - `npm run db:push` - Push schema changes to database
 - `npm run db:migrate` - Create and run migrations

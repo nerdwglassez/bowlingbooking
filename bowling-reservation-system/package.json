@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma",
+    "lint": "eslint .",
     "db:generate": "prisma generate --schema=./prisma/schema.prisma",
     "db:push": "prisma db push --schema=./prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
@@ -21,16 +22,19 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "overrides": {
-    "glob": ">=10.5.0"
+    "glob": ">=10.5.0",
+    "tmp": ">=0.2.4"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",
-    "@prisma/client": "^7.3.0",
+    "@prisma/client": "^6.0.0",
     "@stripe/react-stripe-js": "^5.6.0",
     "@stripe/stripe-js": "^8.7.0",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.0.0",
     "date-fns": "^3.0.6",
+    "jspdf": "^2.5.2",
+    "lucide-react": "^0.460.0",
     "next": "^16.1.6",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
@@ -50,10 +54,10 @@
     "@types/react-dom": "^18.2.18",
     "@types/speakeasy": "^2.0.10",
     "autoprefixer": "^10.4.16",
-    "eslint": "^8.56.0",
-    "eslint-config-next": "^14.0.4",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.1.6",
     "postcss": "^8.4.32",
-    "prisma": "^7.3.0",
+    "prisma": "^6.0.0",
     "tailwindcss": "^3.4.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

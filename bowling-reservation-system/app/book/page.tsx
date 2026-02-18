@@ -642,22 +642,24 @@ export default function BookPage() {
                 </button>
               </div>
 
-              {/* Right: Booking summary — step 3 uses bowler mode (no package list, Bowlers line) */}
-              <BookingSummary
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              durationMinutes={duration}
-              numBowlers={numBowlers}
-              numLanes={numLanes}
-              numShoeRentals={numShoeRentals}
-              numOwnShoes={numOwnShoes}
-              packages={selectedPackagesData}
-              productLineItems={productLineItems}
-              breakdown={step2Breakdown}
-              isPartyEvent={isPartyEvent}
-              partyType={partyType}
-              variant="sidebar"
-            />
+              {/* Right: Booking summary — step 3; column stretches on lg so sticky follows scroll */}
+              <div className="lg:self-stretch">
+                <BookingSummary
+                  selectedDate={selectedDate}
+                  selectedTime={selectedTime}
+                  durationMinutes={duration}
+                  numBowlers={numBowlers}
+                  numLanes={numLanes}
+                  numShoeRentals={numShoeRentals}
+                  numOwnShoes={numOwnShoes}
+                  packages={selectedPackagesData}
+                  productLineItems={productLineItems}
+                  breakdown={step2Breakdown}
+                  isPartyEvent={isPartyEvent}
+                  partyType={partyType}
+                  variant="sidebar"
+                />
+              </div>
             </div>
 
             {/* CTAs below the card/summary — same pattern as step 1 (Figma) */}
@@ -725,10 +727,10 @@ export default function BookPage() {
               })}
             </div>
 
-            {/* Package grid + Cart summary: Figma layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Package grid + Booking summary: same sidebar width as steps 3 & 4 (responsive) */}
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_384px] gap-6 xl:gap-8 items-start">
               {/* Package cards grid */}
-              <div className="lg:col-span-2">
+              <div>
                 {filteredPackages.length === 0 ? (
                   <div className="text-center py-12 text-gray-600">
                     <p>No packages available in this category.</p>
@@ -794,8 +796,8 @@ export default function BookPage() {
                 )}
               </div>
 
-              {/* Desktop: shared BookingSummary sidebar (step 2 with remove package) */}
-              <div className="hidden lg:block lg:col-span-1">
+              {/* Desktop: BookingSummary sidebar — same width as step 3 & 4; column stretches so sticky can follow scroll */}
+              <div className="hidden lg:block lg:self-stretch">
                 <BookingSummary
                   selectedDate={selectedDate}
                   selectedTime={selectedTime}
@@ -1047,8 +1049,8 @@ export default function BookPage() {
 
               </div>
 
-              {/* Right column: Booking summary — Figma 117-1438 step4 card */}
-              <div className="hidden lg:block">
+              {/* Right column: Booking summary — step 4; column stretches so sticky follows scroll */}
+              <div className="hidden lg:block lg:self-stretch">
                 <BookingSummary
                   selectedDate={selectedDate}
                   selectedTime={selectedTime}
@@ -1067,22 +1069,26 @@ export default function BookPage() {
               </div>
             </div>
 
-            {/* Footer CTAs — outside cards (Figma 117-1339) */}
+            {/* Footer CTAs — outside cards (Figma 117-1339). No Back when guest is selected. */}
             <div className="mt-6 border-t-2 border-[#CAD8EC] pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  if (paymentClientSecret) {
-                    handlePaymentCancel()
-                  } else {
-                    setStep(3)
-                    setCheckoutMode(null)
-                  }
-                }}
-                className={`${STEP_NAV_BUTTON} !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}
-              >
-                Back
-              </Button>
+              {isAuthenticated === false && checkoutMode === 'guest' ? (
+                <span aria-hidden />
+              ) : (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    if (paymentClientSecret) {
+                      handlePaymentCancel()
+                    } else {
+                      setStep(3)
+                      setCheckoutMode(null)
+                    }
+                  }}
+                  className={`${STEP_NAV_BUTTON} !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}
+                >
+                  Back
+                </Button>
+              )}
               <div className="flex flex-wrap items-center gap-2 justify-end">
                 {!paymentClientSecret && isAuthenticated === false && checkoutMode !== null && (
                   <Button variant="secondary" onClick={() => setCheckoutMode(null)} className={STEP_NAV_BUTTON}>

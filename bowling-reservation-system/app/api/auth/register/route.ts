@@ -3,9 +3,18 @@ import { prisma } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { registerSchema } from '@/lib/validations'
 import { cookies } from 'next/headers'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    const limiter = checkRateLimit(rateLimitKey(request, 'register'), 5, 60_000)
+    if (!limiter.allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } }
+      )
+    }
+
     const body = await request.json()
     const validatedData = registerSchema.parse(body)
 

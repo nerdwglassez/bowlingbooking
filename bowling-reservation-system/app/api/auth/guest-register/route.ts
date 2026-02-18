@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 const guestRegisterSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -13,6 +14,14 @@ const guestRegisterSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const limiter = checkRateLimit(rateLimitKey(request, 'guest-register'), 10, 60_000)
+    if (!limiter.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } }
+      )
+    }
+
     const body = await request.json()
     const validatedData = guestRegisterSchema.parse(body)
 

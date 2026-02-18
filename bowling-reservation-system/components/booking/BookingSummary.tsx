@@ -292,10 +292,10 @@ export default function BookingSummary({
     )
   }
 
-  // variant === 'sidebar' — single design per Figma 120-1914: builds over time (same card on all steps)
+  // variant === 'sidebar' — sticky on lg+ so it follows the user on scroll; max-height so long content scrolls inside the card
   return (
     <div
-      className="rounded-2xl overflow-hidden lg:sticky lg:top-24 p-0.5 w-full"
+      className="rounded-2xl overflow-hidden lg:sticky lg:top-24 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:overscroll-contain p-0.5 w-full"
       style={{
         background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(59,130,246,0.08) 100%)',
         boxShadow: '0px 10px 25px -5px rgba(0, 0, 0, 0.1)',

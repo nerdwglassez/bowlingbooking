@@ -17,11 +17,11 @@ type GuestFormData = z.infer<typeof guestSchema>
 
 interface GuestCheckoutProps {
   onGuestSubmit: (data: GuestFormData) => void
-  onLoginClick: () => void
+  onLoginClick?: () => void
   isLoading?: boolean
 }
 
-export default function GuestCheckout({ onGuestSubmit, onLoginClick, isLoading }: GuestCheckoutProps) {
+export default function GuestCheckout({ onGuestSubmit, isLoading }: GuestCheckoutProps) {
   const {
     register,
     handleSubmit,
@@ -34,29 +34,7 @@ export default function GuestCheckout({ onGuestSubmit, onLoginClick, isLoading }
   return (
     <div className="space-y-4">
       <div className="border-t pt-4">
-        <h3 className="text-lg font-semibold mb-4">Checkout Options</h3>
-        
-        <div className="mb-4">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onLoginClick}
-            className="w-full"
-          >
-            Sign In to Existing Account
-          </Button>
-        </div>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or continue as guest</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit(onGuestSubmit)} className="mt-4 space-y-4">
+        <form onSubmit={handleSubmit(onGuestSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="First Name"
