@@ -490,7 +490,7 @@ export default function BookPage() {
 
   return (
     <main
-      className="min-h-screen bg-[#F9FAFB] px-4 sm:px-6 lg:px-[30.5px] pt-20 sm:pt-24 lg:pt-[96px] pb-16 sm:pb-20 lg:pb-[96px]"
+      className="min-h-screen bg-[#F9FAFB] px-4 sm:px-6 lg:px-[30.5px] pt-6 sm:pt-8 pb-16 sm:pb-20 lg:pb-[96px]"
     >
       <Toast
         message="Please select both a date and time"

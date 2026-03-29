@@ -124,7 +124,7 @@ export default function AppExperienceHeader({ variant, initialUser }: Props) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-gray-200/40 bg-transparent">
+      <header className="w-full border-b border-gray-200/40 bg-gray-50">
         <div className="mx-auto flex min-h-[4rem] max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="text-sm font-semibold leading-tight text-gray-900">{VENUE_NAME}</span>
@@ -134,38 +134,61 @@ export default function AppExperienceHeader({ variant, initialUser }: Props) {
           <div className="flex shrink-0 items-center gap-3 sm:gap-4">
             {user ? (
               <>
-                <div className="hidden text-right md:block">
-                  <p className="text-sm font-semibold text-gray-900">{customerDisplayName(user)}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
-                </div>
-                <div
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-800 md:h-10 md:w-10 md:text-sm"
-                  aria-hidden
-                >
-                  {getInitials(user)}
-                </div>
-                <nav className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-                  {isEmployeeRole(user.role) ? (
+                {isEmployeeRole(user.role) ? (
+                  <>
                     <Link
-                      href={user.role === 'ADMIN' ? '/admin' : '/staff'}
-                      className="text-sm font-medium text-[#1A237E] hover:text-[#283593]"
+                      href="/staff/settings/account-information"
+                      className="flex min-w-0 max-w-[min(100%,18rem)] items-center gap-3 rounded-lg px-1 py-0.5 outline-none transition hover:bg-gray-100/80 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50 sm:gap-4"
+                      aria-label={`Account information, ${customerDisplayName(user)}, ${roleLabel(user.role)}`}
                     >
-                      {user.role === 'ADMIN' ? 'Admin' : 'Staff'}
+                      <div className="hidden min-w-0 text-right md:block">
+                        <p className="truncate text-sm font-semibold leading-tight text-gray-900">
+                          {customerDisplayName(user)}
+                        </p>
+                        <p className="text-xs text-gray-500">{roleLabel(user.role)}</p>
+                      </div>
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-800 md:h-10 md:w-10 md:text-sm"
+                        aria-hidden
+                      >
+                        {getInitials(user)}
+                      </div>
                     </Link>
-                  ) : (
-                    <Link href="/dashboard" className="text-sm font-medium text-[#1A237E] hover:text-[#283593]">
-                      My Bookings
-                    </Link>
-                  )}
-                  <Link href="/profile" className="text-sm font-medium text-gray-600 hover:text-gray-900">
-                    Profile
-                  </Link>
-                  <form action={logout}>
-                    <Button type="submit" variant="secondary" size="sm" className="text-sm">
-                      Log out
-                    </Button>
-                  </form>
-                </nav>
+                    <nav className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+                      <form action={logout}>
+                        <Button type="submit" variant="secondary" size="sm" className="text-sm">
+                          Log out
+                        </Button>
+                      </form>
+                    </nav>
+                  </>
+                ) : (
+                  <>
+                    <div className="hidden text-right md:block">
+                      <p className="text-sm font-semibold text-gray-900">{customerDisplayName(user)}</p>
+                      <p className="text-xs text-gray-500">{user.email}</p>
+                    </div>
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-800 md:h-10 md:w-10 md:text-sm"
+                      aria-hidden
+                    >
+                      {getInitials(user)}
+                    </div>
+                    <nav className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+                      <Link href="/dashboard" className="text-sm font-medium text-[#1A237E] hover:text-[#283593]">
+                        My Bookings
+                      </Link>
+                      <Link href="/profile" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+                        Profile
+                      </Link>
+                      <form action={logout}>
+                        <Button type="submit" variant="secondary" size="sm" className="text-sm">
+                          Log out
+                        </Button>
+                      </form>
+                    </nav>
+                  </>
+                )}
               </>
             ) : (
               <button

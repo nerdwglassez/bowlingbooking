@@ -11,7 +11,7 @@ Scope: **public and signed-in customer** journeys—booking, confirmation, accou
 - **`/bookings/[id]`** — Detail, cancel (when allowed), modify/reschedule links, receipt/print/PDF ([`app/bookings/[id]/page.tsx`](../app/bookings/[id]/page.tsx)).
 - **`/bookings/[id]/reschedule`** — Reschedule flow ([`app/bookings/[id]/reschedule/page.tsx`](../app/bookings/[id]/reschedule/page.tsx)).
 - **`/dashboard`** — Customer home after auth; upcoming bookings, CTA to book ([`app/dashboard/page.tsx`](../app/dashboard/page.tsx)).
-- **`/profile`** — Profile and communication preferences ([`app/profile/`](../app/profile/)).
+- **`/profile`** — Profile and communication preferences for **customers** ([`app/profile/`](../app/profile/)). Staff, managers, and admins are redirected to [`/staff/settings/account-information`](../app/staff/settings/account-information/page.tsx). On the booking header, employees use the clickable **name + role + avatar** block (no separate Profile or Staff/Admin link); **Log out** remains.
 
 ## Auth pages (customer)
 
