@@ -45,6 +45,7 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 - **Special hours** – Table + admin UI for date overrides; availability uses them
 - **Lane blocks** – One-time and recurring; admin UI
 - **Packages & products** – CRUD; type, price, isActive
+- **Discount codes (promo / corporate)** – `DiscountCode` model; customer preview on `/book`; staff can list at `/staff/settings/discount-codes`; `ADMIN` creates/edits (same data at `/admin/discount-codes`); APIs under `app/api/staff/discount-codes`, `app/api/admin/discount-codes`
 - **Audit log** – Table + logging; staff/manager view
 - **Settings** – Key/value (e.g. branding, email from)
 

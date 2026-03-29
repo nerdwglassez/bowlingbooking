@@ -7,6 +7,7 @@ Use the smallest doc that matches the task. Avoid pasting the full root PRD unle
 | Browse all `/docs` files | [docs/README.md](docs/README.md) |
 | Customer booking UI, confirmation, `/bookings`, profile, gift cards, waitlist claim | [docs/RESERVATION_FLOW.md](docs/RESERVATION_FLOW.md) + [docs/SHARED_PLATFORM.md](docs/SHARED_PLATFORM.md) |
 | Staff/manager UI, admin UI, kiosk, partner API, crons affecting ops | [docs/STAFF_AND_ADMIN_EXPERIENCE.md](docs/STAFF_AND_ADMIN_EXPERIENCE.md) + [docs/SHARED_PLATFORM.md](docs/SHARED_PLATFORM.md) |
+| Promo / corporate discount codes (booking preview, staff settings, admin) | [docs/STAFF_AND_ADMIN_EXPERIENCE.md](docs/STAFF_AND_ADMIN_EXPERIENCE.md) + [docs/RESERVATION_FLOW.md](docs/RESERVATION_FLOW.md) + [docs/SHARED_PLATFORM.md](docs/SHARED_PLATFORM.md) |
 | Sessions, roles, availability, pricing, env, DB, shared header (`AppExperienceHeader`, `getHeaderUser`) | [docs/SHARED_PLATFORM.md](docs/SHARED_PLATFORM.md) |
 | What requirements exist vs what is implemented | [PRD_GAP_ANALYSIS.md](PRD_GAP_ANALYSIS.md) |
 | Full product specification | [bowling-prd.md](../bowling-prd.md) (repo root) |

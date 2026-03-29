@@ -6,7 +6,7 @@ Quick map of everything under `docs/`. For the full project index (including rep
 |----------|---------|
 | [SHARED_PLATFORM.md](SHARED_PLATFORM.md) | Auth, DB, pricing, availability, env—shared by customer + staff docs |
 | [RESERVATION_FLOW.md](RESERVATION_FLOW.md) | Customer booking routes, APIs, components |
-| [STAFF_AND_ADMIN_EXPERIENCE.md](STAFF_AND_ADMIN_EXPERIENCE.md) | Staff, admin, kiosk, partner API |
+| [STAFF_AND_ADMIN_EXPERIENCE.md](STAFF_AND_ADMIN_EXPERIENCE.md) | Staff, admin, kiosk, partner API; includes discount codes (staff settings + admin) |
 | [LOCAL_VS_LIVE.md](LOCAL_VS_LIVE.md) | Local `.env.local` vs production (Vercel) |
 | [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md) | Deploy, env vars, cron |
 | [LOCAL_DATABASE.md](LOCAL_DATABASE.md) | Local Postgres setup |

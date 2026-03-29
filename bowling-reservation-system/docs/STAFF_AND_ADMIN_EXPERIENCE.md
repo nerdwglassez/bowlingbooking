@@ -25,9 +25,15 @@ Scope: **internal** tools and configuration. Customer booking is documented in [
 | Analytics | `/staff/analytics` | Metrics and insights |
 | Audit log | `/staff/audit-log` | Activity |
 | Pending overrides | `/staff/pending-overrides` | Manager approval queue |
-| Settings | `/staff/settings/*` | Lanes, operating hours, blackout dates, packages, pricing, integrations, user management, account |
+| Settings | `/staff/settings/*` | Lanes, operating hours, blackout dates, packages, discount codes, pricing, integrations, user management, account |
 
 Staff UI building blocks live under **`components/staff/`** (e.g. `BookingDetailsView`, `EditReservationModal`, `CreateBookingModal`, `CheckInModal` patterns in full-page wrappers).
+
+## Discount codes (promo / corporate)
+
+- **Staff settings UI:** [`/staff/settings/discount-codes`](../app/staff/settings/discount-codes/page.tsx) — listed in [`SettingsNav`](../components/staff/settings/SettingsNav.tsx). All signed-in staff (`STAFF`, `MANAGER`, `ADMIN`) can **view** codes; only **`ADMIN`** can create codes or toggle active/inactive.
+- **Admin UI:** [`/admin/discount-codes`](../app/admin/discount-codes/page.tsx) — same data and capabilities for admins (`requireAuth('ADMIN')` on the layout).
+- **APIs:** `GET` and `POST` on [`app/api/staff/discount-codes`](../app/api/staff/discount-codes/route.ts) (list: staff; create: admin only); `PATCH` on [`app/api/staff/discount-codes/[id]`](../app/api/staff/discount-codes/[id]/route.ts) (admin only). Parallel admin routes: [`app/api/admin/discount-codes`](../app/api/admin/discount-codes/route.ts) and `admin/discount-codes/[id]` (admin only). Customer booking uses [`app/api/discount-codes/preview`](../app/api/discount-codes/preview/route.ts) and applies codes on booking create.
 
 ## Admin app (`/admin`)
 
@@ -39,6 +45,7 @@ Staff UI building blocks live under **`components/staff/`** (e.g. `BookingDetail
 | Packages | `/admin/packages`, `/admin/packages/create`, `/admin/packages/[id]` |
 | Products | `/admin/products`, create/edit variants |
 | Marketing | `/admin/marketing` |
+| Discount codes | `/admin/discount-codes` |
 | Settings | `/admin/settings` |
 | API keys (partner API) | `/admin/api-keys` |
 
@@ -52,8 +59,8 @@ Staff UI building blocks live under **`components/staff/`** (e.g. `BookingDetail
 |------|---------------------------|
 | Staff bookings | `staff/bookings/*` (CRUD, today, check-in, override price, approve/reject override) |
 | Staff customers | `staff/customers`, `staff/customers/[id]` |
-| Staff settings | `staff/settings/*`, `staff/pending-overrides`, `staff/reports`, `staff/analytics`, `staff/audit-log` |
-| Admin config | `admin/operating-hours`, `admin/special-hours`, `admin/lane-blocks`, `admin/recurring-lane-blocks`, `admin/packages`, `admin/products`, `admin/settings`, `admin/integrations`, `admin/marketing/*`, `admin/api-keys`, `admin/pos-export` |
+| Staff settings | `staff/settings/*` (includes discount codes UI under `staff/settings/discount-codes`), `staff/discount-codes` (REST: list all staff; POST/PATCH admin-only), `staff/pending-overrides`, `staff/reports`, `staff/analytics`, `staff/audit-log` |
+| Admin config | `admin/operating-hours`, `admin/special-hours`, `admin/lane-blocks`, `admin/recurring-lane-blocks`, `admin/packages`, `admin/products`, `admin/discount-codes`, `admin/settings`, `admin/integrations`, `admin/marketing/*`, `admin/api-keys`, `admin/pos-export` |
 | Crons | `cron/send-reminders`, `cron/marketing-automation` |
 
 ## Partner API (v1)

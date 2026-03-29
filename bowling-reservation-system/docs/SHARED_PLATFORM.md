@@ -30,6 +30,12 @@ Use this doc **once** for concepts that apply to both [customer reservation flow
 - **Pricing helpers:** [`lib/pricing.ts`](../lib/pricing.ts)—booking totals, settings-driven breakdowns; used heavily by `app/book/page.tsx` and staff override flows.
 - **Public reads:** `app/api/pricing`, `app/api/packages`, `app/api/products` (see route files for methods).
 
+## Discount codes (promo / corporate)
+
+- **Data:** Prisma model `DiscountCode` in [`prisma/schema.prisma`](../prisma/schema.prisma)—online vs invoice payment mode, optional percent or fixed discount, max redemptions, expiry; `Booking` stores `discountCodeId` and an `appliedDiscountCode` snapshot.
+- **Customer flow:** Preview with `POST /api/discount-codes/preview`; booking creation applies the code via `app/api/bookings` ([`lib/discount-codes.ts`](../lib/discount-codes.ts)).
+- **Internal management:** Staff settings [`/staff/settings/discount-codes`](../app/staff/settings/discount-codes/page.tsx) and admin [`/admin/discount-codes`](../app/admin/discount-codes/page.tsx); details and API paths in [STAFF_AND_ADMIN_EXPERIENCE.md](STAFF_AND_ADMIN_EXPERIENCE.md).
+
 ## Payments and email
 
 - **Stripe:** [`lib/stripe-config.ts`](../lib/stripe-config.ts); client config `app/api/config/stripe`; server payment flows under `app/api/bookings/*` (e.g. payment intent, confirm payment). Configure webhook signing in Vercel when you add a Stripe webhook route.

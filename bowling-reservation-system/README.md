@@ -79,7 +79,7 @@ bowling-reservation-system/
 │   ├── bookings/            # Customer my bookings + detail + reschedule
 │   ├── dashboard/           # Customer dashboard
 │   ├── profile/             # Customer profile
-│   ├── staff/               # Staff & manager tools (+ settings subtree)
+│   ├── staff/               # Staff & manager tools (+ settings: lanes, packages, discount codes, …)
 │   ├── admin/               # Admin configuration
 │   ├── kiosk/               # Check-in kiosk
 │   ├── gift-cards/          # Gift card purchase

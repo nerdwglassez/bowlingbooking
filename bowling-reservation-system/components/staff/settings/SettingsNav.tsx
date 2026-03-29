@@ -10,6 +10,7 @@ import {
   Link2,
   LogOut,
   Package,
+  Percent,
   Settings,
   UserCircle2,
   Users,
@@ -25,6 +26,7 @@ const SETTINGS_ITEMS = [
   { href: '/staff/settings/pricing', label: 'Pricing', icon: CircleDollarSign },
   { href: '/staff/settings/blackout-dates', label: 'Blackout Dates', icon: CalendarX2 },
   { href: '/staff/settings/packages', label: 'Packages', icon: Package },
+  { href: '/staff/settings/discount-codes', label: 'Discount codes', icon: Percent },
 ] as const
 
 function NavItem({

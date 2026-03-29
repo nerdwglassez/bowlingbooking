@@ -5,7 +5,7 @@ Scope: **public and signed-in customer** journeys—booking, confirmation, accou
 ## Entry and routing
 
 - **`/`** — Redirects to `/book` ([`app/page.tsx`](../app/page.tsx)).
-- **`/book`** — Main multi-step booking UI ([`app/book/page.tsx`](../app/book/page.tsx)): date/time → details (bowlers, shoes) → packages/extras → review/payment (Stripe, guest or account, terms, loyalty redemption when applicable).
+- **`/book`** — Main multi-step booking UI ([`app/book/page.tsx`](../app/book/page.tsx)): date/time → details (bowlers, shoes) → packages/extras → review/payment (Stripe, guest or account, terms, optional promo/corporate discount code, loyalty redemption when applicable).
 - **`/book/confirmation`** — Post-payment confirmation ([`app/book/confirmation/page.tsx`](../app/book/confirmation/page.tsx)).
 - **`/bookings`** — Customer booking list ([`app/bookings/page.tsx`](../app/bookings/page.tsx)).
 - **`/bookings/[id]`** — Detail, cancel (when allowed), modify/reschedule links, receipt/print/PDF ([`app/bookings/[id]/page.tsx`](../app/bookings/[id]/page.tsx)).
@@ -38,6 +38,7 @@ Scope: **public and signed-in customer** journeys—booking, confirmation, accou
 |------|---------------------------|
 | Slots / booking data | `availability`, `bookings`, `bookings/[id]/*` (payment intent, confirm-payment, receipt, reschedule) |
 | Catalog / price | `packages`, `products`, `pricing` |
+| Discount codes | `discount-codes/preview` (validate before checkout); codes are configured in staff/admin (see [STAFF_AND_ADMIN_EXPERIENCE.md](STAFF_AND_ADMIN_EXPERIENCE.md)) |
 | Auth | `auth/*` |
 | Stripe publishable | `config/stripe` |
 | Gift cards | `gift-cards/validate`, `purchase`, `confirm` |

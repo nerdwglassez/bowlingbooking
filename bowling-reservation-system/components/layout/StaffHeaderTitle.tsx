@@ -26,6 +26,7 @@ const STAFF_TITLES: Record<string, string> = {
   '/staff/settings/account-information': 'Account Info',
   '/staff/settings/user-management': 'User Management',
   '/staff/settings/packages': 'Packages',
+  '/staff/settings/discount-codes': 'Discount codes',
   '/staff/settings/lanes': 'Lanes',
   '/staff/settings/pricing': 'Pricing',
   '/staff/settings/operating-hours': 'Operating Hours',
