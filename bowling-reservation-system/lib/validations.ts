@@ -105,6 +105,8 @@ export const bookingCreateSchema = bookingSchema.extend({
   loyaltyPointsToRedeem: z.number().int().min(0).optional(),
   giftCardCode: z.string().max(50).optional(),
   giftCardAmountToApply: z.number().min(0).optional(),
+  /** Promo / corporate code (server-validated). */
+  discountCode: z.string().max(40).optional(),
 })
 
 export type BookingCreateInput = z.infer<typeof bookingCreateSchema>

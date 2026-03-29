@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { addDays, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, startOfMonth, startOfWeek, subMonths, addMonths } from 'date-fns'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, Search, Users } from 'lucide-react'
 import ImmersiveStaffPage from '@/components/layout/ImmersiveStaffPage'
 import StaffPageHero from '@/components/staff/StaffPageHero'
+import Button from '@/components/ui/Button'
 import { formatTime12Hour } from '@/lib/time'
 import { customerDisplayName } from '@/lib/staff-booking-utils'
 
@@ -22,11 +23,21 @@ interface CalendarBooking {
 }
 
 export default function StaffCalendarPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const openBookingId = searchParams?.get('open') ?? null
+
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()))
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [monthBookings, setMonthBookings] = useState<CalendarBooking[]>([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
+
+  // Legacy ?open= links redirect to the canonical booking detail page
+  useEffect(() => {
+    if (!openBookingId) return
+    router.replace(`/staff/bookings/${encodeURIComponent(openBookingId)}`)
+  }, [openBookingId, router])
 
   useEffect(() => {
     const loadMonthBookings = async () => {
@@ -114,33 +125,44 @@ export default function StaffCalendarPage() {
           <article className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="mb-5 flex items-center justify-between">
               <div className="inline-flex items-center gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
+                  rounded="xl"
                   onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  className="border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  aria-label="Previous month"
                 >
                   <ChevronLeft className="h-4 w-4" />
-                </button>
+                </Button>
                 <p className="text-2xl font-semibold text-slate-900">{format(visibleMonth, 'MMMM yyyy')}</p>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
+                  rounded="xl"
                   onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  className="border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  aria-label="Next month"
                 >
                   <ChevronRight className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="sm"
+                rounded="xl"
                 onClick={() => {
                   const now = new Date()
                   setVisibleMonth(startOfMonth(now))
                   setSelectedDate(format(now, 'yyyy-MM-dd'))
                 }}
-                className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white"
+                className="bg-indigo-500 font-semibold hover:bg-indigo-600"
               >
                 Today
-              </button>
+              </Button>
             </div>
 
             <div className="mb-2 grid grid-cols-7 text-center text-sm font-semibold text-slate-500">
@@ -227,10 +249,13 @@ export default function StaffCalendarPage() {
                 const status = getBookingStatus(booking.status)
                 const packageName = booking.bookingPackages?.[0]?.package?.name ?? 'Standard'
                 return (
-                  <Link
+                  <Button
                     key={booking.id}
-                    href={`/staff/bookings/${booking.id}`}
-                    className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:border-indigo-300 hover:bg-indigo-50/40"
+                    type="button"
+                    variant="ghost"
+                    rounded="xl"
+                    onClick={() => router.push(`/staff/bookings/${booking.id}`)}
+                    className="h-auto w-full justify-start rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left font-normal hover:border-indigo-300 hover:bg-indigo-50/40"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -255,7 +280,7 @@ export default function StaffCalendarPage() {
                         Lane {booking.lane}
                       </span>
                     </div>
-                  </Link>
+                  </Button>
                 )
               })}
             </div>

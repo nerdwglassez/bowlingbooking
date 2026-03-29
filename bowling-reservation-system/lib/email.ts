@@ -26,7 +26,17 @@ function formatDuration(minutes: number): string {
   return `${hours}h ${mins}m`
 }
 
-function buildHtml(booking: BookingForEmail, userEmail: string): string {
+export type BookingConfirmationEmailOptions = {
+  /** Booking is held; payment will be invoiced separately (not marked paid online). */
+  invoicePending?: boolean
+}
+
+function buildHtml(
+  booking: BookingForEmail,
+  userEmail: string,
+  options?: BookingConfirmationEmailOptions
+): string {
+  const invoicePending = options?.invoicePending === true
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(booking.id)}`
   const cancelUrl = `${APP_URL}/bookings/${booking.id}`
   const rescheduleUrl = `${APP_URL}/dashboard`
@@ -51,7 +61,12 @@ function buildHtml(booking: BookingForEmail, userEmail: string): string {
 <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
   <h1 style="color:#1e40af;">${ALLEY_NAME}</h1>
   <p style="color:#6b7280;">${ALLEY_ADDRESS} · ${ALLEY_PHONE}</p>
-  <h2 style="margin-top:24px;">Your Booking is Confirmed!</h2>
+  <h2 style="margin-top:24px;">${invoicePending ? 'Booking received — payment pending' : 'Your Booking is Confirmed!'}</h2>
+  ${
+    invoicePending
+      ? `<p style="color:#374151;">We have received your reservation. <strong>Payment is not collected online.</strong> You will receive an invoice (or follow-up) for the amount below. Thank you!</p>`
+      : ''
+  }
   <div style="border:2px solid #1e40af;padding:16px;margin:16px 0;text-align:center;background:#eff6ff;">
     <p style="margin:0 0 4px 0;font-size:12px;color:#1e40af;">Confirmation code</p>
     <p style="margin:0;font-size:20px;font-weight:bold;letter-spacing:0.05em;word-break:break-all;">${booking.id}</p>
@@ -64,7 +79,7 @@ function buildHtml(booking: BookingForEmail, userEmail: string): string {
     <tr><td><strong>Lane${booking.lanes?.length ? 's' : ''}</strong></td><td>${booking.lanes?.length ? `Lanes ${booking.lanes.join(', ')}` : `Lane ${booking.lane}`}</td></tr>
     <tr><td><strong>Party size</strong></td><td>${booking.numBowlers} bowler${booking.numBowlers !== 1 ? 's' : ''}</td></tr>
     ${packagesHtml}
-    <tr><td><strong>Total paid</strong></td><td>$${Number(booking.totalPrice).toFixed(2)}</td></tr>
+    <tr><td><strong>${invoicePending ? 'Amount due' : 'Total paid'}</strong></td><td>$${Number(booking.totalPrice).toFixed(2)}</td></tr>
   </table>
   <p style="margin-top:24px;"><strong>Manage your booking</strong></p>
   <p><a href="${cancelUrl}" style="color:#1e40af;">View or cancel this booking</a></p>
@@ -76,7 +91,12 @@ function buildHtml(booking: BookingForEmail, userEmail: string): string {
 `
 }
 
-function buildText(booking: BookingForEmail, userEmail: string): string {
+function buildText(
+  booking: BookingForEmail,
+  userEmail: string,
+  options?: BookingConfirmationEmailOptions
+): string {
+  const invoicePending = options?.invoicePending === true
   const packagesText =
     booking.bookingPackages && booking.bookingPackages.length > 0
       ? '\nPackages: ' +
@@ -87,8 +107,11 @@ ${ALLEY_NAME}
 ${ALLEY_ADDRESS}
 ${ALLEY_PHONE}
 
-Your Booking is Confirmed!
-
+${
+  invoicePending
+    ? 'Booking received — payment pending\n\nWe have received your reservation. Payment is not collected online; you will be invoiced for the amount below.\n'
+    : 'Your Booking is Confirmed!\n'
+}
 Confirmation code: ${booking.id}
 
 Date: ${format(new Date(booking.date), 'EEEE, MMMM d, yyyy')}
@@ -97,7 +120,7 @@ Duration: ${formatDuration(booking.duration)}
 Lane${booking.lanes?.length ? 's' : ''}: ${booking.lanes?.length ? booking.lanes.join(', ') : booking.lane}
 Party size: ${booking.numBowlers} bowler${booking.numBowlers !== 1 ? 's' : ''}${packagesText}
 
-Total paid: $${Number(booking.totalPrice).toFixed(2)}
+${invoicePending ? 'Amount due' : 'Total paid'}: $${Number(booking.totalPrice).toFixed(2)}
 
 View or cancel: ${APP_URL}/bookings/${booking.id}
 My Bookings: ${APP_URL}/dashboard
@@ -122,7 +145,8 @@ async function getResendCredentials(): Promise<{ apiKey: string; from: string } 
  */
 export async function sendBookingConfirmationEmail(
   booking: BookingForEmail,
-  userEmail: string
+  userEmail: string,
+  options?: BookingConfirmationEmailOptions
 ): Promise<{ ok: boolean; error?: string }> {
   const creds = await getResendCredentials()
   if (!creds) {
@@ -136,9 +160,11 @@ export async function sendBookingConfirmationEmail(
     const { data, error } = await resend.emails.send({
       from: `${ALLEY_NAME} <${from}>`,
       to: [userEmail],
-      subject: `Your booking is confirmed – ${booking.id}`,
-      html: buildHtml(booking, userEmail),
-      text: buildText(booking, userEmail),
+      subject: options?.invoicePending
+        ? `Booking received — payment pending (${booking.id})`
+        : `Your booking is confirmed – ${booking.id}`,
+      html: buildHtml(booking, userEmail, options),
+      text: buildText(booking, userEmail, options),
     })
 
     if (error) {

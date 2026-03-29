@@ -8,6 +8,7 @@ import LoginPrompt from '@/components/booking/LoginPrompt'
 import SignUpFormInline from '@/components/booking/SignUpFormInline'
 import StripePaymentForm from '@/components/booking/StripePaymentForm'
 import PackageDetailPanel from '@/components/booking/PackageDetailPanel'
+import PackageSelectionCard from '@/components/booking/PackageSelectionCard'
 import BookingSummary from '@/components/booking/BookingSummary'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -84,6 +85,14 @@ export default function BookPage() {
   const [giftCardBalance, setGiftCardBalance] = useState<number | null>(null)
   const [giftCardAmountToApply, setGiftCardAmountToApply] = useState(0)
   const [giftCardError, setGiftCardError] = useState<string | null>(null)
+  const [promoCodeInput, setPromoCodeInput] = useState('')
+  const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null)
+  const [promoError, setPromoError] = useState<string | null>(null)
+  const [promoPreview, setPromoPreview] = useState<{
+    paymentMode: 'ONLINE' | 'INVOICE'
+    description: string
+    adjustedTotal: number | null
+  } | null>(null)
   const [isPartyEvent, setIsPartyEvent] = useState(false)
   const [partyType, setPartyType] = useState('')
   const [step1ValidationAttempted, setStep1ValidationAttempted] = useState(false)
@@ -136,6 +145,13 @@ export default function BookPage() {
       })
       .catch(() => setIsAuthenticated(false))
   }, [])
+
+  // Scroll to top when step changes so each step loads with the page at the top
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+    }
+  }, [step])
 
   // Pre-fill from URL; otherwise default to today.
   // If restoring from localStorage, only restore values for today's date so Step 1
@@ -393,6 +409,7 @@ export default function BookPage() {
           ...(giftCardCode.trim() && giftCardAmountToApply > 0
             ? { giftCardCode: giftCardCode.trim(), giftCardAmountToApply }
             : {}),
+          ...(appliedPromoCode ? { discountCode: appliedPromoCode } : {}),
         }),
       })
 
@@ -403,6 +420,11 @@ export default function BookPage() {
       }
 
       const bookingId = result.booking.id
+
+      if (result.requiresPayment === false) {
+        router.push(`/book/confirmation?bookingId=${bookingId}`)
+        return
+      }
 
       const paymentRes = await fetch(`/api/bookings/${bookingId}/create-payment-intent`, {
         method: 'POST',
@@ -526,7 +548,7 @@ export default function BookPage() {
 
         {/* Step 1: Date and time only (Figma: Reserve Your Lane – select date and time) */}
         {step === 1 && (
-          <div className="flex flex-col gap-8">
+          <div className="step-content-enter flex flex-col gap-8">
             {step1ValidationAttempted && (!selectedDate || !selectedTime) && (
               <div
                 className="rounded-xl border px-4 py-3 text-sm"
@@ -578,7 +600,7 @@ export default function BookPage() {
 
         {/* Step 3: Booking Details — Figma 114-935 bowler info */}
         {step === 3 && (
-          <div className="space-y-6">
+          <div className="step-content-enter space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_384px] gap-6 xl:gap-8 items-start">
               {/* Left: Bowler form card — Who's bowling? / Shoe sizes; dropdown matches Select/step-one pill style */}
               <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-[0px_1px_2px_0px_rgba(0,0,0,0.06),0px_1px_3px_0px_rgba(0,0,0,0.1)] p-4 sm:p-6 lg:p-[25px]">
@@ -685,7 +707,7 @@ export default function BookPage() {
 
         {/* Step 2: Packages - Figma step2.0-desktop-package-selection */}
         {step === 2 && (
-          <div className="space-y-6">
+          <div className="step-content-enter space-y-6">
             {/* Mobile: shared BookingSummary (collapsible) */}
             <BookingSummary
               selectedDate={selectedDate}
@@ -736,61 +758,15 @@ export default function BookPage() {
                     <p>No packages available in this category.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3 xl:gap-5">
                     {filteredPackages.map((pkg) => (
-                      <div
+                      <PackageSelectionCard
                         key={pkg.id}
-                        className="bg-gray-100 border border-gray-200/60 rounded-2xl overflow-hidden hover:shadow-md transition-shadow"
-                      >
-                        {/* Image area */}
-                        <div className="h-40 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center overflow-hidden">
-                          {pkg.imageUrl ? (
-                            <img
-                              src={pkg.imageUrl}
-                              alt={pkg.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="text-gray-400 text-sm">No image</div>
-                          )}
-                        </div>
-                        {/* Content */}
-                        <div className="p-4">
-                          <h3 className="font-semibold text-lg text-gray-900 mb-2">{pkg.name}</h3>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xl font-bold text-gray-900">
-                              ${Number(pkg.price).toFixed(2)}
-                            </span>
-                          </div>
-                          {/* Pills: Serves X, X hrs (light purple per Figma) */}
-                          <div className="flex gap-2 mb-2">
-                            {pkg.baseGuestCount && (
-                              <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full">
-                                Serves {pkg.baseGuestCount}
-                              </span>
-                            )}
-                            {pkg.durationMinutes && (
-                              <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full">
-                                {pkg.durationMinutes / 60} hrs
-                              </span>
-                            )}
-                          </div>
-                          {/* Description */}
-                          {pkg.description && (
-                            <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                              {pkg.description}
-                            </p>
-                          )}
-                          {/* See details: blue text link per Figma */}
-                          <button
-                            type="button"
-                            onClick={() => setDetailPanelPackageId(pkg.id)}
-                            className="text-[#6366F1] text-sm font-medium hover:underline"
-                          >
-                            See details
-                          </button>
-                        </div>
-                      </div>
+                        pkg={pkg}
+                        isSelected={selectedPackages.includes(pkg.id)}
+                        onToggleAdd={() => togglePackage(pkg.id)}
+                        onOpenDetails={() => setDetailPanelPackageId(pkg.id)}
+                      />
                     ))}
                   </div>
                 )}
@@ -842,7 +818,7 @@ export default function BookPage() {
           const accountTab = checkoutMode ?? 'signup'
 
           return (
-          <div className="space-y-6">
+          <div className="step-content-enter space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_384px] gap-6 xl:gap-8 items-start">
               {/* Left column: Create Your Account + Payment Method (no Review your booking card) */}
               <div className="space-y-6">
@@ -922,6 +898,92 @@ export default function BookPage() {
                     </>
                   )}
                 </div>
+
+            {/* Promo / corporate code */}
+            <div className="p-4 rounded-xl bg-indigo-50/80 border border-indigo-100">
+              <h3 className="font-medium text-gray-900 mb-2">Promo or corporate code</h3>
+              {!appliedPromoCode ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter code"
+                    value={promoCodeInput}
+                    onChange={(e) => {
+                      setPromoCodeInput(e.target.value)
+                      setPromoError(null)
+                    }}
+                    className="rounded border border-gray-300 px-3 py-2 text-sm w-full sm:w-56"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const code = promoCodeInput.replace(/\s/g, '')
+                      if (!code) return
+                      setPromoError(null)
+                      try {
+                        const totalCents = Math.round(step2Breakdown.total * 100)
+                        const res = await fetch('/api/discount-codes/preview', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ code, totalCentsBeforeCode: totalCents }),
+                        })
+                        const data = await res.json()
+                        if (res.status === 401) {
+                          setPromoError('Please sign in (or continue as guest) before applying a code.')
+                          return
+                        }
+                        if (!data.valid) {
+                          setPromoError(data.error || 'Invalid code')
+                          return
+                        }
+                        setAppliedPromoCode(code.toUpperCase())
+                        setPromoPreview({
+                          paymentMode: data.paymentMode,
+                          description: data.description,
+                          adjustedTotal: data.adjustedTotal,
+                        })
+                      } catch {
+                        setPromoError('Could not validate code')
+                      }
+                    }}
+                    className="rounded-lg bg-indigo-600 text-white px-4 py-2 text-sm font-medium hover:bg-indigo-700"
+                  >
+                    Apply
+                  </button>
+                  {promoError && <span className="text-sm text-red-600">{promoError}</span>}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-800">
+                    <span className="font-mono font-semibold">{appliedPromoCode}</span>
+                    {' — '}
+                    {promoPreview?.description}
+                    {promoPreview?.paymentMode === 'INVOICE' && (
+                      <span className="block mt-1 text-indigo-800 font-medium">
+                        Invoice checkout: no card required. Your booking will be confirmed; payment will be invoiced.
+                      </span>
+                    )}
+                    {promoPreview?.adjustedTotal != null && promoPreview.paymentMode === 'ONLINE' && (
+                      <span className="block mt-1 text-gray-600">
+                        Estimated total after code (before points/gift card): ${promoPreview.adjustedTotal.toFixed(2)}
+                      </span>
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppliedPromoCode(null)
+                      setPromoPreview(null)
+                      setPromoCodeInput('')
+                      setPromoError(null)
+                    }}
+                    className="text-sm text-gray-600 hover:underline"
+                  >
+                    Remove code
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Gift card */}
             <div className="p-4 rounded-xl bg-gray-50 border border-[#E2E8F0]">

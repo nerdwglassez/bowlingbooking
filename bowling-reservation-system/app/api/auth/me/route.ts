@@ -3,9 +3,18 @@ import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { profileUpdateSchema, changePasswordSchema } from '@/lib/validations'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   try {
+    const limiter = checkRateLimit(rateLimitKey(request, 'auth-me-get'), 120, 60_000)
+    if (!limiter.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } }
+      )
+    }
+
     const session = await getSession()
 
     if (!session) {
@@ -62,6 +71,18 @@ export async function PATCH(request: NextRequest) {
     const session = await getSession()
     if (!session) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    const patchLimit = checkRateLimit(
+      rateLimitKey(request, 'auth-me-patch', session.userId),
+      40,
+      60_000
+    )
+    if (!patchLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many profile updates. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(patchLimit.retryAfterSeconds) } }
+      )
     }
 
     const body = await request.json()

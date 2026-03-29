@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db'
 import { getTierFromPoints } from '@/lib/loyalty'
 import Link from 'next/link'
 import { format } from 'date-fns'
-import UserNav from '@/components/layout/UserNav'
+import AppExperienceHeader from '@/components/layout/AppExperienceHeader'
 
 export default async function DashboardPage() {
   const session = await requireAuth()
@@ -14,6 +14,8 @@ export default async function DashboardPage() {
     select: {
       id: true,
       email: true,
+      firstName: true,
+      lastName: true,
       role: true,
       loyaltyPoints: true,
     },
@@ -45,9 +47,16 @@ export default async function DashboardPage() {
 
   const hasUpcoming = upcomingBookings.length > 0
 
+  const headerUser = {
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <UserNav />
+      <AppExperienceHeader variant="booking" initialUser={headerUser} />
       <main className="max-w-4xl mx-auto p-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Dashboard</h1>

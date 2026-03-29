@@ -1,13 +1,16 @@
-import UserNav from '@/components/layout/UserNav'
+import AppExperienceHeader from '@/components/layout/AppExperienceHeader'
+import { getHeaderUser } from '@/lib/header-user'
 
-export default function GiftCardsLayout({
+export default async function GiftCardsLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const initialUser = await getHeaderUser()
+
   return (
     <>
-      <UserNav />
+      <AppExperienceHeader variant="booking" initialUser={initialUser} />
       {children}
     </>
   )

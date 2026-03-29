@@ -193,7 +193,7 @@ export default function StaffBlackoutDatesPage() {
               ))}
               {blocks.length === 0 ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                  No blackout dates configured. Click "Add Blackout" to get started.
+                  No blackout dates configured. Click &quot;Add Blackout&quot; to get started.
                 </div>
               ) : null}
             </div>

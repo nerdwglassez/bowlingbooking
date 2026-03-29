@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { BookingStatus } from '@prisma/client'
+import { BookingStatus } from '@/generated/prisma/client'
 import { z } from 'zod'
 
 const updateSchema = z.object({

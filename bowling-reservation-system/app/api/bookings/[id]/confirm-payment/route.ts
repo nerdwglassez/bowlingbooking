@@ -6,6 +6,7 @@ import { awardPointsForBooking, redeemPointsForBooking } from '@/lib/loyalty'
 import { applyGiftCardToBooking } from '@/lib/gift-cards'
 import { getStripeSecretKey } from '@/lib/stripe-config'
 import Stripe from 'stripe'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 export async function POST(
   request: NextRequest,
@@ -16,6 +17,18 @@ export async function POST(
     const { id } = await params
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const confirmLimit = checkRateLimit(
+      rateLimitKey(request, 'confirm-payment', session.userId),
+      40,
+      60_000
+    )
+    if (!confirmLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many confirmation attempts. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(confirmLimit.retryAfterSeconds) } }
+      )
     }
 
     const secret = await getStripeSecretKey()

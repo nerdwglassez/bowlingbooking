@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from './db'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { SESSION_COOKIE_NAME } from './session-cookie'
 
 const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
 
@@ -30,7 +31,7 @@ export async function createSession(userId: string): Promise<string> {
 
 export async function getSession(): Promise<{ userId: string; role: string } | null> {
   const cookieStore = await cookies()
-  const token = cookieStore.get('session_token')?.value
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value
 
   if (!token) return null
 

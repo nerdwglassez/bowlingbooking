@@ -30,7 +30,11 @@ export default function RevealSection({
   const [hasAnimated, setHasAnimated] = useState(false)
 
   useEffect(() => {
-    if (isVisible) setHasAnimated(true)
+    if (!isVisible) return
+    const id = requestAnimationFrame(() => {
+      setHasAnimated(true)
+    })
+    return () => cancelAnimationFrame(id)
   }, [isVisible])
 
   useEffect(() => {

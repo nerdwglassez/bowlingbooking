@@ -2,12 +2,12 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -209,6 +209,30 @@ model Product {
   @@map("products")
 }
 
+enum DiscountCodePaymentMode {
+  ONLINE // Customer pays with card at checkout; optional discount applies
+  INVOICE // Booking confirmed without online payment; amount due per invoice terms
+}
+
+model DiscountCode {
+  id                  String                  @id @default(cuid())
+  code                String                  @unique
+  label               String?
+  paymentMode         DiscountCodePaymentMode @map("payment_mode")
+  discountPercent     Decimal?                @map("discount_percent") @db.Decimal(5, 2) // 0–100; optional
+  discountFixedAmount Decimal?                @map("discount_fixed_amount") @db.Decimal(10, 2) // dollars off; optional
+  maxRedemptions      Int?                    @map("max_redemptions")
+  redemptionCount     Int                     @default(0) @map("redemption_count")
+  expiresAt           DateTime?               @map("expires_at")
+  isActive            Boolean                 @default(true) @map("is_active")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+
+  bookings Booking[]
+
+  @@map("discount_codes")
+}
+
 model Booking {
   id          String        @id @default(cuid())
   userId       String        @map("user_id")
@@ -242,12 +266,15 @@ model Booking {
   loyaltyDiscountAmount Decimal? @map("loyalty_discount_amount") @db.Decimal(10, 2)
   giftCardId   String?   @map("gift_card_id")
   giftCardAmountApplied Decimal? @map("gift_card_amount_applied") @db.Decimal(10, 2)
+  discountCodeId       String?   @map("discount_code_id")
+  appliedDiscountCode  String?   @map("applied_discount_code") // snapshot for exports / audit
   checkInToken String?   @unique @map("check_in_token") // Short token for kiosk/QR check-in (no auth)
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
   // Relations
   user         User          @relation(fields: [userId], references: [id])
+  discountCode DiscountCode? @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
   bookingPackages BookingPackage[]
   bookingProducts BookingProduct[]
   payments     Payment[]
@@ -256,6 +283,7 @@ model Booking {
   @@index([date])
   @@index([date, startTime])
   @@index([checkInToken])
+  @@index([discountCodeId])
   @@map("bookings")
 }
 

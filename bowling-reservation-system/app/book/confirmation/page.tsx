@@ -32,28 +32,37 @@ function ConfirmationContent() {
   const bookingId = searchParams?.get('bookingId') ?? searchParams?.get('id')
 
   const [booking, setBooking] = useState<Booking | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => Boolean(bookingId))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!bookingId) {
-      setError('No booking ID provided')
-      setLoading(false)
-      return
-    }
+    if (!bookingId) return
 
-    fetch(`/api/bookings/${bookingId}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Booking not found')
-        return res.json()
-      })
-      .then(data => {
-        setBooking(data.booking)
-      })
-      .catch(() => {
-        setError('Booking not found. Please check your email or dashboard.')
-      })
-      .finally(() => setLoading(false))
+    let cancelled = false
+    const t = setTimeout(() => {
+      setLoading(true)
+      setError(null)
+      fetch(`/api/bookings/${bookingId}`)
+        .then(res => {
+          if (!res.ok) throw new Error('Booking not found')
+          return res.json()
+        })
+        .then(data => {
+          if (!cancelled) setBooking(data.booking)
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setError('Booking not found. Please check your email or dashboard.')
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+    }, 0)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
   }, [bookingId])
 
   const formatDuration = (minutes: number) => {
@@ -95,6 +104,29 @@ function ConfirmationContent() {
   const qrCodeUrl = kioskCheckInData
     ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(kioskCheckInData)}`
     : ''
+
+  if (!bookingId) {
+    return (
+      <main className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="bg-white rounded-lg shadow-md p-8">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-red-600 mb-4">Missing booking</h1>
+              <p className="text-gray-600 mb-6">No booking ID was provided. Open this page from your confirmation link or your dashboard.</p>
+              <div className="flex gap-4 justify-center flex-wrap">
+                <Link href="/book">
+                  <Button>Book a Lane</Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="secondary">View My Bookings</Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   if (loading) {
     return (

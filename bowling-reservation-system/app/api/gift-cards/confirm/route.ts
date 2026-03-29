@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { getStripeSecretKey } from '@/lib/stripe-config'
 import Stripe from 'stripe'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +11,19 @@ export async function POST(request: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const limiter = checkRateLimit(
+      rateLimitKey(request, 'gift-card-confirm', session.userId),
+      40,
+      60_000
+    )
+    if (!limiter.allowed) {
+      return NextResponse.json(
+        { error: 'Too many confirmation attempts. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } }
+      )
+    }
+
     const secret = await getStripeSecretKey()
     if (!secret) {
       return NextResponse.json(

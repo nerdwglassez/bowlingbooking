@@ -176,7 +176,7 @@ export default function BookingSummary({
 
   if (variant === 'mobile-collapsible') {
     return (
-      <div className="lg:hidden sticky top-2 sm:top-4 md:top-6 z-20 bg-white/95 backdrop-blur border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
+      <div className="lg:hidden sticky top-16 z-20 bg-white/95 backdrop-blur border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
         <button
           type="button"
           onClick={onToggleExpand}

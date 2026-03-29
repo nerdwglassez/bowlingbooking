@@ -1,8 +1,10 @@
 # Setup Instructions
 
-## Step 1: Create Environment File
+**Local vs live:** For local testing and debugging use `.env.local` with a **local** database only. For production (Vercel), set variables in Vercel and use Neon. See **[Local vs Live](docs/LOCAL_VS_LIVE.md)** for the full guide.
 
-Copy the example env and use the **local database** URL (recommended for development):
+## Step 1: Create Environment File (local development)
+
+Copy the example env for **local** use only (do not put production `DATABASE_URL` in `.env.local`):
 
 ```bash
 cp .env.example .env.local
@@ -10,7 +12,7 @@ cp .env.example .env.local
 
 Edit `.env.local` and set `NEXTAUTH_SECRET` (e.g. `openssl rand -base64 32`). The default `DATABASE_URL` points to local PostgreSQL—see Step 2.
 
-To use **Neon** instead, replace `DATABASE_URL` with your Neon connection string (see [Neon docs](docs/NEON_DATABASE.md)).
+To use **Neon** for local testing (optional), you can replace `DATABASE_URL` in `.env.local` with a Neon connection string (see [Neon docs](docs/NEON_DATABASE.md)). For **production**, set `DATABASE_URL` in Vercel, not in `.env.local`.
 
 ## Step 2: Set Up Database
 
@@ -31,14 +33,19 @@ To use **Neon** instead, replace `DATABASE_URL` with your Neon connection string
 npm install
 ```
 
-## Step 4: Set Up Database Schema
+## Step 4: Set Up Database Schema (local)
+
+These commands use `DATABASE_URL` from `.env.local`, so they affect only your local database:
 
 ```bash
 # Generate Prisma Client
 npm run db:generate
 
-# Run migrations (creates/updates tables)
-npm run db:migrate
+# Apply schema (creates/updates tables)
+npm run db:push
+
+# Or use migrations instead
+# npm run db:migrate
 
 # Seed initial data (admin user, lanes, etc.)
 npm run db:seed
@@ -50,11 +57,12 @@ npm run db:seed
 npm run dev
 ```
 
-Visit http://localhost:3000 to see your app!
+Visit http://localhost:3000 to test and debug locally.
 
 ## Next Steps
 
-After setup is complete, proceed to Phase 1: Authentication.
+- **Local:** Use [Local database](docs/LOCAL_DATABASE.md) and [Local vs Live](docs/LOCAL_VS_LIVE.md) for day-to-day development.
+- **Deploy:** See [Deploy to Vercel](docs/DEPLOY_VERCEL.md) when you're ready to go live.
 
 
 

@@ -2,8 +2,11 @@
 
 import { useMemo, useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { CalendarDays, CircleDollarSign, Clock3, LayoutGrid, MoreVertical, Plus, Search } from 'lucide-react'
+import CreateBookingModal from '@/components/staff/CreateBookingModal'
+import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
 import { formatTime12Hour } from '@/lib/time'
 import { getBookingLanes } from '@/lib/staff-booking-utils'
@@ -19,6 +22,7 @@ interface Booking {
   totalPrice?: number
   lanes?: string | null
   user: {
+    id: string
     email: string
     firstName?: string | null
     lastName?: string | null
@@ -31,6 +35,8 @@ interface Booking {
 }
 
 export default function StaffDashboardPage() {
+  const router = useRouter()
+  const [createBookingOpen, setCreateBookingOpen] = useState(false)
   const [todayBookings, setTodayBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -198,13 +204,16 @@ export default function StaffDashboardPage() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link
-              href="/staff/bookings/create"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2 text-sm font-semibold text-indigo-700 shadow-[0_8px_20px_rgba(15,23,42,0.2)] hover:bg-indigo-50"
+            <Button
+              type="button"
+              onClick={() => setCreateBookingOpen(true)}
+              variant="primary"
+              rounded="full"
+              className="gap-2 bg-white px-5 py-2 font-semibold text-indigo-700 shadow-[0_8px_20px_rgba(15,23,42,0.2)] hover:bg-indigo-50"
             >
               <Plus className="h-4 w-4" />
               New booking
-            </Link>
+            </Button>
             <Link
               href="/staff/reports"
               className="inline-flex items-center rounded-full border border-white/40 bg-white/10 px-5 py-2 text-sm font-semibold text-white hover:bg-white/20"
@@ -304,11 +313,15 @@ export default function StaffDashboardPage() {
                     </div>
                     <div className="flex justify-start">
                       <div className="relative" data-actions-menu-root="true">
-                        <button
+                        <Button
                           type="button"
                           aria-haspopup="menu"
                           aria-expanded={openActionsForId === booking.id}
                           aria-label={`Open actions for booking at ${formatTime12Hour(booking.startTime)}`}
+                          variant="ghost"
+                          size="icon"
+                          rounded="full"
+                          className="border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                           onClick={(event) => {
                             const target = event.currentTarget as HTMLButtonElement | null
                             const rect = target?.getBoundingClientRect()
@@ -325,10 +338,9 @@ export default function StaffDashboardPage() {
                               return booking.id
                             })
                           }}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                         >
                           <MoreVertical className="h-4 w-4" />
-                        </button>
+                        </Button>
 
                         {openActionsForId === booking.id ? (
                           <div
@@ -337,33 +349,51 @@ export default function StaffDashboardPage() {
                               openActionsUpwardForId === booking.id ? 'bottom-11' : 'top-11'
                             }`}
                           >
-                            <Link
-                              href={`/staff/bookings/${booking.id}`}
+                            <Button
+                              type="button"
                               role="menuitem"
-                              onClick={() => setOpenActionsForId(null)}
-                              className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                              variant="ghost"
+                              size="sm"
+                              rounded="xl"
+                              onClick={() => {
+                                setOpenActionsForId(null)
+                                router.push(`/staff/bookings/${booking.id}`)
+                              }}
+                              className="h-auto w-full justify-start rounded-lg px-3 py-2 font-medium text-slate-700 hover:bg-slate-100"
                             >
                               Details
-                            </Link>
+                            </Button>
                             {canEditReservation(booking.status) && (
-                              <Link
-                                href={`/staff/bookings/${booking.id}/edit`}
+                              <Button
+                                type="button"
                                 role="menuitem"
-                                onClick={() => setOpenActionsForId(null)}
-                                className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                variant="ghost"
+                                size="sm"
+                                rounded="xl"
+                                onClick={() => {
+                                  setOpenActionsForId(null)
+                                  router.push(`/staff/bookings/${booking.id}/edit`)
+                                }}
+                                className="h-auto w-full justify-start rounded-lg px-3 py-2 font-medium text-slate-700 hover:bg-slate-100"
                               >
                                 Edit Reservation
-                              </Link>
+                              </Button>
                             )}
                             {(booking.status === 'CONFIRMED' || booking.status === 'PAID') && (
-                              <Link
-                                href={`/staff/check-in?bookingId=${booking.id}`}
+                              <Button
+                                type="button"
                                 role="menuitem"
-                                onClick={() => setOpenActionsForId(null)}
-                                className="block rounded-lg px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+                                variant="ghost"
+                                size="sm"
+                                rounded="xl"
+                                onClick={() => {
+                                  setOpenActionsForId(null)
+                                  router.push(`/staff/check-in?bookingId=${encodeURIComponent(booking.id)}`)
+                                }}
+                                className="h-auto w-full justify-start rounded-lg px-3 py-2 font-medium text-indigo-700 hover:bg-indigo-50"
                               >
                                 Check In
-                              </Link>
+                              </Button>
                             )}
                           </div>
                         ) : null}
@@ -376,6 +406,16 @@ export default function StaffDashboardPage() {
           </div>
         )}
       </div>
+
+      {createBookingOpen && (
+        <CreateBookingModal
+          onClose={() => setCreateBookingOpen(false)}
+          onCreated={(bookingId) => {
+            setCreateBookingOpen(false)
+            router.push(`/staff/bookings/${encodeURIComponent(bookingId)}`)
+          }}
+        />
+      )}
     </div>
   )
 }

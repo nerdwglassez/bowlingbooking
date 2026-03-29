@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 /**
  * Price (or numeric) input. With showDollar=true, shows "$" in the field.
@@ -26,11 +26,7 @@ export default function PriceInput({
   const [focused, setFocused] = useState(false)
   const [str, setStr] = useState(() => formatDisplay(value))
 
-  useEffect(() => {
-    if (!focused) {
-      setStr(formatDisplay(value))
-    }
-  }, [value, focused])
+  const displayValue = focused ? str : formatDisplay(value)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const s = e.target.value
@@ -51,9 +47,12 @@ export default function PriceInput({
         id={id}
         type="text"
         inputMode="decimal"
-        value={str}
+        value={displayValue}
         disabled={disabled}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true)
+          setStr(formatDisplay(value))
+        }}
         onBlur={() => setFocused(false)}
         onChange={handleChange}
         className={`w-full min-w-0 border-0 bg-transparent py-2.5 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-70 ${showDollar ? 'pr-3 pl-1' : 'px-3'}`}

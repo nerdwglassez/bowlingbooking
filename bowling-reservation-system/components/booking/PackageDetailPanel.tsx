@@ -50,15 +50,15 @@ export default function PackageDetailPanel({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — fades in with panel open */}
       <div
-        className="fixed inset-0 bg-black/40 sm:bg-black/50 z-40 transition-opacity"
+        className="modal-backdrop package-detail-backdrop-enter fixed inset-0 bg-black/40 sm:bg-black/50 z-40"
         onClick={onClose}
         aria-hidden="true"
       />
-      {/* Desktop: right panel. Mobile: full-screen details view. */}
+      {/* sm+: right sheet slides in from the right; mobile: full-screen with subtle fade-up */}
       <div
-        className="fixed inset-0 sm:inset-y-0 sm:right-0 sm:left-auto w-full sm:max-w-[600px] bg-white z-50 shadow-2xl flex flex-col animate-in duration-300 sm:slide-in-from-right"
+        className="package-detail-panel-enter fixed inset-0 sm:inset-y-0 sm:right-0 sm:left-auto w-full sm:max-w-[600px] bg-white z-50 shadow-2xl flex flex-col will-change-transform"
         role="dialog"
         aria-modal="true"
         aria-labelledby="package-detail-title"

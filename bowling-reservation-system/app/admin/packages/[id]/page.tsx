@@ -154,14 +154,14 @@ export default function EditPackagePage() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="rounded-2xl bg-white px-5 py-4 text-sm text-slate-600 shadow-lg">Loading package...</div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 p-4 sm:p-8">
+    <div className="modal-backdrop fixed inset-0 z-50 bg-black/50 p-4 sm:p-8">
       <div className="mx-auto max-h-[92vh] w-full max-w-[512px] overflow-y-auto rounded-3xl bg-white p-6 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="flex items-center justify-between">

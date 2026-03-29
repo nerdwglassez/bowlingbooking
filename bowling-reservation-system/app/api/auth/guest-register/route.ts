@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { cookies } from 'next/headers'
+import { setSessionTokenCookie } from '@/lib/session-cookie'
 import { z } from 'zod'
 import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
@@ -65,13 +66,7 @@ export async function POST(request: NextRequest) {
 
     // Set cookie
     const cookieStore = await cookies()
-    cookieStore.set('session_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
-      path: '/',
-    })
+    setSessionTokenCookie(cookieStore, token)
 
     return NextResponse.json({
       user: {

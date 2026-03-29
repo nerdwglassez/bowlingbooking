@@ -13,7 +13,7 @@ import {
   isAfter,
   startOfDay,
 } from 'date-fns'
-import { Calendar, CalendarX, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { Calendar, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { COLORS } from '@/lib/design-tokens'
 
 /** Spec: 3 skeleton rectangles, pulse 0.5→1→0.5, 1.5s loop. Figma 19-1058: time list height 480px. */
@@ -58,6 +58,12 @@ function formatTimeLabel(timeStr: string): string {
   return m === 0 ? `${hour}:00 ${period}` : `${hour}:${m.toString().padStart(2, '0')} ${period}`
 }
 
+function formatDateLabel(dateStr: string): string {
+  if (!dateStr) return ''
+  const d = parse(dateStr, 'yyyy-MM-dd', new Date())
+  return format(d, 'EEE, MMM d')
+}
+
 export default function DateAndTimeStepOne({
   selectedDate,
   selectedTime,
@@ -86,31 +92,45 @@ export default function DateAndTimeStepOne({
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [slotsError, setSlotsError] = useState<string | null>(null)
   const timeSlotsSectionRef = useRef<HTMLDivElement>(null)
+  // Figma 136-6895: mobile step 1 – date collapsed, time expanded on load
+  const [mobileDateExpanded, setMobileDateExpanded] = useState(false)
+  const [mobileTimeExpanded, setMobileTimeExpanded] = useState(true)
 
   useEffect(() => {
     if (!selectedDate) {
-      setSlots([])
-      return
-    }
-    setLoadingSlots(true)
-    setSlotsError(null)
-    fetch(`/api/availability?date=${encodeURIComponent(selectedDate)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.slots) throw new Error(data.error || 'Failed to load')
-        setSlots(data.slots || [])
-      })
-      .catch((err) => {
-        setSlotsError(err instanceof Error ? err.message : 'Failed to load times')
+      const clearId = setTimeout(() => {
         setSlots([])
-      })
-      .finally(() => setLoadingSlots(false))
+        setSlotsError(null)
+        setLoadingSlots(false)
+      }, 0)
+      return () => clearTimeout(clearId)
+    }
+    const loadId = setTimeout(() => {
+      setSlots([])
+      setLoadingSlots(true)
+      setSlotsError(null)
+      fetch(`/api/availability?date=${encodeURIComponent(selectedDate)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data.slots) throw new Error(data.error || 'Failed to load')
+          setSlots(data.slots || [])
+        })
+        .catch((err) => {
+          setSlotsError(err instanceof Error ? err.message : 'Failed to load times')
+          setSlots([])
+        })
+        .finally(() => setLoadingSlots(false))
+    }, 0)
+    return () => clearTimeout(loadId)
   }, [selectedDate])
 
   // Keep viewMonth within the 3-month view window (e.g. after midnight or long-lived session)
   useEffect(() => {
-    if (isBefore(viewMonth, minViewMonth)) setViewMonth(minViewMonth)
-    else if (isAfter(viewMonth, maxViewMonth)) setViewMonth(maxViewMonth)
+    const id = setTimeout(() => {
+      if (isBefore(viewMonth, minViewMonth)) setViewMonth(minViewMonth)
+      else if (isAfter(viewMonth, maxViewMonth)) setViewMonth(maxViewMonth)
+    }, 0)
+    return () => clearTimeout(id)
   }, [minViewMonth, maxViewMonth, viewMonth])
 
   // Spec: after time slots load, scroll to bring time slots into view (smooth, ~500ms)
@@ -171,9 +191,9 @@ export default function DateAndTimeStepOne({
     <div
       className="grid grid-cols-1 lg:grid-cols-2 transition-all duration-300 gap-6 lg:gap-11"
     >
-      {/* Figma 19-381 desktop; Figma 23-955 mobile: single calendar, ~32px padding, no fixed min height on small screens */}
+      {/* Figma 136-6895: mobile collapsible date card; desktop unchanged */}
       <div
-        className="flex flex-col min-h-0 lg:min-h-[600px]"
+        className="flex flex-col min-h-0 lg:min-h-[600px] overflow-hidden"
         style={{
           gap: 32,
           padding: 'clamp(20px, 5vw, 33px)',
@@ -183,7 +203,41 @@ export default function DateAndTimeStepOne({
           boxShadow: '0px 1px 2px 0px rgba(0, 0, 0, 0.06), 0px 1px 3px 0px rgba(0, 0, 0, 0.1)',
         }}
       >
-        <div className="flex items-center justify-between gap-3">
+        {/* Mobile: collapsible header row (Figma 136-6918) – date collapsed on load */}
+        <button
+          type="button"
+          onClick={() => {
+              setMobileTimeExpanded(false)
+              setMobileDateExpanded((v) => !v)
+            }}
+          className="flex w-full items-center justify-between gap-3 px-0 py-0 lg:hidden text-left"
+          aria-expanded={mobileDateExpanded}
+          aria-controls="step1-date-content"
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[10px]"
+              style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)' }}
+            >
+              <Calendar className="h-5 w-5" stroke="#6366F1" aria-hidden />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold leading-[24px] tracking-[-0.2px]" style={{ fontSize: 16, color: '#0F172A' }}>
+                Select a date
+              </span>
+              <span className="font-semibold leading-[21px]" style={{ fontSize: 14, color: selectedDate ? '#6366F1' : '#94A3B8' }}>
+                {selectedDate ? formatDateLabel(selectedDate) : 'Pick a date'}
+              </span>
+            </div>
+          </div>
+          <ChevronDown
+            className={`h-6 w-6 flex-shrink-0 transition-transform duration-200 ${mobileDateExpanded ? 'rotate-180' : ''}`}
+            style={{ color: '#64748B' }}
+            aria-hidden
+          />
+        </button>
+        {/* Desktop: title + month nav */}
+        <div className="hidden lg:flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div
               className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[10px]"
@@ -216,8 +270,11 @@ export default function DateAndTimeStepOne({
             </button>
           </div>
         </div>
-        {/* Single-month calendar across all breakpoints for improved readability */}
-        <div className="grid grid-cols-1 gap-4">
+        {/* Calendar content: visible when expanded on mobile, always on desktop */}
+        <div
+          id="step1-date-content"
+          className={`grid grid-cols-1 gap-4 ${!mobileDateExpanded ? 'hidden lg:grid' : ''}`}
+        >
           {/* Figma 19-381: Table Head layout_XNWDBV borderRadius 8px style_U59GVB fill_NTNHT5 #717182; Row layout_4VUHV9 40px */}
           <div>
             <p className="mb-2 text-center font-medium leading-[1.5em]" style={{ fontSize: 14, color: '#0F172A' }}>
@@ -263,9 +320,9 @@ export default function DateAndTimeStepOne({
         </div>
       </div>
 
-      {/* Right card: same as layout_DC8UD2 (19-381); Figma 23-955 mobile: responsive padding and min-height */}
+      {/* Right card: Figma 136-6895 mobile collapsible time card; desktop unchanged */}
       <div
-        className="flex flex-col min-h-0 lg:min-h-[600px] transition-all duration-300"
+        className="flex flex-col min-h-0 lg:min-h-[600px] transition-all duration-300 overflow-hidden"
         style={{
           gap: 32,
           padding: 'clamp(20px, 5vw, 33px)',
@@ -275,7 +332,41 @@ export default function DateAndTimeStepOne({
           boxShadow: '0px 1px 2px 0px rgba(0, 0, 0, 0.06), 0px 1px 3px 0px rgba(0, 0, 0, 0.1)',
         }}
       >
-        <div className="flex items-center gap-3">
+        {/* Mobile: collapsible header row (Figma 136-6931) – time expanded on load */}
+        <button
+          type="button"
+          onClick={() => {
+              setMobileDateExpanded(false)
+              setMobileTimeExpanded((v) => !v)
+            }}
+          className="flex w-full items-center justify-between gap-3 px-0 py-0 lg:hidden text-left"
+          aria-expanded={mobileTimeExpanded}
+          aria-controls="step1-time-content"
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[10px]"
+              style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)' }}
+            >
+              <Clock className="h-5 w-5" stroke="#6366F1" aria-hidden />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold leading-[24px] tracking-[-0.2px]" style={{ fontSize: 16, color: '#0F172A' }}>
+                Select a time
+              </span>
+              <span className="font-normal leading-[21px]" style={{ fontSize: 14, color: selectedTime ? '#6366F1' : '#94A3B8' }}>
+                {selectedTime ? formatTimeLabel(selectedTime) : 'Choose a time slot'}
+              </span>
+            </div>
+          </div>
+          <ChevronDown
+            className={`h-6 w-6 flex-shrink-0 transition-transform duration-200 ${mobileTimeExpanded ? 'rotate-180' : ''}`}
+            style={{ color: '#64748B' }}
+            aria-hidden
+          />
+        </button>
+        {/* Desktop: title only */}
+        <div className="hidden lg:flex items-center gap-3">
           <div
             className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[10px]"
             style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)' }}
@@ -286,6 +377,7 @@ export default function DateAndTimeStepOne({
             Select a time
           </span>
         </div>
+        <div id="step1-time-content" className={!mobileTimeExpanded ? 'hidden lg:!block' : ''}>
         {!selectedDate ? (
           <p className="py-8 text-center text-sm" style={{ color: COLORS.textSecondary }}>
             Select a date to see available times
@@ -344,7 +436,7 @@ export default function DateAndTimeStepOne({
         ) : (
           <div
             ref={timeSlotsSectionRef}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 max-h-[320px] sm:max-h-[400px] lg:max-h-[480px] overflow-y-auto pr-1"
+            className="step-content-enter grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 max-h-[320px] sm:max-h-[400px] lg:max-h-[480px] overflow-y-auto pr-1"
             style={{ scrollMarginTop: 100 }}
           >
             {slots.map((slot, index) => {
@@ -355,7 +447,12 @@ export default function DateAndTimeStepOne({
                 <button
                   key={slot.time}
                   type="button"
-                  onClick={() => canSelect && onTimeSelect(selectedDate, slot.time)}
+                  onClick={() => {
+                    if (canSelect) {
+                      onTimeSelect(selectedDate, slot.time)
+                      setMobileTimeExpanded(false)
+                    }
+                  }}
                   disabled={!canSelect}
                   className={`relative flex w-full min-h-[56px] items-center justify-between rounded-[12px] border-2 px-4 py-3 text-left transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none
                     ${canSelect ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366F1] focus-visible:ring-offset-2' : 'cursor-not-allowed'}
@@ -388,6 +485,7 @@ export default function DateAndTimeStepOne({
             })}
           </div>
         )}
+        </div>
       </div>
     </div>
   )

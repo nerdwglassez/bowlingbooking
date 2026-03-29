@@ -1,5 +1,7 @@
 # Staff Booking Flow & CSS Audit
 
+**Status:** Reference / historical (March 2026). Describes a point-in-time audit; verify behavior in code and **[PRD_GAP_ANALYSIS.md](../PRD_GAP_ANALYSIS.md)** before treating items as current gaps.
+
 Summary of the review and updates for employee experience connectivity, CSS standardization, and dead/orphaned elements.
 
 ## 1. Employee experience – connectivity

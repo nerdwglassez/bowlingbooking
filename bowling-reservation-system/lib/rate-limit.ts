@@ -1,5 +1,10 @@
 import { NextRequest } from 'next/server'
 
+/**
+ * In-memory limiter: effective per server instance. On serverless with many instances,
+ * abusers get more headroom unless you add Redis/Upstash or an edge rate limiter.
+ */
+
 type Bucket = {
   count: number
   resetAt: number

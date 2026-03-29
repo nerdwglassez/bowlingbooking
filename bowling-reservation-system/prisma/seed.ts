@@ -1,14 +1,17 @@
-import { PrismaClient } from '@prisma/client'
+import { config } from 'dotenv'
+import { resolve } from 'path'
 import bcrypt from 'bcryptjs'
 import { addDays, format } from 'date-fns'
 
-const prisma = new PrismaClient()
+config({ path: resolve(process.cwd(), '.env.local') })
+config({ path: resolve(process.cwd(), '.env') })
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12)
 }
 
 async function main() {
+  const { prisma } = await import('../lib/db')
   console.log('🌱 Starting seed...')
 
   // Create admin user
@@ -301,6 +304,7 @@ main()
     process.exit(1)
   })
   .finally(async () => {
+    const { prisma } = await import('../lib/db')
     await prisma.$disconnect()
   })
 

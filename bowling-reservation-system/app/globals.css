@@ -41,6 +41,21 @@
   50% { background-color: rgba(99, 102, 241, 0.06); }
 }
 
+/* Step content: subtle fade-in and move up on load (non-sticky elements) */
+@keyframes step-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.step-content-enter {
+  animation: step-content-enter 0.4s ease-out forwards;
+}
+
 .step1-skeleton-pulse {
   animation: step1-skeleton-pulse 1.5s ease-in-out infinite;
 }
@@ -54,12 +69,60 @@
   animation: step1-button-shake 0.4s ease-in-out;
 }
 
+/* Package detail overlay (booking step 2): backdrop fade + panel slide (sm+) */
+@keyframes package-detail-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes package-detail-panel-slide-in {
+  from {
+    opacity: 0;
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes package-detail-panel-mobile-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+.package-detail-backdrop-enter {
+  animation: package-detail-backdrop-enter 0.35s ease-out forwards;
+}
+.package-detail-panel-enter {
+  animation: package-detail-panel-mobile-enter 0.32s ease-out forwards;
+}
+@media (min-width: 640px) {
+  .package-detail-panel-enter {
+    animation: package-detail-panel-slide-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .step-content-enter,
   .step1-stagger-fade-up,
   .step1-button-shake,
   .step1-continue-pulse,
   .step1-summary-highlight {
     animation: none !important;
+  }
+  .package-detail-backdrop-enter,
+  .package-detail-panel-enter {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
@@ -69,14 +132,27 @@
   }
 }
 
-/* Neutralize runtime-injected Next.js portal offsets from preview tooling */
-nextjs-portal {
-  left: unset !important;
-  top: unset !important;
+/* Modal backdrops: fill entire display (handles mobile viewport, scroll, dvh) */
+.modal-backdrop {
+  min-width: 100vw;
+  min-height: 100dvh;
+  margin-top: 0;
+}
+
+/* Modal backdrop close button: do not pin left/top (persisted from browser preview) */
+.modal-backdrop button.absolute.inset-0.cursor-default {
+  left: unset;
+  top: unset;
 }
 
 /* Allow immersive subpages to replace the standard staff top nav */
 body.immersive-staff-page .staff-user-nav {
   display: none !important;
+}
+
+/* Override Next.js portal position (persisted from browser preview) */
+nextjs-portal {
+  left: unset;
+  top: unset;
 }
 

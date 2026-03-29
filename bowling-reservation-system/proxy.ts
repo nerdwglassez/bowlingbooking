@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
-export function middleware(request: NextRequest) {
-  const sessionToken = request.cookies.get('session_token')?.value
+export function proxy(request: NextRequest) {
+  const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value
 
   // Public routes that don't require authentication
   const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/', '/book', '/terms', '/kiosk']
@@ -39,5 +40,3 @@ export const config = {
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 }
-
-

@@ -4,6 +4,7 @@ import { verifyPassword } from '@/lib/auth'
 import { loginSchema } from '@/lib/validations'
 import { cookies } from 'next/headers'
 import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
+import { setSessionTokenCookie } from '@/lib/session-cookie'
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,13 +76,7 @@ export async function POST(request: NextRequest) {
 
     // Set cookie
     const cookieStore = await cookies()
-    cookieStore.set('session_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
-      path: '/',
-    })
+    setSessionTokenCookie(cookieStore, token)
 
     return NextResponse.json({
       user: {

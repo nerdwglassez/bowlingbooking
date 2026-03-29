@@ -4,7 +4,6 @@
  */
 import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
-import { PrismaClient } from '@prisma/client'
 
 // Load .env.local into process.env
 const envPath = resolve(process.cwd(), '.env.local')
@@ -29,7 +28,7 @@ async function main() {
     process.exit(1)
   }
 
-  const prisma = new PrismaClient()
+  const { prisma } = await import('../lib/db')
   try {
     await prisma.$queryRaw`SELECT 1`
     console.log('✅ Neon connection successful.')

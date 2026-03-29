@@ -15,7 +15,16 @@ import {
 import { validateGiftCard, applyGiftCardToBooking } from '@/lib/gift-cards'
 import { getStripeSecretKey } from '@/lib/stripe-config'
 import { generateUniqueCheckInToken } from '@/lib/check-in-token'
+import {
+  applyDiscountToCents,
+  assertDiscountCodeUsable,
+  findDiscountCodeByNormalized,
+  incrementDiscountRedemption,
+  normalizeDiscountCode,
+  type DiscountCodeRow,
+} from '@/lib/discount-codes'
 import { parse } from 'date-fns'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 async function calculateBookingPrice(
   duration: number, // in minutes
@@ -107,6 +116,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Please sign in or continue as guest to complete your booking' },
         { status: 401 }
+      )
+    }
+
+    const createLimit = checkRateLimit(
+      rateLimitKey(request, 'booking-create', session.userId),
+      25,
+      3_600_000
+    )
+    if (!createLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many booking attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(createLimit.retryAfterSeconds) } }
       )
     }
 
@@ -205,6 +226,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let discountCodeRow: DiscountCodeRow | null = null
+    let appliedDiscountCodeSnapshot: string | null = null
+    const rawDiscountCode = validatedData.discountCode?.trim()
+    if (rawDiscountCode) {
+      const normalized = normalizeDiscountCode(rawDiscountCode)
+      const codeRecord = await findDiscountCodeByNormalized(normalized)
+      if (!codeRecord) {
+        return NextResponse.json({ error: 'Invalid discount code' }, { status: 400 })
+      }
+      try {
+        assertDiscountCodeUsable(codeRecord)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Discount code is not valid'
+        return NextResponse.json({ error: msg }, { status: 400 })
+      }
+      discountCodeRow = codeRecord
+      appliedDiscountCodeSnapshot = codeRecord.code
+      totalPriceCents = applyDiscountToCents(totalPriceCents, codeRecord)
+    }
+
+    const invoiceCheckout = discountCodeRow?.paymentMode === 'INVOICE'
+
     let loyaltyPointsRedeemed: number | null = null
     let loyaltyDiscountAmount: number | null = null
     const loyaltyPointsToRedeem = validatedData.loyaltyPointsToRedeem ?? 0
@@ -250,52 +293,65 @@ export async function POST(request: NextRequest) {
       prisma.booking.findUnique({ where: { checkInToken: token }, select: { id: true } }).then((b) => !!b)
     )
 
-    // Create booking
-    const booking = await prisma.booking.create({
-      data: {
-        userId: session.userId,
-        date: bookingDate,
-        startTime: validatedData.startTime,
-        duration: validatedData.duration,
-        lane: assignedLane,
-        lanes: numLanes > 1 ? JSON.stringify(assignedLanes) : null,
-        numBowlers: validatedData.numBowlers,
-        shoeSizes: validatedData.shoeSizes ? JSON.stringify(validatedData.shoeSizes) : null,
-        status: 'PENDING',
-        totalPrice: totalPriceCents / 100, // Convert cents to dollars
-        loyaltyPointsRedeemed: loyaltyPointsRedeemed ?? undefined,
-        loyaltyDiscountAmount: loyaltyDiscountAmount ?? undefined,
-        giftCardId: giftCardId ?? undefined,
-        giftCardAmountApplied: giftCardAmountApplied ?? undefined,
-        checkInToken,
-      },
+    let initialStatus: 'PENDING' | 'CONFIRMED' | 'PAID' = 'PENDING'
+    if (invoiceCheckout) {
+      initialStatus = 'CONFIRMED'
+    } else if (totalPriceCents <= 0) {
+      initialStatus = 'PAID'
+    }
+
+    const bookingId = await prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.create({
+        data: {
+          userId: session.userId,
+          date: bookingDate,
+          startTime: validatedData.startTime,
+          duration: validatedData.duration,
+          lane: assignedLane,
+          lanes: numLanes > 1 ? JSON.stringify(assignedLanes) : null,
+          numBowlers: validatedData.numBowlers,
+          shoeSizes: validatedData.shoeSizes ? JSON.stringify(validatedData.shoeSizes) : null,
+          status: initialStatus,
+          totalPrice: totalPriceCents / 100,
+          loyaltyPointsRedeemed: loyaltyPointsRedeemed ?? undefined,
+          loyaltyDiscountAmount: loyaltyDiscountAmount ?? undefined,
+          giftCardId: giftCardId ?? undefined,
+          giftCardAmountApplied: giftCardAmountApplied ?? undefined,
+          discountCodeId: discountCodeRow?.id,
+          appliedDiscountCode: appliedDiscountCodeSnapshot ?? undefined,
+          checkInToken,
+        },
+      })
+
+      if (discountCodeRow) {
+        await incrementDiscountRedemption(tx, discountCodeRow.id)
+      }
+
+      if (validatedData.packageIds && validatedData.packageIds.length > 0) {
+        await tx.bookingPackage.createMany({
+          data: validatedData.packageIds.map((packageId: string) => ({
+            bookingId: booking.id,
+            packageId,
+            quantity: 1,
+          })),
+        })
+      }
+
+      if (productItems.length > 0) {
+        await tx.bookingProduct.createMany({
+          data: productItems.map((item: { productId: string; quantity: number }) => ({
+            bookingId: booking.id,
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
+        })
+      }
+
+      return booking.id
     })
 
-    // Create booking packages if any
-    if (validatedData.packageIds && validatedData.packageIds.length > 0) {
-      await prisma.bookingPackage.createMany({
-        data: validatedData.packageIds.map((packageId: string) => ({
-          bookingId: booking.id,
-          packageId,
-          quantity: 1,
-        })),
-      })
-    }
-
-    // Create booking products (individual food/drink items) if any
-    if (productItems.length > 0) {
-      await prisma.bookingProduct.createMany({
-        data: productItems.map((item: { productId: string; quantity: number }) => ({
-          bookingId: booking.id,
-          productId: item.productId,
-          quantity: item.quantity,
-        })),
-      })
-    }
-
-    // Fetch booking with packages and products
     const bookingWithPackages = await prisma.booking.findUnique({
-      where: { id: booking.id },
+      where: { id: bookingId },
       include: {
         bookingPackages: {
           include: {
@@ -310,51 +366,134 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // If Stripe is not configured, booking is "confirmed" without payment — apply loyalty, send email
     const stripeSecret = await getStripeSecretKey()
-    if (!stripeSecret && bookingWithPackages) {
+
+    function buildEmailPayload() {
+      if (!bookingWithPackages) return null
+      return {
+        ...bookingWithPackages,
+        totalPrice: Number(bookingWithPackages.totalPrice),
+        lanes: bookingWithPackages.lanes ? (JSON.parse(bookingWithPackages.lanes) as number[]) : undefined,
+        bookingPackages: bookingWithPackages.bookingPackages?.map((bp) => ({
+          package: { name: bp.package.name, price: Number(bp.package.price) },
+        })),
+      }
+    }
+
+    // Invoice checkout: confirmed without online payment; no loyalty points earned until paid (future)
+    if (invoiceCheckout && bookingWithPackages) {
       const user = await prisma.user.findUnique({
         where: { id: session.userId },
         select: { email: true },
       })
-      // Mark as PAID and apply loyalty (redeem + earn)
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: { status: 'PAID' },
+      if (loyaltyPointsRedeemed != null && loyaltyDiscountAmount != null) {
+        await redeemPointsForBooking(
+          session.userId,
+          bookingWithPackages.id,
+          loyaltyPointsRedeemed,
+          loyaltyDiscountAmount
+        )
+      }
+      if (bookingWithPackages.giftCardId != null && bookingWithPackages.giftCardAmountApplied != null) {
+        await applyGiftCardToBooking(
+          bookingWithPackages.giftCardId,
+          Number(bookingWithPackages.giftCardAmountApplied)
+        )
+      }
+      const forEmail = buildEmailPayload()
+      if (forEmail && user?.email) {
+        sendBookingConfirmationEmail(forEmail, user.email, { invoicePending: true }).catch((err) =>
+          console.error('[bookings] Invoice booking email failed:', err)
+        )
+      }
+    } else if (bookingWithPackages?.status === 'PAID' && !invoiceCheckout) {
+      // $0 online checkout or equivalent
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { email: true },
       })
       if (loyaltyPointsRedeemed != null && loyaltyDiscountAmount != null) {
         await redeemPointsForBooking(
           session.userId,
-          booking.id,
+          bookingWithPackages.id,
           loyaltyPointsRedeemed,
           loyaltyDiscountAmount
         )
       }
       await awardPointsForBooking(
         session.userId,
-        booking.id,
+        bookingWithPackages.id,
         Number(bookingWithPackages.totalPrice)
       )
-      if (booking.giftCardId != null && booking.giftCardAmountApplied != null) {
-        await applyGiftCardToBooking(booking.giftCardId, Number(booking.giftCardAmountApplied))
+      if (bookingWithPackages.giftCardId != null && bookingWithPackages.giftCardAmountApplied != null) {
+        await applyGiftCardToBooking(
+          bookingWithPackages.giftCardId,
+          Number(bookingWithPackages.giftCardAmountApplied)
+        )
       }
-      if (user?.email) {
-        const forEmail = {
-          ...bookingWithPackages,
-          totalPrice: Number(bookingWithPackages.totalPrice),
-          lanes: bookingWithPackages.lanes ? (JSON.parse(bookingWithPackages.lanes) as number[]) : undefined,
-          bookingPackages: bookingWithPackages.bookingPackages?.map((bp) => ({
-            package: { name: bp.package.name, price: Number(bp.package.price) },
-          })),
-        }
+      const forEmail = buildEmailPayload()
+      if (forEmail && user?.email) {
+        sendBookingConfirmationEmail(forEmail, user.email).catch((err) =>
+          console.error('[bookings] Confirmation email failed:', err)
+        )
+      }
+    } else if (!stripeSecret && bookingWithPackages && bookingWithPackages.status === 'PENDING') {
+      // Dev / no Stripe: treat as paid after booking
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { email: true },
+      })
+      await prisma.booking.update({
+        where: { id: bookingWithPackages.id },
+        data: { status: 'PAID' },
+      })
+      if (loyaltyPointsRedeemed != null && loyaltyDiscountAmount != null) {
+        await redeemPointsForBooking(
+          session.userId,
+          bookingWithPackages.id,
+          loyaltyPointsRedeemed,
+          loyaltyDiscountAmount
+        )
+      }
+      await awardPointsForBooking(
+        session.userId,
+        bookingWithPackages.id,
+        Number(bookingWithPackages.totalPrice)
+      )
+      if (bookingWithPackages.giftCardId != null && bookingWithPackages.giftCardAmountApplied != null) {
+        await applyGiftCardToBooking(
+          bookingWithPackages.giftCardId,
+          Number(bookingWithPackages.giftCardAmountApplied)
+        )
+      }
+      const forEmail = buildEmailPayload()
+      if (forEmail && user?.email) {
         sendBookingConfirmationEmail(forEmail, user.email).catch((err) =>
           console.error('[bookings] Confirmation email failed:', err)
         )
       }
     }
 
+    const finalBooking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        bookingPackages: { include: { package: true } },
+        bookingProducts: { include: { product: true } },
+      },
+    })
+
+    const requiresPayment =
+      !!finalBooking &&
+      finalBooking.status === 'PENDING' &&
+      !!stripeSecret &&
+      Number(finalBooking.totalPrice) > 0
+
     return NextResponse.json(
-      { booking: bookingWithPackages },
+      {
+        booking: finalBooking,
+        requiresPayment,
+        checkoutType: invoiceCheckout ? 'invoice' : 'online',
+      },
       { status: 201 }
     )
   } catch (error: any) {

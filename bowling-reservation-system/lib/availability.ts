@@ -4,7 +4,7 @@ import { getPricingSettings } from './settings'
 
 // Configuration
 const DEFAULT_TOTAL_LANES = 20 // Fallback total lanes
-const TIME_SLOT_INTERVAL = 30 // 30-minute intervals
+const TIME_SLOT_INTERVAL = 60 // 1-hour intervals
 const DURATION_OPTIONS = [60, 90, 120, 150, 180] // Duration options in minutes
 
 export interface TimeSlot {
@@ -18,7 +18,7 @@ export interface AvailabilityResult {
   slots: TimeSlot[]
 }
 
-/** Default slots when DB is unavailable (e.g. migrations not run). 09:00–22:00, 30-min, all lanes. */
+/** Default slots when DB is unavailable (e.g. migrations not run). 09:00–22:00, hourly, all lanes. */
 function getDefaultSlots(totalLanes: number = DEFAULT_TOTAL_LANES): TimeSlot[] {
   const slots: TimeSlot[] = []
   let current = parse('09:00', 'HH:mm', new Date())

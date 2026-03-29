@@ -1,6 +1,6 @@
 # Deploy to Vercel
 
-This guide covers committing the project and deploying the Bowling Reservation System to Vercel.
+This guide covers deploying the Bowling Reservation System to Vercel (going live). **For local testing and debugging**, use `.env.local` and a local database—see **[Local vs Live](LOCAL_VS_LIVE.md)**.
 
 ## Before you commit
 

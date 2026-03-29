@@ -1,10 +1,10 @@
 # Bowling Alley Reservation System
 ## Product Requirements Document (PRD)
 
-**Version:** 1.1  
-**Last Updated:** February 2026  
+**Version:** 1.3  
+**Last Updated:** March 2026  
 **Document Owner:** Bradly Zavakos  
-**Status:** Planning Phase
+**Status:** Active development — implementation status and gaps are tracked in [`bowling-reservation-system/PRD_GAP_ANALYSIS.md`](bowling-reservation-system/PRD_GAP_ANALYSIS.md). Task-scoped technical maps: [`bowling-reservation-system/docs/RESERVATION_FLOW.md`](bowling-reservation-system/docs/RESERVATION_FLOW.md), [`bowling-reservation-system/docs/STAFF_AND_ADMIN_EXPERIENCE.md`](bowling-reservation-system/docs/STAFF_AND_ADMIN_EXPERIENCE.md).
 
 ---
 
@@ -415,7 +415,8 @@ A web-based reservation platform with:
   - Subtotal
   - Tax
   - Total
-- Payment integration:
+- **Create Your Account (when user is not signed in):** The guest path shows the **guest form only** (name, email, phone, "Continue as Guest") without a separate "Checkout options" block (no "Sign In to Existing Account" button or "Or continue as guest" divider above the form). Sign-in remains available via the sticky header.
+- Payment integration (for authenticated or guest checkout):
   - Stripe or Square payment processing
   - PCI-compliant (no card storage)
   - Support for major credit cards
@@ -426,6 +427,7 @@ A web-based reservation platform with:
 
 **Acceptance Criteria:**
 - Clear, scannable summary
+- Guest path is the guest form only; no checkout-options section in the Create Your Account card
 - Trust indicators (secure payment badges)
 - Single-action checkout
 - Error handling for payment failures
@@ -725,33 +727,24 @@ A web-based reservation platform with:
 
 #### 2.3 Create Booking (Staff)
 
-**Requirements:**
-- Customer search/selection:
-  - Search by name, phone, email
-  - Quick results
-  - "Create New Customer" option
-  - Show customer history when selected
-- Streamlined booking flow:
-  - Date/time/lane selection
-  - Duration
-  - Bowlers and shoe sizes
-  - Add packages (same as customer flow)
-  - Customize packages
-- Payment options:
-  - Process payment now (card present)
-  - Process payment now (card not present)
-  - Mark as "pay on arrival"
-  - Mark as "paid - cash"
-  - Manager discount option
-- Quick confirmation
-- Print option for customer
+**Flow (4 steps):**
+1. **Customer** – Search by name, phone, or email; select existing customer (or "Create New Customer" if supported). Quick results; show customer history when selected.
+2. **Date & time** – Select date and time (calendar/availability), then duration (e.g. 1, 1.5, 2, 2.5, 3 hours). Optional lane preference.
+3. **Booking details** – Number of bowlers, shoe sizes (or "own shoes") per bowler, optional lane number, optional packages (same package set as customer flow).
+4. **Review** – Summary of customer, date/time, duration, bowlers, shoes, packages. **Itemized price breakdown** (lane rental, bowlers, shoe rentals, packages, subtotal, tax, total) using the same pricing settings as the booking API so staff see the exact total before creating. "Create Booking" creates the reservation with status CONFIRMED.
+
+**Payment:** The create flow does not collect payment. The booking is created with a total; payment is handled separately (e.g. at check-in or on the booking detail page). Future enhancements may add payment method at create time (e.g. "Pay on arrival", "Paid (cash)", "Process payment now", manager discount).
+
+**Other:**
+- Quick confirmation after create; option to print receipt for customer.
 
 **Acceptance Criteria:**
 - Complete walk-in booking in under 1 minute
 - Customer search fast (< 1 second)
+- Price breakdown in step 4 matches API calculation
 - Large touch targets
 - Keyboard shortcuts supported
-- Auto-print receipt option
+- Auto-print receipt option (where implemented)
 
 ---
 
@@ -851,14 +844,15 @@ A web-based reservation platform with:
   - Controls total lane inventory and lane reserve buffer used by availability logic
   - Editable for Manager/Admin, read-only for Staff
 - **10.6 Pricing**
-  - Configures lane, bowler, shoe, and tax pricing values for booking totals
+  - Configures **default pricing** only: lane rental per hour, price per bowler, shoe rental, and tax rate. These values are the single source of truth for all booking calculations (customer and staff flows). Only this default pricing is stored and applied.
+  - The staff Pricing UI may show a "Custom pricing rules" section (e.g. by day/time) for reference or future use; **custom rules are not persisted or applied** until backend support exists. All bookings use the default pricing above.
   - Editable for Manager/Admin, read-only for Staff
 - **10.7 Blackout Dates**
   - Manages lane blocks by date/time and lane selection
   - Editable for Manager/Admin, read-only for Staff
 - **10.8 Packages**
-  - Lists and routes to package management workflows (view, create, edit); create/edit use route-intercept modals
-  - Editable for Manager/Admin, read-only visibility for Staff
+  - Staff **view** the package list and filter by category in Settings. **Create and edit** packages are done in **Admin** (e.g. `/admin/packages`, `/admin/packages/create`). A staff "Add Package" (or equivalent) link routes to the admin area. Route-intercept modals for package create/edit apply to the admin package list.
+  - Editable for Manager/Admin (in Admin); read-only visibility for Staff in Settings.
 
 **Acceptance Criteria:**
 - Settings nav is a single list 10.1–10.8; no Advanced section
@@ -1079,7 +1073,9 @@ A web-based reservation platform with:
 
 #### 3.3 Operating Hours Management
 
-**Regular Hours Configuration:**
+**Terminology:** *Operating hours* = the regular weekly schedule (open/close per day). *Special hours* = date-specific overrides (e.g. holidays, extended hours); see Special Hours / Overrides below (Admin only).
+
+**Regular Hours Configuration (operating hours):**
 **Requirements:**
 - Configure for each day of week:
   - Open time (or mark as closed)
@@ -1100,6 +1096,8 @@ A web-based reservation platform with:
 ---
 
 **Special Hours / Overrides:**
+**Ownership:** Special hours (date-specific overrides to the regular weekly schedule) are configured in **Admin only** (e.g. `/admin/special-hours`). Staff settings do not include a special hours screen; staff can view operating hours but do not manage special overrides.
+
 **Requirements:**
 - Add special hours for specific date
 - Override default hours for:
@@ -1690,6 +1688,8 @@ A web-based reservation platform with:
 
 ## MVP Scope
 
+**Current implementation status:** For what is built and what remains, see **IMPLEMENTATION_PHASES.md** (Phase 1–3 checklist) and **PRD_GAP_ANALYSIS.md** (requirements vs. current app) in the bowling-reservation-system repo. This PRD remains the authority for requirements; those docs track as-built alignment and optional polish.
+
 ### Phase 1: Core MVP (Months 1-3)
 
 **Must-Have Features:**
@@ -2050,6 +2050,10 @@ A web-based reservation platform with:
 └─────────────┘ └────────────┘
 ```
 
+### Pricing Model
+
+Booking totals use a **single source of truth**: the default pricing settings (lane rental per hour, price per bowler, shoe rental, tax rate) stored in the database. The customer booking API, staff booking API, and any price preview (e.g. staff create booking step 4) all use these same values so displayed and charged amounts match. Custom pricing rules (e.g. by day/time) are not persisted or applied until backend support is added.
+
 ### Technology Stack Recommendations
 
 **Frontend:**
@@ -2185,8 +2189,8 @@ See "Add-On Package Structure - Detailed Specifications" document for complete p
 ### Appendix C: Lane Blocking & Hours Specifications
 
 See "Lane Blocking & Operating Hours - Technical Specifications" document for complete details on:
-- Operating hours configuration
-- Special hours/overrides
+- Operating hours configuration (regular weekly schedule)
+- Special hours/overrides (date-specific; Admin only — see §3.3)
 - One-time lane blocks
 - Recurring lane blocks
 - Availability calculation logic
@@ -2262,6 +2266,8 @@ See "Bowling Alley Online Reservation System - Project Plan" document for:
 |---------|------|--------|---------|
 | 1.0 | January 2026 | [Your Name] | Initial PRD creation |
 | 1.1 | February 2026 | — | Employee login state: §2.0 (unified internal UI, nav, sign-out, immersive subpages, dashboard/reports/calendar/settings). Aligned §2.2, §2.5, §2.7, §3.4. |
+| 1.2 | February 2026 | — | Phase A alignment with current business logic: §10.6 pricing (default only; custom rules not persisted). §3.3 special hours (Admin only). §2.3 staff create booking (4-step flow, price breakdown, payment outside create). §1.3 Step 4 guest path (guest form only). §10.8 packages (staff view; create/edit in Admin). Technical Architecture: Pricing model subsection. See docs/PRD_UPDATE_PLAN.md. |
+| 1.3 | February 2026 | — | Phase B: MVP Scope note pointing to IMPLEMENTATION_PHASES.md and PRD_GAP_ANALYSIS.md for implementation status. Terminology: §3.3 operating hours vs. special hours defined; Appendix C clarified (regular schedule vs. date-specific, Admin only). |
 
 ---
 

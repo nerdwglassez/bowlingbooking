@@ -48,9 +48,15 @@ export default function StepOneGroupSizeCard({
     const prev = prevCanContinue.current
     prevCanContinue.current = canContinue
     if (canContinue && !prev) {
-      setPulseOnce(true)
-      const t = setTimeout(() => setPulseOnce(false), 600)
-      return () => clearTimeout(t)
+      let tEnd: ReturnType<typeof setTimeout> | undefined
+      const tStart = setTimeout(() => {
+        setPulseOnce(true)
+        tEnd = setTimeout(() => setPulseOnce(false), 600)
+      }, 0)
+      return () => {
+        clearTimeout(tStart)
+        if (tEnd) clearTimeout(tEnd)
+      }
     }
   }, [canContinue])
 

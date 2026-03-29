@@ -1,25 +1,26 @@
 import { Suspense } from 'react'
-import BookingHeader from '@/components/booking/BookingHeader'
+import AppExperienceHeader from '@/components/layout/AppExperienceHeader'
+import { getHeaderUser } from '@/lib/header-user'
 
 function BookLoadingFallback() {
   return (
-    <div className="min-h-[40vh] flex items-center justify-center p-8">
+    <div className="flex min-h-[40vh] items-center justify-center p-8">
       <p className="text-gray-600">Loading...</p>
     </div>
   )
 }
 
-export default function BookLayout({
+export default async function BookLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const initialUser = await getHeaderUser()
+
   return (
     <>
-      <BookingHeader />
-      <Suspense fallback={<BookLoadingFallback />}>
-        {children}
-      </Suspense>
+      <AppExperienceHeader variant="booking" initialUser={initialUser} />
+      <Suspense fallback={<BookLoadingFallback />}>{children}</Suspense>
     </>
   )
 }

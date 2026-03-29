@@ -1,5 +1,7 @@
 # Performance & Security Review Plan
 
+**Status:** Living checklist / runbook (not a completed audit). Re-run items before releases or security reviews; track fixes in **[PRD_GAP_ANALYSIS.md](../PRD_GAP_ANALYSIS.md)** or your issue tracker.
+
 A structured plan to review the bowling reservation system for **performance** and **security**, and to run standard safety checks. Use this as a checklist and runbook.
 
 ---

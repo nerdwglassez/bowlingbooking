@@ -24,7 +24,7 @@ Aligned with **bowling-prd.md** MVP scope and **PRD_GAP_ANALYSIS.md**. Work thro
 
 ### 1.4 Profile & auth
 - [x] **Customer profile data** – User: firstName, lastName, phone; collected on register and guest checkout.
-- [x] **Profile page** – Basic profile editing: name, email, phone; optional “Change password” Profile link in UserNav.
+- [x] **Profile page** – Basic profile editing: name, email, phone; optional “Change password”; header uses `AppExperienceHeader` (booking variant) with Profile link.
 - [x] **Forgot password** – /forgot-password → email link; /reset-password?token=... → set new password; token invalidated. PasswordResetToken + Resend.
 
 ### 1.5 Staff & manager (MVP)

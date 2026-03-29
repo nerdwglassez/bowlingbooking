@@ -3,13 +3,17 @@
 Comparison of the **bowling-prd.md** requirements vs. the current **bowling-reservation-system** app.  
 Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this to prioritize remaining updates.
 
+**Route and API maps (for implementation / AI context):** [docs/RESERVATION_FLOW.md](docs/RESERVATION_FLOW.md) (customer), [docs/STAFF_AND_ADMIN_EXPERIENCE.md](docs/STAFF_AND_ADMIN_EXPERIENCE.md) (internal), [docs/SHARED_PLATFORM.md](docs/SHARED_PLATFORM.md) (shared).
+
+**Other references:** [docs/README.md](docs/README.md) (full doc index), [docs/STAFF_BOOKING_AND_CSS_AUDIT.md](docs/STAFF_BOOKING_AND_CSS_AUDIT.md) (historical audit), [docs/PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md](docs/PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md) (checklist).
+
 ---
 
 ## ✅ Already Aligned (Implemented)
 
 ### Landing & Booking (PRD 1.2, 1.3)
 - **Landing = Step 1 of booking** – `/` redirects to `/book`
-- **Sticky booking header** – Alley name (StrikeZone Bowling), address, phone, Sign In link
+- **Sticky booking header** – `AppExperienceHeader` `variant="booking"`: venue (name + address), **Login** (opens sign-in modal) when signed out; signed-in users see name, email, initials, My Bookings or Staff/Admin, Profile, Log out
 - **Sign In modal** – Sign In / Sign Up tabs, no navigation away; first/last name, email, phone, password, agree to Terms; post-auth role routing (customer → dashboard, staff/manager/admin → staff area)
 - **4-step booking flow** – Date & Time → Booking Details → Packages & Extras → Review & Payment
 - **Step 2** – Per-bowler shoe (size or “Own shoes”), running total

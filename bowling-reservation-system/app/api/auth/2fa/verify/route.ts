@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { verifyTotpToken } from '@/lib/totp'
 import { createSession } from '@/lib/auth'
 import { cookies } from 'next/headers'
+import { setSessionTokenCookie } from '@/lib/session-cookie'
 import { z } from 'zod'
 
 const bodySchema = z.object({
@@ -58,13 +59,7 @@ export async function POST(request: NextRequest) {
 
     const token = await createSession(temp.userId)
     const cookieStore = await cookies()
-    cookieStore.set('session_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60,
-      path: '/',
-    })
+    setSessionTokenCookie(cookieStore, token)
 
     return NextResponse.json({
       user: {

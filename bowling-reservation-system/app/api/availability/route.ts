@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { calculateAvailability } from '@/lib/availability'
 import { parse, isValid, startOfDay } from 'date-fns'
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
+    const limiter = checkRateLimit(rateLimitKey(request, 'availability'), 150, 60_000)
+    if (!limiter.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } }
+      )
+    }
+
     const searchParams = request.nextUrl.searchParams
     const dateParam = searchParams.get('date')
 
