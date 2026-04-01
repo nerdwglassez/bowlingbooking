@@ -215,8 +215,8 @@ export async function sendLapsedCustomerEmail(
   try {
     const resend = new Resend(apiKey)
     const subject = getLapsedCustomerSubject()
-    const html = buildLapsedCustomerHtml(name)
-    const text = buildLapsedCustomerText(name)
+    const html = buildLapsedCustomerHtml({ name })
+    const text = buildLapsedCustomerText({ name })
     const { data, error } = await resend.emails.send({
       from: `${ALLEY_NAME} <${from}>`,
       to: [to],
