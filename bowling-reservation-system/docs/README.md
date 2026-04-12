@@ -20,6 +20,7 @@ Quick map of everything under `docs/`. For the full project index (including rep
 | [PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md](PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md) | Checklist / runbook (see status in file) |
 | [PRD_UPDATE_PLAN.md](PRD_UPDATE_PLAN.md) | PRD alignment notes |
 | [governance/README.md](governance/README.md) | Documentation governance, ownership, templates, and secure Git upload checklist |
+| [services/README.md](services/README.md) | Service-level contracts for auth, availability, pricing, payments, notifications, partner integrations |
 
 ## UI and chrome
 
