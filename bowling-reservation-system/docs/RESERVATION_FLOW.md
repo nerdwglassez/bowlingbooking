@@ -91,7 +91,7 @@ Define current customer-facing reservation behavior, system boundaries, and impl
 
 - Monitor booking create, payment intent, payment confirm, and waitlist claim error rates.
 - Monitor failed confirmation emails and reminder sends for customer-facing communication reliability.
-- Use [docs/SECURITY.md](SECURITY.md) and [docs/PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md](PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md) for operational checks.
+- Use [SECURITY.md](SECURITY.md) and [PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md](PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md) for operational checks.
 
 ## Testing and validation
 
@@ -115,4 +115,4 @@ Update this file in the same PR as customer flow changes, and also update:
 - [`PRD_GAP_ANALYSIS.md`](../PRD_GAP_ANALYSIS.md)
 - [SHARED_PLATFORM.md](SHARED_PLATFORM.md) for shared contract changes
 - [components/BOOKING_COMPONENTS.md](components/BOOKING_COMPONENTS.md) and [components/LAYOUT_COMPONENTS.md](components/LAYOUT_COMPONENTS.md) for component contract changes
-- [docs/governance/UPDATE_CHECKLIST.md](governance/UPDATE_CHECKLIST.md) verification items before commit/push
+- [governance/UPDATE_CHECKLIST.md](governance/UPDATE_CHECKLIST.md) verification items before commit/push

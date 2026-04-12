@@ -4,7 +4,7 @@ Use this doc **once** for concepts that apply to both [customer reservation flow
 
 ## Product and implementation truth
 
-- **Product requirements:** repo root [`bowling-prd.md`](../../bowling-prd.md) (full PRD).
+- **Product requirements:** workspace root [`bowling-prd.md`](../../bowling-prd.md) (full PRD).
 - **What is built vs gaps:** [`PRD_GAP_ANALYSIS.md`](../PRD_GAP_ANALYSIS.md) in this app folder—update when behavior changes.
 
 ## Authentication and roles
