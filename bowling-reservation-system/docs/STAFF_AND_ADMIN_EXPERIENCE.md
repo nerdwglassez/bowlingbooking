@@ -116,6 +116,7 @@ Document the internal employee experience surfaces and contracts across staff, m
 
 - [STAFF_BOOKING_AND_CSS_AUDIT.md](STAFF_BOOKING_AND_CSS_AUDIT.md)
 - [POS_INTEGRATION.md](POS_INTEGRATION.md)
+- Component architecture references: [components/README.md](components/README.md), [components/STAFF_COMPONENTS.md](components/STAFF_COMPONENTS.md), [components/LAYOUT_COMPONENTS.md](components/LAYOUT_COMPONENTS.md)
 
 ## When you change behavior
 

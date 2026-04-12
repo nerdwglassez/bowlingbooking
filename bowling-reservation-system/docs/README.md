@@ -21,6 +21,7 @@ Quick map of everything under `docs/`. For the full project index (including rep
 | [PRD_UPDATE_PLAN.md](PRD_UPDATE_PLAN.md) | PRD alignment notes |
 | [governance/README.md](governance/README.md) | Documentation governance, ownership, templates, and secure Git upload checklist |
 | [services/README.md](services/README.md) | Service-level contracts for auth, availability, pricing, payments, notifications, partner integrations |
+| [components/README.md](components/README.md) | Component-level contracts and route-to-component dependency map |
 
 ## UI and chrome
 

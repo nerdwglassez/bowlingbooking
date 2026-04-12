@@ -114,4 +114,5 @@ Update this file in the same PR as customer flow changes, and also update:
 
 - [`PRD_GAP_ANALYSIS.md`](../PRD_GAP_ANALYSIS.md)
 - [SHARED_PLATFORM.md](SHARED_PLATFORM.md) for shared contract changes
+- [components/BOOKING_COMPONENTS.md](components/BOOKING_COMPONENTS.md) and [components/LAYOUT_COMPONENTS.md](components/LAYOUT_COMPONENTS.md) for component contract changes
 - [docs/governance/UPDATE_CHECKLIST.md](governance/UPDATE_CHECKLIST.md) verification items before commit/push
