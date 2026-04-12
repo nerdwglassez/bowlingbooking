@@ -45,7 +45,7 @@ Define current customer-facing reservation behavior, system boundaries, and impl
 |------|------------|-------|
 | Booking UI | `components/booking/*` | Step UI, summaries, auth prompting, payment forms |
 | Shared header/chrome | `components/layout/AppExperienceHeader` | Uses `variant="booking"` for customer surfaces |
-| Customer subpage header | `components/layout/SubpageHeaderUser` | Used where subpages need compact user state |
+| Customer subpage header | n/a | Customer subpages use `AppExperienceHeader` directly |
 
 ## Behavioral contract
 

@@ -14,7 +14,7 @@ Provide an impact map from user-facing routes to major component groups so chang
 
 | Route area | Primary components | Secondary dependencies |
 |------------|--------------------|------------------------|
-| `/book` | `components/booking/DateAndTimeStepOne`, `BookingSummary`, `PackageSelection`, `StripePaymentForm`, `GuestCheckout` | `components/layout/AppExperienceHeader` (`variant="booking"`), `components/ui/*` |
+| `/book` | `components/booking/DateAndTimeStepOne`, `BookingSummary`, `PackageSelectionCard`, `PackageDetailPanel`, `StripePaymentForm`, `GuestCheckout` | `components/layout/AppExperienceHeader` (`variant="booking"`), `components/ui/*` |
 | `/book/confirmation` | Confirmation page UI + booking summary primitives | `components/layout/AppExperienceHeader` (`variant="booking"`) |
 | `/bookings`, `/bookings/[id]`, `/bookings/[id]/reschedule` | Booking list/detail/reschedule page components | `components/layout/AppExperienceHeader`, `components/ui/*` |
 | `/dashboard`, `/profile`, `/gift-cards`, `/waitlist/claim` | Customer page-specific components | `components/layout/AppExperienceHeader`, `components/ui/*` |

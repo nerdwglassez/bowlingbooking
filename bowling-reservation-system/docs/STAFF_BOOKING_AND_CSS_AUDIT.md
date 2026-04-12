@@ -31,7 +31,7 @@ Summary of the review and updates for employee experience connectivity, CSS stan
 ## 3. Screens / elements no longer part of the experience
 
 - **`/staff/settings/special-hours`**: Removed from **StaffHeaderTitle** (title map). This route does not exist under staff; special hours are **admin-only** (`/admin/special-hours`). Staff nav (SettingsNav) does not link to it; only the header title had a dead entry.
-- **Analytics**: `/staff/analytics` exists and is still in the header title map; no change.
+- **Analytics**: Staff analytics now render directly on `/staff/analytics`; no redirect stub.
 - **Guest checkout “Checkout Options” block**: Already removed in a prior update (Sign In button + “Or continue as guest” divider in the Create Your Account card, step 4). The guest path is now just the guest form.
 
 ---

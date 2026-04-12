@@ -32,7 +32,7 @@ Document the internal employee experience surfaces and contracts across staff, m
 | Calendar | `/staff/calendar` | Schedule and dispatch view |
 | Customers | `/staff/customers`, `/staff/customers/[id]` | Search and customer profile |
 | Reports | `/staff/reports` | Export-focused operational reporting |
-| Analytics | `/staff/analytics` | Metrics and generated insights |
+| Analytics | `/staff/analytics` | Metrics and generated insights (rendered by reports page component) |
 | Audit log | `/staff/audit-log` | Visibility into tracked internal actions |
 | Pending overrides | `/staff/pending-overrides` | Manager approval queue |
 | Settings | `/staff/settings/*` | Lanes, hours, blackout dates, packages, discount codes, pricing, integrations, user/account info |
@@ -111,6 +111,7 @@ Document the internal employee experience surfaces and contracts across staff, m
 ## Change log
 
 - 2026-04-12: Reorganized into canonical journey template; preserved route/API references and role contracts.
+- 2026-04-12: Updated admin and analytics route notes to reflect direct page rendering (no redirect stubs).
 
 ## Related audits and specs
 

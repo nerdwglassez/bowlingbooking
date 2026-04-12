@@ -16,7 +16,7 @@ This document plans **phased updates to bowling-prd.md** so the PRD stays aligne
 | **Special hours** | Admin-only (`/admin/special-hours`). No staff settings page for special hours | §3.3 describes feature; §2.7 doesn’t say admin-only | Phase A: Clarify ownership |
 | **Staff create booking** | 4 steps: Customer → Date & time → Details (bowlers, shoes, packages) → Review (with **price breakdown**). Booking created as CONFIRMED; no in-flow “pay on arrival” / “paid cash” options | §2.3 lists payment options (pay now, pay on arrival, paid cash, manager discount) | Phase A: Align flow + payment |
 | **Staff settings packages** | View/list in staff settings; create/edit via **Admin** (`/admin/packages/*`) | §10.8 “route-intercept modals” could imply in-staff UX | Phase A: Clarify staff vs admin |
-| **Reports / Analytics** | Single page `/staff/reports`; `/staff/analytics` redirects there | Matches §3.4 | None |
+| **Reports / Analytics** | Dedicated pages for `/staff/reports` and `/staff/analytics` | Matches §3.4 | None |
 | **Phase 1–3 scope** | Implemented per IMPLEMENTATION_PHASES.md and PRD_GAP_ANALYSIS | PRD MVP and phases are broad | Phase B: Optional PRD tidy |
 
 ---

@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import ReportsPage from '@/app/staff/reports/page'
 
 export default function StaffAnalyticsPage() {
-  redirect('/staff/reports')
+  return <ReportsPage />
 }

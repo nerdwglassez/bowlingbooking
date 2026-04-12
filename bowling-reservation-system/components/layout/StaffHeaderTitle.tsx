@@ -33,7 +33,6 @@ const STAFF_TITLES: Record<string, string> = {
   '/staff/settings/blackout-dates': 'Blackout Dates',
   '/staff/pending-overrides': 'Pending Overrides',
   '/staff/audit-log': 'Audit Log',
-  '/staff/analytics': 'Analytics',
 }
 
 function getTitle(pathname: string): string {

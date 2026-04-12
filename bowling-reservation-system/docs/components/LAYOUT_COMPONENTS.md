@@ -16,7 +16,6 @@ Define shared layout/header components that establish navigation chrome and user
 |-----------|------|------------------|
 | AppExperienceHeader | `components/layout/AppExperienceHeader.tsx` | Primary app chrome with `variant='booking' | 'staff'`, auth-aware navigation, and role-aware display behavior |
 | StaffHeaderTitle | `components/layout/StaffHeaderTitle.tsx` | Contextual title content used inside staff/admin header |
-| SubpageHeaderUser | `components/layout/SubpageHeaderUser.tsx` | Compact user header utility for subpages needing local context |
 | ImmersiveStaffPage | `components/layout/ImmersiveStaffPage.tsx` | Layout wrapper for immersive/fullscreen staff experiences |
 
 ## Behavioral invariants
@@ -37,7 +36,7 @@ Define shared layout/header components that establish navigation chrome and user
 | Customer booking and account surfaces (`/book`, `/bookings`, `/dashboard`, `/profile`, `/gift-cards`) | `AppExperienceHeader variant="booking"` |
 | Staff area (`/staff/*`) | `AppExperienceHeader variant="staff"` with `StaffHeaderTitle` |
 | Admin area (`/admin/*`) | `AppExperienceHeader variant="staff"` with admin-aware title state |
-| Specialized subpages | `SubpageHeaderUser` where compact user context is needed |
+| Specialized subpages | Route-specific headers/components where compact user context is needed |
 
 ## Security and UX notes
 

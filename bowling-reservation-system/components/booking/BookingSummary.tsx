@@ -3,6 +3,7 @@
 import { format } from 'date-fns'
 import { CalendarDays, ChevronDown, Clock3, Package as PackageIcon, Trash2 } from 'lucide-react'
 import type { BookingPriceBreakdown } from '@/lib/pricing'
+import { formatTime12Hour } from '@/lib/time'
 
 export interface PackageItem {
   id: string
@@ -43,14 +44,6 @@ export interface BookingSummaryProps {
   onToggleExpand?: () => void
 }
 
-function formatTime(timeStr: string): string {
-  if (!timeStr) return '—'
-  const [h, m] = timeStr.split(':').map(Number)
-  const period = h >= 12 ? 'PM' : 'AM'
-  const hour = h % 12 || 12
-  return m === 0 ? `${hour}:00 ${period}` : `${hour}:${m.toString().padStart(2, '0')} ${period}`
-}
-
 export default function BookingSummary({
   selectedDate,
   selectedTime,
@@ -71,7 +64,7 @@ export default function BookingSummary({
 }: BookingSummaryProps) {
   const dateLabel = selectedDate ? format(new Date(selectedDate), 'EEE, MMM d') : '—'
   const dateLabelSummary = selectedDate ? format(new Date(selectedDate), 'EEE, MMM d, yyyy') : '—' // Figma: "Tue, Feb 17, 2026"
-  const timeLabel = formatTime(selectedTime)
+  const timeLabel = selectedTime ? formatTime12Hour(selectedTime) : '—'
   const dateLabelLong = selectedDate ? format(new Date(selectedDate), 'EEEE, MMMM d, yyyy') : '—'
   const hours = durationMinutes / 60
   const canRemovePackages = (variant === 'sidebar' || variant === 'mobile-collapsible') && typeof onRemovePackage === 'function'

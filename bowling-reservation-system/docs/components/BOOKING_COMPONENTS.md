@@ -21,11 +21,11 @@ Define reusable booking UI component contracts used in customer reservation jour
 |----------|---------------|-----------------------|
 | `DateAndTimeStepOne` | Step 1 date/time selection and slot fetch | `/book` |
 | `AvailabilityCalendar` | Calendar interaction wrapper | `/book` |
-| `PackageSelection`, `PackageSelectionCard`, `PackageDetailPanel` | Package browsing and selection details | `/book` |
-| `BookingSummary`, `BookingSummaryBar` | Running totals and booking context | `/book`, `/bookings/[id]` related views |
+| `PackageSelectionCard`, `PackageDetailPanel` | Package browsing and selection details | `/book` |
+| `BookingSummary` | Running totals and booking context | `/book`, `/bookings/[id]` related views |
 | `GuestCheckout`, `LoginPrompt`, `SignUpFormInline`, `AuthModal` | Guest/account conversion and auth prompts | `/book`, header auth modal surfaces |
 | `StripePaymentForm` | Payment input and confirmation integration point | `/book` step 4 |
-| `RevealSection`, `StepOneGroupSizeCard` | Progressive disclosure and group-size specific UX | `/book` |
+| Progressive step UX in `DateAndTimeStepOne` | Group-size and step interaction behavior | `/book` |
 
 ## Behavioral contracts
 
@@ -42,7 +42,7 @@ Define reusable booking UI component contracts used in customer reservation jour
 
 | Route | Key booking components |
 |------|-------------------------|
-| `/book` | `DateAndTimeStepOne`, `AvailabilityCalendar`, `PackageSelection*`, `BookingSummary*`, `GuestCheckout`, `StripePaymentForm`, auth prompt components |
+| `/book` | `DateAndTimeStepOne`, `AvailabilityCalendar`, `PackageSelectionCard`, `PackageDetailPanel`, `BookingSummary`, `GuestCheckout`, `StripePaymentForm`, auth prompt components |
 | `/book/confirmation` | Summary/confirmation display patterns (route component-driven with shared booking presentation styles) |
 | `/bookings`, `/bookings/[id]` | Booking summary and action presentation contracts that must stay aligned with booking flow semantics |
 
