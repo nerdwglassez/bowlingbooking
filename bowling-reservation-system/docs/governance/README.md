@@ -10,6 +10,7 @@ Use these governance docs before adding or editing product, flow, service, or co
 | [DOC_OWNERS.md](DOC_OWNERS.md) | Ownership model and review responsibilities |
 | [DOC_TEMPLATE.md](DOC_TEMPLATE.md) | Standard structure for new/updated docs |
 | [UPDATE_CHECKLIST.md](UPDATE_CHECKLIST.md) | Required updates when behavior changes, including safe Git upload checks |
+| [DOC_HEALTH_REVIEW.md](DOC_HEALTH_REVIEW.md) | Ongoing cadence for stale docs, broken links, ownership drift, and trust checks |
 
 ## Security baseline for docs work
 
