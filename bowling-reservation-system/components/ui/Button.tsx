@@ -1,5 +1,5 @@
 import { ButtonHTMLAttributes, forwardRef } from 'react'
-import { cn } from '@/lib/utils'
+import { Button as BaseButton } from '@/components/shadcn/ui/button'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline'
@@ -25,46 +25,35 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
-    const baseStyles =
-      'inline-flex items-center justify-center font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+    const variantMap = {
+      primary: 'default',
+      secondary: 'secondary',
+      danger: 'destructive',
+      ghost: 'ghost',
+      outline: 'outline',
+    } as const
 
-    const roundedStyles = {
-      md: 'rounded-lg',
-      xl: 'rounded-xl',
-      full: 'rounded-full',
-    }
-
-    const sizeStyles = {
-      sm: 'px-3 py-1.5 text-sm',
-      md: 'px-4 py-2 text-sm',
-      lg: 'px-6 py-2.5 text-base',
-      icon: 'h-9 w-9 shrink-0 p-0',
-    }
-
-    const variants = {
-      primary: 'bg-blue-600 text-white hover:bg-blue-700',
-      secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300',
-      danger: 'bg-red-600 text-white hover:bg-red-700',
-      ghost: 'bg-transparent text-gray-800 hover:bg-gray-100',
-      outline: 'border-2 border-gray-300 bg-white text-gray-900 hover:bg-gray-50',
-    }
+    const sizeMap = {
+      sm: 'sm',
+      md: 'default',
+      lg: 'lg',
+      icon: 'icon',
+    } as const
 
     return (
-      <button
+      <BaseButton
         ref={ref}
         type={type}
-        className={cn(
-          baseStyles,
-          roundedStyles[rounded],
-          size !== 'icon' ? sizeStyles[size] : sizeStyles.icon,
-          variants[variant],
-          className
-        )}
-        disabled={disabled || isLoading}
+        variant={variantMap[variant]}
+        size={sizeMap[size]}
+        rounded={rounded}
+        isLoading={isLoading}
+        className={className}
+        disabled={disabled}
         {...props}
       >
-        {isLoading ? 'Loading...' : children}
-      </button>
+        {children}
+      </BaseButton>
     )
   }
 )

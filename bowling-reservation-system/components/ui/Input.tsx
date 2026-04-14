@@ -1,5 +1,6 @@
 import { InputHTMLAttributes, forwardRef } from 'react'
 import { cn } from '@/lib/utils'
+import { Input as BaseInput } from '@/components/shadcn/ui/input'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
@@ -15,11 +16,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             {label}
           </label>
         )}
-        <input
+        <BaseInput
           ref={ref}
           type={type}
           className={cn(
-            'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500',
+            'w-full border-gray-300 focus-visible:ring-blue-500',
             error ? 'border-red-500' : 'border-gray-300',
             className
           )}
