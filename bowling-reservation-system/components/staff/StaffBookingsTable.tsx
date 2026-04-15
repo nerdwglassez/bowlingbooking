@@ -86,7 +86,9 @@ export default function StaffBookingsTable({
         header: 'Customer',
         cell: ({ row }) => (
           <div>
-            <p className="text-sm font-semibold text-slate-900">{getCustomerDisplayName(row.original)}</p>
+            <p className="text-sm font-semibold text-slate-900">
+              {getCustomerDisplayName(row.original)}
+            </p>
             <p className="text-sm text-slate-500">{getSecondaryBookingDetail(row.original)}</p>
           </div>
         ),
@@ -138,7 +140,13 @@ export default function StaffBookingsTable({
         ),
       },
     ],
-    [getCustomerDisplayName, getSecondaryBookingDetail, getRowActions, openActionsForId, onActionsOpenChange]
+    [
+      getCustomerDisplayName,
+      getSecondaryBookingDetail,
+      getRowActions,
+      openActionsForId,
+      onActionsOpenChange,
+    ]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -149,7 +157,7 @@ export default function StaffBookingsTable({
   })
 
   return (
-    <div className="staff-table">
+    <div className="staff-table" data-testid="staff-bookings-table">
       <Table>
         <TableHeader className="hidden sm:table-header-group">
           {table.getHeaderGroups().map((headerGroup) => (
@@ -169,7 +177,9 @@ export default function StaffBookingsTable({
                     header.column.id === 'actions' && 'w-[170px]'
                   )}
                 >
-                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(header.column.columnDef.header, header.getContext())}
                 </TableHead>
               ))}
             </TableRow>
@@ -179,18 +189,18 @@ export default function StaffBookingsTable({
           {table.getRowModel().rows.map((row, index) => (
             <TableRow
               key={row.id}
-                  className={cn(
-                    'group/row border-b border-slate-200/60 px-4 py-4 hover:bg-transparent sm:px-5 lg:px-6',
-                    index % 2 === 0 ? 'bg-slate-50/40' : 'bg-white'
-                  )}
+              className={cn(
+                'group/row border-b border-slate-200/60 px-4 py-4 hover:bg-transparent sm:px-5 lg:px-6',
+                index % 2 === 0 ? 'bg-slate-50/40' : 'bg-white'
+              )}
             >
               <TableCell className={cn('p-0', columnClassNames)}>
                 {row.getVisibleCells().map((cell) => (
                   <div
                     key={cell.id}
                     className={cn(
-                          'px-4 py-2 sm:px-0 sm:py-0',
-                          cell.column.id === 'actions' && 'pb-4 sm:pb-0'
+                      'px-4 py-2 sm:px-0 sm:py-0',
+                      cell.column.id === 'actions' && 'pb-4 sm:pb-0'
                     )}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

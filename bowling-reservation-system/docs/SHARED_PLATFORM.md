@@ -55,3 +55,7 @@ Use this doc **once** for concepts that apply to both [customer reservation flow
 
 - **`components/layout/AppExperienceHeader`** — Shared header: `variant="booking"` (venue, Login / signed-in user block) vs `variant="staff"` (gradient bar for `/staff` and `/admin`). Server passes `initialUser` from [`lib/header-user.ts`](../lib/header-user.ts) `getHeaderUser()`.
 - Prefer **`components/ui/Button`** (variants: `primary`, `secondary`, `danger`, `ghost`, `outline`; sizes: `sm`, `md`, `lg`, `icon`; `rounded`, `isLoading`) plus `className` for layout—see [docs/README.md](README.md). Gradually replace ad-hoc `<button>` where it improves consistency.
+
+## Architecture conventions
+
+- Refactor layering and import-direction rules live in [ARCHITECTURE_CONVENTIONS.md](ARCHITECTURE_CONVENTIONS.md). Use it as the default guardrail before moving code between `app`, `components`, `hooks`, and `lib`.

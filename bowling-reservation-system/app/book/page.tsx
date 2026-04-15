@@ -207,22 +207,25 @@ export default function BookPage() {
     const date = searchParams?.get('date')
     const time = searchParams?.get('time')
     const todayKey = format(new Date(), 'yyyy-MM-dd')
-    if (date) setSelectedDate(date)
-    if (time) setSelectedTime(time)
-    if (!date && !time && typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(STEP1_STORAGE_KEY)
-        if (raw) {
-          const data = JSON.parse(raw) as { date?: string; time?: string }
-          if (data.date === todayKey) {
-            setSelectedDate(todayKey)
-            if (data.time) setSelectedTime(data.time)
+    const deferredSync = window.setTimeout(() => {
+      if (date) setSelectedDate(date)
+      if (time) setSelectedTime(time)
+      if (!date && !time) {
+        try {
+          const raw = localStorage.getItem(STEP1_STORAGE_KEY)
+          if (raw) {
+            const data = JSON.parse(raw) as { date?: string; time?: string }
+            if (data.date === todayKey) {
+              setSelectedDate(todayKey)
+              if (data.time) setSelectedTime(data.time)
+            }
           }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
-    }
+    }, 0)
+    return () => window.clearTimeout(deferredSync)
   }, [searchParams])
 
   const handleTimeSelect = (date: string, time: string) => {
@@ -315,7 +318,10 @@ export default function BookPage() {
 
   useEffect(() => {
     if (step === 2 && selectedPackages.length > 0) {
-      setMobileStep2SummaryExpanded(true)
+      const deferredExpand = window.setTimeout(() => {
+        setMobileStep2SummaryExpanded(true)
+      }, 0)
+      return () => window.clearTimeout(deferredExpand)
     }
   }, [step, selectedPackages.length])
 

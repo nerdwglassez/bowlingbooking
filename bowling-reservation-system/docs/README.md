@@ -2,23 +2,25 @@
 
 Quick map of everything under `docs/`. For the full project index (including repo-root PRD), see **[../README.md](../README.md)** and **[../AGENTS.md](../AGENTS.md)**.
 
-| Document | Purpose |
-|----------|---------|
-| [SHARED_PLATFORM.md](SHARED_PLATFORM.md) | Auth, DB, pricing, availability, env—shared by customer + staff docs |
-| [RESERVATION_FLOW.md](RESERVATION_FLOW.md) | Customer booking routes, APIs, components |
-| [STAFF_AND_ADMIN_EXPERIENCE.md](STAFF_AND_ADMIN_EXPERIENCE.md) | Staff, admin, kiosk, partner API; includes discount codes (staff settings + admin) |
-| [LOCAL_VS_LIVE.md](LOCAL_VS_LIVE.md) | Local `.env.local` vs production (Vercel) |
-| [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md) | Deploy, env vars, cron |
-| [LOCAL_DATABASE.md](LOCAL_DATABASE.md) | Local Postgres setup |
-| [NEON_DATABASE.md](NEON_DATABASE.md) | Neon connection notes |
-| [FULL_PAGE_AND_MODAL_FLOWS.md](FULL_PAGE_AND_MODAL_FLOWS.md) | Canonical staff booking URLs (detail / edit / check-in) |
-| [POS_INTEGRATION.md](POS_INTEGRATION.md) | POS stub / future integration |
-| [STEP1_INTERACTION_SPEC.md](STEP1_INTERACTION_SPEC.md) · [STEP1_VISUAL_DESCRIPTIONS.md](STEP1_VISUAL_DESCRIPTIONS.md) · [FIGMA_STEP1_EVENT_TYPE_SELECTED.md](FIGMA_STEP1_EVENT_TYPE_SELECTED.md) | Booking step 1 design specs |
-| [LUCIDE_ICONS.md](LUCIDE_ICONS.md) | Icon usage notes |
-| [STAFF_BOOKING_AND_CSS_AUDIT.md](STAFF_BOOKING_AND_CSS_AUDIT.md) | Historical audit (see status in file) |
-| [SECURITY.md](SECURITY.md) | Headers, cookies, rate limits, secrets, operational hardening |
-| [PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md](PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md) | Checklist / runbook (see status in file) |
-| [PRD_UPDATE_PLAN.md](PRD_UPDATE_PLAN.md) | PRD alignment notes |
+| Document                                                                                                                                                                                         | Purpose                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [SHARED_PLATFORM.md](SHARED_PLATFORM.md)                                                                                                                                                         | Auth, DB, pricing, availability, env—shared by customer + staff docs               |
+| [RESERVATION_FLOW.md](RESERVATION_FLOW.md)                                                                                                                                                       | Customer booking routes, APIs, components                                          |
+| [STAFF_AND_ADMIN_EXPERIENCE.md](STAFF_AND_ADMIN_EXPERIENCE.md)                                                                                                                                   | Staff, admin, kiosk, partner API; includes discount codes (staff settings + admin) |
+| [LOCAL_VS_LIVE.md](LOCAL_VS_LIVE.md)                                                                                                                                                             | Local `.env.local` vs production (Vercel)                                          |
+| [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md)                                                                                                                                                             | Deploy, env vars, cron                                                             |
+| [LOCAL_DATABASE.md](LOCAL_DATABASE.md)                                                                                                                                                           | Local Postgres setup                                                               |
+| [NEON_DATABASE.md](NEON_DATABASE.md)                                                                                                                                                             | Neon connection notes                                                              |
+| [FULL_PAGE_AND_MODAL_FLOWS.md](FULL_PAGE_AND_MODAL_FLOWS.md)                                                                                                                                     | Canonical staff booking URLs (detail / edit / check-in)                            |
+| [POS_INTEGRATION.md](POS_INTEGRATION.md)                                                                                                                                                         | POS stub / future integration                                                      |
+| [STEP1_INTERACTION_SPEC.md](STEP1_INTERACTION_SPEC.md) · [STEP1_VISUAL_DESCRIPTIONS.md](STEP1_VISUAL_DESCRIPTIONS.md) · [FIGMA_STEP1_EVENT_TYPE_SELECTED.md](FIGMA_STEP1_EVENT_TYPE_SELECTED.md) | Booking step 1 design specs                                                        |
+| [LUCIDE_ICONS.md](LUCIDE_ICONS.md)                                                                                                                                                               | Icon usage notes                                                                   |
+| [STAFF_BOOKING_AND_CSS_AUDIT.md](STAFF_BOOKING_AND_CSS_AUDIT.md)                                                                                                                                 | Historical audit (see status in file)                                              |
+| [SECURITY.md](SECURITY.md)                                                                                                                                                                       | Headers, cookies, rate limits, secrets, operational hardening                      |
+| [PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md](PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md)                                                                                                               | Checklist / runbook (see status in file)                                           |
+| [PRD_UPDATE_PLAN.md](PRD_UPDATE_PLAN.md)                                                                                                                                                         | PRD alignment notes                                                                |
+| [ARCHITECTURE_CONVENTIONS.md](ARCHITECTURE_CONVENTIONS.md)                                                                                                                                       | Layering, import-direction rules, and refactor phase gates                         |
+| [IPAD_QA_CHECKLIST.md](IPAD_QA_CHECKLIST.md)                                                                                                                                                     | Touch and layout regression checklist for staff iPad web workflows                 |
 
 ## UI and chrome
 

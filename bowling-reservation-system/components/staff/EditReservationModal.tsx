@@ -42,9 +42,19 @@ const STATUS_OPTIONS = [
   { value: 'CANCELLED', label: 'Cancelled' },
 ]
 
-type Props = { onClose: () => void; onSaved?: () => void; /** When provided (e.g. when opened as modal from dashboard), used instead of route params */ bookingId?: string | null }
+type Props = {
+  onClose: () => void
+  onSaved?: () => void
+  /** When provided (e.g. when opened as modal from dashboard), used instead of route params */ bookingId?:
+    | string
+    | null
+}
 
-export default function EditReservationModal({ onClose, onSaved, bookingId: bookingIdProp }: Props) {
+export default function EditReservationModal({
+  onClose,
+  onSaved,
+  bookingId: bookingIdProp,
+}: Props) {
   const params = useParams()
   const id =
     bookingIdProp ??
@@ -98,14 +108,13 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
       .finally(() => setLoading(false))
   }, [id])
 
-  const {
-    slots,
-    loading: loadingSlots,
-  } = useAvailabilityForDate(selectedDate, { enabled: Boolean(selectedDate && booking) })
+  const { slots, loading: loadingSlots } = useAvailabilityForDate(selectedDate, {
+    enabled: Boolean(selectedDate && booking),
+  })
   useEffect(() => {
     if (!selectedDate || !booking) return
     setSelectedTime('')
-  }, [selectedDate, booking?.duration])
+  }, [selectedDate, booking, booking?.duration])
 
   const canEdit = booking && ['PENDING', 'PAID', 'CONFIRMED'].includes(booking.status)
   const availableSlots = slots.filter((s) => s.available)
@@ -159,14 +168,16 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
         if (!res.ok) throw new Error(data.error || 'Failed to update booking')
       }
 
-      const contactChanged = booking.user && isReservationContactChanged({
-        customerFirstName,
-        customerLastName,
-        customerEmail,
-        bookingFirstName: booking.user.firstName,
-        bookingLastName: booking.user.lastName,
-        bookingEmail: booking.user.email,
-      })
+      const contactChanged =
+        booking.user &&
+        isReservationContactChanged({
+          customerFirstName,
+          customerLastName,
+          customerEmail,
+          bookingFirstName: booking.user.firstName,
+          bookingLastName: booking.user.lastName,
+          bookingEmail: booking.user.email,
+        })
       if (contactChanged && booking.user.id) {
         const payload = buildEditReservationContactPayload({
           customerFirstName,
@@ -255,7 +266,10 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
   const primaryPackage = booking.bookingPackages[0]?.package?.name ?? ''
 
   return (
-    <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+    <div
+      className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
+      data-testid="staff-edit-reservation-modal"
+    >
       <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6 md:p-7">
         <h2 className="text-xl font-bold text-slate-900">Edit reservation</h2>
         <Button
@@ -345,7 +359,9 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Number of bowlers</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Number of bowlers
+            </label>
             <Input
               type="number"
               min={1}
@@ -356,7 +372,9 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Lanes (comma separated)</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Lanes (comma separated)
+            </label>
             <Input
               type="text"
               value={lanesCsv}
@@ -366,7 +384,9 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Package (optional)</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Package (optional)
+            </label>
             <Input type="text" value={primaryPackage} disabled className="bg-slate-50" />
           </div>
 
@@ -387,7 +407,12 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
           <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl px-4 py-2.5 min-h-[44px]">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onClose}
+                className="rounded-xl px-4 py-2.5 min-h-[44px]"
+              >
                 Cancel
               </Button>
               <Button
@@ -395,10 +420,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
                 disabled={
                   !canEdit ||
                   submitting ||
-                  !!(
-                    timeChanged &&
-                    (!selectedTime || availableSlots.length === 0)
-                  )
+                  !!(timeChanged && (!selectedTime || availableSlots.length === 0))
                 }
                 isLoading={submitting}
                 className="rounded-xl px-4 py-2.5 min-h-[44px]"

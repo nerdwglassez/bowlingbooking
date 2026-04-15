@@ -77,7 +77,10 @@ export function matchesStaffDashboardFilters(
   statusFilter: StaffDashboardStatusFilter
 ): boolean {
   const q = query.trim().toLowerCase()
-  const customerName = [booking.user.firstName, booking.user.lastName].filter(Boolean).join(' ').trim()
+  const customerName = [booking.user.firstName, booking.user.lastName]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
   const matchesQuery =
     !q ||
     customerName.toLowerCase().includes(q) ||
@@ -88,7 +91,8 @@ export function matchesStaffDashboardFilters(
 
   const matchesFilter =
     statusFilter === 'all' ||
-    (statusFilter === 'upcoming' && (booking.status === 'CONFIRMED' || booking.status === 'PENDING')) ||
+    (statusFilter === 'upcoming' &&
+      (booking.status === 'CONFIRMED' || booking.status === 'PENDING')) ||
     (statusFilter === 'checked' && booking.status === 'CHECKED_IN') ||
     (statusFilter === 'completed' && booking.status === 'PAID')
 
@@ -103,6 +107,7 @@ export const filterStaffDashboardBookings = <T extends StaffDashboardBooking>(
 ) => bookings.filter((booking) => matchesStaffDashboardFilters(booking, query, statusFilter))
 export const getStaffSecondaryBookingDetail = secondaryBookingDetail
 export const canEditStaffReservation = canEditReservationStatus
+export const getStaffCustomerDisplayName = customerDisplayNameFromBooking
 
 type StaffDashboardRowAction = {
   key: string

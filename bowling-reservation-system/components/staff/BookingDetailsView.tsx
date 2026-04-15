@@ -163,7 +163,9 @@ export default function BookingDetailsView() {
     if (!booking) return
     setApproving(true)
     try {
-      const res = await fetch(`/api/staff/bookings/${booking.id}/approve-override`, { method: 'POST' })
+      const res = await fetch(`/api/staff/bookings/${booking.id}/approve-override`, {
+        method: 'POST',
+      })
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error || 'Failed to approve')
@@ -182,7 +184,9 @@ export default function BookingDetailsView() {
     if (!confirm('Reject this price override?')) return
     setRejecting(true)
     try {
-      const res = await fetch(`/api/staff/bookings/${booking.id}/reject-override`, { method: 'POST' })
+      const res = await fetch(`/api/staff/bookings/${booking.id}/reject-override`, {
+        method: 'POST',
+      })
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error || 'Failed to reject')
@@ -223,13 +227,20 @@ export default function BookingDetailsView() {
 
   return (
     <div className="px-4 py-6 sm:px-0">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div
+        className="mb-6 flex flex-wrap items-center gap-3"
+        data-testid="staff-booking-details-actions"
+      >
         <Link href="/staff/calendar">
-          <Button variant="secondary" className="min-h-[44px] px-5">← Back to Calendar</Button>
+          <Button variant="secondary" className="min-h-[44px] px-5">
+            ← Back to Calendar
+          </Button>
         </Link>
         {canEditReservationStatus(booking.status) && (
           <Link href={`/staff/bookings/${booking.id}/edit`}>
-            <Button variant="secondary" className="min-h-[44px] px-5">Edit reservation</Button>
+            <Button variant="secondary" className="min-h-[44px] px-5">
+              Edit reservation
+            </Button>
           </Link>
         )}
       </div>
@@ -238,7 +249,9 @@ export default function BookingDetailsView() {
         header={
           <>
             <div>
-              <h1 className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">Booking Details</h1>
+              <h1 className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+                Booking Details
+              </h1>
               <p className="text-sm text-slate-600">Booking ID: {booking.id}</p>
             </div>
             <BookingStatusPill status={booking.status} size="md" />
@@ -248,7 +261,8 @@ export default function BookingDetailsView() {
         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <ManagementSection title="Customer">
             <p className="text-gray-600">
-              {[booking.user.firstName, booking.user.lastName].filter(Boolean).join(' ').trim() || booking.user.email}
+              {[booking.user.firstName, booking.user.lastName].filter(Boolean).join(' ').trim() ||
+                booking.user.email}
             </p>
           </ManagementSection>
 
@@ -267,7 +281,9 @@ export default function BookingDetailsView() {
             <p className="text-gray-600">
               {booking.numBowlers} bowler{booking.numBowlers > 1 ? 's' : ''}
             </p>
-            {shoeSizes.length > 0 && <p className="text-gray-600">Shoe Rentals: {shoeSizes.join(', ')}</p>}
+            {shoeSizes.length > 0 && (
+              <p className="text-gray-600">Shoe Rentals: {shoeSizes.join(', ')}</p>
+            )}
           </ManagementSection>
         </div>
 
@@ -291,7 +307,9 @@ export default function BookingDetailsView() {
                   <p className="font-medium">
                     {bp.product.name} × {bp.quantity}
                   </p>
-                  <p className="font-semibold">${(Number(bp.product.price) * bp.quantity).toFixed(2)}</p>
+                  <p className="font-semibold">
+                    ${(Number(bp.product.price) * bp.quantity).toFixed(2)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -306,12 +324,23 @@ export default function BookingDetailsView() {
               {booking.proposedReasonCode &&
                 ` · ${OVERRIDE_REASONS.find((r) => r.value === booking.proposedReasonCode)?.label ?? booking.proposedReasonCode}`}
             </p>
-            {booking.proposedNotes && <p className="mt-1 text-sm text-amber-700">Notes: {booking.proposedNotes}</p>}
+            {booking.proposedNotes && (
+              <p className="mt-1 text-sm text-amber-700">Notes: {booking.proposedNotes}</p>
+            )}
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <Button onClick={handleApproveOverride} isLoading={approving} className="min-h-[44px] bg-green-600 hover:bg-green-700">
+              <Button
+                onClick={handleApproveOverride}
+                isLoading={approving}
+                className="min-h-[44px] bg-green-600 hover:bg-green-700"
+              >
                 Approve
               </Button>
-              <Button variant="secondary" onClick={handleRejectOverride} isLoading={rejecting} className="min-h-[44px]">
+              <Button
+                variant="secondary"
+                onClick={handleRejectOverride}
+                isLoading={rejecting}
+                className="min-h-[44px]"
+              >
                 Reject
               </Button>
             </div>
@@ -324,16 +353,26 @@ export default function BookingDetailsView() {
           actionSlot={
             <>
               {!showOverride && booking.overrideStatus !== 'PENDING_APPROVAL' ? (
-                <Button variant="secondary" onClick={() => setShowOverride(true)} className="min-h-[44px] px-5">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowOverride(true)}
+                  className="min-h-[44px] px-5"
+                >
                   Override Price
                 </Button>
               ) : null}
               {(booking.status === 'CONFIRMED' || booking.status === 'PAID') && (
-                <Button onClick={handleCheckIn} isLoading={checkingIn} className="min-h-[44px] px-5">
+                <Button
+                  onClick={handleCheckIn}
+                  isLoading={checkingIn}
+                  className="min-h-[44px] px-5"
+                >
                   Check In Customer
                 </Button>
               )}
-              {booking.status === 'CHECKED_IN' && <span className="font-medium text-green-600">✓ Checked In</span>}
+              {booking.status === 'CHECKED_IN' && (
+                <span className="font-medium text-green-600">✓ Checked In</span>
+              )}
             </>
           }
         />
@@ -349,13 +388,18 @@ export default function BookingDetailsView() {
           {booking.overrideNotes && <p className="mt-1">Notes: {booking.overrideNotes}</p>}
           {booking.appliedDiscountCode && (
             <p className="mt-2 text-indigo-800">
-              Discount code: <span className="font-mono font-semibold">{booking.appliedDiscountCode}</span>
+              Discount code:{' '}
+              <span className="font-mono font-semibold">{booking.appliedDiscountCode}</span>
             </p>
           )}
         </div>
 
         {showOverride && (
-          <form onSubmit={handleOverridePrice} className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
+          <form
+            onSubmit={handleOverridePrice}
+            className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5"
+            data-testid="staff-booking-override-form"
+          >
             <h3 className="mb-3 font-semibold text-slate-900">Override price</h3>
             {overrideError && <p className="mb-3 text-sm text-red-600">{overrideError}</p>}
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -382,7 +426,9 @@ export default function BookingDetailsView() {
               </Select>
             </div>
             <div className="mb-4">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Notes (optional)</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Notes (optional)
+              </label>
               <textarea
                 value={overrideNotes}
                 onChange={(e) => setOverrideNotes(e.target.value)}

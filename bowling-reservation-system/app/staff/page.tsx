@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -16,66 +16,30 @@ import {
 } from '@/components/shared/management/ManagementPanel'
 import ManagementSearchField from '@/components/shared/management/ManagementSearchField'
 import {
-  buildStaffDashboardStats,
   buildStaffDashboardRowActions,
   canEditStaffReservation,
-  filterStaffDashboardBookings,
   type StaffDashboardBooking,
-  type StaffDashboardRowAction,
+  getStaffCustomerDisplayName,
   getStaffSecondaryBookingDetail,
 } from '@/lib/staff/dashboard'
+import { useStaffDashboardData } from '@/hooks/useStaffDashboardData'
 
 type Booking = StaffDashboardBooking
 
 export default function StaffDashboardPage() {
   const router = useRouter()
   const [createBookingOpen, setCreateBookingOpen] = useState(false)
-  const [todayBookings, setTodayBookings] = useState<Booking[]>([])
-  const [loading, setLoading] = useState(true)
-  const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'checked' | 'completed'>('all')
-  const [openActionsForId, setOpenActionsForId] = useState<string | null>(null)
-  const [stats, setStats] = useState({
-    bookingsToday: 0,
-    availableLanes: 0,
-    checkingInSoon: 0,
-    revenueToday: 0,
-  })
-
-  useEffect(() => {
-    loadTodayBookings()
-  }, [])
-
-  useEffect(() => {
-    const handleBookingUpdated = () => {
-      loadTodayBookings()
-    }
-    window.addEventListener('staff:booking-updated', handleBookingUpdated)
-    return () => window.removeEventListener('staff:booking-updated', handleBookingUpdated)
-  }, [])
-
-  const loadTodayBookings = async () => {
-    try {
-      const response = await fetch('/api/staff/bookings/today')
-      if (!response.ok) throw new Error('Failed to load bookings')
-      const data = await response.json()
-      setTodayBookings(data.bookings || [])
-      setStats(buildStaffDashboardStats(data.bookings || []))
-    } catch (err) {
-      console.error('Failed to load bookings:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filteredBookings = useMemo(() => {
-    return filterStaffDashboardBookings(todayBookings, query, statusFilter)
-  }, [todayBookings, query, statusFilter])
-
-  const getCustomerDisplayName = (booking: Booking) => {
-    const fullName = [booking.user.firstName, booking.user.lastName].filter(Boolean).join(' ').trim()
-    return fullName || booking.user.email || 'Guest'
-  }
+  const {
+    loading,
+    stats,
+    query,
+    setQuery,
+    statusFilter,
+    setStatusFilter,
+    filteredBookings,
+    openActionsForId,
+    setOpenActionsForId,
+  } = useStaffDashboardData()
 
   if (loading) {
     return <LoadingStateBlock />
@@ -87,10 +51,30 @@ export default function StaffDashboardPage() {
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: 'Bookings today', value: stats.bookingsToday, accent: 'text-white', icon: CalendarDays },
-              { label: 'Available lanes', value: stats.availableLanes, accent: 'text-white', icon: LayoutGrid },
-              { label: 'Checking in soon', value: stats.checkingInSoon, accent: 'text-white', icon: Clock3 },
-              { label: 'Revenue today', value: `$${stats.revenueToday.toFixed(0)}`, accent: 'text-white', icon: CircleDollarSign },
+              {
+                label: 'Bookings today',
+                value: stats.bookingsToday,
+                accent: 'text-white',
+                icon: CalendarDays,
+              },
+              {
+                label: 'Available lanes',
+                value: stats.availableLanes,
+                accent: 'text-white',
+                icon: LayoutGrid,
+              },
+              {
+                label: 'Checking in soon',
+                value: stats.checkingInSoon,
+                accent: 'text-white',
+                icon: Clock3,
+              },
+              {
+                label: 'Revenue today',
+                value: `$${stats.revenueToday.toFixed(0)}`,
+                accent: 'text-white',
+                icon: CircleDollarSign,
+              },
             ].map((card) => (
               <div
                 key={card.label}
@@ -100,7 +84,9 @@ export default function StaffDashboardPage() {
                   <card.icon className="h-4 w-4 text-white" />
                 </div>
                 <p className="text-xs font-medium tracking-wide text-indigo-100">{card.label}</p>
-                <p className={`mt-1 text-3xl font-bold leading-[1.2] ${card.accent}`}>{card.value}</p>
+                <p className={`mt-1 text-3xl font-bold leading-[1.2] ${card.accent}`}>
+                  {card.value}
+                </p>
               </div>
             ))}
           </div>
@@ -132,9 +118,9 @@ export default function StaffDashboardPage() {
         </div>
       </section>
 
-      <ManagementPanel>
+      <ManagementPanel data-testid="staff-dashboard-panel">
         <ManagementPanelHeader
-          title="Today&apos;s schedule"
+          title="Today's schedule"
           description={format(new Date(), 'EEE, MMM d')}
           actions={
             <>
@@ -154,20 +140,18 @@ export default function StaffDashboardPage() {
                 value={query}
                 onChange={(value) => setQuery(value)}
                 placeholder="Search by customer name, time, or lane"
+                inputClassName="min-h-[44px]"
               />
             </>
           }
         />
 
         {filteredBookings.length === 0 ? (
-          <EmptySearchBlock
-            title="No reservations found matching your search."
-            className="p-10"
-          />
+          <EmptySearchBlock title="No reservations found matching your search." className="p-10" />
         ) : (
           <StaffBookingsTable
             rows={filteredBookings}
-            getCustomerDisplayName={getCustomerDisplayName}
+            getCustomerDisplayName={getStaffCustomerDisplayName}
             getSecondaryBookingDetail={getStaffSecondaryBookingDetail}
             getRowActions={(booking) =>
               buildStaffDashboardRowActions(booking, {
@@ -201,5 +185,3 @@ export default function StaffDashboardPage() {
     </div>
   )
 }
-
-
