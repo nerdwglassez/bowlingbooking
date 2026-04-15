@@ -94,7 +94,8 @@ export function matchesStaffDashboardFilters(
     (statusFilter === 'upcoming' &&
       (booking.status === 'CONFIRMED' || booking.status === 'PENDING')) ||
     (statusFilter === 'checked' && booking.status === 'CHECKED_IN') ||
-    (statusFilter === 'completed' && booking.status === 'PAID')
+    (statusFilter === 'completed' &&
+      (booking.status === 'PAID' || booking.status === 'COMPLETED'))
 
   return matchesQuery && matchesFilter
 }

@@ -16,7 +16,8 @@ export function getBookingStatusPresentation(
 ): BookingStatusPresentation {
   if (context === 'staff-dashboard') {
     if (status === 'CHECKED_IN') return { label: 'Checked In', tone: 'info' }
-    if (status === 'PAID') return { label: 'Completed', tone: 'neutral' }
+    if (status === 'PAID') return { label: 'Paid', tone: 'neutral' }
+    if (status === 'COMPLETED') return { label: 'Completed', tone: 'neutral' }
     if (status === 'CONFIRMED' || status === 'PENDING') return { label: 'Upcoming', tone: 'warning' }
     if (status === 'CANCELLED') return { label: 'Cancelled', tone: 'danger' }
     return { label: normalizeLabel(status), tone: 'neutral' }

@@ -40,6 +40,7 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 ### Staff & Manager
 
 - **Staff dashboard** – Today’s bookings, create booking, check-in, customer search
+- **Staff dashboard status semantics** – “Completed” filter includes `PAID` and `COMPLETED`; status pills distinguish Paid vs Completed in dashboard context
 - **Staff calendar timeline (incremental)** – `/staff/calendar?view=timeline` renders lane/time blocks backed by `GET /api/staff/schedule`, while default month view remains unchanged when `view` is absent
 - **Staff QA scaffolding** – iPad/touch validation checklist in [`docs/IPAD_QA_CHECKLIST.md`](docs/IPAD_QA_CHECKLIST.md) and stable `data-testid` hooks on key staff surfaces
 - **Manager** – Price overrides with reason codes, edit booking, pending-approval workflow, audit log view
