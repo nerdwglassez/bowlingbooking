@@ -15,30 +15,17 @@ import {
   ManagementPanelHeader,
 } from '@/components/shared/management/ManagementPanel'
 import ManagementSearchField from '@/components/shared/management/ManagementSearchField'
-import { formatTime12Hour } from '@/lib/time'
+import {
+  buildStaffDashboardStats,
+  buildStaffDashboardRowActions,
+  canEditStaffReservation,
+  filterStaffDashboardBookings,
+  type StaffDashboardBooking,
+  type StaffDashboardRowAction,
+  getStaffSecondaryBookingDetail,
+} from '@/lib/staff/dashboard'
 
-interface Booking {
-  id: string
-  date: string
-  startTime: string
-  duration: number
-  lane: number
-  numBowlers: number
-  status: string
-  totalPrice?: number
-  lanes?: string | null
-  user: {
-    id: string
-    email: string
-    firstName?: string | null
-    lastName?: string | null
-  }
-  bookingPackages?: Array<{
-    package?: {
-      name?: string | null
-    } | null
-  }>
-}
+type Booking = StaffDashboardBooking
 
 export default function StaffDashboardPage() {
   const router = useRouter()
@@ -73,26 +60,7 @@ export default function StaffDashboardPage() {
       if (!response.ok) throw new Error('Failed to load bookings')
       const data = await response.json()
       setTodayBookings(data.bookings || [])
-
-      // Calculate stats
-      const now = new Date()
-      const paidOrConfirmed = data.bookings.filter((b: Booking) => b.status === 'CONFIRMED' || b.status === 'PAID')
-      const checkingInSoon = paidOrConfirmed.filter((b: Booking) => {
-        const bookingTime = new Date(`${b.date}T${b.startTime}`)
-        const minsAway = (bookingTime.getTime() - now.getTime()) / (1000 * 60)
-        return minsAway >= 0 && minsAway <= 60
-      }).length
-      const occupiedNow = data.bookings.filter((b: Booking) => b.status === 'CHECKED_IN').length
-      const TOTAL_LANES_ASSUMED = 20
-      const stats = {
-        bookingsToday: data.bookings.length,
-        availableLanes: Math.max(0, TOTAL_LANES_ASSUMED - occupiedNow),
-        checkingInSoon,
-        revenueToday: data.bookings
-          .filter((b: Booking) => b.status !== 'CANCELLED')
-          .reduce((sum: number, b: Booking) => sum + (Number(b.totalPrice) || 0), 0),
-      }
-      setStats(stats)
+      setStats(buildStaffDashboardStats(data.bookings || []))
     } catch (err) {
       console.error('Failed to load bookings:', err)
     } finally {
@@ -101,40 +69,12 @@ export default function StaffDashboardPage() {
   }
 
   const filteredBookings = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return todayBookings.filter((b) => {
-      const customerName = [b.user.firstName, b.user.lastName].filter(Boolean).join(' ').trim()
-      const matchesQuery =
-        !q ||
-        customerName.toLowerCase().includes(q) ||
-        b.user.email.toLowerCase().includes(q) ||
-        b.startTime.toLowerCase().includes(q) ||
-        formatTime12Hour(b.startTime).toLowerCase().includes(q) ||
-        String(b.lane).includes(q)
-
-      const matchesFilter =
-        statusFilter === 'all' ||
-        (statusFilter === 'upcoming' && (b.status === 'CONFIRMED' || b.status === 'PENDING')) ||
-        (statusFilter === 'checked' && b.status === 'CHECKED_IN') ||
-        (statusFilter === 'completed' && b.status === 'PAID')
-
-      return matchesQuery && matchesFilter
-    })
+    return filterStaffDashboardBookings(todayBookings, query, statusFilter)
   }, [todayBookings, query, statusFilter])
-
-  const canEditReservation = (status: string) =>
-    status === 'PENDING' || status === 'PAID' || status === 'CONFIRMED'
 
   const getCustomerDisplayName = (booking: Booking) => {
     const fullName = [booking.user.firstName, booking.user.lastName].filter(Boolean).join(' ').trim()
     return fullName || booking.user.email || 'Guest'
-  }
-
-  const getSecondaryBookingDetail = (booking: Booking) => {
-    const primaryPackageName =
-      booking.bookingPackages?.find((bp) => Boolean(bp.package?.name))?.package?.name?.trim() || ''
-    const bowlersLabel = `${booking.numBowlers} bowler${booking.numBowlers > 1 ? 's' : ''}`
-    return primaryPackageName ? `${bowlersLabel} · ${primaryPackageName}` : bowlersLabel
   }
 
   if (loading) {
@@ -228,29 +168,16 @@ export default function StaffDashboardPage() {
           <StaffBookingsTable
             rows={filteredBookings}
             getCustomerDisplayName={getCustomerDisplayName}
-            getSecondaryBookingDetail={getSecondaryBookingDetail}
-            getRowActions={(booking) => [
-              {
-                key: 'details',
-                label: 'Details',
-                onClick: () => router.push(`/staff/bookings/${booking.id}`),
-              },
-              ...(canEditReservation(booking.status)
-                ? [{
-                    key: 'edit',
-                    label: 'Edit Reservation',
-                    onClick: () => router.push(`/staff/bookings/${booking.id}/edit`),
-                  }]
-                : []),
-              ...((booking.status === 'CONFIRMED' || booking.status === 'PAID')
-                ? [{
-                    key: 'check-in',
-                    label: 'Check In',
-                    onClick: () => router.push(`/staff/check-in?bookingId=${encodeURIComponent(booking.id)}`),
-                    className: 'text-indigo-700 hover:bg-indigo-50',
-                  }]
-                : []),
-            ]}
+            getSecondaryBookingDetail={getStaffSecondaryBookingDetail}
+            getRowActions={(booking) =>
+              buildStaffDashboardRowActions(booking, {
+                canEditReservation: canEditStaffReservation,
+                onDetails: (bookingId) => router.push(`/staff/bookings/${bookingId}`),
+                onEdit: (bookingId) => router.push(`/staff/bookings/${bookingId}/edit`),
+                onCheckIn: (bookingId) =>
+                  router.push(`/staff/check-in?bookingId=${encodeURIComponent(bookingId)}`),
+              })
+            }
             openActionsForId={openActionsForId}
             onActionsOpenChange={(bookingId, nextOpen) => {
               setOpenActionsForId((current) => {

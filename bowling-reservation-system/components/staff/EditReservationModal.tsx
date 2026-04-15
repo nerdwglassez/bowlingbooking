@@ -7,6 +7,13 @@ import { format } from 'date-fns'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { formatTime12Hour } from '@/lib/time'
+import {
+  buildEditReservationContactPayload,
+  buildEditReservationUpdatePayload,
+  getTimeChanged,
+  isReservationContactChanged,
+} from '@/lib/staff/edit-reservation'
+import { useAvailabilityForDate } from '@/hooks/useAvailabilityForDate'
 
 interface Booking {
   id: string
@@ -24,12 +31,6 @@ interface Booking {
     email: string
   }
   bookingPackages: Array<{ package: { name: string } }>
-}
-
-interface TimeSlot {
-  time: string
-  available: boolean
-  availableLanes: number
 }
 
 const STATUS_OPTIONS = [
@@ -51,8 +52,6 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loading, setLoading] = useState(true)
-  const [slots, setSlots] = useState<TimeSlot[]>([])
-  const [loadingSlots, setLoadingSlots] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedTime, setSelectedTime] = useState('')
   const [numBowlers, setNumBowlers] = useState(0)
@@ -99,24 +98,26 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
       .finally(() => setLoading(false))
   }, [id])
 
+  const {
+    slots,
+    loading: loadingSlots,
+  } = useAvailabilityForDate(selectedDate, { enabled: Boolean(selectedDate && booking) })
   useEffect(() => {
     if (!selectedDate || !booking) return
-    setLoadingSlots(true)
-    fetch(`/api/availability?date=${selectedDate}`)
-      .then((res) => res.ok ? res.json() : { slots: [] })
-      .then((data) => {
-        setSlots(data.slots || [])
-        setSelectedTime('')
-      })
-      .finally(() => setLoadingSlots(false))
+    setSelectedTime('')
   }, [selectedDate, booking?.duration])
 
   const canEdit = booking && ['PENDING', 'PAID', 'CONFIRMED'].includes(booking.status)
   const availableSlots = slots.filter((s) => s.available)
   const minDate = format(new Date(), 'yyyy-MM-dd')
-  const timeChanged =
-    booking &&
-    (selectedDate !== format(new Date(booking.date), 'yyyy-MM-dd') || selectedTime !== booking.startTime)
+  const timeChanged = booking
+    ? getTimeChanged({
+        selectedDate,
+        selectedTime,
+        originalDate: booking.date,
+        originalStartTime: booking.startTime,
+      })
+    : false
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,7 +125,12 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
     setError(null)
     setSubmitting(true)
     try {
-      const timeChanged = selectedDate !== format(new Date(booking.date), 'yyyy-MM-dd') || selectedTime !== booking.startTime
+      const timeChanged = getTimeChanged({
+        selectedDate,
+        selectedTime,
+        originalDate: booking.date,
+        originalStartTime: booking.startTime,
+      })
       if (timeChanged && canEdit) {
         const res = await fetch(`/api/bookings/${booking.id}/reschedule`, {
           method: 'PATCH',
@@ -135,16 +141,13 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
         if (!res.ok) throw new Error(data.error || 'Failed to reschedule')
       }
 
-      const lanesTrimmed = lanesCsv.trim().replace(/\s*,\s*/g, ',').replace(/\s+/g, ',')
-      const lanesArray = lanesTrimmed
-        ? lanesTrimmed.split(',').map((n) => parseInt(n.trim(), 10)).filter((n) => !Number.isNaN(n))
-        : []
-      const lanesPayload = lanesArray.length > 0 ? lanesArray.join(',') : undefined
-
-      const updatePayload: { numBowlers?: number; lanes?: string; status?: string } = {}
-      if (numBowlers !== booking.numBowlers) updatePayload.numBowlers = numBowlers
-      if (lanesPayload !== undefined) updatePayload.lanes = lanesPayload
-      if (status !== booking.status) updatePayload.status = status
+      const updatePayload = buildEditReservationUpdatePayload({
+        numBowlers,
+        originalNumBowlers: booking.numBowlers,
+        lanesCsv,
+        status,
+        originalStatus: booking.status,
+      })
 
       if (Object.keys(updatePayload).length > 0) {
         const res = await fetch(`/api/staff/bookings/${booking.id}`, {
@@ -156,16 +159,20 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
         if (!res.ok) throw new Error(data.error || 'Failed to update booking')
       }
 
-      const contactChanged =
-        booking.user &&
-        (customerFirstName !== (booking.user.firstName ?? '') ||
-          customerLastName !== (booking.user.lastName ?? '') ||
-          customerEmail !== (booking.user.email ?? ''))
+      const contactChanged = booking.user && isReservationContactChanged({
+        customerFirstName,
+        customerLastName,
+        customerEmail,
+        bookingFirstName: booking.user.firstName,
+        bookingLastName: booking.user.lastName,
+        bookingEmail: booking.user.email,
+      })
       if (contactChanged && booking.user.id) {
-        const payload: { firstName?: string; lastName?: string; email?: string } = {}
-        payload.firstName = customerFirstName.trim()
-        payload.lastName = customerLastName.trim()
-        if (customerEmail.trim()) payload.email = customerEmail.trim()
+        const payload = buildEditReservationContactPayload({
+          customerFirstName,
+          customerLastName,
+          customerEmail,
+        })
         const customerRes = await fetch(`/api/staff/customers/${booking.user.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },

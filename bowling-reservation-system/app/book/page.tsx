@@ -23,9 +23,25 @@ import {
   calculateBookingPrice,
   calculateBookingPriceWithSettings,
   type BookingPriceBreakdown,
-  type PricingSettingsForBooking,
 } from '@/lib/pricing'
 import { righteous } from '@/lib/fonts'
+import {
+  canSubmitBooking as canSubmitBookingRule,
+  getBowlerInfoCompletionState,
+  getNumLanesForBowlers,
+  getShoeRentalCounts,
+  getShoeSizeValues,
+} from '@/lib/booking/rules'
+import {
+  filterPackagesByCategory,
+  getPackageCategoryOptions,
+  packagePriceList,
+  packageTotalPrice,
+  selectedPackageData,
+  togglePackageSelection,
+} from '@/lib/booking/packages'
+import { useBookingCatalog } from '@/hooks/useBookingCatalog'
+import { useBookingCheckoutFlow } from '@/hooks/useBookingCheckoutFlow'
 
 /** Shared styles so step Back/Continue buttons align and are pill-shaped (Figma: pill CTA). */
 const STEP_NAV_BUTTON = 'rounded-full min-h-[48px] px-6'
@@ -52,6 +68,23 @@ interface Product {
   type: string
 }
 
+type CreateBookingPayload = {
+  date: string
+  startTime: string
+  duration: number
+  numLanes: number
+  lane?: number
+  numBowlers: number
+  shoeSizes: number[]
+  packageIds: string[]
+  productItems: Array<{ productId: string; quantity: number }>
+  termsAccepted: boolean
+  loyaltyPointsToRedeem?: number
+  giftCardCode?: string
+  giftCardAmountToApply?: number
+  discountCode?: string
+}
+
 export default function BookPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -64,18 +97,33 @@ export default function BookPage() {
   /** Per-bowler: number = shoe size, null = own shoes, undefined = not chosen yet */
   const [shoeRentals, setShoeRentals] = useState<(number | null | undefined)[]>([undefined, undefined])
   // Lanes derived from bowlers: 1 lane per 6 bowlers (1–6 → 1, 7–12 → 2, etc.), max 5
-  const numLanes = Math.min(5, Math.ceil(numBowlers / 6)) || 1
-  const [packages, setPackages] = useState<Package[]>([])
+  const numLanes = getNumLanesForBowlers(numBowlers)
+  const {
+    packages,
+    products,
+    pricingSettings,
+  } = useBookingCatalog()
   const [selectedPackages, setSelectedPackages] = useState<string[]>([])
-  const [products, setProducts] = useState<Product[]>([])
   const [selectedProducts, setSelectedProducts] = useState<Record<string, number>>({}) // productId -> quantity
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    loading,
+    error,
+    setError,
+    createdBookingId,
+    paymentClientSecret,
+    createBooking,
+    confirmPayment,
+    resetPaymentState,
+    registerGuestAndCreateBooking,
+    createBookingAfterLogin,
+  } = useBookingCheckoutFlow({
+    onConfirmed: (bookingId) => {
+      router.push(`/book/confirmation?bookingId=${bookingId}`)
+    },
+  })
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [checkoutMode, setCheckoutMode] = useState<'signup' | 'login' | 'guest' | null>(null)
   const [termsAccepted, setTermsAccepted] = useState(false)
-  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null)
-  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null)
   const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState(0)
   const [loyaltyData, setLoyaltyData] = useState<{
     balance: number
@@ -104,8 +152,6 @@ export default function BookPage() {
   const [detailPanelPackageId, setDetailPanelPackageId] = useState<string | null>(null)
   const [packageCategoryFilter, setPackageCategoryFilter] = useState<string | null>(null) // null = All, 'PARTY', 'FOOD', 'DRINK', 'ARCADE'
   const [mobileStep2SummaryExpanded, setMobileStep2SummaryExpanded] = useState(false)
-  const [pricingSettings, setPricingSettings] = useState<PricingSettingsForBooking | null>(null)
-
   const STEP1_STORAGE_KEY = 'booking_step1'
 
   /** Booking price breakdown using staff settings when available, so UI matches final charge. */
@@ -181,31 +227,6 @@ export default function BookPage() {
     }
   }, [searchParams])
 
-  // Load packages, products, and pricing from staff settings (so displayed prices match booking API)
-  useEffect(() => {
-    fetch('/api/packages')
-      .then(res => res.json())
-      .then(data => setPackages(data.packages || []))
-      .catch(err => console.error('Failed to load packages:', err))
-    fetch('/api/products')
-      .then(res => res.json())
-      .then(data => setProducts(data.products || []))
-      .catch(err => console.error('Failed to load products:', err))
-    fetch('/api/pricing')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data && typeof data.laneRentalPerHour === 'number') {
-          setPricingSettings({
-            laneRentalPerHour: data.laneRentalPerHour,
-            bowlerPricePerPerson: data.bowlerPricePerPerson ?? 0,
-            shoeRental: data.shoeRental ?? 0,
-            taxRate: data.taxRate ?? 0.08,
-          })
-        }
-      })
-      .catch(() => setPricingSettings(null))
-  }, [])
-
   const handleTimeSelect = (date: string, time: string) => {
     setSelectedDate(date)
     setSelectedTime(time)
@@ -246,19 +267,22 @@ export default function BookPage() {
     setNumBowlers(prev => Math.max(1, prev - 1))
   }
 
-  const numShoeRentals = shoeRentals.filter((s): s is number => typeof s === 'number' && s > 0).length
-  const numOwnShoes = shoeRentals.filter((s) => s === null).length
-  const shoeSizeValues = shoeRentals.filter((s): s is number => typeof s === 'number' && s > 0)
+  const { numShoeRentals, numOwnShoes } = getShoeRentalCounts(shoeRentals)
+  const shoeSizeValues = getShoeSizeValues(shoeRentals)
   const productLineItems = Object.entries(selectedProducts)
     .filter(([, q]) => q > 0)
     .map(([productId, quantity]) => {
       const p = products.find((pr) => pr.id === productId)
       return { productId, name: p?.name ?? '', price: Number(p?.price ?? 0), quantity }
     })
-  const isBowlerInfoComplete =
-    shoeRentals.length === numBowlers &&
-    shoeRentals.every((s) => s === null || (typeof s === 'number' && s > 0))
-  const canSubmitBooking = !!selectedDate && !!selectedTime && isBowlerInfoComplete && termsAccepted && !loading
+  const { isBowlerInfoComplete } = getBowlerInfoCompletionState(numBowlers, shoeRentals)
+  const canSubmitBooking = canSubmitBookingRule({
+    selectedDate,
+    selectedTime,
+    isBowlerInfoComplete,
+    termsAccepted,
+    loading,
+  })
 
   /** Shoe sizes 1–15 in half steps; stored value is the numeric size (men's/boy's). */
   const SHOE_SIZE_OPTIONS = Array.from({ length: 29 }, (_, i) => 1 + i * 0.5)
@@ -272,39 +296,19 @@ export default function BookPage() {
   }
 
   const togglePackage = (packageId: string) => {
-    if (selectedPackages.includes(packageId)) {
-      setSelectedPackages(selectedPackages.filter(id => id !== packageId))
-    } else {
-      setSelectedPackages([...selectedPackages, packageId])
-    }
+    setSelectedPackages((prev) => togglePackageSelection(prev, packageId))
   }
 
   const handleAddPackageToCart = (packageId: string, _extraGuests?: number, _extraLanes?: number) => {
     // For now, just add the package ID. Extra guests/lanes customization can be stored later if backend supports it.
-    if (!selectedPackages.includes(packageId)) {
-      setSelectedPackages([...selectedPackages, packageId])
-    }
+    setSelectedPackages((prev) => (prev.includes(packageId) ? prev : [...prev, packageId]))
   }
 
-  const categoryOptions: Array<{ value: string | null; label: string }> = [
-    { value: null, label: 'All' },
-    { value: 'PARTY', label: 'Party Packages' },
-    { value: 'FOOD', label: 'Food & Drinks' },
-    { value: 'ARCADE', label: 'Arcade' },
-  ]
-
-  const filteredPackages = packageCategoryFilter
-    ? packages.filter(p => {
-        if (packageCategoryFilter === 'FOOD') return p.type === 'FOOD' || p.type === 'DRINK'
-        return p.type === packageCategoryFilter
-      })
-    : packages
-
-  const selectedPackagesData = packages.filter(p => selectedPackages.includes(p.id))
-  const totalPackagePrice = selectedPackagesData.reduce((sum, p) => sum + Number(p.price), 0)
-  const step2PackagePrices = selectedPackages.map(
-    id => Number(packages.find(p => p.id === id)?.price ?? 0)
-  )
+  const categoryOptions: Array<{ value: string | null; label: string }> = [...getPackageCategoryOptions()]
+  const filteredPackages = filterPackagesByCategory(packages, packageCategoryFilter)
+  const selectedPackagesData = selectedPackageData(packages, selectedPackages)
+  const totalPackagePrice = packageTotalPrice(selectedPackagesData)
+  const step2PackagePrices = packagePriceList(packages, selectedPackages)
   const step2ProductTotal = Object.entries(selectedProducts).reduce(
     (sum, [productId, q]) => sum + (Number(products.find(p => p.id === productId)?.price ?? 0) * q),
     0
@@ -317,43 +321,43 @@ export default function BookPage() {
     }
   }, [step, selectedPackages.length])
 
-  const handleGuestCheckout = async (guestData: { email: string; firstName: string; lastName: string; phone: string }) => {
-    setLoading(true)
-    setError(null)
+  const buildCreateBookingPayload = (): CreateBookingPayload => ({
+    date: selectedDate,
+    startTime: selectedTime,
+    duration,
+    numLanes,
+    lane: numLanes === 1 ? lane : undefined,
+    numBowlers,
+    shoeSizes: shoeSizeValues,
+    packageIds: selectedPackages,
+    productItems: Object.entries(selectedProducts)
+      .filter(([, q]) => q > 0)
+      .map(([productId, quantity]) => ({ productId, quantity })),
+    termsAccepted: true,
+    ...(loyaltyPointsToRedeem > 0 ? { loyaltyPointsToRedeem } : {}),
+    ...(giftCardCode.trim() && giftCardAmountToApply > 0
+      ? { giftCardCode: giftCardCode.trim(), giftCardAmountToApply }
+      : {}),
+    ...(appliedPromoCode ? { discountCode: appliedPromoCode } : {}),
+  })
 
-    try {
-      // Create guest account
-      const guestResponse = await fetch('/api/auth/guest-register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(guestData),
-      })
-
-      if (!guestResponse.ok) {
-        const result = await guestResponse.json()
-        throw new Error(result.error || 'Failed to create guest account')
-      }
-
-      // Update auth status
-      setIsAuthenticated(true)
-      
-      // Wait a moment for session cookie to be set, then create booking
-      setTimeout(async () => {
-        await createBooking()
-      }, 500)
-    } catch (err: any) {
-      setError(err.message)
-      setLoading(false)
+  const runCreateBooking = async () => {
+    if (!selectedDate || !selectedTime) {
+      setError('Please select a date and time')
+      return
     }
+    await createBooking(buildCreateBookingPayload())
+  }
+
+  const handleGuestCheckout = async (guestData: { email: string; firstName: string; lastName: string; phone: string }) => {
+    await registerGuestAndCreateBooking(guestData, buildCreateBookingPayload())
+    setIsAuthenticated(true)
   }
 
   const handleLoginSuccess = async () => {
     setIsAuthenticated(true)
     setCheckoutMode(null)
-    // Wait a moment for session to be set, then create booking
-    setTimeout(() => {
-      createBooking()
-    }, 500)
+    createBookingAfterLogin(buildCreateBookingPayload())
   }
 
   // Fetch loyalty when on step 4 and authenticated (for "use points" option)
@@ -382,97 +386,12 @@ export default function BookPage() {
       .catch(() => setLoyaltyData(null))
   }, [step, isAuthenticated, selectedPackages, selectedProducts, packages, products, duration, numShoeRentals, numLanes, numBowlers, pricingSettings])
 
-  const createBooking = async () => {
-    if (!selectedDate || !selectedTime) {
-      setError('Please select a date and time')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: selectedDate,
-          startTime: selectedTime,
-          duration,
-          numLanes,
-          lane: numLanes === 1 ? lane : undefined,
-          numBowlers,
-          shoeSizes: shoeSizeValues,
-          packageIds: selectedPackages,
-          productItems: Object.entries(selectedProducts)
-            .filter(([, q]) => q > 0)
-            .map(([productId, quantity]) => ({ productId, quantity })),
-          termsAccepted: true,
-          ...(loyaltyPointsToRedeem > 0 ? { loyaltyPointsToRedeem } : {}),
-          ...(giftCardCode.trim() && giftCardAmountToApply > 0
-            ? { giftCardCode: giftCardCode.trim(), giftCardAmountToApply }
-            : {}),
-          ...(appliedPromoCode ? { discountCode: appliedPromoCode } : {}),
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create booking')
-      }
-
-      const bookingId = result.booking.id
-
-      if (result.requiresPayment === false) {
-        router.push(`/book/confirmation?bookingId=${bookingId}`)
-        return
-      }
-
-      const paymentRes = await fetch(`/api/bookings/${bookingId}/create-payment-intent`, {
-        method: 'POST',
-      })
-      const paymentData = await paymentRes.json()
-
-      if (paymentRes.status === 503 || !paymentData.clientSecret) {
-        router.push(`/book/confirmation?bookingId=${bookingId}`)
-        return
-      }
-
-      setCreatedBookingId(bookingId)
-      setPaymentClientSecret(paymentData.clientSecret)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handlePaymentSuccess = async (paymentIntentId: string) => {
-    if (!createdBookingId) return
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/bookings/${createdBookingId}/confirm-payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntentId }),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to confirm payment')
-      }
-      router.push(`/book/confirmation?bookingId=${createdBookingId}`)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+    await confirmPayment(paymentIntentId)
   }
 
   const handlePaymentCancel = () => {
-    setPaymentClientSecret(null)
-    setCreatedBookingId(null)
+    resetPaymentState()
   }
 
   const handleSubmit = async () => {
@@ -480,7 +399,7 @@ export default function BookPage() {
       setCheckoutMode(null)
       return
     }
-    await createBooking()
+    await runCreateBooking()
   }
 
   const stepLabels = ['Date & Time', 'Packages & Extras', 'Booking Details', 'Review & Payment']
