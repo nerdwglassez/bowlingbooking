@@ -8,6 +8,8 @@ import { CalendarDays, CircleDollarSign, Clock3, LayoutGrid, MoreVertical, Plus,
 import CreateBookingModal from '@/components/staff/CreateBookingModal'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
+import { BookingStatusPill, getBookingStatusPill } from '@/components/shared/status/StatusPill'
+import { EmptyStateCard, LoadingStateBlock } from '@/components/shared/state/StateBlocks'
 import { formatTime12Hour } from '@/lib/time'
 import { getBookingLanes } from '@/lib/staff-booking-utils'
 
@@ -139,27 +141,6 @@ export default function StaffDashboardPage() {
     })
   }, [todayBookings, query, statusFilter])
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'CHECKED_IN':
-        return 'border border-indigo-200 bg-indigo-100 text-indigo-700'
-      case 'PAID':
-        return 'border border-slate-300 bg-slate-100 text-slate-700'
-      case 'CONFIRMED':
-      case 'PENDING':
-        return 'border border-violet-200 bg-violet-100 text-violet-700'
-      default:
-        return 'border border-slate-200 bg-slate-100 text-slate-700'
-    }
-  }
-
-  const getStatusDisplayLabel = (status: string) => {
-    if (status === 'CHECKED_IN') return 'Checked In'
-    if (status === 'PAID') return 'Completed'
-    if (status === 'CONFIRMED' || status === 'PENDING') return 'Upcoming'
-    return status.replace('_', ' ')
-  }
-
   const canEditReservation = (status: string) =>
     status === 'PENDING' || status === 'PAID' || status === 'CONFIRMED'
 
@@ -176,7 +157,7 @@ export default function StaffDashboardPage() {
   }
 
   if (loading) {
-    return <div className="p-6">Loading...</div>
+    return <LoadingStateBlock />
   }
 
   return (
@@ -262,12 +243,12 @@ export default function StaffDashboardPage() {
         </div>
 
         {filteredBookings.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 p-10 text-center text-slate-500">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border-4 border-slate-300/80 text-slate-400">
-              <Search className="h-5 w-5" />
-            </span>
-            <p>No reservations found matching your search.</p>
-          </div>
+          <EmptyStateCard
+            title="No reservations found matching your search."
+            icon={<Search className="h-5 w-5" />}
+            message="No reservations found matching your search."
+            containerClassName="rounded-none border-0 bg-transparent shadow-none p-10"
+          />
         ) : (
           <div>
             <div className="hidden grid-cols-[180px_1fr_190px_220px_170px] bg-gradient-to-r from-slate-50 to-slate-100/60 px-6 py-4 text-sm font-semibold text-slate-500 md:grid">
@@ -307,9 +288,17 @@ export default function StaffDashboardPage() {
                       ))}
                     </div>
                     <div>
-                      <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-semibold ${getStatusColor(booking.status)}`}>
-                        {getStatusDisplayLabel(booking.status)}
-                      </span>
+                      {(() => {
+                        const pill = getBookingStatusPill(booking.status, { context: 'staff-dashboard' })
+                        return (
+                          <BookingStatusPill
+                            status={booking.status}
+                            context="staff-dashboard"
+                            className={pill.className}
+                            label={pill.label}
+                          />
+                        )
+                      })()}
                     </div>
                     <div className="flex justify-start">
                       <div className="relative" data-actions-menu-root="true">

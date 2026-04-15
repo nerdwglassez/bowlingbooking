@@ -6,6 +6,11 @@ import Link from 'next/link'
 import { format, addDays, isBefore, startOfDay } from 'date-fns'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import {
+  EmptyStateCard,
+  ErrorState,
+  LoadingState,
+} from '@/components/shared/state/StateBlocks'
 
 interface Booking {
   id: string
@@ -96,7 +101,7 @@ export default function RescheduleBookingPage() {
     return (
       <main className="min-h-screen p-8 bg-gray-50">
         <div className="max-w-2xl mx-auto">
-          {loading ? 'Loading...' : (error || 'Booking not found')}
+          {loading ? <LoadingState /> : <ErrorState message={error || 'Booking not found'} />}
           {!loading && (
             <Link href="/bookings" className="block mt-4 text-blue-600 hover:underline">
               Back to Bookings
@@ -139,9 +144,16 @@ export default function RescheduleBookingPage() {
           </div>
 
           {loadingSlots ? (
-            <p className="text-gray-500 mb-6">Loading time slots...</p>
+            <div className="mb-6">
+              <LoadingState text="Loading time slots..." />
+            </div>
           ) : availableSlots.length === 0 ? (
-            <p className="text-gray-500 mb-6">No available slots on this date. Choose another date.</p>
+            <div className="mb-6">
+              <EmptyStateCard
+                title="No available slots on this date. Choose another date."
+                className="border border-gray-200 bg-gray-50 p-4 text-sm"
+              />
+            </div>
           ) : (
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">New time</label>

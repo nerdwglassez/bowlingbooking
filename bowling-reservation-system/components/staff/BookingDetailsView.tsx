@@ -9,6 +9,9 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { formatTime12Hour } from '@/lib/time'
 import { getBookingLanes } from '@/lib/staff-booking-utils'
+import { BookingStatusPill } from '@/components/shared/status/StatusPill'
+import { PageLoadingState, PageNotFoundState } from '@/components/shared/state/StateBlocks'
+import BookingPackageList from '@/components/shared/booking/BookingPackageList'
 
 const OVERRIDE_REASONS = [
   { value: 'DISCOUNT', label: 'Discount' },
@@ -191,33 +194,25 @@ export default function BookingDetailsView() {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'CONFIRMED':
-      case 'PAID':
-        return 'bg-green-100 text-green-800'
-      case 'PENDING':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'CHECKED_IN':
-        return 'bg-blue-100 text-blue-800'
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
-
   if (loading) {
-    return <div className="p-6">Loading...</div>
+    return (
+      <div className="p-6">
+        <PageLoadingState text="Loading..." />
+      </div>
+    )
   }
 
   if (!booking) {
     return (
       <div className="p-6">
-        <p>Booking not found</p>
-        <Link href="/staff/calendar">
-          <Button className="mt-4">Back to Calendar</Button>
-        </Link>
+        <PageNotFoundState
+          message="Booking not found"
+          action={
+            <Link href="/staff/calendar">
+              <Button className="mt-4">Back to Calendar</Button>
+            </Link>
+          }
+        />
       </div>
     )
   }
@@ -243,9 +238,7 @@ export default function BookingDetailsView() {
             <h1 className="mb-2 text-3xl font-bold">Booking Details</h1>
             <p className="text-gray-600">Booking ID: {booking.id}</p>
           </div>
-          <span className={`rounded px-3 py-1 text-sm font-medium ${getStatusColor(booking.status)}`}>
-            {booking.status.replace('_', ' ')}
-          </span>
+          <BookingStatusPill status={booking.status} size="md" />
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -280,17 +273,13 @@ export default function BookingDetailsView() {
         {booking.bookingPackages.length > 0 && (
           <div className="mb-6">
             <h2 className="mb-2 font-semibold">Packages</h2>
-            <div className="space-y-2">
-              {booking.bookingPackages.map((bp, index) => (
-                <div key={index} className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium">{bp.package.name}</p>
-                    {bp.package.description && <p className="text-sm text-gray-600">{bp.package.description}</p>}
-                  </div>
-                  <p className="font-semibold">${Number(bp.package.price).toFixed(2)}</p>
-                </div>
-              ))}
-            </div>
+            <BookingPackageList
+              items={booking.bookingPackages.map((bp) => ({
+                name: bp.package.name,
+                description: bp.package.description,
+                price: Number(bp.package.price),
+              }))}
+            />
           </div>
         )}
 

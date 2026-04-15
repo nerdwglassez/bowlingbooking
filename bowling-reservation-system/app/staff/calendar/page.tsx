@@ -7,6 +7,8 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, Search, Users 
 import ImmersiveStaffPage from '@/components/layout/ImmersiveStaffPage'
 import StaffPageHero from '@/components/staff/StaffPageHero'
 import Button from '@/components/ui/Button'
+import { AppLoadingState, AppEmptyState } from '@/components/shared/state/StateBlocks'
+import { BookingStatusPill } from '@/components/shared/status/StatusPill'
 import { formatTime12Hour } from '@/lib/time'
 import { customerDisplayName } from '@/lib/staff-booking-utils'
 
@@ -103,13 +105,6 @@ export default function StaffCalendarPage() {
       )
     })
   }, [bookingsByDate, selectedDate, query])
-
-  const getBookingStatus = (status: string) => {
-    if (status === 'CHECKED_IN') return { label: 'Checked In', classes: 'bg-emerald-100 text-emerald-700' }
-    if (status === 'CONFIRMED' || status === 'PAID') return { label: 'Upcoming', classes: 'bg-indigo-100 text-indigo-700' }
-    if (status === 'CANCELLED') return { label: 'Cancelled', classes: 'bg-rose-100 text-rose-700' }
-    return { label: status.replace('_', ' '), classes: 'bg-slate-100 text-slate-700' }
-  }
 
   return (
     <div>
@@ -235,18 +230,16 @@ export default function StaffCalendarPage() {
             </div>
 
             <div className="mt-4 space-y-3">
-              {loading ? <p className="text-sm text-slate-500">Loading...</p> : null}
+              {loading ? <AppLoadingState className="py-2 text-left" /> : null}
               {!loading && selectedDayBookings.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-slate-500">
-                  <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100 text-indigo-500">
-                    <CalendarDays className="h-7 w-7" />
-                  </div>
-                  <p>No bookings for this date</p>
-                </div>
+                <AppEmptyState
+                  title="No bookings for this date"
+                  icon={<CalendarDays className="h-7 w-7" />}
+                  className="rounded-2xl border border-slate-200 bg-slate-50"
+                />
               ) : null}
 
               {selectedDayBookings.map((booking) => {
-                const status = getBookingStatus(booking.status)
                 const packageName = booking.bookingPackages?.[0]?.package?.name ?? 'Standard'
                 return (
                   <Button
@@ -262,9 +255,7 @@ export default function StaffCalendarPage() {
                         <p className="font-semibold text-slate-900">{customerDisplayName(booking.user)}</p>
                         <p className="text-sm text-slate-500">{packageName}</p>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status.classes}`}>
-                        {status.label}
-                      </span>
+                      <BookingStatusPill status={booking.status} context="staff" />
                     </div>
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
                       <span className="inline-flex items-center gap-1">

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
+import { ErrorBlock, LoadingBlock, EmptyCardBlock } from '@/components/shared/state/StateBlocks'
 
 interface AuditEntry {
   id: string
@@ -52,11 +53,7 @@ export default function StaffAuditLogPage() {
         Read-only view of staff and manager actions (e.g. price overrides).
       </p>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBlock message={error} className="mb-4" />}
 
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="w-full sm:w-auto sm:min-w-[190px]">
@@ -85,11 +82,12 @@ export default function StaffAuditLogPage() {
       </div>
 
       {loading ? (
-        <div className="p-6 text-center text-sm text-slate-500">Loading...</div>
+        <LoadingBlock className="rounded-lg bg-white p-6 shadow" />
       ) : entries.length === 0 ? (
-        <div className="bg-white shadow rounded-lg p-6 text-center text-sm text-slate-500">
-          No audit log entries found.
-        </div>
+        <EmptyCardBlock
+          title="No audit log entries found."
+          className="rounded-lg bg-white p-6 shadow"
+        />
       ) : (
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
