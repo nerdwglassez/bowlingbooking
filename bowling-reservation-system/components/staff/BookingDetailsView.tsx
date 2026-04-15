@@ -8,10 +8,12 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { formatTime12Hour } from '@/lib/time'
-import { getBookingLanes } from '@/lib/staff-booking-utils'
 import { BookingStatusPill } from '@/components/shared/status/StatusPill'
 import { PageLoadingState, PageNotFoundState } from '@/components/shared/state/StateBlocks'
 import BookingPackageList from '@/components/shared/booking/BookingPackageList'
+import BookingLineItemsSummary from '@/components/shared/booking/BookingLineItemsSummary'
+import { ManagementDetailLayout } from '@/components/shared/management/ManagementDetailLayout'
+import { ManagementSection } from '@/components/shared/management/ManagementPanel'
 
 const OVERRIDE_REASONS = [
   { value: 'DISCOUNT', label: 'Discount' },
@@ -197,7 +199,7 @@ export default function BookingDetailsView() {
   if (loading) {
     return (
       <div className="p-6">
-        <PageLoadingState text="Loading..." />
+        <PageLoadingState text="Loading booking details..." />
       </div>
     )
   }
@@ -232,32 +234,31 @@ export default function BookingDetailsView() {
         )}
       </div>
 
-      <div className="rounded-lg bg-white p-6 shadow-md">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="mb-2 text-3xl font-bold">Booking Details</h1>
-            <p className="text-gray-600">Booking ID: {booking.id}</p>
-          </div>
-          <BookingStatusPill status={booking.status} size="md" />
-        </div>
-
+      <ManagementDetailLayout
+        header={
+          <>
+            <div>
+              <h1 className="mb-2 text-3xl font-bold text-slate-900">Booking Details</h1>
+              <p className="text-sm text-slate-600">Booking ID: {booking.id}</p>
+            </div>
+            <BookingStatusPill status={booking.status} size="md" />
+          </>
+        }
+      >
         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div>
-            <h2 className="mb-2 font-semibold">Customer</h2>
+          <ManagementSection title="Customer">
             <p className="text-gray-600">
               {[booking.user.firstName, booking.user.lastName].filter(Boolean).join(' ').trim() || booking.user.email}
             </p>
-          </div>
+          </ManagementSection>
 
-          <div>
-            <h2 className="mb-2 font-semibold">Date & Time</h2>
+          <ManagementSection title="Date & Time">
             <p className="text-gray-600">{format(new Date(booking.date), 'EEEE, MMMM d, yyyy')}</p>
             <p className="text-gray-600">{formatTime12Hour(booking.startTime)}</p>
             <p className="text-gray-600">{booking.duration / 60} hour(s)</p>
-          </div>
+          </ManagementSection>
 
-          <div>
-            <h2 className="mb-2 font-semibold">Lane & Bowlers</h2>
+          <ManagementSection title="Lane & Bowlers">
             <p className="text-gray-600">
               {booking.lanes
                 ? `Lanes ${(JSON.parse(booking.lanes) as number[]).join(', ')}`
@@ -267,12 +268,11 @@ export default function BookingDetailsView() {
               {booking.numBowlers} bowler{booking.numBowlers > 1 ? 's' : ''}
             </p>
             {shoeSizes.length > 0 && <p className="text-gray-600">Shoe Rentals: {shoeSizes.join(', ')}</p>}
-          </div>
+          </ManagementSection>
         </div>
 
         {booking.bookingPackages.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-2 font-semibold">Packages</h2>
+          <ManagementSection title="Packages" className="mb-6">
             <BookingPackageList
               items={booking.bookingPackages.map((bp) => ({
                 name: bp.package.name,
@@ -280,12 +280,11 @@ export default function BookingDetailsView() {
                 price: Number(bp.package.price),
               }))}
             />
-          </div>
+          </ManagementSection>
         )}
 
         {booking.bookingProducts && booking.bookingProducts.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-2 font-semibold">Add-ons</h2>
+          <ManagementSection title="Add-ons" className="mb-6">
             <div className="space-y-2">
               {booking.bookingProducts.map((bp, index) => (
                 <div key={index} className="flex justify-between">
@@ -296,7 +295,7 @@ export default function BookingDetailsView() {
                 </div>
               ))}
             </div>
-          </div>
+          </ManagementSection>
         )}
 
         {booking.overrideStatus === 'PENDING_APPROVAL' && (
@@ -319,27 +318,11 @@ export default function BookingDetailsView() {
           </div>
         )}
 
-        <div className="border-t pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Total Amount</p>
-              <p className="text-2xl font-bold">${Number(booking.totalPrice).toFixed(2)}</p>
-              {booking.originalTotalPrice != null && (
-                <p className="mt-1 text-sm text-gray-500">
-                  Original: ${Number(booking.originalTotalPrice).toFixed(2)}
-                  {booking.overrideReasonCode &&
-                    ` · ${OVERRIDE_REASONS.find((r) => r.value === booking.overrideReasonCode)?.label ?? booking.overrideReasonCode}`}
-                  {booking.overriddenAt && ` · ${format(new Date(booking.overriddenAt), 'PP')}`}
-                </p>
-              )}
-              {booking.overrideNotes && <p className="mt-1 text-sm text-gray-500">Notes: {booking.overrideNotes}</p>}
-              {booking.appliedDiscountCode && (
-                <p className="mt-2 text-sm text-indigo-800">
-                  Discount code: <span className="font-mono font-semibold">{booking.appliedDiscountCode}</span>
-                </p>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+        <BookingLineItemsSummary
+          totalLabel="Total Amount"
+          totalValue={Number(booking.totalPrice)}
+          actionSlot={
+            <>
               {!showOverride && booking.overrideStatus !== 'PENDING_APPROVAL' ? (
                 <Button variant="secondary" onClick={() => setShowOverride(true)}>
                   Override Price
@@ -351,69 +334,85 @@ export default function BookingDetailsView() {
                 </Button>
               )}
               {booking.status === 'CHECKED_IN' && <span className="font-medium text-green-600">✓ Checked In</span>}
-            </div>
-          </div>
-
-          {showOverride && (
-            <form onSubmit={handleOverridePrice} className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <h3 className="mb-3 font-semibold">Override price</h3>
-              {overrideError && <p className="mb-3 text-sm text-red-600">{overrideError}</p>}
-              <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Input
-                  label="New total ($)"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder={Number(booking.totalPrice).toFixed(2)}
-                  value={overrideNewTotal}
-                  onChange={(e) => setOverrideNewTotal(e.target.value)}
-                />
-                <Select
-                  label="Reason"
-                  value={overrideReasonCode}
-                  onChange={(e) => setOverrideReasonCode(e.target.value)}
-                  className="border-slate-300 bg-white text-slate-700"
-                >
-                  {OVERRIDE_REASONS.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="mb-4">
-                <label className="mb-1 block text-sm font-medium text-gray-700">Notes (optional)</label>
-                <textarea
-                  value={overrideNotes}
-                  onChange={(e) => setOverrideNotes(e.target.value)}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  rows={2}
-                  maxLength={500}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" isLoading={overrideSubmitting}>
-                  Apply override
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setShowOverride(false)
-                    setOverrideError(null)
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
+            </>
+          }
+        />
+        <div className="mt-2 text-sm text-gray-500">
+          {booking.originalTotalPrice != null && (
+            <p>
+              Original: ${Number(booking.originalTotalPrice).toFixed(2)}
+              {booking.overrideReasonCode &&
+                ` · ${OVERRIDE_REASONS.find((r) => r.value === booking.overrideReasonCode)?.label ?? booking.overrideReasonCode}`}
+              {booking.overriddenAt && ` · ${format(new Date(booking.overriddenAt), 'PP')}`}
+            </p>
+          )}
+          {booking.overrideNotes && <p className="mt-1">Notes: {booking.overrideNotes}</p>}
+          {booking.appliedDiscountCode && (
+            <p className="mt-2 text-indigo-800">
+              Discount code: <span className="font-mono font-semibold">{booking.appliedDiscountCode}</span>
+            </p>
           )}
         </div>
+
+        {showOverride && (
+          <form onSubmit={handleOverridePrice} className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h3 className="mb-3 font-semibold text-slate-900">Override price</h3>
+            {overrideError && <p className="mb-3 text-sm text-red-600">{overrideError}</p>}
+            <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Input
+                label="New total ($)"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={Number(booking.totalPrice).toFixed(2)}
+                value={overrideNewTotal}
+                onChange={(e) => setOverrideNewTotal(e.target.value)}
+              />
+              <Select
+                label="Reason"
+                value={overrideReasonCode}
+                onChange={(e) => setOverrideReasonCode(e.target.value)}
+                className="border-slate-300 bg-white text-slate-700"
+              >
+                {OVERRIDE_REASONS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Notes (optional)</label>
+              <textarea
+                value={overrideNotes}
+                onChange={(e) => setOverrideNotes(e.target.value)}
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                rows={2}
+                maxLength={500}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" isLoading={overrideSubmitting}>
+                Apply override
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setShowOverride(false)
+                  setOverrideError(null)
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
 
         <div className="mt-6 text-sm text-gray-600">
           <p>Created: {format(new Date(booking.createdAt), 'PPpp')}</p>
         </div>
-      </div>
+      </ManagementDetailLayout>
     </div>
   )
 }

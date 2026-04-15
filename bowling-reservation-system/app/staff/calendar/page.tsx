@@ -3,12 +3,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { addDays, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, startOfMonth, startOfWeek, subMonths, addMonths } from 'date-fns'
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, Search, Users } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, Users } from 'lucide-react'
 import ImmersiveStaffPage from '@/components/layout/ImmersiveStaffPage'
 import StaffPageHero from '@/components/staff/StaffPageHero'
 import Button from '@/components/ui/Button'
 import { AppLoadingState, AppEmptyState } from '@/components/shared/state/StateBlocks'
 import { BookingStatusPill } from '@/components/shared/status/StatusPill'
+import {
+  ManagementPanel,
+  ManagementPanelBody,
+} from '@/components/shared/management/ManagementPanel'
+import ManagementSearchField from '@/components/shared/management/ManagementSearchField'
 import { formatTime12Hour } from '@/lib/time'
 import { customerDisplayName } from '@/lib/staff-booking-utils'
 
@@ -117,7 +122,8 @@ export default function StaffCalendarPage() {
 
       <section className="px-4 py-6 sm:px-0">
         <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1fr_340px]">
-          <article className="rounded-2xl border border-slate-200 bg-white p-5">
+          <ManagementPanel className="overflow-hidden">
+            <ManagementPanelBody className="p-5">
             <div className="mb-5 flex items-center justify-between">
               <div className="inline-flex items-center gap-2">
                 <Button
@@ -213,69 +219,70 @@ export default function StaffCalendarPage() {
                 Has Bookings
               </span>
             </div>
-          </article>
+            </ManagementPanelBody>
+          </ManagementPanel>
 
-          <aside className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h2 className="text-2xl font-semibold text-slate-900">{format(selectedDateObj, 'EEEE, MMMM d')}</h2>
-            <p className="mt-1 text-sm text-slate-500">{selectedDayBookings.length} booking{selectedDayBookings.length === 1 ? '' : 's'}</p>
+          <ManagementPanel className="h-fit">
+            <ManagementPanelBody className="p-5">
+              <h2 className="text-2xl font-semibold text-slate-900">{format(selectedDateObj, 'EEEE, MMMM d')}</h2>
+              <p className="mt-1 text-sm text-slate-500">{selectedDayBookings.length} booking{selectedDayBookings.length === 1 ? '' : 's'}</p>
 
-            <div className="relative mt-4">
-              <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-              <input
+              <ManagementSearchField
+                className="mt-4 w-full"
+                inputClassName="h-11 rounded-xl border border-slate-300 py-3"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(value) => setQuery(value)}
                 placeholder="Search bookings..."
-                className="w-full rounded-xl border border-slate-300 py-3 pl-10 pr-3 text-sm outline-none focus:border-indigo-400"
               />
-            </div>
 
-            <div className="mt-4 space-y-3">
-              {loading ? <AppLoadingState className="py-2 text-left" /> : null}
-              {!loading && selectedDayBookings.length === 0 ? (
-                <AppEmptyState
-                  title="No bookings for this date"
-                  icon={<CalendarDays className="h-7 w-7" />}
-                  className="rounded-2xl border border-slate-200 bg-slate-50"
-                />
-              ) : null}
+              <div className="mt-4 space-y-3">
+                {loading ? <AppLoadingState className="py-2 text-left" /> : null}
+                {!loading && selectedDayBookings.length === 0 ? (
+                  <AppEmptyState
+                    title="No bookings for this date"
+                    icon={<CalendarDays className="h-7 w-7" />}
+                    className="rounded-2xl border border-slate-200 bg-slate-50"
+                  />
+                ) : null}
 
-              {selectedDayBookings.map((booking) => {
-                const packageName = booking.bookingPackages?.[0]?.package?.name ?? 'Standard'
-                return (
-                  <Button
-                    key={booking.id}
-                    type="button"
-                    variant="ghost"
-                    rounded="xl"
-                    onClick={() => router.push(`/staff/bookings/${booking.id}`)}
-                    className="h-auto w-full justify-start rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left font-normal hover:border-indigo-300 hover:bg-indigo-50/40"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-slate-900">{customerDisplayName(booking.user)}</p>
-                        <p className="text-sm text-slate-500">{packageName}</p>
+                {selectedDayBookings.map((booking) => {
+                  const packageName = booking.bookingPackages?.[0]?.package?.name ?? 'Standard'
+                  return (
+                    <Button
+                      key={booking.id}
+                      type="button"
+                      variant="ghost"
+                      rounded="xl"
+                      onClick={() => router.push(`/staff/bookings/${booking.id}`)}
+                      className="h-auto w-full justify-start rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left font-normal hover:border-indigo-300 hover:bg-indigo-50/40"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{customerDisplayName(booking.user)}</p>
+                          <p className="text-sm text-slate-500">{packageName}</p>
+                        </div>
+                        <BookingStatusPill status={booking.status} context="staff" />
                       </div>
-                      <BookingStatusPill status={booking.status} context="staff" />
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock3 className="h-3.5 w-3.5" />
-                        {formatTime12Hour(booking.startTime)}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5" />
-                        {booking.numBowlers}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" />
-                        Lane {booking.lane}
-                      </span>
-                    </div>
-                  </Button>
-                )
-              })}
-            </div>
-          </aside>
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock3 className="h-3.5 w-3.5" />
+                          {formatTime12Hour(booking.startTime)}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5" />
+                          {booking.numBowlers}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5" />
+                          Lane {booking.lane}
+                        </span>
+                      </div>
+                    </Button>
+                  )
+                })}
+              </div>
+            </ManagementPanelBody>
+          </ManagementPanel>
         </div>
       </section>
     </div>
