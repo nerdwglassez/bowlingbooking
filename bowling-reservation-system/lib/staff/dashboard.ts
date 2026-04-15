@@ -96,8 +96,8 @@ export function matchesStaffDashboardFilters(
 }
 
 export const buildStaffDashboardStats = computeStaffDashboardStats
-export const filterStaffDashboardBookings = (
-  bookings: StaffDashboardBooking[],
+export const filterStaffDashboardBookings = <T extends StaffDashboardBooking>(
+  bookings: T[],
   query: string,
   statusFilter: StaffDashboardStatusFilter
 ) => bookings.filter((booking) => matchesStaffDashboardFilters(booking, query, statusFilter))
