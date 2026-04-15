@@ -11,8 +11,12 @@ import PackageDetailPanel from '@/components/booking/PackageDetailPanel'
 import PackageSelectionCard from '@/components/booking/PackageSelectionCard'
 import BookingSummary from '@/components/booking/BookingSummary'
 import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
 import Toast from '@/components/ui/Toast'
+import {
+  BookingStepActions,
+  BookingStepLayout,
+  BookingStepSection,
+} from '@/components/shared/booking/BookingStepLayout'
 import { Plus, X, ChevronDown, CircleUser, Lock, CheckCircle2, Shield, Info } from 'lucide-react'
 import { format } from 'date-fns'
 import {
@@ -24,7 +28,6 @@ import {
 import { righteous } from '@/lib/fonts'
 
 /** Shared styles so step Back/Continue buttons align and are pill-shaped (Figma: pill CTA). */
-const STEP_NAV_ROW = 'mt-6 flex flex-row justify-between items-center gap-4'
 const STEP_NAV_BUTTON = 'rounded-full min-h-[48px] px-6'
 
 interface Package {
@@ -548,7 +551,7 @@ export default function BookPage() {
 
         {/* Step 1: Date and time only (Figma: Reserve Your Lane – select date and time) */}
         {step === 1 && (
-          <div className="step-content-enter flex flex-col gap-8">
+          <BookingStepLayout>
             {step1ValidationAttempted && (!selectedDate || !selectedTime) && (
               <div
                 className="rounded-xl border px-4 py-3 text-sm"
@@ -565,7 +568,7 @@ export default function BookPage() {
               onTimeSelect={handleTimeSelect}
               minLanes={1}
             />
-            <div className="flex justify-end">
+            <BookingStepActions align="end" className="border-0 pt-0 mt-0">
               <Button
                 onClick={() => {
                   if (!selectedDate || !selectedTime) {
@@ -594,16 +597,16 @@ export default function BookPage() {
               >
                 Continue to details
               </Button>
-            </div>
-          </div>
+            </BookingStepActions>
+          </BookingStepLayout>
         )}
 
         {/* Step 3: Booking Details — Figma 114-935 bowler info */}
         {step === 3 && (
-          <div className="step-content-enter space-y-6">
+          <BookingStepLayout>
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_384px] gap-6 xl:gap-8 items-start">
               {/* Left: Bowler form card — Who's bowling? / Shoe sizes; dropdown matches Select/step-one pill style */}
-              <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-[0px_1px_2px_0px_rgba(0,0,0,0.06),0px_1px_3px_0px_rgba(0,0,0,0.1)] p-4 sm:p-6 lg:p-[25px]">
+              <BookingStepSection className="p-4 sm:p-6 lg:p-[25px]">
                 <h2 className="text-[20px] leading-[1.5] font-bold text-[#0F172A] mb-1">Who&apos;s bowling?</h2>
                 <p className="text-base font-normal text-[#0F172A] text-[#64748B] mb-6">Shoe sizes</p>
 
@@ -662,7 +665,7 @@ export default function BookPage() {
                   <Plus className="h-4 w-4" />
                   Add bowler
                 </button>
-              </div>
+              </BookingStepSection>
 
               {/* Right: Booking summary — step 3; column stretches on lg so sticky follows scroll */}
               <div className="lg:self-stretch">
@@ -685,7 +688,7 @@ export default function BookPage() {
             </div>
 
             {/* CTAs below the card/summary — same pattern as step 1 (Figma) */}
-            <div className="mt-6 border-t-2 border-[#CAD8EC] pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+            <BookingStepActions>
               <Button variant="secondary" onClick={() => setStep(2)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
                 Back
               </Button>
@@ -696,18 +699,18 @@ export default function BookPage() {
               >
                 Continue to review
               </Button>
-            </div>
+            </BookingStepActions>
             {!isBowlerInfoComplete && (
               <p className="text-sm text-[#64748B] -mt-2">
                 Choose a shoe size or &quot;Bring my own shoes&quot; for each bowler to continue.
               </p>
             )}
-          </div>
+          </BookingStepLayout>
         )}
 
         {/* Step 2: Packages - Figma step2.0-desktop-package-selection */}
         {step === 2 && (
-          <div className="step-content-enter space-y-6">
+          <BookingStepLayout>
             {/* Mobile: shared BookingSummary (collapsible) */}
             <BookingSummary
               selectedDate={selectedDate}
@@ -794,36 +797,26 @@ export default function BookPage() {
             </div>
 
             {/* Navigation */}
-            <div className="mt-6 border-t-2 border-[#CAD8EC] pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+            <BookingStepActions>
               <Button variant="secondary" onClick={() => setStep(1)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
                 Back
               </Button>
               <Button onClick={() => setStep(3)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto`}>Continue to bowler details</Button>
-            </div>
-          </div>
+            </BookingStepActions>
+          </BookingStepLayout>
         )}
 
         {/* Step 4: Review & Payment — Figma 117-1339: two-column layout, Review / Create Account / Payment cards */}
         {step === 4 && (() => {
-          const step4TimeLabel = selectedTime
-            ? (() => {
-                const [h, m] = selectedTime.split(':').map(Number)
-                const period = h >= 12 ? 'PM' : 'AM'
-                const hour = h % 12 || 12
-                return m === 0 ? `${hour}:00 ${period}` : `${hour}:${m.toString().padStart(2, '0')} ${period}`
-              })()
-            : '—'
-          const step4DateLabel = selectedDate ? format(new Date(selectedDate), 'MMM d') : '—'
-          const hours = duration / 60
           const accountTab = checkoutMode ?? 'signup'
 
           return (
-          <div className="step-content-enter space-y-6">
+          <BookingStepLayout>
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_384px] gap-6 xl:gap-8 items-start">
               {/* Left column: Create Your Account + Payment Method (no Review your booking card) */}
               <div className="space-y-6">
                 {/* Card 1: Create Your Account — Sign Up / Login / Guest tabs */}
-                <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-[0px_1px_2px_0px_rgba(0,0,0,0.06),0px_1px_3px_0px_rgba(0,0,0,0.1)] p-6">
+                <BookingStepSection className="p-6">
                   <h3 className="text-[20px] font-semibold text-[#0F172A] mb-2">Create Your Account</h3>
                   <p className="text-sm text-[#64748B] mb-4">Save your booking details and get exclusive member benefits</p>
                   <div className="flex gap-2 mb-4">
@@ -862,10 +855,10 @@ export default function BookPage() {
                       isLoading={loading}
                     />
                   )}
-                </div>
+                </BookingStepSection>
 
                 {/* Card 2: Payment Method */}
-                <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-[0px_1px_2px_0px_rgba(0,0,0,0.06),0px_1px_3px_0px_rgba(0,0,0,0.1)] p-6">
+                <BookingStepSection className="p-6">
                   <h3 className="text-[20px] font-semibold text-[#0F172A] mb-4">Payment Method</h3>
                   {paymentClientSecret && createdBookingId ? (
                     <StripePaymentForm
@@ -897,7 +890,7 @@ export default function BookPage() {
                       <p className="text-xs text-[#94A3B8]">We accept: VISA, MASTERCARD, AMEX</p>
                     </>
                   )}
-                </div>
+                </BookingStepSection>
 
             {/* Promo / corporate code */}
             <div className="p-4 rounded-xl bg-indigo-50/80 border border-indigo-100">
@@ -1132,7 +1125,7 @@ export default function BookPage() {
             </div>
 
             {/* Footer CTAs — outside cards (Figma 117-1339). No Back when guest is selected. */}
-            <div className="mt-6 border-t-2 border-[#CAD8EC] pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+            <BookingStepActions>
               {isAuthenticated === false && checkoutMode === 'guest' ? (
                 <span aria-hidden />
               ) : (
@@ -1184,8 +1177,8 @@ export default function BookPage() {
                   </>
                 )}
               </div>
-            </div>
-          </div>
+            </BookingStepActions>
+          </BookingStepLayout>
           ); })()}
       </div>
 

@@ -5,6 +5,17 @@ import { useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
+import {
+  AppLoadingState,
+  ErrorState,
+} from '@/components/shared/state/StateBlocks'
+import BookingPackageList from '@/components/shared/booking/BookingPackageList'
+import BookingLineItemsSummary from '@/components/shared/booking/BookingLineItemsSummary'
+import { BookingStatusPill } from '@/components/shared/status/StatusPill'
+import {
+  BookingStepLayout,
+  BookingStepSection,
+} from '@/components/shared/booking/BookingStepLayout'
 
 interface Booking {
   id: string
@@ -109,7 +120,7 @@ function ConfirmationContent() {
     return (
       <main className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-2xl mx-auto px-4">
-          <div className="bg-white rounded-lg shadow-md p-8">
+          <BookingStepSection className="p-8">
             <div className="text-center">
               <h1 className="text-2xl font-bold text-red-600 mb-4">Missing booking</h1>
               <p className="text-gray-600 mb-6">No booking ID was provided. Open this page from your confirmation link or your dashboard.</p>
@@ -122,7 +133,7 @@ function ConfirmationContent() {
                 </Link>
               </div>
             </div>
-          </div>
+          </BookingStepSection>
         </div>
       </main>
     )
@@ -132,9 +143,9 @@ function ConfirmationContent() {
     return (
       <main className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-2xl mx-auto px-4">
-          <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <p>Loading booking details...</p>
-          </div>
+          <BookingStepSection className="p-8">
+            <AppLoadingState text="Loading booking details..." />
+          </BookingStepSection>
         </div>
       </main>
     )
@@ -144,10 +155,13 @@ function ConfirmationContent() {
     return (
       <main className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-2xl mx-auto px-4">
-          <div className="bg-white rounded-lg shadow-md p-8">
+          <BookingStepSection className="p-8">
             <div className="text-center">
               <h1 className="text-2xl font-bold text-red-600 mb-4">Booking Not Found</h1>
-              <p className="text-gray-600 mb-6">{error || 'The booking could not be found.'}</p>
+              <ErrorState
+                message={error || 'The booking could not be found.'}
+                className="mb-6 text-left"
+              />
               <div className="flex gap-4 justify-center flex-wrap">
                 <Link href="/book">
                   <Button>Book a Lane</Button>
@@ -157,7 +171,7 @@ function ConfirmationContent() {
                 </Link>
               </div>
             </div>
-          </div>
+          </BookingStepSection>
         </div>
       </main>
     )
@@ -166,7 +180,8 @@ function ConfirmationContent() {
   return (
     <main className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow-md p-6 md:p-8">
+        <BookingStepLayout>
+          <BookingStepSection className="p-6 md:p-8">
           {/* Success Header (PRD Step 5) */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -245,30 +260,29 @@ function ConfirmationContent() {
                 </div>
                 <div>
                   <dt className="text-sm text-gray-600">Status</dt>
-                  <dd className="font-medium capitalize">{booking.status.toLowerCase().replace('_', ' ')}</dd>
+                  <dd>
+                    <BookingStatusPill status={booking.status} size="md" />
+                  </dd>
                 </div>
               </dl>
             </div>
 
             {booking.bookingPackages && booking.bookingPackages.length > 0 && (
-              <div>
-                <h3 className="font-semibold mb-2">Packages</h3>
-                <ul className="space-y-2">
-                  {booking.bookingPackages.map((bp, index) => (
-                    <li key={index} className="text-sm">
-                      {bp.package.name} – ${Number(bp.package.price).toFixed(2)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <BookingPackageList
+                title="Packages"
+                items={booking.bookingPackages.map((bp) => ({
+                  id: bp.package.id,
+                  name: bp.package.name,
+                  description: bp.package.description,
+                  price: Number(bp.package.price),
+                }))}
+              />
             )}
 
-            <div className="border-t pt-4">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-semibold">Total</span>
-                <span className="text-2xl font-bold">${Number(booking.totalPrice).toFixed(2)}</span>
-              </div>
-            </div>
+            <BookingLineItemsSummary
+              totalLabel="Total"
+              totalValue={Number(booking.totalPrice)}
+            />
           </div>
 
           {/* Add to Calendar + View My Bookings + Print (PRD Step 5) */}
@@ -300,7 +314,8 @@ function ConfirmationContent() {
               Book another lane
             </Link>
           </div>
-        </div>
+          </BookingStepSection>
+        </BookingStepLayout>
       </div>
     </main>
   )
