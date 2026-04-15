@@ -19,6 +19,8 @@ interface AvailabilityCalendarProps {
   minLanes?: number
   /** When true, do not show the "Select Date" label (e.g. when parent shows "Select a date" in a card). */
   hideDateLabel?: boolean
+  /** Compact mode for dense modal flows (e.g. staff tablet dialogs). */
+  compactDateWindow?: boolean
 }
 
 export default function AvailabilityCalendar({
@@ -28,19 +30,12 @@ export default function AvailabilityCalendar({
   selectedTime,
   minLanes = 1,
   hideDateLabel = false,
+  compactDateWindow = false,
 }: AvailabilityCalendarProps) {
   const todayStr = format(new Date(), 'yyyy-MM-dd')
-  const [selectedDateState, setSelectedDateState] = useState(
-    selectedDate || todayStr
-  )
+  const [selectedDateState, setSelectedDateState] = useState(selectedDate || todayStr)
+  const resolvedDate = selectedDate ?? selectedDateState
   const { slots, loading, error, loadAvailability } = useAvailabilityForDate(selectedDateState)
-
-  // Sync from parent (e.g. URL pre-fill) so calendar shows the right date
-  useEffect(() => {
-    if (selectedDate) {
-      setSelectedDateState((prev) => (prev !== selectedDate ? selectedDate : prev))
-    }
-  }, [selectedDate])
 
   const handleDateChange = (date: string) => {
     setSelectedDateState(date)
@@ -62,10 +57,10 @@ export default function AvailabilityCalendar({
           </label>
         )}
         <div className="flex gap-2 overflow-x-auto pb-2">
-          {Array.from({ length: 14 }, (_, i) => {
+          {Array.from({ length: compactDateWindow ? 7 : 14 }, (_, i) => {
             const date = addDays(new Date(), i)
             const dateStr = format(date, 'yyyy-MM-dd')
-            const isSelected = dateStr === selectedDateState
+            const isSelected = dateStr === resolvedDate
             const isToday = i === 0
 
             return (

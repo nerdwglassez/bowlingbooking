@@ -111,20 +111,20 @@ export default function StaffDashboardPage() {
               onClick={() => setCreateBookingOpen(true)}
               variant="primary"
               rounded="full"
-              className="gap-2 bg-white px-5 py-2 font-semibold text-indigo-700 shadow-[0_8px_20px_rgba(15,23,42,0.2)] hover:bg-indigo-50"
+              className="min-h-[44px] gap-2 bg-white px-5 py-2 font-semibold text-indigo-700 shadow-[0_8px_20px_rgba(15,23,42,0.2)] hover:bg-indigo-50"
             >
               <Plus className="h-4 w-4" />
               New booking
             </Button>
             <Link
               href="/staff/reports"
-              className="inline-flex items-center rounded-full border border-white/40 bg-white/10 px-5 py-2 text-sm font-semibold text-white hover:bg-white/20"
+              className="inline-flex min-h-[44px] items-center rounded-full border border-white/40 bg-white/10 px-5 py-2 text-sm font-semibold text-white hover:bg-white/20"
             >
               Reporting
             </Link>
             <Link
               href="/staff/calendar"
-              className="inline-flex items-center rounded-full border border-white/40 bg-white/10 px-5 py-2 text-sm font-semibold text-white hover:bg-white/20"
+              className="inline-flex min-h-[44px] items-center rounded-full border border-white/40 bg-white/10 px-5 py-2 text-sm font-semibold text-white hover:bg-white/20"
             >
               Calendar
             </Link>

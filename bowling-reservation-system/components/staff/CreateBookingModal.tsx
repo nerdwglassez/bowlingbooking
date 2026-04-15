@@ -197,7 +197,7 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
   const availablePackagesForDropdown = packages.filter(p => !selectedPackages.includes(p.id))
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
       <button
         type="button"
         aria-label="Close"
@@ -205,7 +205,7 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
         className="absolute inset-0 cursor-default"
       />
       <div
-        className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xl"
+        className="relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
@@ -265,7 +265,7 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
           {error && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
@@ -345,7 +345,7 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
               )}
 
               <div className="flex justify-end pt-2">
-                <Button onClick={() => setStep(2)} disabled={!hasCustomerForBooking}>
+                <Button onClick={() => setStep(2)} disabled={!hasCustomerForBooking} className="min-h-[44px]">
                   Next: Date & Time
                 </Button>
               </div>
@@ -359,6 +359,7 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
                 onTimeSelect={handleTimeSelect}
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}
+                compactDateWindow
               />
               {selectedDate && selectedTime && (
                 <Select
@@ -373,11 +374,11 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
                   <option value={180}>3 hours</option>
                 </Select>
               )}
-              <div className="flex justify-between pt-2">
-                <Button variant="secondary" onClick={() => setStep(1)}>
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
+                <Button variant="secondary" onClick={() => setStep(1)} className="min-h-[44px]">
                   Back
                 </Button>
-                <Button onClick={() => setStep(3)} disabled={!selectedDate || !selectedTime}>
+                <Button onClick={() => setStep(3)} disabled={!selectedDate || !selectedTime} className="min-h-[44px]">
                   Next: Details
                 </Button>
               </div>
@@ -413,7 +414,7 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
                   Shoe rentals (optional)
                 </label>
                 {shoeSizes.map((size, index) => (
-                  <div key={index} className="flex gap-2 mb-2">
+                  <div key={index} className="mb-2 flex flex-col gap-2 sm:flex-row">
                     <Input
                       type="number"
                       min={1}
@@ -425,12 +426,12 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
                         handleShoeSizeChange(index, e.target.value ? Number(e.target.value) : '')
                       }
                     />
-                    <Button variant="danger" onClick={() => handleShoeSizeChange(index, '')}>
+                    <Button variant="danger" onClick={() => handleShoeSizeChange(index, '')} className="min-h-[44px] sm:min-w-[96px]">
                       Remove
                     </Button>
                   </div>
                 ))}
-                <Button variant="secondary" onClick={addShoeSize} className="mt-1">
+                <Button variant="secondary" onClick={addShoeSize} className="mt-1 min-h-[44px]">
                   Add shoe rental
                 </Button>
               </div>
@@ -478,11 +479,11 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
                   </ul>
                 )}
               </div>
-              <div className="flex justify-between pt-2">
-                <Button variant="secondary" onClick={() => setStep(2)}>
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
+                <Button variant="secondary" onClick={() => setStep(2)} className="min-h-[44px]">
                   Back
                 </Button>
-                <Button onClick={() => setStep(4)}>Next: Review</Button>
+                <Button onClick={() => setStep(4)} className="min-h-[44px]">Next: Review</Button>
               </div>
             </div>
           )}
@@ -577,11 +578,11 @@ export default function CreateBookingModal({ onClose, onCreated }: CreateBooking
                     </p>
                   </div>
                 )}
-                <div className="flex justify-between pt-2">
-                  <Button variant="secondary" onClick={() => setStep(3)}>
+                <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
+                  <Button variant="secondary" onClick={() => setStep(3)} className="min-h-[44px]">
                     Back
                   </Button>
-                  <Button onClick={handleSubmit} isLoading={loading}>
+                  <Button onClick={handleSubmit} isLoading={loading} className="min-h-[44px]">
                     Create Booking
                   </Button>
                 </div>

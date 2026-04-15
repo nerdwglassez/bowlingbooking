@@ -229,7 +229,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
   if (loading || !id) {
     return (
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl md:p-7">
         <p className="text-slate-500">Loading reservation…</p>
       </div>
     )
@@ -237,7 +237,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
   if (!booking) {
     return (
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl md:p-7">
         <p className="text-slate-700">Reservation not found.</p>
         <Button
           type="button"
@@ -255,8 +255,8 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
   const primaryPackage = booking.bookingPackages[0]?.package?.name ?? ''
 
   return (
-    <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+    <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6 md:p-7">
         <h2 className="text-xl font-bold text-slate-900">Edit reservation</h2>
         <Button
           type="button"
@@ -264,14 +264,14 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
           size="icon"
           rounded="full"
           onClick={onClose}
-          className="h-10 w-10 shrink-0 bg-slate-100 text-slate-500 hover:bg-slate-200"
+          className="h-11 w-11 shrink-0 bg-slate-100 text-slate-500 active:bg-slate-200"
           aria-label="Close"
         >
           <X className="h-5 w-5" />
         </Button>
       </div>
 
-      <div className="p-6">
+      <div className="p-6 md:p-7">
         <div className="mb-6 rounded-xl bg-slate-50 px-4 py-3">
           <p className="text-sm font-medium text-slate-500">Booking ID: {shortId}</p>
         </div>
@@ -387,7 +387,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
           <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl px-4 py-2.5">
+              <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl px-4 py-2.5 min-h-[44px]">
                 Cancel
               </Button>
               <Button
@@ -401,7 +401,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
                   )
                 }
                 isLoading={submitting}
-                className="rounded-xl px-4 py-2.5"
+                className="rounded-xl px-4 py-2.5 min-h-[44px]"
               >
                 Save changes
               </Button>
@@ -414,7 +414,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
                 size="sm"
                 onClick={handleCancelReservation}
                 disabled={cancelling}
-                className="px-4 py-2.5 font-semibold"
+                className="px-4 py-2.5 min-h-[44px] font-semibold"
               >
                 {cancelling ? 'Cancelling…' : 'Cancel reservation'}
               </Button>

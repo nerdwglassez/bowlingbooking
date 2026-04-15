@@ -93,7 +93,7 @@ export default function ManagementRowActionsMenu({
         variant="ghost"
         size="icon"
         rounded="full"
-        className="border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+        className="h-11 w-11 border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 focus-visible:ring-indigo-500"
         onClick={(event) => toggleOpen(event.currentTarget)}
       >
         <MoreVertical className="h-4 w-4" />
@@ -103,7 +103,7 @@ export default function ManagementRowActionsMenu({
         <div
           role="menu"
           className={cn(
-            'absolute left-0 z-20 min-w-[150px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg',
+            'absolute left-0 z-20 min-w-[180px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg',
             openUpward ? 'bottom-11' : 'top-11'
           )}
         >
@@ -120,7 +120,7 @@ export default function ManagementRowActionsMenu({
                 action.onClick()
               }}
               className={cn(
-                'h-auto w-full justify-start rounded-lg px-3 py-2 font-medium text-slate-700 hover:bg-slate-100',
+                'h-auto min-h-[42px] w-full justify-start rounded-lg px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-100',
                 action.className
               )}
             >

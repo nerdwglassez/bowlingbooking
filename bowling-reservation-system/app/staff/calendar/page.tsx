@@ -121,30 +121,30 @@ export default function StaffCalendarPage() {
       />
 
       <section className="px-4 py-6 sm:px-0">
-        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1fr_340px]">
+        <div className="mx-auto grid max-w-7xl gap-5 xl:grid-cols-[1fr_360px]">
           <ManagementPanel className="overflow-hidden">
             <ManagementPanelBody className="p-5">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex items-center gap-2">
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
+                  size="md"
                   rounded="xl"
                   onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
-                  className="border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  className="min-h-[44px] min-w-[44px] border border-slate-200 px-3 text-slate-500 hover:bg-slate-50"
                   aria-label="Previous month"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <p className="text-2xl font-semibold text-slate-900">{format(visibleMonth, 'MMMM yyyy')}</p>
+                <p className="text-xl font-semibold text-slate-900 sm:text-2xl">{format(visibleMonth, 'MMMM yyyy')}</p>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
+                  size="md"
                   rounded="xl"
                   onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
-                  className="border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  className="min-h-[44px] min-w-[44px] border border-slate-200 px-3 text-slate-500 hover:bg-slate-50"
                   aria-label="Next month"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -160,7 +160,7 @@ export default function StaffCalendarPage() {
                   setVisibleMonth(startOfMonth(now))
                   setSelectedDate(format(now, 'yyyy-MM-dd'))
                 }}
-                className="bg-indigo-500 font-semibold hover:bg-indigo-600"
+                className="min-h-[44px] bg-indigo-500 px-4 font-semibold hover:bg-indigo-600"
               >
                 Today
               </Button>
@@ -172,7 +172,7 @@ export default function StaffCalendarPage() {
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-2 sm:gap-2.5">
               {calendarDays.map((day) => {
                 const dateKey = format(day, 'yyyy-MM-dd')
                 const isCurrentMonth = isSameMonth(day, visibleMonth)
@@ -186,7 +186,7 @@ export default function StaffCalendarPage() {
                     key={dateKey}
                     type="button"
                     onClick={() => setSelectedDate(dateKey)}
-                    className={`relative h-24 rounded-2xl border text-center transition ${
+                    className={`relative min-h-[64px] h-20 sm:h-24 rounded-2xl border text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
                       isSelected
                         ? 'border-indigo-500 bg-gradient-to-br from-indigo-500 to-blue-500 text-white'
                         : isCurrentMonth
@@ -194,11 +194,11 @@ export default function StaffCalendarPage() {
                           : 'border-slate-100 bg-slate-50 text-slate-400'
                     }`}
                   >
-                    <span className={`text-lg font-semibold ${isToday && !isSelected ? 'underline decoration-2 underline-offset-4' : ''}`}>
+                    <span className={`text-base sm:text-lg font-semibold ${isToday && !isSelected ? 'underline decoration-2 underline-offset-4' : ''}`}>
                       {format(day, 'd')}
                     </span>
                     {hasBookings && !isSelected ? (
-                      <span className="absolute bottom-2 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-indigo-500" />
+                      <span className="absolute bottom-2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-indigo-500" />
                     ) : null}
                   </button>
                 )
@@ -222,7 +222,7 @@ export default function StaffCalendarPage() {
             </ManagementPanelBody>
           </ManagementPanel>
 
-          <ManagementPanel className="h-fit">
+          <ManagementPanel className="h-fit xl:sticky xl:top-6">
             <ManagementPanelBody className="p-5">
               <h2 className="text-2xl font-semibold text-slate-900">{format(selectedDateObj, 'EEEE, MMMM d')}</h2>
               <p className="mt-1 text-sm text-slate-500">{selectedDayBookings.length} booking{selectedDayBookings.length === 1 ? '' : 's'}</p>
@@ -235,7 +235,7 @@ export default function StaffCalendarPage() {
                 placeholder="Search bookings..."
               />
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 space-y-3 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
                 {loading ? <AppLoadingState className="py-2 text-left" /> : null}
                 {!loading && selectedDayBookings.length === 0 ? (
                   <AppEmptyState
@@ -254,7 +254,7 @@ export default function StaffCalendarPage() {
                       variant="ghost"
                       rounded="xl"
                       onClick={() => router.push(`/staff/bookings/${booking.id}`)}
-                      className="h-auto w-full justify-start rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left font-normal hover:border-indigo-300 hover:bg-indigo-50/40"
+                      className="h-auto min-h-[84px] w-full justify-start rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left font-normal hover:border-indigo-300 hover:bg-indigo-50/40 active:scale-[0.99] touch-manipulation"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>

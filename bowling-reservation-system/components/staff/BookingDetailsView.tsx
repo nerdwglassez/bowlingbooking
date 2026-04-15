@@ -225,11 +225,11 @@ export default function BookingDetailsView() {
     <div className="px-4 py-6 sm:px-0">
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link href="/staff/calendar">
-          <Button variant="secondary">← Back to Calendar</Button>
+          <Button variant="secondary" className="min-h-[44px] px-5">← Back to Calendar</Button>
         </Link>
         {canEditReservationStatus(booking.status) && (
           <Link href={`/staff/bookings/${booking.id}/edit`}>
-            <Button variant="secondary">Edit reservation</Button>
+            <Button variant="secondary" className="min-h-[44px] px-5">Edit reservation</Button>
           </Link>
         )}
       </div>
@@ -238,7 +238,7 @@ export default function BookingDetailsView() {
         header={
           <>
             <div>
-              <h1 className="mb-2 text-3xl font-bold text-slate-900">Booking Details</h1>
+              <h1 className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">Booking Details</h1>
               <p className="text-sm text-slate-600">Booking ID: {booking.id}</p>
             </div>
             <BookingStatusPill status={booking.status} size="md" />
@@ -299,7 +299,7 @@ export default function BookingDetailsView() {
         )}
 
         {booking.overrideStatus === 'PENDING_APPROVAL' && (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
             <h3 className="mb-2 font-semibold text-amber-800">Pending manager approval</h3>
             <p className="text-sm text-amber-700">
               Proposed total: ${Number(booking.proposedTotalPrice).toFixed(2)}
@@ -307,11 +307,11 @@ export default function BookingDetailsView() {
                 ` · ${OVERRIDE_REASONS.find((r) => r.value === booking.proposedReasonCode)?.label ?? booking.proposedReasonCode}`}
             </p>
             {booking.proposedNotes && <p className="mt-1 text-sm text-amber-700">Notes: {booking.proposedNotes}</p>}
-            <div className="mt-3 flex gap-2">
-              <Button onClick={handleApproveOverride} isLoading={approving} className="bg-green-600 hover:bg-green-700">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Button onClick={handleApproveOverride} isLoading={approving} className="min-h-[44px] bg-green-600 hover:bg-green-700">
                 Approve
               </Button>
-              <Button variant="secondary" onClick={handleRejectOverride} isLoading={rejecting}>
+              <Button variant="secondary" onClick={handleRejectOverride} isLoading={rejecting} className="min-h-[44px]">
                 Reject
               </Button>
             </div>
@@ -324,12 +324,12 @@ export default function BookingDetailsView() {
           actionSlot={
             <>
               {!showOverride && booking.overrideStatus !== 'PENDING_APPROVAL' ? (
-                <Button variant="secondary" onClick={() => setShowOverride(true)}>
+                <Button variant="secondary" onClick={() => setShowOverride(true)} className="min-h-[44px] px-5">
                   Override Price
                 </Button>
               ) : null}
               {(booking.status === 'CONFIRMED' || booking.status === 'PAID') && (
-                <Button onClick={handleCheckIn} isLoading={checkingIn}>
+                <Button onClick={handleCheckIn} isLoading={checkingIn} className="min-h-[44px] px-5">
                   Check In Customer
                 </Button>
               )}
@@ -355,7 +355,7 @@ export default function BookingDetailsView() {
         </div>
 
         {showOverride && (
-          <form onSubmit={handleOverridePrice} className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <form onSubmit={handleOverridePrice} className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
             <h3 className="mb-3 font-semibold text-slate-900">Override price</h3>
             {overrideError && <p className="mb-3 text-sm text-red-600">{overrideError}</p>}
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -392,7 +392,7 @@ export default function BookingDetailsView() {
               />
             </div>
             <div className="flex gap-2">
-              <Button type="submit" isLoading={overrideSubmitting}>
+              <Button type="submit" isLoading={overrideSubmitting} className="min-h-[44px] px-5">
                 Apply override
               </Button>
               <Button
@@ -402,6 +402,7 @@ export default function BookingDetailsView() {
                   setShowOverride(false)
                   setOverrideError(null)
                 }}
+                className="min-h-[44px] px-5"
               >
                 Cancel
               </Button>

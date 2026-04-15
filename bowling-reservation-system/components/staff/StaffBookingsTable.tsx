@@ -59,7 +59,7 @@ type StaffBookingsTableProps = {
 }
 
 const columnClassNames =
-  'group-[.staff-table]/row:grid-cols-1 group-[.staff-table]/row:gap-3 md:group-[.staff-table]/row:grid md:group-[.staff-table]/row:grid-cols-[180px_1fr_190px_220px_170px] md:group-[.staff-table]/row:items-center'
+  'group-[.staff-table]/row:grid-cols-1 group-[.staff-table]/row:gap-3 sm:group-[.staff-table]/row:grid sm:group-[.staff-table]/row:grid-cols-[150px_1fr_160px_190px_150px] sm:group-[.staff-table]/row:items-center lg:group-[.staff-table]/row:grid-cols-[180px_1fr_190px_220px_170px]'
 
 export default function StaffBookingsTable({
   rows,
@@ -151,7 +151,7 @@ export default function StaffBookingsTable({
   return (
     <div className="staff-table">
       <Table>
-        <TableHeader className="hidden md:table-header-group">
+        <TableHeader className="hidden sm:table-header-group">
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow
               key={headerGroup.id}
@@ -161,7 +161,7 @@ export default function StaffBookingsTable({
                 <TableHead
                   key={header.id}
                   className={cn(
-                    'px-6 py-4 text-sm font-semibold text-slate-500',
+                    'px-4 py-4 text-sm font-semibold text-slate-500 lg:px-6',
                     header.column.id === 'time' && 'w-[180px]',
                     header.column.id === 'customer' && 'w-[calc(100%-760px)]',
                     header.column.id === 'lanes' && 'w-[190px]',
@@ -179,18 +179,18 @@ export default function StaffBookingsTable({
           {table.getRowModel().rows.map((row, index) => (
             <TableRow
               key={row.id}
-              className={cn(
-                'group/row border-b border-slate-200/60 px-6 py-5 hover:bg-transparent',
-                index % 2 === 0 ? 'bg-slate-50/40' : 'bg-white'
-              )}
+                  className={cn(
+                    'group/row border-b border-slate-200/60 px-4 py-4 hover:bg-transparent sm:px-5 lg:px-6',
+                    index % 2 === 0 ? 'bg-slate-50/40' : 'bg-white'
+                  )}
             >
               <TableCell className={cn('p-0', columnClassNames)}>
                 {row.getVisibleCells().map((cell) => (
                   <div
                     key={cell.id}
                     className={cn(
-                      'px-6 py-2 md:px-0 md:py-0',
-                      cell.column.id === 'actions' && 'pb-4 md:pb-0'
+                          'px-4 py-2 sm:px-0 sm:py-0',
+                          cell.column.id === 'actions' && 'pb-4 sm:pb-0'
                     )}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
