@@ -6,22 +6,16 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { CalendarDays, CircleDollarSign, Clock3, LayoutGrid, Plus } from 'lucide-react'
 import CreateBookingModal from '@/components/staff/CreateBookingModal'
+import StaffBookingsTable from '@/components/staff/StaffBookingsTable'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
-import { BookingStatusPill, getBookingStatusPill } from '@/components/shared/status/StatusPill'
 import { EmptySearchBlock, LoadingStateBlock } from '@/components/shared/state/StateBlocks'
 import {
   ManagementPanel,
   ManagementPanelHeader,
 } from '@/components/shared/management/ManagementPanel'
-import {
-  ManagementTableRow,
-  ManagementTableShell,
-} from '@/components/shared/management/ManagementTableShell'
 import ManagementSearchField from '@/components/shared/management/ManagementSearchField'
-import ManagementRowActionsMenu from '@/components/shared/management/ManagementRowActionsMenu'
 import { formatTime12Hour } from '@/lib/time'
-import { getBookingLanes } from '@/lib/staff-booking-utils'
 
 interface Booking {
   id: string
@@ -204,23 +198,23 @@ export default function StaffDashboardPage() {
           description={format(new Date(), 'EEE, MMM d')}
           actions={
             <>
-            <div className="w-full sm:w-auto sm:min-w-[180px]">
-              <Select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
-                className="min-h-[42px] border-slate-300 bg-white py-2 text-slate-700"
-              >
-                <option value="all">All statuses</option>
-                <option value="upcoming">Upcoming</option>
-                <option value="checked">Checked in</option>
-                <option value="completed">Completed</option>
-              </Select>
-            </div>
-            <ManagementSearchField
-              value={query}
-              onChange={(value) => setQuery(value)}
-              placeholder="Search by customer name, time, or lane"
-            />
+              <div className="w-full sm:w-auto sm:min-w-[180px]">
+                <Select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                  className="min-h-[42px] border-slate-300 bg-white py-2 text-slate-700"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="checked">Checked in</option>
+                  <option value="completed">Completed</option>
+                </Select>
+              </div>
+              <ManagementSearchField
+                value={query}
+                onChange={(value) => setQuery(value)}
+                placeholder="Search by customer name, time, or lane"
+              />
             </>
           }
         />
@@ -231,89 +225,40 @@ export default function StaffDashboardPage() {
             className="p-10"
           />
         ) : (
-          <ManagementTableShell
-            columns={['Time', 'Customer', 'Lanes', 'Status', 'Actions']}
-            gridClassName="grid-cols-[180px_1fr_190px_220px_170px]"
-          >
-            {filteredBookings.map((booking, index) => {
-              const rowActions = [
-                {
-                  key: 'details',
-                  label: 'Details',
-                  onClick: () => router.push(`/staff/bookings/${booking.id}`),
-                },
-                ...(canEditReservation(booking.status)
-                  ? [{
-                      key: 'edit',
-                      label: 'Edit Reservation',
-                      onClick: () => router.push(`/staff/bookings/${booking.id}/edit`),
-                    }]
-                  : []),
-                ...((booking.status === 'CONFIRMED' || booking.status === 'PAID')
-                  ? [{
-                      key: 'check-in',
-                      label: 'Check In',
-                      onClick: () => router.push(`/staff/check-in?bookingId=${encodeURIComponent(booking.id)}`),
-                      className: 'text-indigo-700 hover:bg-indigo-50',
-                    }]
-                  : []),
-              ]
-
-              return (
-                <ManagementTableRow key={booking.id} index={index}>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[180px_1fr_190px_220px_170px] md:items-center">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <Clock3 className="h-4 w-4 text-slate-500" />
-                      {formatTime12Hour(booking.startTime)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{getCustomerDisplayName(booking)}</p>
-                      <p className="text-sm text-slate-500">
-                        {getSecondaryBookingDetail(booking)}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {getBookingLanes(booking).map((lane) => (
-                        <span
-                          key={`${booking.id}-${lane}`}
-                          className="inline-flex rounded-[10px] bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600"
-                        >
-                          {lane}
-                        </span>
-                      ))}
-                    </div>
-                    <div>
-                      {(() => {
-                        const pill = getBookingStatusPill(booking.status, { context: 'staff-dashboard' })
-                        return (
-                          <BookingStatusPill
-                            status={booking.status}
-                            context="staff-dashboard"
-                            className={pill.className}
-                            label={pill.label}
-                          />
-                        )
-                      })()}
-                    </div>
-                    <div className="flex justify-start">
-                      <ManagementRowActionsMenu
-                        menuId={booking.id}
-                        triggerLabel={`Open actions for booking at ${formatTime12Hour(booking.startTime)}`}
-                        actions={rowActions}
-                        isOpen={openActionsForId === booking.id}
-                        onOpenChange={(nextOpen) => {
-                          setOpenActionsForId((current) => {
-                            if (nextOpen) return booking.id
-                            return current === booking.id ? null : current
-                          })
-                        }}
-                      />
-                    </div>
-                  </div>
-                </ManagementTableRow>
-              )
-            })}
-          </ManagementTableShell>
+          <StaffBookingsTable
+            rows={filteredBookings}
+            getCustomerDisplayName={getCustomerDisplayName}
+            getSecondaryBookingDetail={getSecondaryBookingDetail}
+            getRowActions={(booking) => [
+              {
+                key: 'details',
+                label: 'Details',
+                onClick: () => router.push(`/staff/bookings/${booking.id}`),
+              },
+              ...(canEditReservation(booking.status)
+                ? [{
+                    key: 'edit',
+                    label: 'Edit Reservation',
+                    onClick: () => router.push(`/staff/bookings/${booking.id}/edit`),
+                  }]
+                : []),
+              ...((booking.status === 'CONFIRMED' || booking.status === 'PAID')
+                ? [{
+                    key: 'check-in',
+                    label: 'Check In',
+                    onClick: () => router.push(`/staff/check-in?bookingId=${encodeURIComponent(booking.id)}`),
+                    className: 'text-indigo-700 hover:bg-indigo-50',
+                  }]
+                : []),
+            ]}
+            openActionsForId={openActionsForId}
+            onActionsOpenChange={(bookingId, nextOpen) => {
+              setOpenActionsForId((current) => {
+                if (nextOpen) return bookingId
+                return current === bookingId ? null : current
+              })
+            }}
+          />
         )}
       </ManagementPanel>
 
