@@ -1,5 +1,3 @@
-import type { PackageSelectionCardPackage } from '@/components/booking/PackageSelectionCard'
-
 export function getPackageCategoryOptions() {
   return [
     { value: null, label: 'All' },
@@ -42,4 +40,3 @@ export function packageTotalPrice(packages: Array<{ price: number }>) {
   return packages.reduce((sum, pkg) => sum + Number(pkg.price), 0)
 }
 
-export type BookingPackageLike = PackageSelectionCardPackage

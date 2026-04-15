@@ -47,13 +47,11 @@ export function EmptySearchBlock({ title, description, className }: Omit<CenterS
 
 // Backward-compatible aliases used by extracted pages.
 export const LoadingState = LoadingBlock
-export const LoadingStateInline = LoadingBlock
 export const LoadingStateBlock = LoadingBlock
 export const AppLoadingState = LoadingBlock
 export const PageLoadingState = LoadingBlock
 
 export const ErrorState = ErrorBlock
-export const ErrorStateInline = ErrorBlock
 
 export function EmptyState({
   children,

@@ -4,19 +4,10 @@ import type { KeyboardEvent } from 'react'
 import { Users, Clock, Plus, Check } from 'lucide-react'
 import { Card, CardContent } from '@/components/shadcn/ui/card'
 import { cn } from '@/lib/utils'
-
-export interface PackageSelectionCardPackage {
-  id: string
-  name: string
-  description: string | null
-  price: number
-  imageUrl?: string | null
-  durationMinutes?: number | null
-  baseGuestCount?: number | null
-}
+import type { BookingPackageCardItem } from '@/lib/booking/types'
 
 type Props = {
-  pkg: PackageSelectionCardPackage
+  pkg: BookingPackageCardItem
   isSelected: boolean
   onToggleAdd: () => void
   /** Opens the package detail panel (card body / image click). */

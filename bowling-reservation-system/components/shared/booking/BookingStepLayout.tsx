@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import Button from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 
-const STEP_NAV_BUTTON_BASE = 'rounded-full min-h-[48px] px-6'
+export const BOOKING_STEP_NAV_BUTTON_CLASS = 'rounded-full min-h-[48px] px-6'
 
 type BookingStepLayoutProps = {
   children: ReactNode
@@ -74,7 +74,7 @@ export function BookingStepActions({
             variant="secondary"
             onClick={onBack}
             disabled={backDisabled || !onBack}
-            className={`${STEP_NAV_BUTTON_BASE} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}
+            className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}
           >
             {backLabel}
           </Button>
@@ -83,7 +83,7 @@ export function BookingStepActions({
           onClick={onContinue}
           isLoading={continueLoading}
           disabled={continueDisabled || !onContinue}
-          className={`${STEP_NAV_BUTTON_BASE} w-full sm:w-auto`}
+          className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto`}
         >
           {continueLabel}
         </Button>

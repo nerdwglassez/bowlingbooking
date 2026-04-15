@@ -13,6 +13,7 @@ import BookingSummary from '@/components/booking/BookingSummary'
 import Button from '@/components/ui/Button'
 import Toast from '@/components/ui/Toast'
 import {
+  BOOKING_STEP_NAV_BUTTON_CLASS,
   BookingStepActions,
   BookingStepLayout,
   BookingStepSection,
@@ -42,9 +43,6 @@ import {
 } from '@/lib/booking/packages'
 import { useBookingCatalog } from '@/hooks/useBookingCatalog'
 import { useBookingCheckoutFlow } from '@/hooks/useBookingCheckoutFlow'
-
-/** Shared styles so step Back/Continue buttons align and are pill-shaped (Figma: pill CTA). */
-const STEP_NAV_BUTTON = 'rounded-full min-h-[48px] px-6'
 
 interface Package {
   id: string
@@ -608,13 +606,13 @@ export default function BookPage() {
 
             {/* CTAs below the card/summary — same pattern as step 1 (Figma) */}
             <BookingStepActions>
-              <Button variant="secondary" onClick={() => setStep(2)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
+              <Button variant="secondary" onClick={() => setStep(2)} className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
                 Back
               </Button>
               <Button
                 onClick={() => setStep(4)}
                 disabled={!isBowlerInfoComplete}
-                className={`${STEP_NAV_BUTTON} w-full sm:w-auto disabled:!bg-[#E2E8F0] disabled:!text-[#94A3B8]`}
+                className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto disabled:!bg-[#E2E8F0] disabled:!text-[#94A3B8]`}
               >
                 Continue to review
               </Button>
@@ -717,10 +715,10 @@ export default function BookPage() {
 
             {/* Navigation */}
             <BookingStepActions>
-              <Button variant="secondary" onClick={() => setStep(1)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
+              <Button variant="secondary" onClick={() => setStep(1)} className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
                 Back
               </Button>
-              <Button onClick={() => setStep(3)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto`}>Continue to bowler details</Button>
+              <Button onClick={() => setStep(3)} className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto`}>Continue to bowler details</Button>
             </BookingStepActions>
           </BookingStepLayout>
         )}
@@ -1058,14 +1056,14 @@ export default function BookPage() {
                       setCheckoutMode(null)
                     }
                   }}
-                  className={`${STEP_NAV_BUTTON} !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}
+                  className={`${BOOKING_STEP_NAV_BUTTON_CLASS} !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}
                 >
                   Back
                 </Button>
               )}
               <div className="flex flex-wrap items-center gap-2 justify-end">
                 {!paymentClientSecret && isAuthenticated === false && checkoutMode !== null && (
-                  <Button variant="secondary" onClick={() => setCheckoutMode(null)} className={STEP_NAV_BUTTON}>
+                  <Button variant="secondary" onClick={() => setCheckoutMode(null)} className={BOOKING_STEP_NAV_BUTTON_CLASS}>
                     Back to options
                   </Button>
                 )}
@@ -1089,7 +1087,7 @@ export default function BookPage() {
                       onClick={handleSubmit}
                       isLoading={loading}
                       disabled={!canSubmitBooking}
-                      className={STEP_NAV_BUTTON}
+                      className={BOOKING_STEP_NAV_BUTTON_CLASS}
                     >
                       Complete Booking
                     </Button>
