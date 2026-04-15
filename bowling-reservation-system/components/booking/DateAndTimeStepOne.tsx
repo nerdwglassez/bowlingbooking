@@ -2,16 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react'
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
   addMonths,
+  format,
+  endOfMonth,
+  startOfMonth,
   subMonths,
   eachDayOfInterval,
   parse,
   isBefore,
   isAfter,
-  startOfDay,
 } from 'date-fns'
 import { Calendar, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { COLORS } from '@/lib/design-tokens'
@@ -20,6 +19,11 @@ import {
   getSlotAvailabilityTextColor,
   isSlotAvailableForLanes,
 } from '@/lib/booking/availability'
+import {
+  getBookingWindow,
+  isDateWithinBookingWindow,
+  clampDateToViewWindow,
+} from '@/lib/booking/date-time'
 import { useAvailabilityForDate } from '@/hooks/useAvailabilityForDate'
 
 /** Spec: 3 skeleton rectangles, pulse 0.5→1→0.5, 1.5s loop. Figma 19-1058: time list height 480px. */
@@ -71,20 +75,13 @@ export default function DateAndTimeStepOne({
   onTimeSelect,
   minLanes = 1,
 }: DateAndTimeStepOneProps) {
-  const today = startOfDay(new Date())
-  // Booking window: can only schedule up to 2 months in advance; can view 3 months ahead (current + 2 more)
-  const maxBookableDate = endOfMonth(addMonths(today, 2))
-  const maxViewMonth = startOfMonth(addMonths(today, 2))
-  const minViewMonth = startOfMonth(today)
+  const bookingWindow = getBookingWindow()
+  const { today, maxBookableDate, maxViewMonth, minViewMonth } = bookingWindow
 
   const [viewMonth, setViewMonth] = useState(() => {
     if (selectedDate) {
       const d = parse(selectedDate, 'yyyy-MM-dd', new Date())
-      const month = startOfMonth(d)
-      // Clamp to viewable range
-      if (isBefore(month, minViewMonth)) return minViewMonth
-      if (isAfter(month, maxViewMonth)) return maxViewMonth
-      return month
+      return clampDateToViewWindow(startOfMonth(d), bookingWindow)
     }
     return minViewMonth
   })
@@ -140,8 +137,7 @@ export default function DateAndTimeStepOne({
 
   const cells1 = buildCalendarCells(month1)
 
-  const isDateSelectable = (d: Date) =>
-    !isBefore(d, today) && !isAfter(d, maxBookableDate)
+  const isDateSelectable = (d: Date) => isDateWithinBookingWindow(d, bookingWindow)
 
   const handleDayClick = (d: Date) => {
     if (!isDateSelectable(d)) return
