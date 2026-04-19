@@ -12,5 +12,7 @@ Use the smallest doc that matches the task. Avoid pasting the full root PRD unle
 | What requirements exist vs what is implemented | [PRD_GAP_ANALYSIS.md](PRD_GAP_ANALYSIS.md) |
 | Full product specification | [bowling-prd.md](../bowling-prd.md) (repo root) |
 | Run locally / deploy | [SETUP.md](SETUP.md), [docs/LOCAL_VS_LIVE.md](docs/LOCAL_VS_LIVE.md), [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md) |
+| Doc standards, ownership, safe Git upload checks | [docs/governance/README.md](docs/governance/README.md) |
 
 After behavior changes: update **PRD_GAP_ANALYSIS.md** and the relevant **flow doc** (`RESERVATION_FLOW` or `STAFF_AND_ADMIN_EXPERIENCE`).
+Also run the governance checklist in **docs/governance/UPDATE_CHECKLIST.md** before commit/push.

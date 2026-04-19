@@ -4,7 +4,7 @@ Use this doc **once** for concepts that apply to both [customer reservation flow
 
 ## Product and implementation truth
 
-- **Product requirements:** repo root [`bowling-prd.md`](../../bowling-prd.md) (full PRD).
+- **Product requirements:** workspace root [`bowling-prd.md`](../../bowling-prd.md) (full PRD).
 - **What is built vs gaps:** [`PRD_GAP_ANALYSIS.md`](../PRD_GAP_ANALYSIS.md) in this app folder—update when behavior changes.
 
 ## Authentication and roles
@@ -50,6 +50,17 @@ Use this doc **once** for concepts that apply to both [customer reservation flow
 ## Integrations (optional)
 
 - Mailchimp, SMS (Twilio), etc. are configured via settings and `lib/*` modules as documented in PRD gap analysis—treat env vars as optional unless you enable those features.
+
+## Service contracts (detailed)
+
+Use these contract docs when changing shared platform behavior:
+
+- [services/AUTH_AND_ROLES.md](services/AUTH_AND_ROLES.md)
+- [services/AVAILABILITY_AND_SCHEDULING.md](services/AVAILABILITY_AND_SCHEDULING.md)
+- [services/PRICING_DISCOUNTS_LOYALTY.md](services/PRICING_DISCOUNTS_LOYALTY.md)
+- [services/PAYMENTS_AND_WEBHOOKS.md](services/PAYMENTS_AND_WEBHOOKS.md)
+- [services/NOTIFICATIONS_AND_CRON.md](services/NOTIFICATIONS_AND_CRON.md)
+- [services/PARTNER_API_AND_POS.md](services/PARTNER_API_AND_POS.md)
 
 ## UI primitives
 

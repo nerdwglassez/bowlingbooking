@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { customerDisplayName, getInitials } from '@/lib/staff-booking-utils'
 
 type GradientVariant = 'reports' | 'calendar' | 'settings'
 
@@ -43,14 +44,9 @@ export default function StaffPageHero({ title, description, gradient }: StaffPag
       .catch(() => setUser(null))
   }, [])
 
-  const displayName =
-    user && [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
-      ? [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
-      : user?.email ?? ''
+  const displayName = user ? customerDisplayName(user) : ''
   const roleLabel = user ? user.role.charAt(0) + user.role.slice(1).toLowerCase() : ''
-  const initials = user
-    ? ([user.firstName?.[0], user.lastName?.[0]].filter(Boolean).join('') || user.email.slice(0, 2)).toUpperCase()
-    : ''
+  const initials = user ? getInitials(user) : ''
 
   return (
     <section

@@ -24,7 +24,7 @@ Use this guide to keep **local testing and debugging** separate from **productio
    ```
 
 2. **Set up local database**  
-   - Start Postgres: `npm run db:local:up` (Docker) or use [Homebrew](docs/LOCAL_DATABASE.md).  
+   - Start Postgres: `npm run db:local:up` (Docker) or use [Homebrew](LOCAL_DATABASE.md).  
    - In `.env.local`:
      ```env
      DATABASE_URL="postgresql://postgres:postgres@localhost:5432/bowling"

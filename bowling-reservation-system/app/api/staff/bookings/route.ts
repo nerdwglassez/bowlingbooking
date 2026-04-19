@@ -10,17 +10,19 @@ async function calculateBookingPrice(
   duration: number,
   numBowlers: number,
   shoeSizes: number[],
-  packagePrices: number[] // in cents
+  packagePrices: number[], // in cents
+  numLanes: number = 1,
+  productTotalCents: number = 0
 ): Promise<number> {
   // Get pricing settings from database
   const pricing = await getPricingSettings()
 
   const hours = Math.ceil(duration / 60)
-  const laneRentalCents = Math.round(pricing.laneRentalPerHour * 100 * hours)
+  const laneRentalCents = Math.round(pricing.laneRentalPerHour * 100 * hours * numLanes)
   const bowlerPriceCents = Math.round(numBowlers * (pricing.bowlerPricePerPerson || 0) * 100)
   const shoeRentalsCents = Math.round(shoeSizes.length * pricing.shoeRental * 100)
   const packageTotal = packagePrices.reduce((sum, price) => sum + price, 0)
-  const subtotal = laneRentalCents + bowlerPriceCents + shoeRentalsCents + packageTotal
+  const subtotal = laneRentalCents + bowlerPriceCents + shoeRentalsCents + packageTotal + productTotalCents
   const tax = Math.round(subtotal * pricing.taxRate)
   return subtotal + tax
 }
@@ -117,26 +119,43 @@ export async function POST(request: NextRequest) {
       validatedData.duration
     )
 
-    if (!availability.available || availability.availableLanes.length === 0) {
+    const numLanes = validatedData.numLanes ?? 1
+    if (!availability.available || availability.availableLanes.length < numLanes) {
       return NextResponse.json(
-        { error: 'Selected time slot is no longer available' },
+        {
+          error:
+            numLanes > 1
+              ? `Need ${numLanes} lanes; selected time slot has insufficient availability`
+              : 'Selected time slot is no longer available',
+        },
         { status: 400 }
       )
     }
 
-    // Assign lane
-    let assignedLane: number
-    if (validatedData.lane) {
+    // Assign lanes: prefer adjacent lanes when multi-lane booking
+    function pickAdjacentLanes(available: number[], count: number): number[] {
+      if (count <= 0 || available.length < count) return available.slice(0, count)
+      for (let i = 0; i <= available.length - count; i++) {
+        const slice = available.slice(i, i + count)
+        const isAdjacent = slice.every((lane, j) => j === 0 || lane === slice[j - 1] + 1)
+        if (isAdjacent) return slice
+      }
+      return available.slice(0, count)
+    }
+
+    let assignedLanes: number[]
+    if (numLanes === 1 && validatedData.lane) {
       if (!availability.availableLanes.includes(validatedData.lane)) {
         return NextResponse.json(
           { error: 'Selected lane is not available for this time slot' },
           { status: 400 }
         )
       }
-      assignedLane = validatedData.lane
+      assignedLanes = [validatedData.lane]
     } else {
-      assignedLane = availability.availableLanes[0]
+      assignedLanes = pickAdjacentLanes(availability.availableLanes, numLanes)
     }
+    const assignedLane = assignedLanes[0]
 
     // Get package prices
     let packagePrices: number[] = []
@@ -150,12 +169,29 @@ export async function POST(request: NextRequest) {
       packagePrices = packages.map(pkg => Number(pkg.price) * 100)
     }
 
+    // Get product prices if products are included
+    let productTotalCents = 0
+    const productItems = validatedData.productItems || []
+    if (productItems.length > 0) {
+      const productIds = [...new Set(productItems.map((p: { productId: string }) => p.productId))]
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds }, isActive: true },
+      })
+      const productMap = Object.fromEntries(products.map(p => [p.id, Number(p.price) * 100]))
+      for (const item of productItems) {
+        const priceCents = productMap[item.productId]
+        if (priceCents != null) productTotalCents += priceCents * item.quantity
+      }
+    }
+
     // Calculate price
     const totalPriceCents = await calculateBookingPrice(
       validatedData.duration,
       validatedData.numBowlers,
       validatedData.shoeSizes || [],
-      packagePrices
+      packagePrices,
+      numLanes,
+      productTotalCents
     )
 
     // Create booking
@@ -166,6 +202,7 @@ export async function POST(request: NextRequest) {
         startTime: validatedData.startTime,
         duration: validatedData.duration,
         lane: assignedLane,
+        lanes: numLanes > 1 ? JSON.stringify(assignedLanes) : null,
         numBowlers: validatedData.numBowlers,
         shoeSizes: validatedData.shoeSizes ? JSON.stringify(validatedData.shoeSizes) : null,
         status: 'CONFIRMED', // Staff bookings are confirmed immediately
@@ -184,6 +221,17 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Create booking products
+    if (productItems.length > 0) {
+      await prisma.bookingProduct.createMany({
+        data: productItems.map((item: { productId: string; quantity: number }) => ({
+          bookingId: booking.id,
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+      })
+    }
+
     // Fetch booking with packages
     const bookingWithPackages = await prisma.booking.findUnique({
       where: { id: booking.id },
@@ -197,6 +245,11 @@ export async function POST(request: NextRequest) {
         bookingPackages: {
           include: {
             package: true,
+          },
+        },
+        bookingProducts: {
+          include: {
+            product: true,
           },
         },
       },

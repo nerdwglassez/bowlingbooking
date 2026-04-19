@@ -33,9 +33,9 @@ import { Calendar, ChevronLeft, X, Check } from 'lucide-react'
 
 ## Where we use Lucide
 
-- **DateAndTimeStepOne**: `Calendar`, `ChevronLeft`, `ChevronRight`, `Clock`
-- **StepOneGroupSizeCard**: `Users`, `ChevronDown`, `Check`
+- **DateAndTimeStepOne**: `Calendar`, `ChevronLeft`, `ChevronRight`, `Clock`, `CalendarX`
+- **BookingSummary**: `CalendarDays`, `Clock3`, `Package`, `ChevronDown`, `Trash2`
 - **AuthModal**: `X` (close)
-- **PackageSelection**: `Check` (selected package)
+- **AppExperienceHeader**: `Settings`
 
 Browse all icons: [lucide.dev/icons](https://lucide.dev/icons)
