@@ -5,6 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import Button from '@/components/ui/Button'
+import { BookingStatusPill } from '@/components/shared/status/StatusPill'
+import {
+  PageLoadingState,
+  EmptyStateCard,
+} from '@/components/shared/state/StateBlocks'
+import BookingPackageList from '@/components/shared/booking/BookingPackageList'
+import BookingLineItemsSummary from '@/components/shared/booking/BookingLineItemsSummary'
 
 interface Booking {
   id: string
@@ -90,22 +97,20 @@ export default function BookingDetailsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <main className="min-h-screen p-8">
-        <div className="max-w-4xl mx-auto">Loading...</div>
-      </main>
-    )
-  }
+  if (loading) return <PageLoadingState />
 
   if (!booking) {
     return (
       <main className="min-h-screen p-8">
         <div className="max-w-4xl mx-auto">
-          <p>Booking not found</p>
-          <Link href="/bookings">
-            <Button className="mt-4">Back to Bookings</Button>
-          </Link>
+          <EmptyStateCard
+            title="Booking not found"
+            action={
+              <Link href="/bookings">
+                <Button className="mt-4">Back to Bookings</Button>
+              </Link>
+            }
+          />
         </div>
       </main>
     )
@@ -119,22 +124,6 @@ export default function BookingDetailsPage() {
   const cancelRescheduleMessage = withinCutoff
     ? 'Cancellation and reschedule must be at least 24 hours before the booking. Please contact us for help.'
     : null
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'CONFIRMED':
-      case 'PAID':
-        return 'bg-green-100 text-green-800'
-      case 'PENDING':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'CHECKED_IN':
-        return 'bg-blue-100 text-blue-800'
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
 
   const shoeSizes = booking.shoeSizes ? JSON.parse(booking.shoeSizes) : []
 
@@ -153,13 +142,7 @@ export default function BookingDetailsPage() {
               <h1 className="text-3xl font-bold mb-2">Booking Details</h1>
               <p className="text-gray-600">Booking ID: {booking.id}</p>
             </div>
-            <span
-              className={`px-3 py-1 rounded text-sm font-medium ${getStatusColor(
-                booking.status
-              )}`}
-            >
-              {booking.status.replace('_', ' ')}
-            </span>
+            <BookingStatusPill label={booking.status.replace('_', ' ')} status={booking.status} size="md" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -193,29 +176,21 @@ export default function BookingDetailsPage() {
           {booking.bookingPackages.length > 0 && (
             <div className="mb-6">
               <h2 className="font-semibold mb-2">Packages</h2>
-              <div className="space-y-2">
-                {booking.bookingPackages.map((bp, index) => (
-                  <div key={index} className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium">{bp.package.name}</p>
-                      {bp.package.description && (
-                        <p className="text-sm text-gray-600">{bp.package.description}</p>
-                      )}
-                    </div>
-                    <p className="font-semibold">${Number(bp.package.price).toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
+              <BookingPackageList
+                items={booking.bookingPackages.map((bp) => ({
+                  name: bp.package.name,
+                  description: bp.package.description,
+                  price: Number(bp.package.price),
+                }))}
+              />
             </div>
           )}
 
-          <div className="border-t pt-6">
-            <div className="flex justify-between items-center flex-wrap gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Total Amount</p>
-                <p className="text-2xl font-bold">${Number(booking.totalPrice).toFixed(2)}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap no-print">
+          <BookingLineItemsSummary
+            totalLabel="Total Amount"
+            totalValue={Number(booking.totalPrice)}
+            actionSlot={
+              <>
                 <Button
                   variant="secondary"
                   onClick={() => window.print()}
@@ -250,9 +225,9 @@ export default function BookingDetailsPage() {
                     )}
                   </>
                 )}
-              </div>
-            </div>
-          </div>
+              </>
+            }
+          />
 
           <div className="mt-6 text-sm text-gray-600">
             <p>Created: {format(new Date(booking.createdAt), 'PPpp')}</p>

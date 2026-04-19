@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { logout } from '@/app/actions/auth'
+import { logout } from '@/lib/actions/auth'
 import {
   CalendarClock,
   CalendarX2,

@@ -7,6 +7,13 @@ import { format } from 'date-fns'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { formatTime12Hour } from '@/lib/time'
+import {
+  buildEditReservationContactPayload,
+  buildEditReservationUpdatePayload,
+  getTimeChanged,
+  isReservationContactChanged,
+} from '@/lib/staff/edit-reservation'
+import { useAvailabilityForDate } from '@/hooks/useAvailabilityForDate'
 
 interface Booking {
   id: string
@@ -26,12 +33,6 @@ interface Booking {
   bookingPackages: Array<{ package: { name: string } }>
 }
 
-interface TimeSlot {
-  time: string
-  available: boolean
-  availableLanes: number
-}
-
 const STATUS_OPTIONS = [
   { value: 'PENDING', label: 'Pending' },
   { value: 'CONFIRMED', label: 'Confirmed' },
@@ -41,9 +42,19 @@ const STATUS_OPTIONS = [
   { value: 'CANCELLED', label: 'Cancelled' },
 ]
 
-type Props = { onClose: () => void; onSaved?: () => void; /** When provided (e.g. when opened as modal from dashboard), used instead of route params */ bookingId?: string | null }
+type Props = {
+  onClose: () => void
+  onSaved?: () => void
+  /** When provided (e.g. when opened as modal from dashboard), used instead of route params */ bookingId?:
+    | string
+    | null
+}
 
-export default function EditReservationModal({ onClose, onSaved, bookingId: bookingIdProp }: Props) {
+export default function EditReservationModal({
+  onClose,
+  onSaved,
+  bookingId: bookingIdProp,
+}: Props) {
   const params = useParams()
   const id =
     bookingIdProp ??
@@ -51,8 +62,6 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loading, setLoading] = useState(true)
-  const [slots, setSlots] = useState<TimeSlot[]>([])
-  const [loadingSlots, setLoadingSlots] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedTime, setSelectedTime] = useState('')
   const [numBowlers, setNumBowlers] = useState(0)
@@ -99,24 +108,25 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
       .finally(() => setLoading(false))
   }, [id])
 
+  const { slots, loading: loadingSlots } = useAvailabilityForDate(selectedDate, {
+    enabled: Boolean(selectedDate && booking),
+  })
   useEffect(() => {
     if (!selectedDate || !booking) return
-    setLoadingSlots(true)
-    fetch(`/api/availability?date=${selectedDate}`)
-      .then((res) => res.ok ? res.json() : { slots: [] })
-      .then((data) => {
-        setSlots(data.slots || [])
-        setSelectedTime('')
-      })
-      .finally(() => setLoadingSlots(false))
-  }, [selectedDate, booking?.duration])
+    setSelectedTime('')
+  }, [selectedDate, booking, booking?.duration])
 
   const canEdit = booking && ['PENDING', 'PAID', 'CONFIRMED'].includes(booking.status)
   const availableSlots = slots.filter((s) => s.available)
   const minDate = format(new Date(), 'yyyy-MM-dd')
-  const timeChanged =
-    booking &&
-    (selectedDate !== format(new Date(booking.date), 'yyyy-MM-dd') || selectedTime !== booking.startTime)
+  const timeChanged = booking
+    ? getTimeChanged({
+        selectedDate,
+        selectedTime,
+        originalDate: booking.date,
+        originalStartTime: booking.startTime,
+      })
+    : false
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,7 +134,12 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
     setError(null)
     setSubmitting(true)
     try {
-      const timeChanged = selectedDate !== format(new Date(booking.date), 'yyyy-MM-dd') || selectedTime !== booking.startTime
+      const timeChanged = getTimeChanged({
+        selectedDate,
+        selectedTime,
+        originalDate: booking.date,
+        originalStartTime: booking.startTime,
+      })
       if (timeChanged && canEdit) {
         const res = await fetch(`/api/bookings/${booking.id}/reschedule`, {
           method: 'PATCH',
@@ -135,16 +150,13 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
         if (!res.ok) throw new Error(data.error || 'Failed to reschedule')
       }
 
-      const lanesTrimmed = lanesCsv.trim().replace(/\s*,\s*/g, ',').replace(/\s+/g, ',')
-      const lanesArray = lanesTrimmed
-        ? lanesTrimmed.split(',').map((n) => parseInt(n.trim(), 10)).filter((n) => !Number.isNaN(n))
-        : []
-      const lanesPayload = lanesArray.length > 0 ? lanesArray.join(',') : undefined
-
-      const updatePayload: { numBowlers?: number; lanes?: string; status?: string } = {}
-      if (numBowlers !== booking.numBowlers) updatePayload.numBowlers = numBowlers
-      if (lanesPayload !== undefined) updatePayload.lanes = lanesPayload
-      if (status !== booking.status) updatePayload.status = status
+      const updatePayload = buildEditReservationUpdatePayload({
+        numBowlers,
+        originalNumBowlers: booking.numBowlers,
+        lanesCsv,
+        status,
+        originalStatus: booking.status,
+      })
 
       if (Object.keys(updatePayload).length > 0) {
         const res = await fetch(`/api/staff/bookings/${booking.id}`, {
@@ -158,14 +170,20 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
       const contactChanged =
         booking.user &&
-        (customerFirstName !== (booking.user.firstName ?? '') ||
-          customerLastName !== (booking.user.lastName ?? '') ||
-          customerEmail !== (booking.user.email ?? ''))
+        isReservationContactChanged({
+          customerFirstName,
+          customerLastName,
+          customerEmail,
+          bookingFirstName: booking.user.firstName,
+          bookingLastName: booking.user.lastName,
+          bookingEmail: booking.user.email,
+        })
       if (contactChanged && booking.user.id) {
-        const payload: { firstName?: string; lastName?: string; email?: string } = {}
-        payload.firstName = customerFirstName.trim()
-        payload.lastName = customerLastName.trim()
-        if (customerEmail.trim()) payload.email = customerEmail.trim()
+        const payload = buildEditReservationContactPayload({
+          customerFirstName,
+          customerLastName,
+          customerEmail,
+        })
         const customerRes = await fetch(`/api/staff/customers/${booking.user.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -222,7 +240,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
   if (loading || !id) {
     return (
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl md:p-7">
         <p className="text-slate-500">Loading reservation…</p>
       </div>
     )
@@ -230,7 +248,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
   if (!booking) {
     return (
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl md:p-7">
         <p className="text-slate-700">Reservation not found.</p>
         <Button
           type="button"
@@ -248,8 +266,11 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
   const primaryPackage = booking.bookingPackages[0]?.package?.name ?? ''
 
   return (
-    <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+    <div
+      className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
+      data-testid="staff-edit-reservation-modal"
+    >
+      <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6 md:p-7">
         <h2 className="text-xl font-bold text-slate-900">Edit reservation</h2>
         <Button
           type="button"
@@ -257,14 +278,14 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
           size="icon"
           rounded="full"
           onClick={onClose}
-          className="h-10 w-10 shrink-0 bg-slate-100 text-slate-500 hover:bg-slate-200"
+          className="h-11 w-11 shrink-0 bg-slate-100 text-slate-500 active:bg-slate-200"
           aria-label="Close"
         >
           <X className="h-5 w-5" />
         </Button>
       </div>
 
-      <div className="p-6">
+      <div className="p-6 md:p-7">
         <div className="mb-6 rounded-xl bg-slate-50 px-4 py-3">
           <p className="text-sm font-medium text-slate-500">Booking ID: {shortId}</p>
         </div>
@@ -338,7 +359,9 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Number of bowlers</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Number of bowlers
+            </label>
             <Input
               type="number"
               min={1}
@@ -349,7 +372,9 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Lanes (comma separated)</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Lanes (comma separated)
+            </label>
             <Input
               type="text"
               value={lanesCsv}
@@ -359,7 +384,9 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Package (optional)</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Package (optional)
+            </label>
             <Input type="text" value={primaryPackage} disabled className="bg-slate-50" />
           </div>
 
@@ -380,7 +407,12 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
 
           <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl px-4 py-2.5">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onClose}
+                className="rounded-xl px-4 py-2.5 min-h-[44px]"
+              >
                 Cancel
               </Button>
               <Button
@@ -388,13 +420,10 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
                 disabled={
                   !canEdit ||
                   submitting ||
-                  !!(
-                    timeChanged &&
-                    (!selectedTime || availableSlots.length === 0)
-                  )
+                  !!(timeChanged && (!selectedTime || availableSlots.length === 0))
                 }
                 isLoading={submitting}
-                className="rounded-xl px-4 py-2.5"
+                className="rounded-xl px-4 py-2.5 min-h-[44px]"
               >
                 Save changes
               </Button>
@@ -407,7 +436,7 @@ export default function EditReservationModal({ onClose, onSaved, bookingId: book
                 size="sm"
                 onClick={handleCancelReservation}
                 disabled={cancelling}
-                className="px-4 py-2.5 font-semibold"
+                className="px-4 py-2.5 min-h-[44px] font-semibold"
               >
                 {cancelling ? 'Cancelling…' : 'Cancel reservation'}
               </Button>

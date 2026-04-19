@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import Button from '@/components/ui/Button'
+import PillFilterBar from '@/components/shared/filters/PillFilterBar'
+import { BookingStatusPill } from '@/components/shared/status/StatusPill'
+import { PageEmptyState, PageLoadingState } from '@/components/shared/state/StateBlocks'
+import BookingPackageList from '@/components/shared/booking/BookingPackageList'
 
 interface Booking {
   id: string
@@ -78,26 +82,12 @@ export default function BookingsPage() {
     return true
   })
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'CONFIRMED':
-      case 'PAID':
-        return 'bg-green-100 text-green-800'
-      case 'PENDING':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'CHECKED_IN':
-        return 'bg-blue-100 text-blue-800'
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
-
   if (loading) {
     return (
       <main className="min-h-screen p-8">
-        <div className="max-w-4xl mx-auto">Loading...</div>
+        <div className="max-w-4xl mx-auto">
+          <PageLoadingState />
+        </div>
       </main>
     )
   }
@@ -113,46 +103,26 @@ export default function BookingsPage() {
         </div>
 
         {/* Filter tabs */}
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setFilter('upcoming')}
-            className={`px-4 py-2 rounded-lg ${
-              filter === 'upcoming'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            Upcoming
-          </button>
-          <button
-            onClick={() => setFilter('past')}
-            className={`px-4 py-2 rounded-lg ${
-              filter === 'past'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            Past
-          </button>
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg ${
-              filter === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            All
-          </button>
-        </div>
+        <PillFilterBar
+          className="mb-6"
+          options={[
+            { value: 'upcoming', label: 'Upcoming' },
+            { value: 'past', label: 'Past' },
+            { value: 'all', label: 'All' },
+          ]}
+          value={filter}
+          onChange={(value) => setFilter(value as typeof filter)}
+        />
 
         {filteredBookings.length === 0 ? (
-          <div className="bg-white p-8 rounded-lg shadow-md text-center">
-            <p className="text-gray-600 mb-4">No bookings found</p>
-            <Link href="/book">
-              <Button>Book Your First Lane</Button>
-            </Link>
-          </div>
+          <PageEmptyState
+            title="No bookings found"
+            action={
+              <Link href="/book">
+                <Button>Book Your First Lane</Button>
+              </Link>
+            }
+          />
         ) : (
           <div className="space-y-4">
             {filteredBookings.map(booking => {
@@ -166,23 +136,19 @@ export default function BookingsPage() {
                         {format(new Date(booking.date), 'EEEE, MMMM d, yyyy')} at{' '}
                         {booking.startTime}
                       </h3>
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(
-                          booking.status
-                        )}`}
-                      >
-                        {booking.status.replace('_', ' ')}
-                      </span>
+                      <BookingStatusPill status={booking.status} size="sm" />
                     </div>
                     <div className="text-gray-600 space-y-1">
                       <p>Lane {booking.lane} • {booking.duration / 60} hour(s)</p>
                       <p>{booking.numBowlers} bowler{booking.numBowlers > 1 ? 's' : ''}</p>
-                      {booking.bookingPackages.length > 0 && (
-                        <p>
-                          Packages:{' '}
-                          {booking.bookingPackages.map(bp => bp.package.name).join(', ')}
-                        </p>
-                      )}
+                      <BookingPackageList
+                        items={booking.bookingPackages.map((bp, index) => ({
+                          id: `${booking.id}-${index}`,
+                          name: bp.package.name,
+                          price: Number(bp.package.price),
+                        }))}
+                        inline
+                      />
                       <p className="font-semibold text-gray-900 mt-2">
                         Total: ${Number(booking.totalPrice).toFixed(2)}
                       </p>

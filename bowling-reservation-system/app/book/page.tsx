@@ -11,21 +11,38 @@ import PackageDetailPanel from '@/components/booking/PackageDetailPanel'
 import PackageSelectionCard from '@/components/booking/PackageSelectionCard'
 import BookingSummary from '@/components/booking/BookingSummary'
 import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
 import Toast from '@/components/ui/Toast'
+import {
+  BOOKING_STEP_NAV_BUTTON_CLASS,
+  BookingStepActions,
+  BookingStepLayout,
+  BookingStepSection,
+} from '@/components/shared/booking/BookingStepLayout'
 import { Plus, X, ChevronDown, CircleUser, Lock, CheckCircle2, Shield, Info } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   calculateBookingPrice,
   calculateBookingPriceWithSettings,
   type BookingPriceBreakdown,
-  type PricingSettingsForBooking,
 } from '@/lib/pricing'
 import { righteous } from '@/lib/fonts'
-
-/** Shared styles so step Back/Continue buttons align and are pill-shaped (Figma: pill CTA). */
-const STEP_NAV_ROW = 'mt-6 flex flex-row justify-between items-center gap-4'
-const STEP_NAV_BUTTON = 'rounded-full min-h-[48px] px-6'
+import {
+  canSubmitBooking as canSubmitBookingRule,
+  getBowlerInfoCompletionState,
+  getNumLanesForBowlers,
+  getShoeRentalCounts,
+  getShoeSizeValues,
+} from '@/lib/booking/rules'
+import {
+  filterPackagesByCategory,
+  getPackageCategoryOptions,
+  packagePriceList,
+  packageTotalPrice,
+  selectedPackageData,
+  togglePackageSelection,
+} from '@/lib/booking/packages'
+import { useBookingCatalog } from '@/hooks/useBookingCatalog'
+import { useBookingCheckoutFlow } from '@/hooks/useBookingCheckoutFlow'
 
 interface Package {
   id: string
@@ -49,6 +66,23 @@ interface Product {
   type: string
 }
 
+type CreateBookingPayload = {
+  date: string
+  startTime: string
+  duration: number
+  numLanes: number
+  lane?: number
+  numBowlers: number
+  shoeSizes: number[]
+  packageIds: string[]
+  productItems: Array<{ productId: string; quantity: number }>
+  termsAccepted: boolean
+  loyaltyPointsToRedeem?: number
+  giftCardCode?: string
+  giftCardAmountToApply?: number
+  discountCode?: string
+}
+
 export default function BookPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -61,18 +95,33 @@ export default function BookPage() {
   /** Per-bowler: number = shoe size, null = own shoes, undefined = not chosen yet */
   const [shoeRentals, setShoeRentals] = useState<(number | null | undefined)[]>([undefined, undefined])
   // Lanes derived from bowlers: 1 lane per 6 bowlers (1–6 → 1, 7–12 → 2, etc.), max 5
-  const numLanes = Math.min(5, Math.ceil(numBowlers / 6)) || 1
-  const [packages, setPackages] = useState<Package[]>([])
+  const numLanes = getNumLanesForBowlers(numBowlers)
+  const {
+    packages,
+    products,
+    pricingSettings,
+  } = useBookingCatalog()
   const [selectedPackages, setSelectedPackages] = useState<string[]>([])
-  const [products, setProducts] = useState<Product[]>([])
   const [selectedProducts, setSelectedProducts] = useState<Record<string, number>>({}) // productId -> quantity
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    loading,
+    error,
+    setError,
+    createdBookingId,
+    paymentClientSecret,
+    createBooking,
+    confirmPayment,
+    resetPaymentState,
+    registerGuestAndCreateBooking,
+    createBookingAfterLogin,
+  } = useBookingCheckoutFlow({
+    onConfirmed: (bookingId) => {
+      router.push(`/book/confirmation?bookingId=${bookingId}`)
+    },
+  })
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [checkoutMode, setCheckoutMode] = useState<'signup' | 'login' | 'guest' | null>(null)
   const [termsAccepted, setTermsAccepted] = useState(false)
-  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null)
-  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null)
   const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState(0)
   const [loyaltyData, setLoyaltyData] = useState<{
     balance: number
@@ -101,8 +150,6 @@ export default function BookPage() {
   const [detailPanelPackageId, setDetailPanelPackageId] = useState<string | null>(null)
   const [packageCategoryFilter, setPackageCategoryFilter] = useState<string | null>(null) // null = All, 'PARTY', 'FOOD', 'DRINK', 'ARCADE'
   const [mobileStep2SummaryExpanded, setMobileStep2SummaryExpanded] = useState(false)
-  const [pricingSettings, setPricingSettings] = useState<PricingSettingsForBooking | null>(null)
-
   const STEP1_STORAGE_KEY = 'booking_step1'
 
   /** Booking price breakdown using staff settings when available, so UI matches final charge. */
@@ -160,48 +207,26 @@ export default function BookPage() {
     const date = searchParams?.get('date')
     const time = searchParams?.get('time')
     const todayKey = format(new Date(), 'yyyy-MM-dd')
-    if (date) setSelectedDate(date)
-    if (time) setSelectedTime(time)
-    if (!date && !time && typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(STEP1_STORAGE_KEY)
-        if (raw) {
-          const data = JSON.parse(raw) as { date?: string; time?: string }
-          if (data.date === todayKey) {
-            setSelectedDate(todayKey)
-            if (data.time) setSelectedTime(data.time)
+    const deferredSync = window.setTimeout(() => {
+      if (date) setSelectedDate(date)
+      if (time) setSelectedTime(time)
+      if (!date && !time) {
+        try {
+          const raw = localStorage.getItem(STEP1_STORAGE_KEY)
+          if (raw) {
+            const data = JSON.parse(raw) as { date?: string; time?: string }
+            if (data.date === todayKey) {
+              setSelectedDate(todayKey)
+              if (data.time) setSelectedTime(data.time)
+            }
           }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
-    }
+    }, 0)
+    return () => window.clearTimeout(deferredSync)
   }, [searchParams])
-
-  // Load packages, products, and pricing from staff settings (so displayed prices match booking API)
-  useEffect(() => {
-    fetch('/api/packages')
-      .then(res => res.json())
-      .then(data => setPackages(data.packages || []))
-      .catch(err => console.error('Failed to load packages:', err))
-    fetch('/api/products')
-      .then(res => res.json())
-      .then(data => setProducts(data.products || []))
-      .catch(err => console.error('Failed to load products:', err))
-    fetch('/api/pricing')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data && typeof data.laneRentalPerHour === 'number') {
-          setPricingSettings({
-            laneRentalPerHour: data.laneRentalPerHour,
-            bowlerPricePerPerson: data.bowlerPricePerPerson ?? 0,
-            shoeRental: data.shoeRental ?? 0,
-            taxRate: data.taxRate ?? 0.08,
-          })
-        }
-      })
-      .catch(() => setPricingSettings(null))
-  }, [])
 
   const handleTimeSelect = (date: string, time: string) => {
     setSelectedDate(date)
@@ -243,19 +268,22 @@ export default function BookPage() {
     setNumBowlers(prev => Math.max(1, prev - 1))
   }
 
-  const numShoeRentals = shoeRentals.filter((s): s is number => typeof s === 'number' && s > 0).length
-  const numOwnShoes = shoeRentals.filter((s) => s === null).length
-  const shoeSizeValues = shoeRentals.filter((s): s is number => typeof s === 'number' && s > 0)
+  const { numShoeRentals, numOwnShoes } = getShoeRentalCounts(shoeRentals)
+  const shoeSizeValues = getShoeSizeValues(shoeRentals)
   const productLineItems = Object.entries(selectedProducts)
     .filter(([, q]) => q > 0)
     .map(([productId, quantity]) => {
       const p = products.find((pr) => pr.id === productId)
       return { productId, name: p?.name ?? '', price: Number(p?.price ?? 0), quantity }
     })
-  const isBowlerInfoComplete =
-    shoeRentals.length === numBowlers &&
-    shoeRentals.every((s) => s === null || (typeof s === 'number' && s > 0))
-  const canSubmitBooking = !!selectedDate && !!selectedTime && isBowlerInfoComplete && termsAccepted && !loading
+  const { isBowlerInfoComplete } = getBowlerInfoCompletionState(numBowlers, shoeRentals)
+  const canSubmitBooking = canSubmitBookingRule({
+    selectedDate,
+    selectedTime,
+    isBowlerInfoComplete,
+    termsAccepted,
+    loading,
+  })
 
   /** Shoe sizes 1–15 in half steps; stored value is the numeric size (men's/boy's). */
   const SHOE_SIZE_OPTIONS = Array.from({ length: 29 }, (_, i) => 1 + i * 0.5)
@@ -269,39 +297,19 @@ export default function BookPage() {
   }
 
   const togglePackage = (packageId: string) => {
-    if (selectedPackages.includes(packageId)) {
-      setSelectedPackages(selectedPackages.filter(id => id !== packageId))
-    } else {
-      setSelectedPackages([...selectedPackages, packageId])
-    }
+    setSelectedPackages((prev) => togglePackageSelection(prev, packageId))
   }
 
   const handleAddPackageToCart = (packageId: string, _extraGuests?: number, _extraLanes?: number) => {
     // For now, just add the package ID. Extra guests/lanes customization can be stored later if backend supports it.
-    if (!selectedPackages.includes(packageId)) {
-      setSelectedPackages([...selectedPackages, packageId])
-    }
+    setSelectedPackages((prev) => (prev.includes(packageId) ? prev : [...prev, packageId]))
   }
 
-  const categoryOptions: Array<{ value: string | null; label: string }> = [
-    { value: null, label: 'All' },
-    { value: 'PARTY', label: 'Party Packages' },
-    { value: 'FOOD', label: 'Food & Drinks' },
-    { value: 'ARCADE', label: 'Arcade' },
-  ]
-
-  const filteredPackages = packageCategoryFilter
-    ? packages.filter(p => {
-        if (packageCategoryFilter === 'FOOD') return p.type === 'FOOD' || p.type === 'DRINK'
-        return p.type === packageCategoryFilter
-      })
-    : packages
-
-  const selectedPackagesData = packages.filter(p => selectedPackages.includes(p.id))
-  const totalPackagePrice = selectedPackagesData.reduce((sum, p) => sum + Number(p.price), 0)
-  const step2PackagePrices = selectedPackages.map(
-    id => Number(packages.find(p => p.id === id)?.price ?? 0)
-  )
+  const categoryOptions: Array<{ value: string | null; label: string }> = [...getPackageCategoryOptions()]
+  const filteredPackages = filterPackagesByCategory(packages, packageCategoryFilter)
+  const selectedPackagesData = selectedPackageData(packages, selectedPackages)
+  const totalPackagePrice = packageTotalPrice(selectedPackagesData)
+  const step2PackagePrices = packagePriceList(packages, selectedPackages)
   const step2ProductTotal = Object.entries(selectedProducts).reduce(
     (sum, [productId, q]) => sum + (Number(products.find(p => p.id === productId)?.price ?? 0) * q),
     0
@@ -310,47 +318,50 @@ export default function BookPage() {
 
   useEffect(() => {
     if (step === 2 && selectedPackages.length > 0) {
-      setMobileStep2SummaryExpanded(true)
+      const deferredExpand = window.setTimeout(() => {
+        setMobileStep2SummaryExpanded(true)
+      }, 0)
+      return () => window.clearTimeout(deferredExpand)
     }
   }, [step, selectedPackages.length])
 
-  const handleGuestCheckout = async (guestData: { email: string; firstName: string; lastName: string; phone: string }) => {
-    setLoading(true)
-    setError(null)
+  const buildCreateBookingPayload = (): CreateBookingPayload => ({
+    date: selectedDate,
+    startTime: selectedTime,
+    duration,
+    numLanes,
+    lane: numLanes === 1 ? lane : undefined,
+    numBowlers,
+    shoeSizes: shoeSizeValues,
+    packageIds: selectedPackages,
+    productItems: Object.entries(selectedProducts)
+      .filter(([, q]) => q > 0)
+      .map(([productId, quantity]) => ({ productId, quantity })),
+    termsAccepted: true,
+    ...(loyaltyPointsToRedeem > 0 ? { loyaltyPointsToRedeem } : {}),
+    ...(giftCardCode.trim() && giftCardAmountToApply > 0
+      ? { giftCardCode: giftCardCode.trim(), giftCardAmountToApply }
+      : {}),
+    ...(appliedPromoCode ? { discountCode: appliedPromoCode } : {}),
+  })
 
-    try {
-      // Create guest account
-      const guestResponse = await fetch('/api/auth/guest-register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(guestData),
-      })
-
-      if (!guestResponse.ok) {
-        const result = await guestResponse.json()
-        throw new Error(result.error || 'Failed to create guest account')
-      }
-
-      // Update auth status
-      setIsAuthenticated(true)
-      
-      // Wait a moment for session cookie to be set, then create booking
-      setTimeout(async () => {
-        await createBooking()
-      }, 500)
-    } catch (err: any) {
-      setError(err.message)
-      setLoading(false)
+  const runCreateBooking = async () => {
+    if (!selectedDate || !selectedTime) {
+      setError('Please select a date and time')
+      return
     }
+    await createBooking(buildCreateBookingPayload())
+  }
+
+  const handleGuestCheckout = async (guestData: { email: string; firstName: string; lastName: string; phone: string }) => {
+    await registerGuestAndCreateBooking(guestData, buildCreateBookingPayload())
+    setIsAuthenticated(true)
   }
 
   const handleLoginSuccess = async () => {
     setIsAuthenticated(true)
     setCheckoutMode(null)
-    // Wait a moment for session to be set, then create booking
-    setTimeout(() => {
-      createBooking()
-    }, 500)
+    createBookingAfterLogin(buildCreateBookingPayload())
   }
 
   // Fetch loyalty when on step 4 and authenticated (for "use points" option)
@@ -379,97 +390,12 @@ export default function BookPage() {
       .catch(() => setLoyaltyData(null))
   }, [step, isAuthenticated, selectedPackages, selectedProducts, packages, products, duration, numShoeRentals, numLanes, numBowlers, pricingSettings])
 
-  const createBooking = async () => {
-    if (!selectedDate || !selectedTime) {
-      setError('Please select a date and time')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: selectedDate,
-          startTime: selectedTime,
-          duration,
-          numLanes,
-          lane: numLanes === 1 ? lane : undefined,
-          numBowlers,
-          shoeSizes: shoeSizeValues,
-          packageIds: selectedPackages,
-          productItems: Object.entries(selectedProducts)
-            .filter(([, q]) => q > 0)
-            .map(([productId, quantity]) => ({ productId, quantity })),
-          termsAccepted: true,
-          ...(loyaltyPointsToRedeem > 0 ? { loyaltyPointsToRedeem } : {}),
-          ...(giftCardCode.trim() && giftCardAmountToApply > 0
-            ? { giftCardCode: giftCardCode.trim(), giftCardAmountToApply }
-            : {}),
-          ...(appliedPromoCode ? { discountCode: appliedPromoCode } : {}),
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create booking')
-      }
-
-      const bookingId = result.booking.id
-
-      if (result.requiresPayment === false) {
-        router.push(`/book/confirmation?bookingId=${bookingId}`)
-        return
-      }
-
-      const paymentRes = await fetch(`/api/bookings/${bookingId}/create-payment-intent`, {
-        method: 'POST',
-      })
-      const paymentData = await paymentRes.json()
-
-      if (paymentRes.status === 503 || !paymentData.clientSecret) {
-        router.push(`/book/confirmation?bookingId=${bookingId}`)
-        return
-      }
-
-      setCreatedBookingId(bookingId)
-      setPaymentClientSecret(paymentData.clientSecret)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handlePaymentSuccess = async (paymentIntentId: string) => {
-    if (!createdBookingId) return
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/bookings/${createdBookingId}/confirm-payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntentId }),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to confirm payment')
-      }
-      router.push(`/book/confirmation?bookingId=${createdBookingId}`)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+    await confirmPayment(paymentIntentId)
   }
 
   const handlePaymentCancel = () => {
-    setPaymentClientSecret(null)
-    setCreatedBookingId(null)
+    resetPaymentState()
   }
 
   const handleSubmit = async () => {
@@ -477,7 +403,7 @@ export default function BookPage() {
       setCheckoutMode(null)
       return
     }
-    await createBooking()
+    await runCreateBooking()
   }
 
   const stepLabels = ['Date & Time', 'Packages & Extras', 'Booking Details', 'Review & Payment']
@@ -548,7 +474,7 @@ export default function BookPage() {
 
         {/* Step 1: Date and time only (Figma: Reserve Your Lane – select date and time) */}
         {step === 1 && (
-          <div className="step-content-enter flex flex-col gap-8">
+          <BookingStepLayout>
             {step1ValidationAttempted && (!selectedDate || !selectedTime) && (
               <div
                 className="rounded-xl border px-4 py-3 text-sm"
@@ -565,7 +491,7 @@ export default function BookPage() {
               onTimeSelect={handleTimeSelect}
               minLanes={1}
             />
-            <div className="flex justify-end">
+            <BookingStepActions align="end" className="border-0 pt-0 mt-0">
               <Button
                 onClick={() => {
                   if (!selectedDate || !selectedTime) {
@@ -594,16 +520,16 @@ export default function BookPage() {
               >
                 Continue to details
               </Button>
-            </div>
-          </div>
+            </BookingStepActions>
+          </BookingStepLayout>
         )}
 
         {/* Step 3: Booking Details — Figma 114-935 bowler info */}
         {step === 3 && (
-          <div className="step-content-enter space-y-6">
+          <BookingStepLayout>
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_384px] gap-6 xl:gap-8 items-start">
               {/* Left: Bowler form card — Who's bowling? / Shoe sizes; dropdown matches Select/step-one pill style */}
-              <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-[0px_1px_2px_0px_rgba(0,0,0,0.06),0px_1px_3px_0px_rgba(0,0,0,0.1)] p-4 sm:p-6 lg:p-[25px]">
+              <BookingStepSection className="p-4 sm:p-6 lg:p-[25px]">
                 <h2 className="text-[20px] leading-[1.5] font-bold text-[#0F172A] mb-1">Who&apos;s bowling?</h2>
                 <p className="text-base font-normal text-[#0F172A] text-[#64748B] mb-6">Shoe sizes</p>
 
@@ -662,7 +588,7 @@ export default function BookPage() {
                   <Plus className="h-4 w-4" />
                   Add bowler
                 </button>
-              </div>
+              </BookingStepSection>
 
               {/* Right: Booking summary — step 3; column stretches on lg so sticky follows scroll */}
               <div className="lg:self-stretch">
@@ -685,29 +611,29 @@ export default function BookPage() {
             </div>
 
             {/* CTAs below the card/summary — same pattern as step 1 (Figma) */}
-            <div className="mt-6 border-t-2 border-[#CAD8EC] pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
-              <Button variant="secondary" onClick={() => setStep(2)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
+            <BookingStepActions>
+              <Button variant="secondary" onClick={() => setStep(2)} className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
                 Back
               </Button>
               <Button
                 onClick={() => setStep(4)}
                 disabled={!isBowlerInfoComplete}
-                className={`${STEP_NAV_BUTTON} w-full sm:w-auto disabled:!bg-[#E2E8F0] disabled:!text-[#94A3B8]`}
+                className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto disabled:!bg-[#E2E8F0] disabled:!text-[#94A3B8]`}
               >
                 Continue to review
               </Button>
-            </div>
+            </BookingStepActions>
             {!isBowlerInfoComplete && (
               <p className="text-sm text-[#64748B] -mt-2">
                 Choose a shoe size or &quot;Bring my own shoes&quot; for each bowler to continue.
               </p>
             )}
-          </div>
+          </BookingStepLayout>
         )}
 
         {/* Step 2: Packages - Figma step2.0-desktop-package-selection */}
         {step === 2 && (
-          <div className="step-content-enter space-y-6">
+          <BookingStepLayout>
             {/* Mobile: shared BookingSummary (collapsible) */}
             <BookingSummary
               selectedDate={selectedDate}
@@ -794,36 +720,26 @@ export default function BookPage() {
             </div>
 
             {/* Navigation */}
-            <div className="mt-6 border-t-2 border-[#CAD8EC] pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
-              <Button variant="secondary" onClick={() => setStep(1)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
+            <BookingStepActions>
+              <Button variant="secondary" onClick={() => setStep(1)} className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}>
                 Back
               </Button>
-              <Button onClick={() => setStep(3)} className={`${STEP_NAV_BUTTON} w-full sm:w-auto`}>Continue to bowler details</Button>
-            </div>
-          </div>
+              <Button onClick={() => setStep(3)} className={`${BOOKING_STEP_NAV_BUTTON_CLASS} w-full sm:w-auto`}>Continue to bowler details</Button>
+            </BookingStepActions>
+          </BookingStepLayout>
         )}
 
         {/* Step 4: Review & Payment — Figma 117-1339: two-column layout, Review / Create Account / Payment cards */}
         {step === 4 && (() => {
-          const step4TimeLabel = selectedTime
-            ? (() => {
-                const [h, m] = selectedTime.split(':').map(Number)
-                const period = h >= 12 ? 'PM' : 'AM'
-                const hour = h % 12 || 12
-                return m === 0 ? `${hour}:00 ${period}` : `${hour}:${m.toString().padStart(2, '0')} ${period}`
-              })()
-            : '—'
-          const step4DateLabel = selectedDate ? format(new Date(selectedDate), 'MMM d') : '—'
-          const hours = duration / 60
           const accountTab = checkoutMode ?? 'signup'
 
           return (
-          <div className="step-content-enter space-y-6">
+          <BookingStepLayout>
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_384px] gap-6 xl:gap-8 items-start">
               {/* Left column: Create Your Account + Payment Method (no Review your booking card) */}
               <div className="space-y-6">
                 {/* Card 1: Create Your Account — Sign Up / Login / Guest tabs */}
-                <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-[0px_1px_2px_0px_rgba(0,0,0,0.06),0px_1px_3px_0px_rgba(0,0,0,0.1)] p-6">
+                <BookingStepSection className="p-6">
                   <h3 className="text-[20px] font-semibold text-[#0F172A] mb-2">Create Your Account</h3>
                   <p className="text-sm text-[#64748B] mb-4">Save your booking details and get exclusive member benefits</p>
                   <div className="flex gap-2 mb-4">
@@ -862,10 +778,10 @@ export default function BookPage() {
                       isLoading={loading}
                     />
                   )}
-                </div>
+                </BookingStepSection>
 
                 {/* Card 2: Payment Method */}
-                <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-[0px_1px_2px_0px_rgba(0,0,0,0.06),0px_1px_3px_0px_rgba(0,0,0,0.1)] p-6">
+                <BookingStepSection className="p-6">
                   <h3 className="text-[20px] font-semibold text-[#0F172A] mb-4">Payment Method</h3>
                   {paymentClientSecret && createdBookingId ? (
                     <StripePaymentForm
@@ -897,7 +813,7 @@ export default function BookPage() {
                       <p className="text-xs text-[#94A3B8]">We accept: VISA, MASTERCARD, AMEX</p>
                     </>
                   )}
-                </div>
+                </BookingStepSection>
 
             {/* Promo / corporate code */}
             <div className="p-4 rounded-xl bg-indigo-50/80 border border-indigo-100">
@@ -1132,7 +1048,7 @@ export default function BookPage() {
             </div>
 
             {/* Footer CTAs — outside cards (Figma 117-1339). No Back when guest is selected. */}
-            <div className="mt-6 border-t-2 border-[#CAD8EC] pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+            <BookingStepActions>
               {isAuthenticated === false && checkoutMode === 'guest' ? (
                 <span aria-hidden />
               ) : (
@@ -1146,14 +1062,14 @@ export default function BookPage() {
                       setCheckoutMode(null)
                     }
                   }}
-                  className={`${STEP_NAV_BUTTON} !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}
+                  className={`${BOOKING_STEP_NAV_BUTTON_CLASS} !bg-white !text-[#6366F1] !border !border-[#6366F1]/30 hover:!bg-[#F8FAFF]`}
                 >
                   Back
                 </Button>
               )}
               <div className="flex flex-wrap items-center gap-2 justify-end">
                 {!paymentClientSecret && isAuthenticated === false && checkoutMode !== null && (
-                  <Button variant="secondary" onClick={() => setCheckoutMode(null)} className={STEP_NAV_BUTTON}>
+                  <Button variant="secondary" onClick={() => setCheckoutMode(null)} className={BOOKING_STEP_NAV_BUTTON_CLASS}>
                     Back to options
                   </Button>
                 )}
@@ -1177,15 +1093,15 @@ export default function BookPage() {
                       onClick={handleSubmit}
                       isLoading={loading}
                       disabled={!canSubmitBooking}
-                      className={STEP_NAV_BUTTON}
+                      className={BOOKING_STEP_NAV_BUTTON_CLASS}
                     >
                       Complete Booking
                     </Button>
                   </>
                 )}
               </div>
-            </div>
-          </div>
+            </BookingStepActions>
+          </BookingStepLayout>
           ); })()}
       </div>
 

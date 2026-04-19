@@ -2,19 +2,12 @@
 
 import type { KeyboardEvent } from 'react'
 import { Users, Clock, Plus, Check } from 'lucide-react'
-
-export interface PackageSelectionCardPackage {
-  id: string
-  name: string
-  description: string | null
-  price: number
-  imageUrl?: string | null
-  durationMinutes?: number | null
-  baseGuestCount?: number | null
-}
+import { Card, CardContent } from '@/components/shadcn/ui/card'
+import { cn } from '@/lib/utils'
+import type { BookingPackageCardItem } from '@/lib/booking/types'
 
 type Props = {
-  pkg: PackageSelectionCardPackage
+  pkg: BookingPackageCardItem
   isSelected: boolean
   onToggleAdd: () => void
   /** Opens the package detail panel (card body / image click). */
@@ -44,7 +37,7 @@ export default function PackageSelectionCard({ pkg, isSelected, onToggleAdd, onO
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/5">
+    <Card className="h-full overflow-hidden rounded-2xl border-slate-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/5">
       <div
         role="button"
         tabIndex={0}
@@ -64,7 +57,7 @@ export default function PackageSelectionCard({ pkg, isSelected, onToggleAdd, onO
           )}
         </div>
 
-        <div className="flex flex-1 flex-col gap-2 px-4 pb-3 pt-3">
+        <CardContent className="flex flex-1 flex-col gap-2 px-4 pb-3 pt-3">
           {showMetaRow ? (
             <div className="flex flex-wrap items-center gap-1.5 text-[12px] uppercase leading-4 text-slate-900/70">
               {hasServes ? (
@@ -92,7 +85,7 @@ export default function PackageSelectionCard({ pkg, isSelected, onToggleAdd, onO
           <p className="bg-gradient-to-r from-[#6366f1] to-[#3b82f6] bg-clip-text text-xl font-semibold leading-tight tracking-tight text-transparent sm:text-2xl">
             ${price.toFixed(2)}
           </p>
-        </div>
+        </CardContent>
       </div>
 
       <div className="px-4 pb-4">
@@ -102,11 +95,12 @@ export default function PackageSelectionCard({ pkg, isSelected, onToggleAdd, onO
             e.stopPropagation()
             onToggleAdd()
           }}
-          className={`flex h-9 w-full items-center justify-center gap-1 rounded-full border-[1.5px] px-4 text-sm font-semibold transition-colors ${
+          className={cn(
+            'flex h-9 w-full items-center justify-center gap-1 rounded-full border-[1.5px] px-4 text-sm font-semibold transition-colors',
             isSelected
               ? 'border-transparent bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-sm'
               : 'border-indigo-500 bg-white text-indigo-600 hover:bg-indigo-50/80'
-          }`}
+          )}
         >
           {isSelected ? (
             <>
@@ -121,6 +115,6 @@ export default function PackageSelectionCard({ pkg, isSelected, onToggleAdd, onO
           )}
         </button>
       </div>
-    </div>
+    </Card>
   )
 }

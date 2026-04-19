@@ -1,8 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Plus, Minus } from 'lucide-react'
+import { Plus, Minus } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/shadcn/ui/sheet'
+import { ManagementSection } from '@/components/shared/management/ManagementPanel'
+import { ManagementPanelBody } from '@/components/shared/management/ManagementPanel'
 
 interface Package {
   id: string
@@ -49,170 +58,126 @@ export default function PackageDetailPanel({
   }
 
   return (
-    <>
-      {/* Backdrop — fades in with panel open */}
-      <div
-        className="modal-backdrop package-detail-backdrop-enter fixed inset-0 bg-black/40 sm:bg-black/50 z-40"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      {/* sm+: right sheet slides in from the right; mobile: full-screen with subtle fade-up */}
-      <div
-        className="package-detail-panel-enter fixed inset-0 sm:inset-y-0 sm:right-0 sm:left-auto w-full sm:max-w-[600px] bg-white z-50 shadow-2xl flex flex-col will-change-transform"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="package-detail-title"
+    <Sheet open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
+      <SheetContent
+        side="right"
+        className="w-full max-w-full overflow-y-auto border-l-0 p-0 sm:max-w-[600px] sm:border-l"
       >
-        {/* Close button */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 p-2 rounded-full bg-white/90 hover:bg-white transition-colors"
-          aria-label="Close"
-        >
-          <X className="w-5 h-5 text-gray-700" />
-        </button>
-
-        {/* Image section */}
-        <div className="relative h-52 sm:h-64 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center overflow-hidden">
+        <div className="relative h-52 overflow-hidden bg-gradient-to-br from-blue-100 to-purple-100 sm:h-64">
           {pkg.imageUrl ? (
-            <img
-              src={pkg.imageUrl}
-              alt={pkg.name}
-              className="w-full h-full object-cover"
-            />
+            <img src={pkg.imageUrl} alt={pkg.name} className="h-full w-full object-cover" />
           ) : (
-            <div className="text-gray-400 text-sm">No image</div>
+            <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">No image</div>
           )}
-          {/* Package name overlay */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 sm:p-6">
-            <h2 id="package-detail-title" className="text-xl sm:text-2xl font-bold text-white">
-              {pkg.name}
-            </h2>
+            <SheetHeader>
+              <SheetTitle className="text-left text-xl font-bold text-white sm:text-2xl">{pkg.name}</SheetTitle>
+              <SheetDescription className="sr-only">Package details and customization options</SheetDescription>
+            </SheetHeader>
           </div>
         </div>
 
-        {/* Content: scrollable */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
-          {/* What's included */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">What&apos;s included</h3>
-            <p className="text-gray-600 leading-relaxed">
-              {pkg.description || 'No description available.'}
-            </p>
-          </div>
+        <ManagementPanelBody className="space-y-6 px-4 py-4 sm:px-6 sm:py-6">
+          <ManagementSection title="What's included">
+            <p className="leading-relaxed text-gray-600">{pkg.description || 'No description available.'}</p>
+          </ManagementSection>
 
-          {/* Base package info */}
-          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-2xl">
-            <div className="flex justify-between items-center mb-3">
-              <span className="font-semibold text-gray-900">Base package</span>
-              <span className="text-lg sm:text-xl font-bold text-blue-600">${basePrice.toFixed(2)}</span>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="font-semibold text-gray-900">Base package</p>
+              <p className="text-lg font-bold text-blue-600 sm:text-xl">${basePrice.toFixed(2)}</p>
             </div>
             <div className="flex gap-4 text-sm text-gray-600">
-              {pkg.baseGuestCount && (
-                <span>Serves {pkg.baseGuestCount}</span>
-              )}
-              {pkg.durationMinutes && (
-                <span>{pkg.durationMinutes / 60} hrs</span>
-              )}
+              {pkg.baseGuestCount ? <span>Serves {pkg.baseGuestCount}</span> : null}
+              {pkg.durationMinutes ? <span>{pkg.durationMinutes / 60} hrs</span> : null}
             </div>
           </div>
 
-          {/* Customize section */}
           {(pkg.pricePerExtraGuest || pkg.pricePerExtraLane) && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Customize your package</h3>
-              
-              {/* Additional guests */}
+            <ManagementSection title="Customize your package" className="space-y-4">
               {pkg.pricePerExtraGuest && (
-                <div className="mb-4 p-4 border border-gray-200 rounded-2xl">
-                  <div className="flex items-center justify-between mb-3">
+                <div className="rounded-2xl border border-gray-200 p-4">
+                  <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                        <span className="text-blue-600 text-lg">👥</span>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
+                        <span aria-hidden className="text-lg text-blue-600">👥</span>
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">Additional guests</p>
                         <p className="text-sm text-gray-600">${extraGuestPrice.toFixed(2)} per guest</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1">
+                    <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1">
                       <button
                         type="button"
                         onClick={() => setExtraGuests(Math.max(0, extraGuests - 1))}
                         disabled={extraGuests === 0}
-                        className="p-1 rounded-full hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="rounded-full p-1 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-30"
                         aria-label="Decrease guests"
                       >
-                        <Minus className="w-4 h-4 text-gray-700" />
+                        <Minus className="h-4 w-4 text-gray-700" />
                       </button>
-                      <span className="min-w-[2rem] text-center font-semibold text-gray-900">
-                        {extraGuests}
-                      </span>
+                      <span className="min-w-[2rem] text-center font-semibold text-gray-900">{extraGuests}</span>
                       <button
                         type="button"
                         onClick={() => setExtraGuests(extraGuests + 1)}
-                        className="p-1 rounded-full hover:bg-gray-200"
+                        className="rounded-full p-1 hover:bg-gray-200"
                         aria-label="Increase guests"
                       >
-                        <Plus className="w-4 h-4 text-gray-700" />
+                        <Plus className="h-4 w-4 text-gray-700" />
                       </button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Additional lanes */}
               {pkg.pricePerExtraLane && (
-                <div className="mb-4 p-4 border border-gray-200 rounded-2xl">
-                  <div className="flex items-center justify-between mb-3">
+                <div className="rounded-2xl border border-gray-200 p-4">
+                  <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                        <span className="text-blue-600 text-lg">🎳</span>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
+                        <span aria-hidden className="text-lg text-blue-600">🎳</span>
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">Additional lanes</p>
                         <p className="text-sm text-gray-600">${extraLanePrice.toFixed(2)} per lane</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1">
+                    <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1">
                       <button
                         type="button"
                         onClick={() => setExtraLanes(Math.max(0, extraLanes - 1))}
                         disabled={extraLanes === 0}
-                        className="p-1 rounded-full hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="rounded-full p-1 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-30"
                         aria-label="Decrease lanes"
                       >
-                        <Minus className="w-4 h-4 text-gray-700" />
+                        <Minus className="h-4 w-4 text-gray-700" />
                       </button>
-                      <span className="min-w-[2rem] text-center font-semibold text-gray-900">
-                        {extraLanes}
-                      </span>
+                      <span className="min-w-[2rem] text-center font-semibold text-gray-900">{extraLanes}</span>
                       <button
                         type="button"
                         onClick={() => setExtraLanes(extraLanes + 1)}
-                        className="p-1 rounded-full hover:bg-gray-200"
+                        className="rounded-full p-1 hover:bg-gray-200"
                         aria-label="Increase lanes"
                       >
-                        <Plus className="w-4 h-4 text-gray-700" />
+                        <Plus className="h-4 w-4 text-gray-700" />
                       </button>
                     </div>
                   </div>
                 </div>
               )}
-            </div>
+            </ManagementSection>
           )}
-        </div>
+        </ManagementPanelBody>
 
-        {/* Footer: Total + Add to cart */}
         <div className="border-t border-gray-200 bg-gray-50 p-4 sm:p-6">
-          <div className="flex justify-between items-center mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <span className="text-lg font-semibold text-gray-900">Total</span>
-            <span className="text-xl sm:text-2xl font-bold text-blue-600">${total.toFixed(2)}</span>
+            <span className="text-xl font-bold text-blue-600 sm:text-2xl">${total.toFixed(2)}</span>
           </div>
           <Button
             onClick={handleAddToCart}
-            className="w-full rounded-full min-h-[48px] px-6"
+            className="min-h-[48px] w-full rounded-full px-6"
             style={{
               background: 'linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(59, 130, 246, 1) 100%)',
               boxShadow: '0px 0px 20px 0px rgba(99, 102, 241, 0.3)',
@@ -221,7 +186,7 @@ export default function PackageDetailPanel({
             Add to cart
           </Button>
         </div>
-      </div>
-    </>
+      </SheetContent>
+    </Sheet>
   )
 }

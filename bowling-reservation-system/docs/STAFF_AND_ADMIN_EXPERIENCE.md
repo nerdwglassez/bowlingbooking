@@ -24,32 +24,34 @@ Document the internal employee experience surfaces and contracts across staff, m
 
 ### Staff app (`/staff`)
 
-| Area | Route(s) | Notes |
-|------|-----------|--------|
-| Dashboard | `/staff` | Today’s work, shortcuts ([`app/staff/page.tsx`](../app/staff/page.tsx)) |
-| Bookings | `/staff/bookings` -> redirects to calendar; `/staff/bookings/create`; `/staff/bookings/[id]`; `/staff/bookings/[id]/edit` | Canonical full-page detail/edit URLs; legacy `?open=` links redirect |
-| Check-in | `/staff/check-in` | Full-page check-in, supports `?bookingId=` |
-| Calendar | `/staff/calendar` | Schedule and dispatch view |
-| Customers | `/staff/customers`, `/staff/customers/[id]` | Search and customer profile |
-| Reports | `/staff/reports` | Export-focused operational reporting |
-| Analytics | `/staff/analytics` | Metrics and generated insights (rendered by reports page component) |
-| Audit log | `/staff/audit-log` | Visibility into tracked internal actions |
-| Pending overrides | `/staff/pending-overrides` | Manager approval queue |
-| Settings | `/staff/settings/*` | Lanes, hours, blackout dates, packages, discount codes, pricing, integrations, user/account info |
+| Area              | Route(s)                                                                                                                                  | Notes                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard         | `/staff`                                                                                                                                  | Today’s work, shortcuts, status filter (Upcoming = `PENDING`/`CONFIRMED`, Checked in = `CHECKED_IN`, Completed = `PAID`/`COMPLETED`) ([`app/staff/page.tsx`](../app/staff/page.tsx)) |
+| Bookings          | `/staff/bookings` → redirects to calendar; `/staff/bookings/create`; **`/staff/bookings/[id]`** (detail); **`/staff/bookings/[id]/edit`** | Canonical detail/edit URLs ([`docs/FULL_PAGE_AND_MODAL_FLOWS.md`](FULL_PAGE_AND_MODAL_FLOWS.md)); legacy `?open=` on calendar redirects to detail |
+| Check-in          | `/staff/check-in`                                                                                                                         | Full-page check-in (`?bookingId=` supported)                                                                                                      |
+| Calendar          | `/staff/calendar`                                                                                                                         | Month schedule view; optional timeline view via `?view=timeline`                                                                                  |
+| Customers         | `/staff/customers`, `/staff/customers/[id]`                                                                                               | Search and profile                                                                                                                                |
+| Reports           | `/staff/reports`                                                                                                                          | Exports                                                                                                                                           |
+| Analytics         | `/staff/analytics`                                                                                                                        | Metrics and insights                                                                                                                              |
+| Audit log         | `/staff/audit-log`                                                                                                                        | Activity                                                                                                                                          |
+| Pending overrides | `/staff/pending-overrides`                                                                                                                | Manager approval queue                                                                                                                            |
+| Settings          | `/staff/settings/*`                                                                                                                       | Lanes, operating hours, blackout dates, packages, discount codes, pricing, integrations, user management, account                                 |
+
+Staff UI building blocks live under **`components/staff/`** (e.g. `BookingDetailsView`, `EditReservationModal`, `CreateBookingModal`, `CheckInModal` patterns in full-page wrappers).
 
 ### Admin app (`/admin`)
 
-| Area | Route(s) |
-|------|-----------|
-| Home | `/admin` |
-| Operating and special hours | `/admin/operating-hours`, `/admin/special-hours` |
-| Lane blocks | `/admin/lane-blocks` |
-| Packages | `/admin/packages`, `/admin/packages/create`, `/admin/packages/[id]` |
-| Products | `/admin/products` and create/edit variants |
-| Marketing | `/admin/marketing` |
-| Discount codes | `/admin/discount-codes` |
-| Settings | `/admin/settings` |
-| API keys (partner API) | `/admin/api-keys` |
+| Area                      | Route(s)                                                            |
+| ------------------------- | ------------------------------------------------------------------- |
+| Home                      | `/admin`                                                            |
+| Operating & special hours | `/admin/operating-hours`, `/admin/special-hours`                    |
+| Lane blocks               | `/admin/lane-blocks`                                                |
+| Packages                  | `/admin/packages`, `/admin/packages/create`, `/admin/packages/[id]` |
+| Products                  | `/admin/products`, create/edit variants                             |
+| Marketing                 | `/admin/marketing`                                                  |
+| Discount codes            | `/admin/discount-codes`                                             |
+| Settings                  | `/admin/settings`                                                   |
+| API keys (partner API)    | `/admin/api-keys`                                                   |
 
 ## Behavioral contract
 
@@ -63,40 +65,13 @@ Document the internal employee experience surfaces and contracts across staff, m
 
 ## APIs most relevant to staff/admin
 
-| Area | Routes (under `app/api/`) |
-|------|---------------------------|
-| Staff bookings | `staff/bookings/*` (CRUD, today, check-in, override price, approve/reject override) |
-| Staff customers | `staff/customers`, `staff/customers/[id]` |
-| Staff settings and ops | `staff/settings/*`, `staff/discount-codes`, `staff/pending-overrides`, `staff/reports`, `staff/analytics`, `staff/audit-log` |
-| Admin configuration | `admin/operating-hours`, `admin/special-hours`, `admin/lane-blocks`, `admin/recurring-lane-blocks`, `admin/packages`, `admin/products`, `admin/discount-codes`, `admin/settings`, `admin/integrations`, `admin/marketing/*`, `admin/api-keys`, `admin/pos-export` |
-| Cron operations | `cron/send-reminders`, `cron/marketing-automation` |
-| Partner API (v1) | `v1/openapi`, `v1/bookings` (keys managed under `admin/api-keys`) |
-
-## Edge cases and failure modes
-
-- Unauthorized role access:
-  - Trigger: non-employee user hits `/staff/*` or non-admin user hits `/admin/*`.
-  - Behavior: server-side auth gate blocks access.
-  - Outcome: user is redirected or receives unauthorized API response.
-- Legacy modal deep links:
-  - Trigger: old `?open=`/intercept entry used.
-  - Behavior: request resolves to canonical full-page route where applicable.
-  - Outcome: consistent detail/edit/check-in UX.
-- Discount code privilege boundaries:
-  - Trigger: non-admin attempts create/update.
-  - Behavior: API authorization rejects mutation.
-  - Outcome: data integrity maintained; read access still available for internal users.
-
-## Security and privacy notes
-
-- Enforce server-side authorization in layouts and APIs (`requireAuth('STAFF')` / `requireAuth('ADMIN')`).
-- Internal APIs that mutate booking, pricing, and customer data should remain role-gated and audited.
-- Do not place integration secrets or raw keys in UI docs or examples; use placeholder values only.
-
-## Observability and operations
-
-- Track internal operational events through audit log surfaces (`/staff/audit-log`) and related APIs.
-- For broader hardening and release checks, see [SECURITY.md](SECURITY.md) and [PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md](PERFORMANCE_AND_SECURITY_REVIEW_PLAN.md).
+| Area            | Routes (under `app/api/`)                                                                                                                                                                                                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Staff bookings  | `staff/bookings/*` (CRUD, today, check-in, override price, approve/reject override)                                                                                                                                                                                                               |
+| Staff customers | `staff/customers`, `staff/customers/[id]`                                                                                                                                                                                                                                                         |
+| Staff settings  | `staff/settings/*` (includes discount codes UI under `staff/settings/discount-codes`), `staff/discount-codes` (REST: list all staff; POST/PATCH admin-only), `staff/pending-overrides`, `staff/reports`, `staff/analytics`, `staff/audit-log`, `staff/schedule` (timeline-ready schedule payload) |
+| Admin config    | `admin/operating-hours`, `admin/special-hours`, `admin/lane-blocks`, `admin/recurring-lane-blocks`, `admin/packages`, `admin/products`, `admin/discount-codes`, `admin/settings`, `admin/integrations`, `admin/marketing/*`, `admin/api-keys`, `admin/pos-export`                                 |
+| Crons           | `cron/send-reminders`, `cron/marketing-automation`                                                                                                                                                                                                                                                |
 
 ## Testing and validation
 

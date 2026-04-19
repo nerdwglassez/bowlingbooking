@@ -1,20 +1,30 @@
 'use client'
 
-import { useState, useEffect, useRef, type CSSProperties } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
   addMonths,
+  format,
+  endOfMonth,
+  startOfMonth,
   subMonths,
   eachDayOfInterval,
   parse,
   isBefore,
   isAfter,
-  startOfDay,
 } from 'date-fns'
 import { Calendar, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { COLORS } from '@/lib/design-tokens'
+import {
+  getSlotAvailabilityLabel,
+  getSlotAvailabilityTextColor,
+  isSlotAvailableForLanes,
+} from '@/lib/booking/availability'
+import {
+  getBookingWindow,
+  isDateWithinBookingWindow,
+  clampDateToViewWindow,
+} from '@/lib/booking/date-time'
+import { useAvailabilityForDate } from '@/hooks/useAvailabilityForDate'
 
 /** Spec: 3 skeleton rectangles, pulse 0.5→1→0.5, 1.5s loop. Figma 19-1058: time list height 480px. */
 function TimeSlotsSkeleton() {
@@ -33,12 +43,6 @@ function TimeSlotsSkeleton() {
       ))}
     </div>
   )
-}
-
-interface TimeSlot {
-  time: string
-  available: boolean
-  availableLanes: number
 }
 
 interface DateAndTimeStepOneProps {
@@ -71,58 +75,27 @@ export default function DateAndTimeStepOne({
   onTimeSelect,
   minLanes = 1,
 }: DateAndTimeStepOneProps) {
-  const today = startOfDay(new Date())
-  // Booking window: can only schedule up to 2 months in advance; can view 3 months ahead (current + 2 more)
-  const maxBookableDate = endOfMonth(addMonths(today, 2))
-  const maxViewMonth = startOfMonth(addMonths(today, 2))
-  const minViewMonth = startOfMonth(today)
+  const bookingWindow = getBookingWindow()
+  const { today, maxBookableDate, maxViewMonth, minViewMonth } = bookingWindow
 
   const [viewMonth, setViewMonth] = useState(() => {
     if (selectedDate) {
       const d = parse(selectedDate, 'yyyy-MM-dd', new Date())
-      const month = startOfMonth(d)
-      // Clamp to viewable range
-      if (isBefore(month, minViewMonth)) return minViewMonth
-      if (isAfter(month, maxViewMonth)) return maxViewMonth
-      return month
+      return clampDateToViewWindow(startOfMonth(d), bookingWindow)
     }
     return minViewMonth
   })
-  const [slots, setSlots] = useState<TimeSlot[]>([])
-  const [loadingSlots, setLoadingSlots] = useState(false)
-  const [slotsError, setSlotsError] = useState<string | null>(null)
   const timeSlotsSectionRef = useRef<HTMLDivElement>(null)
   // Figma 136-6895: mobile step 1 – date collapsed, time expanded on load
   const [mobileDateExpanded, setMobileDateExpanded] = useState(false)
   const [mobileTimeExpanded, setMobileTimeExpanded] = useState(true)
 
-  useEffect(() => {
-    if (!selectedDate) {
-      const clearId = setTimeout(() => {
-        setSlots([])
-        setSlotsError(null)
-        setLoadingSlots(false)
-      }, 0)
-      return () => clearTimeout(clearId)
-    }
-    const loadId = setTimeout(() => {
-      setSlots([])
-      setLoadingSlots(true)
-      setSlotsError(null)
-      fetch(`/api/availability?date=${encodeURIComponent(selectedDate)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (!data.slots) throw new Error(data.error || 'Failed to load')
-          setSlots(data.slots || [])
-        })
-        .catch((err) => {
-          setSlotsError(err instanceof Error ? err.message : 'Failed to load times')
-          setSlots([])
-        })
-        .finally(() => setLoadingSlots(false))
-    }, 0)
-    return () => clearTimeout(loadId)
-  }, [selectedDate])
+  const {
+    slots,
+    loading: loadingSlots,
+    error: slotsError,
+    refetch: refetchAvailability,
+  } = useAvailabilityForDate(selectedDate)
 
   // Keep viewMonth within the 3-month view window (e.g. after midnight or long-lived session)
   useEffect(() => {
@@ -164,27 +137,11 @@ export default function DateAndTimeStepOne({
 
   const cells1 = buildCalendarCells(month1)
 
-  const isDateSelectable = (d: Date) =>
-    !isBefore(d, today) && !isAfter(d, maxBookableDate)
+  const isDateSelectable = (d: Date) => isDateWithinBookingWindow(d, bookingWindow)
 
   const handleDayClick = (d: Date) => {
     if (!isDateSelectable(d)) return
     onDateSelect(format(d, 'yyyy-MM-dd'))
-  }
-
-  const slotAvailableForLanes = (slot: TimeSlot) =>
-    slot.available && slot.availableLanes >= minLanes
-
-  const getLanesLabel = (slot: TimeSlot) => {
-    if (!slotAvailableForLanes(slot)) return 'Full'
-    return `${slot.availableLanes} lanes left`
-  }
-
-  const getLanesLabelStyle = (slot: TimeSlot): CSSProperties => {
-    if (!slotAvailableForLanes(slot)) return {} // Full: slot uses fill_L5Y3OA #F8FAFC
-    if (slot.availableLanes >= 8) return { color: '#10B981' } // fill_W8XKVU available
-    if (slot.availableLanes >= 3) return { color: '#F59E0B' } // fill_BQYLSB limited
-    return { color: '#0F172A' }
   }
 
   return (
@@ -390,20 +347,7 @@ export default function DateAndTimeStepOne({
             <button
               type="button"
               onClick={() => {
-                setSlotsError(null)
-                setSlots([])
-                setLoadingSlots(true)
-                fetch(`/api/availability?date=${encodeURIComponent(selectedDate)}`)
-                  .then((res) => res.json())
-                  .then((data) => {
-                    if (!data.slots) throw new Error(data.error || 'Failed to load')
-                    setSlots(data.slots || [])
-                  })
-                  .catch((err) => {
-                    setSlotsError(err instanceof Error ? err.message : 'Failed to load times')
-                    setSlots([])
-                  })
-                  .finally(() => setLoadingSlots(false))
+                refetchAvailability()
               }}
               className="text-sm font-medium hover:underline"
               style={{ color: '#6366F1' }}
@@ -441,8 +385,8 @@ export default function DateAndTimeStepOne({
           >
             {slots.map((slot, index) => {
               const isSelected = selectedTime === slot.time
-              const canSelect = slotAvailableForLanes(slot)
-              const isFull = !slotAvailableForLanes(slot)
+              const canSelect = isSlotAvailableForLanes(slot, minLanes)
+              const isFull = !isSlotAvailableForLanes(slot, minLanes)
               return (
                 <button
                   key={slot.time}
@@ -476,9 +420,9 @@ export default function DateAndTimeStepOne({
                   </span>
                   <span
                     className={`text-right text-[12px] leading-[18px] whitespace-nowrap pl-3 ${isFull ? 'font-medium' : 'font-semibold'}`}
-                    style={isSelected ? { color: 'rgba(255,255,255,0.9)' } : getLanesLabelStyle(slot)}
+                    style={isSelected ? { color: 'rgba(255,255,255,0.9)' } : { color: getSlotAvailabilityTextColor(slot, minLanes) }}
                   >
-                    {getLanesLabel(slot)}
+                    {getSlotAvailabilityLabel(slot, minLanes)}
                   </span>
                 </button>
               )

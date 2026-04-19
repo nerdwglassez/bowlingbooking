@@ -12,6 +12,7 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 ## ✅ Already Aligned (Implemented)
 
 ### Landing & Booking (PRD 1.2, 1.3)
+
 - **Landing = Step 1 of booking** – `/` redirects to `/book`
 - **Sticky booking header** – `AppExperienceHeader` `variant="booking"`: venue (name + address), **Login** (opens sign-in modal) when signed out; signed-in users see name, email, initials, My Bookings or Staff/Admin, Profile, Log out
 - **Sign In modal** – Sign In / Sign Up tabs, no navigation away; first/last name, email, phone, password, agree to Terms; post-auth role routing (customer → dashboard, staff/manager/admin → staff area)
@@ -22,12 +23,14 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 - **Confirmation email** – Sent on booking/confirm-payment via Resend (PRD content: code, QR, details, cancel/reschedule links)
 
 ### Customer Dashboard & Post-Auth (PRD 1.3)
+
 - **Post-auth routing** – Customer → dashboard; no reservations → “No reservations yet” + prominent “Book a Lane” pill; staff/manager/admin → staff dashboard
 - **Dashboard** – Upcoming bookings preview, link to My Bookings, empty state with “Book a Lane”
 - **My Bookings** – Upcoming / past, View Details, Cancel (PENDING), **Modify Booking** (reschedule), **Book Again** on past bookings (pre-fills `/book`), **Print receipt** on booking detail
 - **Profile** – First name, last name, email, phone (stored on User); profile page; change password; newsletter opt-in (communication preference)
 
 ### Auth & Security
+
 - **Login, register, guest register** – Session, role-based redirect
 - **Forgot password** – Email token + `/reset-password?token=...`; token invalidated after use
 - **Sign Up** – First name, last name, phone persisted (User model)
@@ -35,12 +38,17 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 - **Two-factor authentication** – 2FA setup, verify, disable (Phase 3)
 
 ### Staff & Manager
+
 - **Staff dashboard** – Today’s bookings, create booking, check-in, customer search
+- **Staff dashboard status semantics** – “Completed” filter includes `PAID` and `COMPLETED`; status pills distinguish Paid vs Completed in dashboard context
+- **Staff calendar timeline (incremental)** – `/staff/calendar?view=timeline` renders lane/time blocks backed by `GET /api/staff/schedule`, while default month view remains unchanged when `view` is absent
+- **Staff QA scaffolding** – iPad/touch validation checklist in [`docs/IPAD_QA_CHECKLIST.md`](docs/IPAD_QA_CHECKLIST.md) and stable `data-testid` hooks on key staff surfaces
 - **Manager** – Price overrides with reason codes, edit booking, pending-approval workflow, audit log view
 - **Recurring lane blocks** – Schema + admin UI; generate occurrences
 - **Reports** – Bookings/revenue by date range; CSV export
 
 ### Admin & Config
+
 - **Operating hours** – Per day, open/close, “copy to all”, closed
 - **Special hours** – Table + admin UI for date overrides; availability uses them
 - **Lane blocks** – One-time and recurring; admin UI
@@ -50,6 +58,7 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 - **Settings** – Key/value (e.g. branding, email from)
 
 ### Other
+
 - **Wait list** – Join when full; claim link with token; notify when spot opens (email/SMS)
 - **SMS reminders** – Twilio (e.g. 24h reminder cron)
 - **Customer tier** – User.tier (e.g. REGULAR, VIP); tier discount
@@ -61,28 +70,28 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 
 ### 1. Customer Experience (Nice-to-have)
 
-| PRD Requirement | Current State | Gap |
-|-----------------|---------------|-----|
-| **View Receipt (PDF)** – Download receipt as PDF from booking history | **Done** – "Download PDF" on booking detail; GET `/api/bookings/[id]/receipt` returns PDF (jspdf). Print receipt still available. | None |
+| PRD Requirement                                                                  | Current State                                                                                                                                                                                                              | Gap  |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| **View Receipt (PDF)** – Download receipt as PDF from booking history            | **Done** – "Download PDF" on booking detail; GET `/api/bookings/[id]/receipt` returns PDF (jspdf). Print receipt still available.                                                                                          | None |
 | **Communication preferences** – Per-channel toggles (reminders, SMS, promotions) | **Done** – Profile "Communication preferences": Email promotions (newsletter), Email reminders, SMS reminders, SMS promotions. User: `emailReminders`, `smsReminders`, `smsPromotions`; PATCH `/api/auth/me` accepts them. | None |
 
 ### 2. Package Management (Admin)
 
-| PRD Requirement | Current State | Gap |
-|-----------------|---------------|-----|
+| PRD Requirement                                                                                                                   | Current State                                                                                                                                                                                                                                 | Gap  |
+| --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
 | **Package fields** – Image, duration, base guest count, max capacity, price per extra guest, extra lanes, featured, display order | **Done** – Package model: `imageUrl`, `durationMinutes`, `baseGuestCount`, `maxCapacity`, `pricePerExtraGuest`, `pricePerExtraLane`, `featured`, `displayOrder`. Admin Create/Edit package forms include all; list ordered by `displayOrder`. | None |
 
 ### 3. Phase 3 (Complete)
 
-| Item | Status |
-|------|--------|
-| Mobile app or PWA | **Done** – PWA (manifest, installable, Add to Home Screen); start URL `/book`. Native iOS/Android app is out of scope; PWA covers installable experience. |
-| Advanced marketing automation | **Done** – Post-visit (24h), lapsed-customer (30 days) campaigns; `/api/cron/marketing-automation`; admin Marketing segment counts. |
-| Loyalty program | **Done** – Points per spend, tiers (Bronze/Silver/Gold), redeem at checkout; dashboard card; Step 4 “Use points”. |
-| Gift cards | **Done** – Purchase (Stripe), validate, redeem at Step 4; `/gift-cards` purchase page. |
-| API for third-party integrations | **Done** – Partner API v1 (API key auth), availability + bookings; admin API Keys; OpenAPI spec at `/api/v1/openapi`. |
-| Lane management / POS integration | **Done** – Stub + `docs/POS_INTEGRATION.md`; `GET /api/admin/pos-export` (501 until vendor chosen). |
-| Self-service check-in kiosks | **Done** – `/kiosk/check-in` (fullscreen, QR/code); `Booking.checkInToken`; `/api/kiosk/check-in`. |
+| Item                                  | Status                                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Mobile app or PWA                     | **Done** – PWA (manifest, installable, Add to Home Screen); start URL `/book`. Native iOS/Android app is out of scope; PWA covers installable experience.                |
+| Advanced marketing automation         | **Done** – Post-visit (24h), lapsed-customer (30 days) campaigns; `/api/cron/marketing-automation`; admin Marketing segment counts.                                      |
+| Loyalty program                       | **Done** – Points per spend, tiers (Bronze/Silver/Gold), redeem at checkout; dashboard card; Step 4 “Use points”.                                                        |
+| Gift cards                            | **Done** – Purchase (Stripe), validate, redeem at Step 4; `/gift-cards` purchase page.                                                                                   |
+| API for third-party integrations      | **Done** – Partner API v1 (API key auth), availability + bookings; admin API Keys; OpenAPI spec at `/api/v1/openapi`.                                                    |
+| Lane management / POS integration     | **Done** – Stub + `docs/POS_INTEGRATION.md`; `GET /api/admin/pos-export` (501 until vendor chosen).                                                                      |
+| Self-service check-in kiosks          | **Done** – `/kiosk/check-in` (fullscreen, QR/code); `Booking.checkInToken`; `/api/kiosk/check-in`.                                                                       |
 | Advanced analytics (e.g. AI insights) | **Done** – Staff Analytics: revenue by day, bookings by hour, no-show rate, peak day, avg revenue/day; Insights card with peak hour and summary (see Staff → Analytics). |
 
 ---
@@ -106,4 +115,4 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 
 ---
 
-*Last updated to match bowling-prd.md and IMPLEMENTATION_PHASES.md. Phase 1, 2, and 3 are complete; remaining work is optional polish (e.g. View Receipt PDF, package fields).*
+_Last updated to match bowling-prd.md and IMPLEMENTATION_PHASES.md. Phase 1, 2, and 3 are complete; remaining work is optional polish (e.g. View Receipt PDF, package fields)._

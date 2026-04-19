@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
+import { LoadingBlock, EmptyCardBlock } from '@/components/shared/state/StateBlocks'
 
 interface Product {
   id: string
@@ -46,7 +47,11 @@ export default function AdminProductsPage() {
   }
 
   if (loading) {
-    return <div className="p-6">Loading...</div>
+    return (
+      <div className="p-6">
+        <LoadingBlock />
+      </div>
+    )
   }
 
   return (
@@ -63,12 +68,16 @@ export default function AdminProductsPage() {
       </p>
 
       {products.length === 0 ? (
-        <div className="bg-white p-8 rounded-lg shadow-md text-center">
-          <p className="text-gray-600 mb-4">No products yet</p>
-          <Link href="/admin/products/create">
-            <Button>Create first product</Button>
-          </Link>
-        </div>
+        <EmptyCardBlock
+          className="bg-white p-8 shadow-md"
+          title="No products yet"
+          description=""
+          action={
+            <Link href="/admin/products/create">
+              <Button>Create first product</Button>
+            </Link>
+          }
+        />
       ) : (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">

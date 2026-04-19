@@ -1,8 +1,17 @@
-import nextConfig from "eslint-config-next";
+import nextConfig from 'eslint-config-next'
 
-export default [
+const config = [
   {
-    ignores: [".next/**", "node_modules/**", "public/**", ".vscode/**", "next-env.d.ts", "generated/**"],
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      'public/**',
+      '.vscode/**',
+      'next-env.d.ts',
+      'generated/**',
+    ],
   },
   ...nextConfig,
-];
+]
+
+export default config
