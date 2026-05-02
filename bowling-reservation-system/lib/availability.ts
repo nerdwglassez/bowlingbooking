@@ -34,6 +34,24 @@ function getDefaultSlots(totalLanes: number = DEFAULT_TOTAL_LANES): TimeSlot[] {
   return slots
 }
 
+function getPersistedBookingLanes(booking: { lane: number; lanes?: string | null }): number[] {
+  if (!booking.lanes) return [booking.lane]
+
+  try {
+    const parsed = JSON.parse(booking.lanes) as unknown
+    if (Array.isArray(parsed)) {
+      const normalized = parsed
+        .map((lane) => Number(lane))
+        .filter((lane) => Number.isInteger(lane) && lane > 0)
+      if (normalized.length > 0) return normalized
+    }
+  } catch {
+    // Fall back to the primary lane when legacy or malformed lane JSON is present.
+  }
+
+  return [booking.lane]
+}
+
 /**
  * Calculate available time slots for a given date.
  * On DB errors (e.g. connection or missing tables), returns default slots so the booking UI still works.
@@ -120,17 +138,7 @@ export async function calculateAvailability(date: Date): Promise<TimeSlot[]> {
         (isBefore(currentTime, bookingEnd) || currentTime.getTime() === bookingStart.getTime()) &&
         (isAfter(slotEndTime, bookingStart) || slotEndTime.getTime() === bookingEnd.getTime())
       ) {
-        let lanesForBooking: number[]
-        if (booking.lanes) {
-          try {
-            const parsed = JSON.parse(booking.lanes) as number[] | string[]
-            lanesForBooking = Array.isArray(parsed) ? parsed.map((l) => Number(l)) : [booking.lane]
-          } catch {
-            lanesForBooking = [booking.lane]
-          }
-        } else {
-          lanesForBooking = [booking.lane]
-        }
+        const lanesForBooking = getPersistedBookingLanes(booking)
         lanesForBooking.forEach((l) => bookedLanes.add(l))
       }
     }
@@ -227,7 +235,7 @@ export async function isTimeSlotAvailable(
       (isBefore(bookingStart, bEnd) || bookingStart.getTime() === bStart.getTime()) &&
       (isAfter(bookingEnd, bStart) || bookingEnd.getTime() === bEnd.getTime())
     ) {
-      const lanesForBooking = booking.lanes ? (JSON.parse(booking.lanes) as number[]) : [booking.lane]
+      const lanesForBooking = getPersistedBookingLanes(booking)
       lanesForBooking.forEach((l) => bookedLanes.add(l))
     }
   }
