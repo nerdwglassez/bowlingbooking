@@ -38,7 +38,7 @@ export default function AdminDiscountCodesPage() {
 
   const load = async () => {
     try {
-      const res = await fetch('/api/admin/discount-codes')
+      const res = await fetch('/api/admin/discount-codes', { credentials: 'include' })
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
       setCodes(data.codes || [])
@@ -81,6 +81,7 @@ export default function AdminDiscountCodesPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        credentials: 'include',
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Create failed')
@@ -107,6 +108,7 @@ export default function AdminDiscountCodesPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !c.isActive }),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Update failed')
       await load()
@@ -133,7 +135,7 @@ export default function AdminDiscountCodesPage() {
             (amount due on invoice).
           </p>
         </div>
-        <Link href="/admin/packages" className="text-sm text-indigo-600 hover:underline">
+        <Link href="/staff/settings/packages" className="text-sm text-indigo-600 hover:underline">
           ← Packages
         </Link>
       </div>

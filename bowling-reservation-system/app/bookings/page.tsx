@@ -38,7 +38,7 @@ export default function BookingsPage() {
 
   const loadBookings = async () => {
     try {
-      const response = await fetch('/api/bookings')
+      const response = await fetch('/api/bookings', { credentials: 'include' })
       if (!response.ok) throw new Error('Failed to load bookings')
       const data = await response.json()
       setBookings(data.bookings || [])

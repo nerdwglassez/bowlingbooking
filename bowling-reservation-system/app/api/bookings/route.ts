@@ -25,6 +25,8 @@ import {
 } from '@/lib/discount-codes'
 import { parse } from 'date-fns'
 import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
+import { normalizeBookingDateField, toJsonSafe } from '@/lib/prisma-json'
+import { isNextRedirectError } from '@/lib/route-handler-errors'
 
 async function calculateBookingPrice(
   duration: number, // in minutes
@@ -91,9 +93,10 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ bookings })
-  } catch (error: any) {
-    if (error.message?.includes('redirect')) {
+    const safe = toJsonSafe(bookings).map((b) => normalizeBookingDateField(b))
+    return NextResponse.json({ bookings: safe })
+  } catch (error: unknown) {
+    if (isNextRedirectError(error)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

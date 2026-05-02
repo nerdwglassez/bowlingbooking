@@ -8,7 +8,6 @@ const ADMIN_TITLES: Record<string, string> = {
   '/admin/operating-hours': 'Operating Hours',
   '/admin/special-hours': 'Special Hours',
   '/admin/lane-blocks': 'Lane Blocks',
-  '/admin/packages': 'Packages',
   '/admin/marketing': 'Marketing',
   '/admin/api-keys': 'API Keys',
   '/admin/products': 'Products',

@@ -18,7 +18,7 @@ function isPublicRoute(pathname: string): boolean {
   return PUBLIC_PREFIX_ROUTES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value
   const { pathname } = request.nextUrl
 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { normalizeDiscountCode } from '@/lib/discount-codes'
+import { discountCodeToJson, normalizeDiscountCode } from '@/lib/discount-codes'
+import { isNextRedirectError } from '@/lib/route-handler-errors'
 import { z } from 'zod'
 
 const createSchema = z.object({
@@ -15,25 +16,16 @@ const createSchema = z.object({
   isActive: z.boolean().optional().default(true),
 })
 
-function isRedirectError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const maybeError = error as { message?: string; digest?: string }
-  return Boolean(
-    maybeError.message?.includes('redirect') ||
-      maybeError.message?.includes('NEXT_REDIRECT') ||
-      maybeError.digest?.includes('NEXT_REDIRECT')
-  )
-}
-
 export async function GET() {
   try {
     await requireAuth('STAFF')
     const codes = await prisma.discountCode.findMany({
       orderBy: { createdAt: 'desc' },
     })
-    return NextResponse.json({ codes })
+    const payload = codes.map(discountCodeToJson)
+    return NextResponse.json({ codes: payload })
   } catch (error: unknown) {
-    if (isRedirectError(error)) {
+    if (isNextRedirectError(error)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     console.error('List staff discount codes error:', error)
@@ -79,13 +71,13 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ code }, { status: 201 })
+    return NextResponse.json({ code: discountCodeToJson(code) }, { status: 201 })
   } catch (error: unknown) {
     const err = error as { name?: string; errors?: unknown; message?: string }
     if (err.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: err.errors }, { status: 400 })
     }
-    if (isRedirectError(error)) {
+    if (isNextRedirectError(error)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     console.error('Create staff discount code error:', error)

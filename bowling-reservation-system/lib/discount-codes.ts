@@ -80,6 +80,37 @@ export async function incrementDiscountRedemption(
   })
 }
 
+/** Plain JSON shape for API responses (Prisma `Decimal` fields are not JSON-serializable). */
+export type DiscountCodeJson = {
+  id: string
+  code: string
+  label: string | null
+  paymentMode: DiscountCode['paymentMode']
+  discountPercent: number | null
+  discountFixedAmount: number | null
+  maxRedemptions: number | null
+  redemptionCount: number
+  expiresAt: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+export function discountCodeToJson(code: DiscountCode): DiscountCodeJson {
+  return {
+    id: code.id,
+    code: code.code,
+    label: code.label,
+    paymentMode: code.paymentMode,
+    discountPercent: code.discountPercent != null ? Number(code.discountPercent) : null,
+    discountFixedAmount: code.discountFixedAmount != null ? Number(code.discountFixedAmount) : null,
+    maxRedemptions: code.maxRedemptions,
+    redemptionCount: code.redemptionCount,
+    expiresAt: code.expiresAt?.toISOString() ?? null,
+    isActive: code.isActive,
+    createdAt: code.createdAt.toISOString(),
+  }
+}
+
 export function describeDiscountForPreview(code: DiscountCodeRow): string {
   const parts: string[] = []
   if (code.discountPercent != null && Number(code.discountPercent) > 0) {

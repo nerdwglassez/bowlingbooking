@@ -31,6 +31,7 @@ export default function StaffDashboardPage() {
   const [createBookingOpen, setCreateBookingOpen] = useState(false)
   const {
     loading,
+    loadError,
     stats,
     query,
     setQuery,
@@ -39,10 +40,31 @@ export default function StaffDashboardPage() {
     filteredBookings,
     openActionsForId,
     setOpenActionsForId,
+    refreshBookings,
   } = useStaffDashboardData()
 
   if (loading) {
     return <LoadingStateBlock />
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-2xl border border-rose-200 bg-rose-50/80 p-6 text-rose-900 shadow-sm">
+        <h2 className="text-lg font-semibold">Couldn&apos;t load today&apos;s bookings</h2>
+        <p className="mt-2 text-sm text-rose-800/90">{loadError}</p>
+        <p className="mt-4 text-sm text-rose-900/80">
+          If you recently pulled code, run{' '}
+          <code className="rounded bg-white/80 px-1.5 py-0.5 text-xs font-mono text-rose-950">
+            npx prisma migrate deploy
+          </code>{' '}
+          (or <code className="rounded bg-white/80 px-1.5 py-0.5 text-xs font-mono text-rose-950">npm run db:push</code>)
+          against the database in <code className="font-mono text-xs">DATABASE_URL</code>, then retry.
+        </p>
+        <Button type="button" variant="secondary" className="mt-4" onClick={() => void refreshBookings()}>
+          Retry
+        </Button>
+      </div>
+    )
   }
 
   return (

@@ -19,6 +19,7 @@ const DEFAULT_STATS: StaffDashboardStats = {
 export function useStaffDashboardData() {
   const [todayBookings, setTodayBookings] = useState<StaffDashboardBooking[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StaffDashboardStatusFilter>('all')
   const [openActionsForId, setOpenActionsForId] = useState<string | null>(null)
@@ -26,13 +27,26 @@ export function useStaffDashboardData() {
 
   const loadTodayBookings = useCallback(async () => {
     try {
-      const response = await fetch('/api/staff/bookings/today')
-      if (!response.ok) throw new Error('Failed to load bookings')
-      const data = await response.json()
+      setLoadError(null)
+      const response = await fetch('/api/staff/bookings/today', { credentials: 'include' })
+      const text = await response.text()
+      if (!response.ok) {
+        let detail = `Request failed (${response.status})`
+        try {
+          const body = JSON.parse(text) as { error?: string }
+          if (typeof body.error === 'string') detail = body.error
+        } catch {
+          if (text.trim()) detail = text.trim().slice(0, 200)
+        }
+        throw new Error(detail)
+      }
+      const data = JSON.parse(text) as { bookings?: StaffDashboardBooking[] }
       const bookings = data.bookings || []
       setTodayBookings(bookings)
       setStats(buildStaffDashboardStats(bookings))
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load bookings'
+      setLoadError(message)
       console.error('Failed to load bookings:', err)
     } finally {
       setLoading(false)
@@ -58,6 +72,7 @@ export function useStaffDashboardData() {
 
   return {
     loading,
+    loadError,
     stats,
     query,
     setQuery,

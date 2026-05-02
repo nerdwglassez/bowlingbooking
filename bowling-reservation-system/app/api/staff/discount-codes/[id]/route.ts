@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { discountCodeToJson } from '@/lib/discount-codes'
+import { isNextRedirectError } from '@/lib/route-handler-errors'
 import { z } from 'zod'
 
 const updateSchema = z.object({
@@ -12,16 +14,6 @@ const updateSchema = z.object({
   expiresAt: z.string().datetime().optional().nullable(),
   isActive: z.boolean().optional(),
 })
-
-function isRedirectError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const maybeError = error as { message?: string; digest?: string }
-  return Boolean(
-    maybeError.message?.includes('redirect') ||
-      maybeError.message?.includes('NEXT_REDIRECT') ||
-      maybeError.digest?.includes('NEXT_REDIRECT')
-  )
-}
 
 export async function PATCH(
   request: NextRequest,
@@ -71,13 +63,13 @@ export async function PATCH(
       },
     })
 
-    return NextResponse.json({ code })
+    return NextResponse.json({ code: discountCodeToJson(code) })
   } catch (error: unknown) {
     const err = error as { name?: string; errors?: unknown }
     if (err.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: err.errors }, { status: 400 })
     }
-    if (isRedirectError(error)) {
+    if (isNextRedirectError(error)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     console.error('Update staff discount code error:', error)

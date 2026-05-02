@@ -99,7 +99,7 @@ export default function CreatePackagePage() {
         throw new Error(result.error || 'Failed to create package')
       }
 
-      router.push('/admin/packages')
+      router.push('/staff/settings/packages')
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -116,7 +116,7 @@ export default function CreatePackagePage() {
             <button
               type="button"
               aria-label="Close"
-              onClick={() => router.push('/admin/packages')}
+              onClick={() => router.push('/staff/settings/packages')}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
             >
               <X className="h-4 w-4" />
@@ -249,7 +249,7 @@ export default function CreatePackagePage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => router.push('/admin/packages')}
+              onClick={() => router.push('/staff/settings/packages')}
               className="rounded-full border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600"
             >
               Cancel

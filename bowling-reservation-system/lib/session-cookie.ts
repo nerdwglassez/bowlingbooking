@@ -1,4 +1,4 @@
-/** Single name for the auth cookie — safe to import from edge (e.g. proxy/middleware). */
+/** Single name for the auth cookie — safe to import from edge (e.g. `proxy.ts`). */
 export const SESSION_COOKIE_NAME = 'session_token'
 
 const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60
