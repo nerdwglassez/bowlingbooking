@@ -18,6 +18,7 @@ import { generateUniqueCheckInToken } from '@/lib/check-in-token'
 import {
   applyDiscountToCents,
   assertDiscountCodeUsable,
+  DISCOUNT_CODE_UNUSABLE_MESSAGE,
   findDiscountCodeByNormalized,
   incrementDiscountRedemption,
   normalizeDiscountCode,
@@ -503,6 +504,12 @@ export async function POST(request: NextRequest) {
     if (error.name === 'ZodError') {
       return NextResponse.json(
         { error: 'Validation failed', details: error.errors },
+        { status: 400 }
+      )
+    }
+    if (error.message === DISCOUNT_CODE_UNUSABLE_MESSAGE) {
+      return NextResponse.json(
+        { error: error.message },
         { status: 400 }
       )
     }

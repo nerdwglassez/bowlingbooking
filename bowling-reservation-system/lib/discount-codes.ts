@@ -1,6 +1,9 @@
 import type { DiscountCode, Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
 
+export const DISCOUNT_CODE_UNUSABLE_MESSAGE =
+  'This discount code has reached its maximum number of uses'
+
 export function normalizeDiscountCode(raw: string): string {
   return raw.replace(/\s/g, '').toUpperCase()
 }
@@ -27,7 +30,7 @@ export function assertDiscountCodeUsable(code: DiscountCodeRow): void {
     throw new Error('This discount code has expired')
   }
   if (code.maxRedemptions != null && code.redemptionCount >= code.maxRedemptions) {
-    throw new Error('This discount code has reached its maximum number of uses')
+    throw new Error(DISCOUNT_CODE_UNUSABLE_MESSAGE)
   }
 }
 
@@ -74,10 +77,19 @@ export async function incrementDiscountRedemption(
   tx: Prisma.TransactionClient,
   codeId: string
 ): Promise<void> {
-  await tx.discountCode.update({
-    where: { id: codeId },
-    data: { redemptionCount: { increment: 1 } },
-  })
+  const updated = await tx.$executeRaw`
+    UPDATE "discount_codes"
+    SET "redemption_count" = "redemption_count" + 1,
+        "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = ${codeId}
+      AND "is_active" = true
+      AND ("expires_at" IS NULL OR "expires_at" > CURRENT_TIMESTAMP)
+      AND ("max_redemptions" IS NULL OR "redemption_count" < "max_redemptions")
+  `
+
+  if (updated !== 1) {
+    throw new Error(DISCOUNT_CODE_UNUSABLE_MESSAGE)
+  }
 }
 
 /** Plain JSON shape for API responses (Prisma `Decimal` fields are not JSON-serializable). */
