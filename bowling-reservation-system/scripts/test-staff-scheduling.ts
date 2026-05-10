@@ -7,6 +7,10 @@ import {
   timeStringToMinutes,
   type StaffSchedulingBooking,
 } from '@/lib/staff/scheduling'
+import {
+  buildBookingLaneAssignment,
+  parsePersistedBookingLanes,
+} from '@/lib/booking/lanes'
 
 function assertEqual<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
@@ -92,6 +96,22 @@ function run() {
     conflicts,
     [{ lane: 1, firstBookingId: 'b1', secondBookingId: 'b2' }],
     'detectSchedulingConflicts finds overlaps per lane'
+  )
+
+  assertDeepEqual(
+    parsePersistedBookingLanes({ lane: 4, lanes: '[4,5,6]' }),
+    [4, 5, 6],
+    'parsePersistedBookingLanes uses persisted multi-lane JSON'
+  )
+  assertDeepEqual(
+    buildBookingLaneAssignment([7, 8, 10], 2),
+    { lane: 7, lanes: '[7,8]', laneNumbers: [7, 8] },
+    'buildBookingLaneAssignment keeps multi-lane reservations multi-lane'
+  )
+  assertEqual(
+    buildBookingLaneAssignment([9], 2),
+    null,
+    'buildBookingLaneAssignment rejects insufficient lanes'
   )
 
   console.log('staff scheduling tests passed')

@@ -1,6 +1,7 @@
 /**
  * Shared helpers for staff booking display (check-in, dashboard, modals).
  */
+import { parsePersistedBookingLanes } from '@/lib/booking/lanes'
 
 export function customerDisplayName(user: {
   email: string
@@ -12,18 +13,7 @@ export function customerDisplayName(user: {
 }
 
 export function getBookingLanes(booking: { lane: number; lanes?: string | null }): number[] {
-  if (booking.lanes) {
-    try {
-      const parsed = JSON.parse(booking.lanes) as unknown
-      if (Array.isArray(parsed)) {
-        const normalized = parsed.filter((lane): lane is number => Number.isInteger(lane))
-        if (normalized.length > 0) return normalized
-      }
-    } catch {
-      // ignore
-    }
-  }
-  return [booking.lane]
+  return parsePersistedBookingLanes(booking)
 }
 
 export function getPrimaryPackageName(booking: {

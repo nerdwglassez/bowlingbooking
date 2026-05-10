@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { isTimeSlotAvailable } from '@/lib/availability'
+import { buildBookingLaneAssignment, parsePersistedBookingLanes } from '@/lib/booking/lanes'
 import { parse } from 'date-fns'
 import { z } from 'zod'
 
@@ -67,14 +68,21 @@ export async function PATCH(
       booking.duration
     )
 
-    if (!availability.available || availability.availableLanes.length === 0) {
+    const existingLanes = parsePersistedBookingLanes(booking)
+    const laneAssignment = buildBookingLaneAssignment(availability.availableLanes, existingLanes.length)
+
+    if (!availability.available || !laneAssignment) {
       return NextResponse.json(
-        { error: 'The selected time slot is no longer available' },
+        {
+          error:
+            existingLanes.length > 1
+              ? `The selected time slot does not have ${existingLanes.length} lanes available`
+              : 'The selected time slot is no longer available',
+        },
         { status: 400 }
       )
     }
 
-    const assignedLane = availability.availableLanes[0]
     const previousDate = booking.date
     const previousStartTime = booking.startTime
 
@@ -84,7 +92,8 @@ export async function PATCH(
         data: {
           date: newDate,
           startTime: parsed.data.startTime,
-          lane: assignedLane,
+          lane: laneAssignment.lane,
+          lanes: laneAssignment.lanes,
         },
       }),
       prisma.auditLog.create({
@@ -96,9 +105,10 @@ export async function PATCH(
           details: JSON.stringify({
             previousDate: previousDate.toISOString().slice(0, 10),
             previousStartTime,
+            previousLanes: existingLanes,
             newDate: parsed.data.date,
             newStartTime: parsed.data.startTime,
-            newLane: assignedLane,
+            newLanes: laneAssignment.laneNumbers,
           }),
         },
       }),

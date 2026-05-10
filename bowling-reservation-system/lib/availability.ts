@@ -1,6 +1,7 @@
 import { prisma } from './db'
 import { addMinutes, format, parse, isBefore, isAfter, startOfDay } from 'date-fns'
 import { getPricingSettings } from './settings'
+import { parsePersistedBookingLanes } from '@/lib/booking/lanes'
 
 // Configuration
 const DEFAULT_TOTAL_LANES = 20 // Fallback total lanes
@@ -32,24 +33,6 @@ function getDefaultSlots(totalLanes: number = DEFAULT_TOTAL_LANES): TimeSlot[] {
     current = addMinutes(current, TIME_SLOT_INTERVAL)
   }
   return slots
-}
-
-function getPersistedBookingLanes(booking: { lane: number; lanes?: string | null }): number[] {
-  if (!booking.lanes) return [booking.lane]
-
-  try {
-    const parsed = JSON.parse(booking.lanes) as unknown
-    if (Array.isArray(parsed)) {
-      const normalized = parsed
-        .map((lane) => Number(lane))
-        .filter((lane) => Number.isInteger(lane) && lane > 0)
-      if (normalized.length > 0) return normalized
-    }
-  } catch {
-    // Fall back to the primary lane when legacy or malformed lane JSON is present.
-  }
-
-  return [booking.lane]
 }
 
 /**
@@ -138,7 +121,7 @@ export async function calculateAvailability(date: Date): Promise<TimeSlot[]> {
         (isBefore(currentTime, bookingEnd) || currentTime.getTime() === bookingStart.getTime()) &&
         (isAfter(slotEndTime, bookingStart) || slotEndTime.getTime() === bookingEnd.getTime())
       ) {
-        const lanesForBooking = getPersistedBookingLanes(booking)
+        const lanesForBooking = parsePersistedBookingLanes(booking)
         lanesForBooking.forEach((l) => bookedLanes.add(l))
       }
     }
@@ -235,7 +218,7 @@ export async function isTimeSlotAvailable(
       (isBefore(bookingStart, bEnd) || bookingStart.getTime() === bStart.getTime()) &&
       (isAfter(bookingEnd, bStart) || bookingEnd.getTime() === bEnd.getTime())
     ) {
-      const lanesForBooking = getPersistedBookingLanes(booking)
+      const lanesForBooking = parsePersistedBookingLanes(booking)
       lanesForBooking.forEach((l) => bookedLanes.add(l))
     }
   }
