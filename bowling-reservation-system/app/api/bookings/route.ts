@@ -18,6 +18,7 @@ import { generateUniqueCheckInToken } from '@/lib/check-in-token'
 import {
   applyDiscountToCents,
   assertDiscountCodeUsable,
+  DiscountCodeRedemptionError,
   findDiscountCodeByNormalized,
   incrementDiscountRedemption,
   normalizeDiscountCode,
@@ -510,6 +511,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
+      )
+    }
+    if (error instanceof DiscountCodeRedemptionError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
       )
     }
     console.error('Create booking error:', error)

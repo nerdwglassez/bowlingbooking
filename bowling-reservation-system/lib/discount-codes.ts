@@ -1,6 +1,13 @@
 import type { DiscountCode, Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
 
+export class DiscountCodeRedemptionError extends Error {
+  constructor(message = 'This discount code is no longer available') {
+    super(message)
+    this.name = 'DiscountCodeRedemptionError'
+  }
+}
+
 export function normalizeDiscountCode(raw: string): string {
   return raw.replace(/\s/g, '').toUpperCase()
 }
@@ -74,10 +81,22 @@ export async function incrementDiscountRedemption(
   tx: Prisma.TransactionClient,
   codeId: string
 ): Promise<void> {
-  await tx.discountCode.update({
-    where: { id: codeId },
-    data: { redemptionCount: { increment: 1 } },
-  })
+  const now = new Date()
+  const updatedRows = await tx.$executeRaw`
+    UPDATE "discount_codes"
+    SET
+      "redemption_count" = "redemption_count" + 1,
+      "updated_at" = CURRENT_TIMESTAMP
+    WHERE
+      "id" = ${codeId}
+      AND "is_active" = true
+      AND ("expires_at" IS NULL OR "expires_at" >= ${now})
+      AND ("max_redemptions" IS NULL OR "redemption_count" < "max_redemptions")
+  `
+
+  if (updatedRows !== 1) {
+    throw new DiscountCodeRedemptionError()
+  }
 }
 
 /** Plain JSON shape for API responses (Prisma `Decimal` fields are not JSON-serializable). */
