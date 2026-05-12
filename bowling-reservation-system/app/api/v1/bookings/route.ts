@@ -13,6 +13,13 @@ import { getPricingSettings } from '@/lib/settings'
 import { sendBookingConfirmationEmail } from '@/lib/email'
 import { parse } from 'date-fns'
 import { z } from 'zod'
+import {
+  BookingLineItemValidationError,
+  buildBookingPackageLineItems,
+  buildBookingProductLineItems,
+  requestedPackageIds,
+  requestedProductIds,
+} from '@/lib/booking-line-items'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +37,7 @@ const v1BookingSchema = z.object({
   numBowlers: z.number().min(1).max(10),
   shoeSizes: z.array(z.number().min(1).max(15)).optional(),
   packageIds: z.array(z.string()).optional(),
-  productItems: z.array(z.object({ productId: z.string(), quantity: z.number().min(1).max(10) })).optional(),
+  productItems: z.array(z.object({ productId: z.string(), quantity: z.number().int().min(1).max(10) })).optional(),
 })
 
 async function findOrCreateCustomer(customer: {
@@ -199,23 +206,41 @@ export async function POST(request: NextRequest) {
   const assignedLanes = pickAdjacentLanes(availability.availableLanes, numLanes)
   const assignedLane = assignedLanes[0]
 
+  const packageIds = data.packageIds ?? []
+  let bookingPackageLineItems: Array<{ packageId: string; quantity: number }> = []
   let packagePrices: number[] = []
-  if (data.packageIds?.length) {
+  if (packageIds.length > 0) {
     const packages = await prisma.package.findMany({
-      where: { id: { in: data.packageIds }, isActive: true },
+      where: { id: { in: requestedPackageIds(packageIds) }, isActive: true },
     })
-    packagePrices = packages.map((p) => Number(p.price) * 100)
+    try {
+      const packageLineItems = buildBookingPackageLineItems(packageIds, packages)
+      bookingPackageLineItems = packageLineItems.lineItems
+      packagePrices = packageLineItems.packagePricesCents
+    } catch (error) {
+      if (error instanceof BookingLineItemValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+      throw error
+    }
   }
-  let productTotalCents = 0
+
   const productItems = data.productItems ?? []
+  let bookingProductLineItems: Array<{ productId: string; quantity: number }> = []
+  let productTotalCents = 0
   if (productItems.length > 0) {
-    const productIds = [...new Set(productItems.map((i) => i.productId))]
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds }, isActive: true },
+      where: { id: { in: requestedProductIds(productItems) }, isActive: true },
     })
-    const priceMap = Object.fromEntries(products.map((p) => [p.id, Number(p.price) * 100]))
-    for (const item of productItems) {
-      productTotalCents += (priceMap[item.productId] ?? 0) * item.quantity
+    try {
+      const productLineItems = buildBookingProductLineItems(productItems, products)
+      bookingProductLineItems = productLineItems.lineItems
+      productTotalCents = productLineItems.productTotalCents
+    } catch (error) {
+      if (error instanceof BookingLineItemValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+      throw error
     }
   }
 
@@ -232,40 +257,44 @@ export async function POST(request: NextRequest) {
     prisma.booking.findUnique({ where: { checkInToken: token }, select: { id: true } }).then((b) => !!b)
   )
 
-  const booking = await prisma.booking.create({
-    data: {
-      userId,
-      date: bookingDate,
-      startTime: data.startTime,
-      duration: data.duration,
-      lane: assignedLane,
-      lanes: numLanes > 1 ? JSON.stringify(assignedLanes) : null,
-      numBowlers: data.numBowlers,
-      shoeSizes: data.shoeSizes ? JSON.stringify(data.shoeSizes) : null,
-      status: 'PENDING',
-      totalPrice: totalPriceCents / 100,
-      checkInToken,
-    },
-  })
+  const booking = await prisma.$transaction(async (tx) => {
+    const createdBooking = await tx.booking.create({
+      data: {
+        userId,
+        date: bookingDate,
+        startTime: data.startTime,
+        duration: data.duration,
+        lane: assignedLane,
+        lanes: numLanes > 1 ? JSON.stringify(assignedLanes) : null,
+        numBowlers: data.numBowlers,
+        shoeSizes: data.shoeSizes ? JSON.stringify(data.shoeSizes) : null,
+        status: 'PENDING',
+        totalPrice: totalPriceCents / 100,
+        checkInToken,
+      },
+    })
 
-  if (data.packageIds?.length) {
-    await prisma.bookingPackage.createMany({
-      data: data.packageIds.map((packageId) => ({
-        bookingId: booking.id,
-        packageId,
-        quantity: 1,
-      })),
-    })
-  }
-  if (productItems.length > 0) {
-    await prisma.bookingProduct.createMany({
-      data: productItems.map((item) => ({
-        bookingId: booking.id,
-        productId: item.productId,
-        quantity: item.quantity,
-      })),
-    })
-  }
+    if (bookingPackageLineItems.length > 0) {
+      await tx.bookingPackage.createMany({
+        data: bookingPackageLineItems.map((item) => ({
+          bookingId: createdBooking.id,
+          packageId: item.packageId,
+          quantity: item.quantity,
+        })),
+      })
+    }
+    if (bookingProductLineItems.length > 0) {
+      await tx.bookingProduct.createMany({
+        data: bookingProductLineItems.map((item) => ({
+          bookingId: createdBooking.id,
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+      })
+    }
+
+    return createdBooking
+  })
 
   const bookingWithPackages = await prisma.booking.findUnique({
     where: { id: booking.id },

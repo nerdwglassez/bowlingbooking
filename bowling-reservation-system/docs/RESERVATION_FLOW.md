@@ -71,6 +71,10 @@ Define current customer-facing reservation behavior, system boundaries, and impl
   - Trigger: code expired, maxed redemptions, inactive code, insufficient gift card balance.
   - System behavior: preview/validation route rejects application.
   - User-visible outcome: clear message, total recalculated without invalid code.
+- **Package or product becomes unavailable**
+  - Trigger: selected package/product is inactive or missing when booking is submitted.
+  - System behavior: booking API rejects the selection before creating the booking or charging.
+  - User-visible outcome: user must refresh selections and submit again.
 - **Unauthorized booking detail access**
   - Trigger: customer attempts to access another user's booking.
   - System behavior: API and server route checks ownership.
@@ -96,7 +100,7 @@ Define current customer-facing reservation behavior, system boundaries, and impl
 ## Testing and validation
 
 - Validate happy path: guest booking and signed-in booking complete end-to-end.
-- Validate failure paths: stale availability, payment failure, invalid discount/gift card, waitlist token rejection.
+- Validate failure paths: stale availability, inactive package/product, payment failure, invalid discount/gift card, waitlist token rejection.
 - Validate authorization: customer cannot mutate bookings they do not own.
 
 ## Design and UX notes

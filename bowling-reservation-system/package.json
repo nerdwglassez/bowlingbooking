@@ -9,6 +9,7 @@
     "postinstall": "prisma generate",
     "lint": "eslint .",
     "test:staff-scheduling": "tsx scripts/test-staff-scheduling.ts",
+    "test:booking-line-items": "tsx scripts/test-booking-line-items.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

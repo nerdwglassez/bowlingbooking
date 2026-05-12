@@ -27,6 +27,13 @@ import { parse } from 'date-fns'
 import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit'
 import { normalizeBookingDateField, toJsonSafe } from '@/lib/prisma-json'
 import { isNextRedirectError } from '@/lib/route-handler-errors'
+import {
+  BookingLineItemValidationError,
+  buildBookingPackageLineItems,
+  buildBookingProductLineItems,
+  requestedPackageIds,
+  requestedProductIds,
+} from '@/lib/booking-line-items'
 
 async function calculateBookingPrice(
   duration: number, // in minutes
@@ -180,31 +187,31 @@ export async function POST(request: NextRequest) {
     }
     const assignedLane = assignedLanes[0]
 
-    // Get package prices if packages are included
+    const packageIds = validatedData.packageIds || []
+    let bookingPackageLineItems: Array<{ packageId: string; quantity: number }> = []
     let packagePrices: number[] = []
-    if (validatedData.packageIds && validatedData.packageIds.length > 0) {
+    if (packageIds.length > 0) {
       const packages = await prisma.package.findMany({
         where: {
-          id: { in: validatedData.packageIds },
+          id: { in: requestedPackageIds(packageIds) },
           isActive: true,
         },
       })
-      packagePrices = packages.map(pkg => Number(pkg.price) * 100) // Convert to cents
+      const packageLineItems = buildBookingPackageLineItems(packageIds, packages)
+      bookingPackageLineItems = packageLineItems.lineItems
+      packagePrices = packageLineItems.packagePricesCents
     }
 
-    // Get product prices if product items are included
-    let productTotalCents = 0
     const productItems = validatedData.productItems || []
+    let bookingProductLineItems: Array<{ productId: string; quantity: number }> = []
+    let productTotalCents = 0
     if (productItems.length > 0) {
-      const productIds = [...new Set(productItems.map((p: { productId: string }) => p.productId))]
       const products = await prisma.product.findMany({
-        where: { id: { in: productIds }, isActive: true },
+        where: { id: { in: requestedProductIds(productItems) }, isActive: true },
       })
-      const productMap = Object.fromEntries(products.map(p => [p.id, Number(p.price) * 100]))
-      for (const item of productItems) {
-        const priceCents = productMap[item.productId]
-        if (priceCents != null) productTotalCents += priceCents * item.quantity
-      }
+      const productLineItems = buildBookingProductLineItems(productItems, products)
+      bookingProductLineItems = productLineItems.lineItems
+      productTotalCents = productLineItems.productTotalCents
     }
 
     // Calculate total price (lane rental scales with numLanes)
@@ -330,19 +337,19 @@ export async function POST(request: NextRequest) {
         await incrementDiscountRedemption(tx, discountCodeRow.id)
       }
 
-      if (validatedData.packageIds && validatedData.packageIds.length > 0) {
+      if (bookingPackageLineItems.length > 0) {
         await tx.bookingPackage.createMany({
-          data: validatedData.packageIds.map((packageId: string) => ({
+          data: bookingPackageLineItems.map((item) => ({
             bookingId: booking.id,
-            packageId,
-            quantity: 1,
+            packageId: item.packageId,
+            quantity: item.quantity,
           })),
         })
       }
 
-      if (productItems.length > 0) {
+      if (bookingProductLineItems.length > 0) {
         await tx.bookingProduct.createMany({
-          data: productItems.map((item: { productId: string; quantity: number }) => ({
+          data: bookingProductLineItems.map((item) => ({
             bookingId: booking.id,
             productId: item.productId,
             quantity: item.quantity,
@@ -500,6 +507,12 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error: any) {
+    if (error instanceof BookingLineItemValidationError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      )
+    }
     if (error.name === 'ZodError') {
       return NextResponse.json(
         { error: 'Validation failed', details: error.errors },

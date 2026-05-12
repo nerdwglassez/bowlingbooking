@@ -18,6 +18,7 @@ Aligned with **IMPLEMENTATION_PHASES.md** (Phase 1 & Phase 2 complete). Use this
 - **Sign In modal** – Sign In / Sign Up tabs, no navigation away; first/last name, email, phone, password, agree to Terms; post-auth role routing (customer → dashboard, staff/manager/admin → staff area)
 - **4-step booking flow** – Date & Time → Booking Details → Packages & Extras → Review & Payment
 - **Step 2** – Per-bowler shoe (size or “Own shoes”), running total
+- **Packages & extras validation** – Booking create rejects inactive/missing catalog items and stores duplicate selections as charged quantities
 - **Step 4** – Itemized breakdown, guest checkout or sign-in, **Terms acceptance** checkbox, **Stripe** payment (card; optional Apple/Google Pay), Complete Booking
 - **Step 5 – Confirmation** – Reference, QR code, Add to Calendar, View My Bookings, **Print** button
 - **Confirmation email** – Sent on booking/confirm-payment via Resend (PRD content: code, QR, details, cancel/reschedule links)

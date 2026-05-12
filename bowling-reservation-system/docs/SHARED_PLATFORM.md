@@ -29,6 +29,7 @@ Use this doc **once** for concepts that apply to both [customer reservation flow
 
 - **Pricing helpers:** [`lib/pricing.ts`](../lib/pricing.ts)—booking totals, settings-driven breakdowns; used heavily by `app/book/page.tsx` and staff override flows.
 - **Public reads:** `app/api/pricing`, `app/api/packages`, `app/api/products` (see route files for methods).
+- **Booking add-ons:** Customer and partner booking APIs validate package/product selections against active catalog rows before creating bookings; duplicate selected IDs are charged and stored as quantities so persisted line items match totals.
 
 ## Discount codes (promo / corporate)
 
