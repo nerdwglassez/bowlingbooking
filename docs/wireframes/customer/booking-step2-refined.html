@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booking Flow — Step 2 (Refined)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    /* Palette */
+    --palette-amber-50:   #FFFBEB;
+    --palette-amber-100:  #FEF3C7;
+    --palette-amber-300:  #FCD34D;
+    --palette-amber-400:  #FBBF24;
+    --palette-amber-500:  #F59E0B;
+    --palette-amber-600:  #D97706;
+    --palette-amber-700:  #B45309;
+    --palette-amber-800:  #92400E;
+    --palette-amber-900:  #78350F;
+
+    --palette-stone-50:   #FAFAF9;
+    --palette-stone-100:  #F5F5F4;
+    --palette-stone-200:  #E7E5E4;
+    --palette-stone-300:  #D6D3D1;
+    --palette-stone-400:  #A8A29E;
+    --palette-stone-500:  #78716C;
+    --palette-stone-600:  #57534E;
+    --palette-stone-700:  #44403C;
+    --palette-stone-800:  #292524;
+    --palette-stone-900:  #1C1917;
+
+    /* Royal Z brand purple */
+    --palette-purple-900: #1E0A2E;
+    --palette-purple-800: #2D1245;
+    --palette-purple-700: #3D1A5C;
+    --palette-purple-400: #A855F7;
+    --palette-purple-300: #C084FC;
+
+    --palette-green-100:  #D1FAE5;
+    --palette-green-400:  #6EE7B7;
+    --palette-green-500:  #10B981;
+    --palette-green-800:  #065F46;
+
+    --palette-red-100:    #FEE2E2;
+    --palette-red-300:    #FCA5A5;
+    --palette-red-800:    #991B1B;
+
+    /* Semantic — light */
+    --surface-ground:     #F5F2EE;
+    --surface-card:       #FDFCFA;
+    --surface-raised:     #FFFFFF;
+    --surface-sunken:     #EDE9E3;
+    --surface-dark:       var(--palette-purple-900);
+    --surface-dark-mid:   var(--palette-purple-800);
+
+    --color-action:        var(--palette-amber-500);
+    --color-action-hover:  var(--palette-amber-600);
+    --color-action-text:   #FFFFFF;
+    --color-action-subtle: var(--palette-amber-50);
+    --color-action-tint:   var(--palette-amber-100);
+    --color-action-dark:   var(--palette-amber-400);
+
+    --color-text-primary:   var(--palette-stone-900);
+    --color-text-secondary: var(--palette-stone-600);
+    --color-text-muted:     var(--palette-stone-400);
+    --color-text-inverted:  #FDFCFA;
+    --color-text-on-action: #FFFFFF;
+
+    --color-border:        var(--palette-stone-200);
+    --color-border-strong: var(--palette-stone-300);
+    --color-border-subtle: var(--palette-stone-100);
+
+    --status-warning-bg:     var(--palette-amber-100);
+    --status-warning-text:   var(--palette-amber-700);
+    --status-warning-border: var(--palette-amber-300);
+
+    --status-available-bg:     var(--palette-green-100);
+    --status-available-text:   var(--palette-green-800);
+    --status-available-border: var(--palette-green-400);
+
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body:    'DM Sans', system-ui, sans-serif;
+
+    --radius-sm:   0.375rem;
+    --radius-md:   0.75rem;
+    --radius-lg:   1rem;
+    --radius-full: 9999px;
+
+    --shadow-md:  0 4px 12px rgba(28,25,23,0.08), 0 1px 3px rgba(28,25,23,0.06);
+    --shadow-xl:  0 24px 48px rgba(28,25,23,0.12), 0 4px 12px rgba(28,25,23,0.08);
+  }
+
+  [data-theme="dark"] {
+    --surface-ground:     #0F0E0D;
+    --surface-card:       #1C1917;
+    --surface-raised:     #292524;
+    --surface-sunken:     #141211;
+    --surface-dark:       #0D0517;
+    --color-text-primary:   #FAFAF9;
+    --color-text-secondary: #A8A29E;
+    --color-text-muted:     #57534E;
+    --color-border:         #292524;
+    --color-border-strong:  #44403C;
+    --color-border-subtle:  #1C1917;
+    --color-action-subtle:  rgba(245,158,11,0.07);
+    --color-action-tint:    rgba(245,158,11,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--surface-sunken);
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+
+  /* Page chrome */
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 24px; color: var(--color-text-primary);
+    text-align: center; margin-bottom: 6px;
+  }
+
+  .page-sub {
+    font-size: 13px; color: var(--color-text-secondary);
+    text-align: center; line-height: 1.6; margin-bottom: 16px;
+  }
+
+  .toggle-row {
+    display: flex; align-items: center; gap: 10px;
+    justify-content: center; margin-bottom: 28px;
+  }
+
+  .toggle-label { font-size: 12px; color: var(--color-text-secondary); font-weight: 500; }
+
+  .toggle {
+    position: relative; width: 44px; height: 24px;
+    background: var(--palette-stone-300); border-radius: 12px;
+    cursor: pointer; transition: background 0.3s; border: none;
+  }
+  .toggle.on { background: var(--palette-stone-800); }
+  .toggle::after {
+    content: ''; position: absolute;
+    width: 18px; height: 18px; background: white;
+    border-radius: 50%; top: 3px; left: 3px;
+    transition: transform 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .toggle.on::after { transform: translateX(20px); }
+
+  .section-heading {
+    font-family: var(--font-display);
+    font-size: 17px; color: var(--color-text-secondary);
+    text-align: center; margin: 0 auto 20px;
+    padding-top: 28px;
+    border-top: 1px solid var(--palette-stone-300);
+    max-width: 960px;
+  }
+
+  .phone-row {
+    display: flex; gap: 24px; justify-content: center;
+    flex-wrap: wrap; margin-bottom: 48px;
+  }
+
+  .screen-group {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 10px;
+  }
+
+  .screen-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--color-text-secondary);
+    text-align: center; max-width: 200px; line-height: 1.5;
+  }
+
+  /* Phone shell */
+  .phone {
+    width: 375px;
+    background: var(--surface-ground);
+    border-radius: 36px; overflow: hidden;
+    box-shadow: var(--shadow-xl), 0 0 0 1px rgba(0,0,0,0.04);
+    transition: background 0.3s;
+    position: relative;
+  }
+
+  /* ── App header — Royal Z purple ── */
+  .app-header {
+    background: var(--surface-dark);
+    padding: 16px 20px 14px;
+    display: flex; align-items: flex-start;
+    justify-content: space-between;
+    transition: background 0.3s;
+  }
+
+  .venue-name {
+    font-family: var(--font-display);
+    font-size: 17px; color: var(--color-text-inverted);
+    line-height: 1.2;
+  }
+
+  .venue-address {
+    font-size: 11px; color: var(--color-action-dark);
+    margin-top: 2px; text-decoration: underline;
+    text-underline-offset: 2px; cursor: pointer;
+  }
+
+  .sign-in-btn {
+    font-size: 12px; font-weight: 500;
+    color: var(--palette-purple-300);
+    background: none; border: none; cursor: pointer;
+    margin-top: 2px;
+  }
+
+  /* Step dots */
+  .step-dots {
+    display: flex; justify-content: center;
+    align-items: center; gap: 8px; padding: 12px 20px;
+    background: var(--surface-card);
+    border-bottom: 1px solid var(--color-border);
+    transition: all 0.3s;
+  }
+
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--color-border-strong); transition: all 0.3s;
+  }
+  .dot.active { width: 22px; border-radius: 3px; background: var(--color-action); }
+  .dot.done { background: var(--color-action); opacity: 0.35; }
+
+  /* Hold bar */
+  .hold-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 13px; border-radius: var(--radius-md);
+    margin-bottom: 16px;
+    background: var(--surface-card);
+    border: 1px solid var(--color-border);
+    transition: all 0.3s;
+  }
+  .hold-bar.active {
+    background: var(--status-available-bg);
+    border-color: var(--status-available-border);
+  }
+  .hold-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--color-text-muted); flex-shrink: 0;
+  }
+  .hold-bar.active .hold-dot {
+    background: var(--palette-green-500);
+    animation: blink 2s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .hold-text { font-size: 12px; font-weight: 500; color: var(--color-text-muted); }
+  .hold-bar.active .hold-text { color: var(--status-available-text); }
+
+  /* Content */
+  .content {
+    padding: 20px 20px 24px;
+    background: var(--surface-ground);
+    transition: background 0.3s;
+  }
+
+  .step-title {
+    font-family: var(--font-display);
+    font-size: 22px; color: var(--color-text-primary);
+    margin-bottom: 4px; transition: color 0.3s;
+  }
+
+  .step-sub {
+    font-size: 12px; color: var(--color-text-secondary);
+    margin-bottom: 20px; transition: color 0.3s;
+  }
+
+  /* Sort/filter bar */
+  .sort-filter-bar {
+    display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 14px;
+  }
+
+  .results-count { font-size: 12px; color: var(--color-text-muted); }
+
+  .sort-filter-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 12px;
+    background: var(--surface-card);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-family: var(--font-body);
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-primary);
+    cursor: pointer; transition: all 0.2s;
+  }
+
+  .sort-filter-btn.active {
+    border-color: var(--color-action);
+    background: var(--color-action-tint);
+    color: var(--color-action-text);
+  }
+
+  /* ── Package card ── */
+  .pkg-card {
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 14px 15px; margin-bottom: 9px;
+    background: var(--surface-card);
+    cursor: pointer; transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+
+  .pkg-card.selected {
+    border-color: var(--color-action);
+    background: var(--color-action-subtle);
+    box-shadow: 0 0 0 3px rgba(245,158,11,0.1);
+  }
+
+  .pkg-card.popular::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2.5px; background: var(--color-action);
+  }
+
+  /* No-package card */
+  .pkg-card.no-package {
+    border-style: dashed;
+    background: var(--surface-ground);
+  }
+
+  .pkg-card.no-package.selected {
+    border-color: var(--color-action);
+    border-style: dashed;
+    background: var(--color-action-subtle);
+  }
+
+  .pkg-top {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; margin-bottom: 4px;
+  }
+
+  .pkg-name {
+    font-family: var(--font-display);
+    font-size: 15px; color: var(--color-text-primary);
+    flex: 1; transition: color 0.3s;
+  }
+
+  .pkg-badge {
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: var(--radius-full);
+    background: var(--color-action-tint);
+    color: var(--color-action-text);
+    margin-left: 8px; flex-shrink: 0;
+  }
+
+  .pkg-select-ring {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--color-border-strong);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px; margin-left: 8px;
+    transition: all 0.2s;
+  }
+
+  .pkg-card.selected .pkg-select-ring {
+    border-color: var(--color-action);
+    background: var(--color-action);
+  }
+
+  .pkg-check {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: white; display: none;
+  }
+
+  .pkg-card.selected .pkg-check { display: block; }
+
+  .pkg-price {
+    font-family: var(--font-display);
+    font-size: 16px; color: var(--color-text-primary);
+    margin-bottom: 5px; transition: color 0.3s;
+  }
+
+  .pkg-price span {
+    font-family: var(--font-body);
+    font-size: 11px; font-weight: 400;
+    color: var(--color-text-muted);
+  }
+
+  /* ── Description truncation ── */
+  .pkg-desc {
+    font-size: 11px; color: var(--color-text-secondary);
+    line-height: 1.55; margin-bottom: 9px;
+    transition: color 0.3s;
+    /* Truncate to 2 lines */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .pkg-desc.expanded {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+  }
+
+  .read-more {
+    font-size: 11px; font-weight: 600;
+    color: var(--color-action); cursor: pointer;
+    background: none; border: none;
+    font-family: var(--font-body);
+    padding: 0; margin-bottom: 9px;
+    display: block;
+  }
+
+  /* ── Package tags — ALL neutral, no color variants ── */
+  .pkg-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+
+  .pkg-tag {
+    font-size: 10px; padding: 3px 8px;
+    border-radius: var(--radius-full);
+    background: var(--surface-ground);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    transition: all 0.3s;
+    /* No color variants — all neutral */
+  }
+
+  /* Included add-on indicator — neutral pill with lock icon */
+  .pkg-included-tag {
+    font-size: 10px; padding: 3px 8px;
+    border-radius: var(--radius-full);
+    background: var(--surface-sunken);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-strong);
+    transition: all 0.3s;
+    display: flex; align-items: center; gap: 3px;
+  }
+
+  .lock-icon { font-size: 8px; }
+
+  /* ── Add-on section ── */
+  .addon-section {
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .field-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 9px; transition: color 0.3s;
+  }
+
+  /* Included add-on row (no checkbox) */
+  .addon-included {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 13px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: 7px;
+    background: var(--surface-sunken);
+    transition: all 0.3s;
+  }
+
+  .addon-included-icon {
+    width: 20px; height: 20px;
+    border-radius: 5px;
+    background: var(--color-border-strong);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 10px;
+  }
+
+  .addon-included-info { flex: 1; }
+
+  .addon-included-name {
+    font-size: 13px; font-weight: 500;
+    color: var(--color-text-primary); transition: color 0.3s;
+  }
+
+  .addon-included-sub {
+    font-size: 10px; color: var(--color-text-muted);
+    margin-top: 1px;
+  }
+
+  .addon-included-label {
+    font-size: 10px; font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  /* Optional add-on card (checkbox) */
+  .addon-card {
+    display: flex; align-items: center; gap: 11px;
+    padding: 11px 13px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: 7px;
+    background: var(--surface-card);
+    cursor: pointer; transition: all 0.2s;
+  }
+
+  .addon-card.selected {
+    border-color: var(--color-action);
+    background: var(--color-action-subtle);
+  }
+
+  .addon-check {
+    width: 20px; height: 20px; border-radius: 5px;
+    border: 2px solid var(--color-border-strong);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .addon-card.selected .addon-check {
+    background: var(--color-action);
+    border-color: var(--color-action);
+  }
+
+  .addon-mark { color: white; font-size: 11px; display: none; }
+  .addon-card.selected .addon-mark { display: block; }
+
+  .addon-info { flex: 1; }
+
+  .addon-name {
+    font-size: 13px; font-weight: 500;
+    color: var(--color-text-primary); transition: color 0.3s;
+  }
+
+  .addon-desc {
+    font-size: 11px; color: var(--color-text-muted);
+    margin-top: 1px;
+  }
+
+  .addon-price {
+    font-family: var(--font-display);
+    font-size: 13px; color: var(--color-text-primary);
+    transition: color 0.3s;
+  }
+
+  /* Price footer */
+  .price-footer {
+    background: var(--surface-dark);
+    padding: 14px 20px 20px;
+    transition: background 0.3s;
+  }
+
+  .price-row {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 4px;
+  }
+
+  .price-row-label { font-size: 12px; color: var(--color-text-muted); }
+  .price-row-val { font-size: 12px; font-weight: 500; color: var(--color-text-muted); }
+
+  .price-divider {
+    border: none; border-top: 1px solid var(--palette-purple-700);
+    margin: 8px 0;
+  }
+
+  .price-total-row {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 12px;
+  }
+
+  .price-total-label {
+    font-size: 13px; font-weight: 500; color: var(--color-text-inverted);
+  }
+
+  .price-total-val {
+    font-family: var(--font-display);
+    font-size: 20px; color: var(--color-action-dark);
+  }
+
+  /* Buttons */
+  .btn-primary {
+    width: 100%; padding: 15px;
+    background: var(--color-action);
+    color: var(--color-text-on-action);
+    border: none; border-radius: var(--radius-lg);
+    font-family: var(--font-body);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 6px;
+    box-shadow: 0 0 20px rgba(245,158,11,0.28);
+    transition: opacity 0.2s;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.35; cursor: not-allowed; box-shadow: none;
+  }
+
+  .btn-secondary {
+    flex: 1; padding: 12px;
+    background: var(--surface-sunken);
+    color: var(--color-text-secondary);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    font-family: var(--font-body);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+  }
+
+  /* ── Bottom sheet ── */
+  .bottom-sheet {
+    background: var(--surface-raised);
+    border-top: 1px solid var(--color-border);
+    padding: 14px 20px 20px;
+    transition: all 0.3s;
+  }
+
+  .sheet-handle {
+    width: 32px; height: 3px; border-radius: 2px;
+    background: var(--color-border-strong);
+    margin: 0 auto 14px;
+  }
+
+  .sheet-title {
+    font-family: var(--font-display);
+    font-size: 18px; color: var(--color-text-primary);
+    margin-bottom: 16px; transition: color 0.3s;
+  }
+
+  .sheet-section { margin-bottom: 16px; }
+
+  .sheet-section-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--color-text-muted); margin-bottom: 8px;
+  }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .chip {
+    padding: 6px 12px; border-radius: var(--radius-full);
+    border: 1.5px solid var(--color-border);
+    background: var(--surface-card);
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-secondary);
+    cursor: pointer; transition: all 0.2s;
+  }
+
+  .chip.active {
+    border-color: var(--color-action);
+    background: var(--color-action-tint);
+    color: var(--color-action-text);
+  }
+
+  .sheet-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* Package detail bottom sheet */
+  .detail-sheet {
+    background: var(--surface-raised);
+    border-top: 1px solid var(--color-border);
+    padding: 14px 20px 24px;
+  }
+
+  .detail-pkg-name {
+    font-family: var(--font-display);
+    font-size: 20px; color: var(--color-text-primary);
+    margin-bottom: 4px;
+  }
+
+  .detail-pkg-price {
+    font-family: var(--font-display);
+    font-size: 18px; color: var(--color-text-primary);
+    margin-bottom: 12px;
+  }
+
+  .detail-pkg-price span {
+    font-family: var(--font-body);
+    font-size: 12px; color: var(--color-text-muted);
+  }
+
+  .detail-desc {
+    font-size: 13px; color: var(--color-text-secondary);
+    line-height: 1.6; margin-bottom: 14px;
+  }
+
+  .detail-section-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--color-text-muted); margin-bottom: 8px;
+  }
+
+  .detail-inclusion {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-size: 12px; color: var(--color-text-primary);
+  }
+
+  .detail-inclusion:last-child { border-bottom: none; }
+
+  .incl-icon {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: var(--surface-sunken);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; flex-shrink: 0;
+  }
+
+  /* Token reference */
+  .token-note {
+    background: var(--palette-stone-50);
+    border: 1px solid var(--palette-stone-200);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    max-width: 960px; width: 100%; margin: 0 auto;
+  }
+
+  .token-note-title {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--color-text-secondary); margin-bottom: 10px;
+  }
+
+  .token-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .token-chip {
+    display: flex; align-items: center; gap: 5px;
+    padding: 3px 9px;
+    background: white; border: 1px solid var(--palette-stone-200);
+    border-radius: var(--radius-full);
+    font-size: 10px; font-family: monospace;
+    color: var(--color-text-primary);
+  }
+
+  .token-swatch {
+    width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  .dimmed { opacity: 0.28; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Step 2 — Package Selection (Refined)</div>
+<p class="page-sub">Purple header · Neutral pills · No package option · Included add-ons · Truncated descriptions · Sort & filter sheet</p>
+
+<div class="toggle-row">
+  <span class="toggle-label">Light</span>
+  <button class="toggle" id="themeToggle" onclick="toggleTheme()"></button>
+  <span class="toggle-label">Dark</span>
+</div>
+
+<div class="section-heading">Step 2 — Package Selection States</div>
+
+<div class="phone-row">
+
+  <!-- 2a: Default list -->
+  <div class="screen-group">
+    <div class="screen-label">2a — Default list<br>All neutral pills · Popular auto-tagged</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div>
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar active">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Lanes held · 13:22 remaining</div>
+        </div>
+
+        <div class="step-title">Choose a package</div>
+        <div class="step-sub">6 bowlers · Sun May 11 · 1:00 PM</div>
+
+        <div class="sort-filter-bar">
+          <div class="results-count">4 packages available</div>
+          <button class="sort-filter-btn">⇅ Sort & Filter</button>
+        </div>
+
+        <!-- Popular package -->
+        <div class="pkg-card popular">
+          <div class="pkg-top">
+            <div class="pkg-name">Cosmic Bowl</div>
+            <div class="pkg-badge">Popular</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$12.00 <span>/ person / hr</span></div>
+          <div class="pkg-desc">Black lights, fog machines, and curated music. Our most-booked weekend experience for groups looking for something beyond standard bowling.</div>
+          <button class="read-more">What's included →</button>
+          <div class="pkg-tags">
+            <div class="pkg-tag">Shoes included</div>
+            <div class="pkg-tag">2 hr min</div>
+            <div class="pkg-tag">Fri–Sun evenings</div>
+          </div>
+        </div>
+
+        <!-- Standard package -->
+        <div class="pkg-card">
+          <div class="pkg-top">
+            <div class="pkg-name">Open Bowl</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$8.50 <span>/ person / hr</span></div>
+          <div class="pkg-desc">Classic bowling, no frills. Bring your own shoes or add rentals at the next step.</div>
+          <button class="read-more">What's included →</button>
+          <div class="pkg-tags">
+            <div class="pkg-tag">1 hr min</div>
+            <div class="pkg-tag">Shoes not included</div>
+          </div>
+        </div>
+
+        <!-- Fixed price package with included add-on tags -->
+        <div class="pkg-card">
+          <div class="pkg-top">
+            <div class="pkg-name">Birthday Party</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$185 <span>flat · up to 8 people</span></div>
+          <div class="pkg-desc">Everything you need for a great birthday. Includes shoes, food, reserved table, and a pitcher of your choice.</div>
+          <button class="read-more">What's included →</button>
+          <div class="pkg-tags">
+            <div class="pkg-tag">Shoes included</div>
+            <div class="pkg-tag">Food included</div>
+            <div class="pkg-tag">Up to 8</div>
+            <div class="pkg-tag">2 hrs</div>
+          </div>
+        </div>
+
+        <!-- No package — always last, dashed border -->
+        <div class="pkg-card no-package">
+          <div class="pkg-top">
+            <div class="pkg-name" style="color:var(--color-text-muted);">No package</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-desc" style="-webkit-line-clamp:unset;display:block;">I'll sort out the details at the alley. Lane time only.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag">Pay at venue</div>
+          </div>
+        </div>
+
+        <button class="btn-primary" disabled>Select a package to continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2b: Sort & filter sheet open -->
+  <div class="screen-group">
+    <div class="screen-label">2b — Sort & filter sheet<br>All neutral chip controls</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div>
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content" style="padding-bottom:12px;">
+        <div class="hold-bar active">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Lanes held · 12:58 remaining</div>
+        </div>
+        <div class="sort-filter-bar">
+          <div class="results-count">4 packages available</div>
+          <button class="sort-filter-btn active">⇅ Sort & Filter</button>
+        </div>
+        <div class="dimmed">
+          <div class="pkg-card popular">
+            <div class="pkg-top">
+              <div class="pkg-name">Cosmic Bowl</div>
+              <div class="pkg-badge">Popular</div>
+            </div>
+            <div class="pkg-price">$12.00 <span>/ person / hr</span></div>
+          </div>
+          <div class="pkg-card">
+            <div class="pkg-top"><div class="pkg-name">Open Bowl</div></div>
+            <div class="pkg-price">$8.50 <span>/ person / hr</span></div>
+          </div>
+          <div class="pkg-card">
+            <div class="pkg-top"><div class="pkg-name">Birthday Party</div></div>
+            <div class="pkg-price">$185 <span>flat</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Sort & Filter</div>
+        <div class="sheet-section">
+          <div class="sheet-section-label">Sort by</div>
+          <div class="chip-row">
+            <div class="chip active">Popular</div>
+            <div class="chip">Price: Low → High</div>
+            <div class="chip">Price: High → Low</div>
+            <div class="chip">Name A → Z</div>
+            <div class="chip">Name Z → A</div>
+          </div>
+        </div>
+        <div class="sheet-section">
+          <div class="sheet-section-label">Package type</div>
+          <div class="chip-row">
+            <div class="chip active">All</div>
+            <div class="chip">Per hour</div>
+            <div class="chip">Fixed price</div>
+            <div class="chip">Add-ons only</div>
+          </div>
+        </div>
+        <div class="sheet-section">
+          <div class="sheet-section-label">Group size</div>
+          <div class="chip-row">
+            <div class="chip active">All sizes</div>
+            <div class="chip">Small (1–6)</div>
+            <div class="chip">Medium (7–12)</div>
+            <div class="chip">Large (13–18)</div>
+          </div>
+        </div>
+        <div class="sheet-actions">
+          <button class="btn-secondary">Reset</button>
+          <button class="btn-primary" style="margin-top:0;flex:2;">Show results</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2c: Package detail sheet -->
+  <div class="screen-group">
+    <div class="screen-label">2c — "What's included" sheet<br>Full description + inclusions list</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div>
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content" style="padding-bottom:12px;">
+        <div class="sort-filter-bar" style="margin-bottom:8px;">
+          <div class="results-count">4 packages available</div>
+        </div>
+        <div class="dimmed">
+          <div class="pkg-card popular">
+            <div class="pkg-top">
+              <div class="pkg-name">Cosmic Bowl</div>
+              <div class="pkg-badge">Popular</div>
+            </div>
+            <div class="pkg-price">$12.00 <span>/ person / hr</span></div>
+          </div>
+          <div class="pkg-card">
+            <div class="pkg-top"><div class="pkg-name">Open Bowl</div></div>
+            <div class="pkg-price">$8.50 <span>/ person / hr</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- Package detail bottom sheet -->
+      <div class="detail-sheet">
+        <div class="sheet-handle"></div>
+        <div class="detail-pkg-name">Birthday Party</div>
+        <div class="detail-pkg-price">$185 <span>flat · up to 8 people</span></div>
+        <div class="detail-desc">Everything you need for a memorable birthday celebration. Two lanes, two full hours, shoes for everyone in your group, a reserved table, and a pitcher of your choice — all included at one flat price.</div>
+        <div class="detail-section-label">What's included</div>
+        <div class="detail-inclusion"><div class="incl-icon">🎳</div>2 lanes for 2 hours</div>
+        <div class="detail-inclusion"><div class="incl-icon">👟</div>Shoe rental for all bowlers</div>
+        <div class="detail-inclusion"><div class="incl-icon">🍕</div>Pizza or appetizer platter</div>
+        <div class="detail-inclusion"><div class="incl-icon">🍺</div>One pitcher (beer, wine, or soda)</div>
+        <div class="detail-inclusion"><div class="incl-icon">🪑</div>Reserved table alongside your lanes</div>
+        <div style="margin-top:14px;">
+          <button class="btn-primary" style="margin-top:0;">Select this package</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2d: Package selected — Birthday Party with included + optional add-ons -->
+  <div class="screen-group">
+    <div class="screen-label">2d — Birthday Party selected<br>Included add-ons locked · Optional add-ons below</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div>
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content" style="padding-bottom:0;">
+        <div class="hold-bar active">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Lanes held · 11:14 remaining</div>
+        </div>
+
+        <div class="step-title">Choose a package</div>
+        <div class="step-sub">6 bowlers · Sun May 11 · 1:00 PM</div>
+
+        <div class="sort-filter-bar">
+          <div class="results-count">4 packages available</div>
+          <button class="sort-filter-btn">⇅ Sort & Filter</button>
+        </div>
+
+        <div class="pkg-card popular">
+          <div class="pkg-top">
+            <div class="pkg-name">Cosmic Bowl</div>
+            <div class="pkg-badge">Popular</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$12.00 <span>/ person / hr</span></div>
+          <div class="pkg-tags"><div class="pkg-tag">Shoes included</div></div>
+        </div>
+
+        <!-- Birthday selected -->
+        <div class="pkg-card selected">
+          <div class="pkg-top">
+            <div class="pkg-name">Birthday Party</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$185 <span>flat · up to 8</span></div>
+          <div class="pkg-desc">Everything you need for a great birthday.</div>
+          <button class="read-more">What's included →</button>
+          <div class="pkg-tags">
+            <div class="pkg-tag">Shoes included</div>
+            <div class="pkg-included-tag"><span class="lock-icon">🔒</span>Food included</div>
+            <div class="pkg-tag">Up to 8</div>
+          </div>
+        </div>
+
+        <div class="pkg-card">
+          <div class="pkg-top">
+            <div class="pkg-name">Open Bowl</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$8.50 <span>/ person / hr</span></div>
+          <div class="pkg-tags"><div class="pkg-tag">1 hr min</div></div>
+        </div>
+
+        <div class="pkg-card no-package">
+          <div class="pkg-top">
+            <div class="pkg-name" style="color:var(--color-text-muted);">No package</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-desc" style="-webkit-line-clamp:unset;display:block;">Lane time only.</div>
+        </div>
+
+        <!-- Add-ons section -->
+        <div class="addon-section">
+          <div class="field-label" style="margin-bottom:4px;">Included with your package</div>
+
+          <!-- Included add-ons — no checkbox, locked appearance -->
+          <div class="addon-included">
+            <div class="addon-included-icon">🍕</div>
+            <div class="addon-included-info">
+              <div class="addon-included-name">Pizza or appetizer platter</div>
+              <div class="addon-included-sub">Served at your lane</div>
+            </div>
+            <div class="addon-included-label">Included</div>
+          </div>
+
+          <div class="addon-included">
+            <div class="addon-included-icon">🍺</div>
+            <div class="addon-included-info">
+              <div class="addon-included-name">One pitcher</div>
+              <div class="addon-included-sub">Beer, wine, or soda</div>
+            </div>
+            <div class="addon-included-label">Included</div>
+          </div>
+
+          <div class="field-label" style="margin-top:14px;margin-bottom:9px;">Add-ons (optional)</div>
+
+          <!-- Optional add-ons with checkboxes -->
+          <div class="addon-card selected">
+            <div class="addon-check"><div class="addon-mark">✓</div></div>
+            <div class="addon-info">
+              <div class="addon-name">Extra pitcher</div>
+              <div class="addon-desc">Additional round for the group</div>
+            </div>
+            <div class="addon-price">$22</div>
+          </div>
+
+          <div class="addon-card">
+            <div class="addon-check"><div class="addon-mark">✓</div></div>
+            <div class="addon-info">
+              <div class="addon-name">Arcade Credits</div>
+              <div class="addon-desc">$10 credits per person</div>
+            </div>
+            <div class="addon-price">$10/pp</div>
+          </div>
+
+          <div class="addon-card">
+            <div class="addon-check"><div class="addon-mark">✓</div></div>
+            <div class="addon-info">
+              <div class="addon-name">Party Room</div>
+              <div class="addon-desc">Private room 1 hr before/after</div>
+            </div>
+            <div class="addon-price">$75</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dark price footer -->
+      <div class="price-footer">
+        <div class="price-row">
+          <div class="price-row-label">Birthday Party · flat rate</div>
+          <div class="price-row-val">$185.00</div>
+        </div>
+        <div class="price-row">
+          <div class="price-row-label">Extra pitcher</div>
+          <div class="price-row-val">$22.00</div>
+        </div>
+        <hr class="price-divider">
+        <div class="price-total-row">
+          <div class="price-total-label">Estimated total</div>
+          <div class="price-total-val">$207.00</div>
+        </div>
+        <button class="btn-primary" style="margin-top:0;">Continue to contact info →</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token reference -->
+<div class="token-note">
+  <div class="token-note-title">Key design decisions in this revision</div>
+  <div class="token-grid">
+    <div class="token-chip"><div class="token-swatch" style="background: var(--surface-dark)"></div>--surface-dark → Royal Z purple (header)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#F59E0B"></div>--color-action → amber (CTAs, selected, popular)</div>
+    <div class="token-chip"><div class="token-swatch" style="background: var(--surface-ground)"></div>--surface-ground (page bg)</div>
+    <div class="token-chip"><div class="token-swatch" style="background: var(--surface-sunken)"></div>--surface-sunken (included add-ons, no-package card)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#E7E5E4"></div>All pills neutral → --color-border only</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#A8A29E"></div>--color-text-muted (no-package label, field labels)</div>
+  </div>
+</div>
+
+<script>
+function toggleTheme() {
+  const t = document.getElementById('themeToggle');
+  t.classList.toggle('on');
+  const isDark = t.classList.contains('on');
+  document.querySelectorAll('.phone').forEach(p => {
+    isDark ? p.setAttribute('data-theme','dark') : p.removeAttribute('data-theme');
+  });
+  document.body.style.background = isDark ? '#0A0908' : '#D6D3D1';
+}
+</script>
+</body>
+</html>

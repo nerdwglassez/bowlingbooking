@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schedule Tab — Calendar & Blocking</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --palette-amber-400:#FBBF24;--palette-amber-500:#F59E0B;
+    --palette-amber-600:#D97706;--palette-amber-700:#B45309;
+    --palette-stone-300:#D6D3D1;--palette-stone-400:#A8A29E;
+    --palette-stone-500:#78716C;--palette-stone-600:#57534E;
+    --palette-stone-700:#44403C;--palette-stone-800:#292524;
+    --palette-stone-900:#1C1917;--palette-stone-950:#0C0A09;
+    --palette-purple-950:#120620;--palette-purple-900:#1E0A2E;
+    --palette-purple-700:#3D1A5C;--palette-purple-300:#C084FC;
+    --palette-green-500:#10B981;--palette-green-400:#6EE7B7;
+    --palette-red-400:#F87171;--palette-red-500:#EF4444;
+    --palette-blue-400:#60A5FA;
+
+    --staff-bg:#0C0A09;
+    --staff-surface:#161412;
+    --staff-card:#1C1917;
+    --staff-card-raised:#292524;
+    --staff-nav:#120620;
+    --staff-header:#1E0A2E;
+    --staff-text-primary:#FAFAF9;
+    --staff-text-secondary:#A8A29E;
+    --staff-text-muted:#57534E;
+    --staff-border:#292524;
+    --staff-border-strong:#44403C;
+    --staff-action:#F59E0B;
+
+    --font-display:'Fraunces',Georgia,serif;
+    --font-body:'DM Sans',system-ui,sans-serif;
+    --radius-sm:0.375rem;--radius-md:0.75rem;
+    --radius-lg:1rem;--radius-full:9999px;
+    --shadow-xl:0 24px 48px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.3);
+  
+  /* ── Semantic status tokens (DESIGN_SYSTEM.md compliant) ── */
+  /* Light surface values — dark-surface values auto via [data-theme=dark] */
+  --status-ok-bg:          #D1FAE5;
+  --status-ok-text:        #065F46;
+  --status-ok-border:      #A7F3D0;
+  --status-warning-bg:     #FEF3C7;
+  --status-warning-text:   #92400E;
+  --status-warning-border: #FDE68A;
+  --status-error-bg:       #FEE2E2;
+  --status-error-text:     #991B1B;
+  --status-error-border:   #FECACA;
+  --status-info-bg:        #EFF6FF;
+  --status-info-text:      #1E40AF;
+  --status-info-border:    #BFDBFE;
+
+  /* Dark-surface overrides (staff app always dark) */
+  /* These mirror [data-theme=dark] from DESIGN_SYSTEM.md */
+  --status-ok-text-dark:      #6EE7B7;
+  --status-warning-text-dark: #FCD34D;
+  --status-error-text-dark:   #FCA5A5;
+  --status-info-text-dark:    #93C5FD;
+}
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-body);background: var(--surface-dark);padding:40px 20px;min-height:100vh;}
+
+  .page-title{font-family:var(--font-display);font-size:24px;color:#FAFAF9;text-align:center;margin-bottom:6px;}
+  .page-sub{font-size:13px;color: var(--color-text-secondary);text-align:center;line-height:1.6;margin-bottom:32px;}
+  .section-heading{font-family:var(--font-display);font-size:17px;color: var(--color-text-secondary);text-align:center;margin:0 auto 20px;padding-top:28px;border-top:1px solid var(--palette-stone-800);max-width:960px;}
+  .phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:48px;}
+  .screen-group{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .screen-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color: var(--color-text-secondary);text-align:center;max-width:210px;line-height:1.5;}
+
+  .phone{width:375px;background:var(--staff-bg);border-radius:36px;overflow:hidden;box-shadow:var(--shadow-xl),0 0 0 1px rgba(255,255,255,0.05);display:flex;flex-direction:column;}
+
+  /* Header */
+  .staff-header{background:var(--staff-header);padding:14px 18px 13px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .back-btn{background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:5px;flex-shrink:0;}
+  .back-label{font-size:12px;color: var(--color-text-muted);font-family:var(--font-body);}
+  .header-spacer{flex:1;}
+  .header-action{font-size:12px;font-weight:600;color:var(--staff-action);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
+  .staff-role-badge{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border-radius:var(--radius-full);background:rgba(245,158,11,0.12);color:var(--status-warning-text-dark);border:1px solid rgba(245,158,11,0.25);}
+
+  .staff-content{flex:1;overflow-y:auto;background:var(--staff-bg);}
+
+  /* Page title in content */
+  .page-title-inner{font-family:var(--font-display);font-size:22px;color:var(--staff-text-primary);padding:18px 18px 4px;}
+
+  .divider{height:1px;background:var(--staff-border);margin:10px 16px;}
+  .section-lbl{font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--staff-text-muted);padding:10px 16px 7px;}
+
+  /* ── Month navigator ── */
+  .month-nav{display:flex;align-items:center;justify-content:space-between;padding:8px 18px 12px;}
+  .month-nav-btn{background:none;border:none;cursor:pointer;padding:6px;color:var(--staff-text-muted);display:flex;align-items:center;}
+  .month-label{font-family:var(--font-display);font-size:18px;color:var(--staff-text-primary);}
+
+  /* ── Calendar grid ── */
+  .calendar-wrap{padding:0 14px 8px;}
+
+  .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px;}
+  .cal-dow{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);text-align:center;padding:4px 0;}
+
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+
+  .cal-day{aspect-ratio:1;border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:4px 2px;cursor:pointer;position:relative;transition:all 0.15s;}
+  .cal-day:hover{background:var(--staff-card);}
+  .cal-day.other-month{opacity:0.2;}
+  .cal-day.today{background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);}
+  .cal-day.selected{background:var(--staff-action);border-radius:var(--radius-sm);}
+  .cal-day.blocked{background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.15);}
+  .cal-day.fully-blocked{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);}
+
+  .cal-day-num{font-size:11px;font-weight:600;color:var(--staff-text-secondary);line-height:1;}
+  .cal-day.today .cal-day-num{color:var(--staff-action);}
+  .cal-day.selected .cal-day-num{color:white;}
+  .cal-day.other-month .cal-day-num{color:var(--staff-text-muted);}
+
+  /* Density bar — shows booking fill for the day */
+  .cal-density{width:calc(100% - 4px);height:3px;border-radius:2px;margin-top:3px;background:var(--staff-border);}
+  .cal-density-fill{height:100%;border-radius:2px;background:var(--palette-green-500);transition:width 0.3s;}
+  .cal-density-fill.busy{background:var(--staff-action);}
+  .cal-density-fill.full{background:var(--status-error-text-dark);}
+
+  /* Block indicator dot */
+  .cal-block-dot{position:absolute;bottom:3px;right:3px;width:4px;height:4px;border-radius:50%;background:var(--status-error-text-dark);}
+
+  /* ── Day detail panel ── */
+  .day-detail-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px;border-top:1px solid var(--staff-border);}
+  .day-detail-date{font-family:var(--font-display);font-size:16px;color:var(--staff-text-primary);}
+  .day-detail-meta{font-size:10px;color:var(--staff-text-muted);margin-top:2px;}
+  .day-add-block-btn{font-size:11px;font-weight:600;color:var(--staff-action);background:none;border:none;cursor:pointer;font-family:var(--font-body);display:flex;align-items:center;gap:4px;}
+
+  /* Booking slot list for selected day */
+  .day-slot-list{padding:0 16px 8px;}
+  .day-slot{display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--staff-card);border-radius:var(--radius-md);margin-bottom:6px;border:1px solid var(--staff-border);}
+  .day-slot.blocked-slot{background:rgba(239,68,68,0.05);border-color:rgba(239,68,68,0.2);}
+  .slot-time{font-family:var(--font-display);font-size:13px;color:var(--staff-text-primary);min-width:52px;}
+  .slot-info{flex:1;}
+  .slot-name{font-size:12px;font-weight:500;color:var(--staff-text-primary);}
+  .slot-meta{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+  .slot-lane{font-size:10px;font-weight:600;padding:2px 6px;border-radius:var(--radius-full);background:var(--staff-card-raised);color:var(--staff-text-secondary);border:1px solid var(--staff-border);}
+  .slot-block-label{font-size:10px;font-weight:600;color:var(--status-error-text-dark);}
+
+  /* ── Block creation sheet ── */
+  .block-sheet{background:var(--staff-card);border-top:1px solid var(--staff-border);}
+  .sheet-handle{width:32px;height:3px;border-radius:2px;background:var(--staff-border-strong);margin:12px auto 14px;}
+  .sheet-content{padding:0 18px 20px;}
+  .sheet-title{font-family:var(--font-display);font-size:17px;color:var(--staff-text-primary);margin-bottom:14px;}
+  .sheet-form-field{margin-bottom:12px;}
+  .sheet-form-label{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:5px;display:block;}
+  .sheet-input{width:100%;padding:10px 13px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);}
+  .sheet-input::placeholder{color:var(--staff-text-muted);}
+  .sheet-input.active{border-color:var(--staff-action);}
+  .sheet-select{width:100%;padding:10px 32px 10px 13px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2357534E' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+  .time-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .time-row .sheet-input{min-width:0;}
+
+  /* Block scope toggle */
+  .scope-toggle{display:flex;background:var(--staff-card-raised);border-radius:var(--radius-md);padding:3px;border:1px solid var(--staff-border);margin-bottom:12px;}
+  .scope-opt{flex:1;padding:8px;text-align:center;border-radius:calc(var(--radius-md) - 2px);font-size:12px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;}
+  .scope-opt.active{background:rgba(239,68,68,0.12);color:var(--status-error-text-dark);border:1px solid rgba(239,68,68,0.2);}
+
+  /* Lane multi-select */
+  .lane-chips{display:flex;flex-wrap:wrap;gap:5px;}
+  .lane-chip{padding:5px 10px;border-radius:var(--radius-full);border:1.5px solid var(--staff-border-strong);background:var(--staff-card-raised);font-size:11px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;}
+  .lane-chip.on{border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.1);color:var(--status-error-text-dark);}
+  .lane-chip.all{border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.1);color:var(--status-error-text-dark);}
+
+  /* Repeat pattern */
+  .repeat-row{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:var(--staff-card-raised);border-radius:var(--radius-md);border:1px solid var(--staff-border);margin-bottom:12px;}
+  .repeat-label{font-size:13px;color:var(--staff-text-primary);}
+  .repeat-toggle{position:relative;width:38px;height:21px;border-radius:11px;cursor:pointer;border:none;background:var(--staff-border-strong);}
+  .repeat-toggle.on{background:var(--staff-action);}
+  .repeat-toggle::after{content:'';position:absolute;width:15px;height:15px;background:white;border-radius:50%;top:3px;left:3px;transition:transform 0.25s;box-shadow:0 1px 3px rgba(0,0,0,0.3);}
+  .repeat-toggle.on::after{transform:translateX(17px);}
+
+  .sheet-actions{display:flex;gap:8px;}
+  .btn-danger{flex:2;padding:12px;background:rgba(239,68,68,0.15);color:var(--status-error-text-dark);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;}
+  .btn-secondary{flex:1;padding:12px;background:var(--staff-card-raised);color:var(--staff-text-secondary);border:1px solid var(--staff-border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;cursor:pointer;}
+
+  /* ── Blocked times list page ── */
+  .block-item{background:var(--staff-card);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-md);padding:12px 14px;margin:0 16px 8px;cursor:pointer;}
+  .block-item-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;}
+  .block-item-name{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .block-item-date{font-size:11px;color:var(--staff-text-muted);margin-top:2px;}
+  .block-scope-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:var(--radius-full);background:rgba(239,68,68,0.1);color:var(--status-error-text-dark);border:1px solid rgba(239,68,68,0.2);white-space:nowrap;}
+  .block-item-detail{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .block-detail-tag{font-size:10px;padding:2px 7px;border-radius:var(--radius-full);background:var(--staff-card-raised);color:var(--staff-text-muted);border:1px solid var(--staff-border);}
+  .block-detail-tag.lanes{color:var(--status-error-text-dark);background:rgba(239,68,68,0.06);border-color:rgba(239,68,68,0.15);}
+
+  /* Tab bar */
+  .tab-bar{background:var(--staff-nav);border-top:1px solid rgba(168,85,247,0.12);padding:8px 0 14px;display:flex;align-items:flex-start;justify-content:space-around;flex-shrink:0;}
+  .tab-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 8px;cursor:pointer;min-width:60px;position:relative;}
+  .tab-icon-wrap{width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
+  .tab-icon-wrap svg{stroke:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-icon-wrap svg{stroke:var(--staff-action);opacity:1;}
+  .tab-label{font-size:9px;font-weight:600;letter-spacing:0.03em;color:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-label{color:var(--staff-action);opacity:1;}
+  .tab-active-bar{position:absolute;top:0;left:50%;transform:translateX(-50%);width:20px;height:2px;border-radius:1px;background:var(--staff-action);opacity:0;}
+  .tab-item.active .tab-active-bar{opacity:1;}
+
+  /* Token note */
+  .token-note{background: var(--surface-dark);border:1px solid var(--palette-stone-800);border-radius:var(--radius-lg);padding:16px 20px;max-width:960px;width:100%;margin:0 auto;}
+  .token-note-title{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color: var(--color-text-secondary);margin-bottom:10px;}
+  .token-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .token-chip{display:flex;align-items:center;gap:5px;padding:3px 9px;background:var(--palette-stone-900);border:1px solid var(--palette-stone-700);border-radius:var(--radius-full);font-size:10px;font-family:monospace;color: var(--color-text-muted);}
+  .token-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="page-title">Schedule Tab — Calendar & Blocking</div>
+<p class="page-sub">Month calendar with density · Day detail · Block creation sheet · Blocked times list</p>
+
+<div class="section-heading">Schedule Tab</div>
+
+<div class="phone-row">
+
+  <!-- Screen A: Month calendar default -->
+  <div class="screen-group">
+    <div class="screen-label">Schedule A — Month view<br>Density bars · Block dots · Today</div>
+    <div class="phone">
+      <div class="staff-header">
+        <div style="font-family:var(--font-display);font-size:16px;color:var(--color-text-inverted);flex:1;">Royal Z Lanes</div>
+        <div class="staff-role-badge">Admin</div>
+      </div>
+
+      <div class="staff-content">
+        <!-- Page title + view toggle inline -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 18px 4px;">
+          <div class="page-title-inner" style="padding:0;">Schedule</div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <!-- Calendar active -->
+            <button style="width:32px;height:32px;border-radius:var(--radius-md);background:rgba(245,158,11,0.12);border:1.5px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </button>
+            <!-- List inactive -->
+            <button style="width:32px;height:32px;border-radius:var(--radius-md);background:none;border:1.5px solid var(--staff-border-strong);display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0.45;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Month navigation -->
+        <div class="month-nav">
+          <button class="month-nav-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="month-label">May 2026</div>
+          <button class="month-nav-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+
+        <!-- Calendar -->
+        <div class="calendar-wrap">
+          <div class="cal-dow-row">
+            <div class="cal-dow">Su</div><div class="cal-dow">Mo</div>
+            <div class="cal-dow">Tu</div><div class="cal-dow">We</div>
+            <div class="cal-dow">Th</div><div class="cal-dow">Fr</div>
+            <div class="cal-dow">Sa</div>
+          </div>
+
+          <div class="cal-grid">
+            <!-- Week 1 -->
+            <div class="cal-day other-month"><div class="cal-day-num">26</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">27</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">28</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">29</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">30</div></div>
+            <div class="cal-day"><div class="cal-day-num">1</div><div class="cal-density"><div class="cal-density-fill" style="width:30%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">2</div><div class="cal-density"><div class="cal-density-fill busy" style="width:60%"></div></div></div>
+
+            <!-- Week 2 -->
+            <div class="cal-day"><div class="cal-day-num">3</div><div class="cal-density"><div class="cal-density-fill" style="width:20%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">4</div><div class="cal-density"><div class="cal-density-fill" style="width:15%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">5</div><div class="cal-density"><div class="cal-density-fill" style="width:10%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">6</div><div class="cal-density"><div class="cal-density-fill" style="width:25%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">7</div><div class="cal-density"><div class="cal-density-fill" style="width:40%"></div></div></div>
+            <div class="cal-day blocked"><div class="cal-day-num">8</div><div class="cal-density"><div class="cal-density-fill full" style="width:85%"></div></div><div class="cal-block-dot"></div></div>
+            <div class="cal-day"><div class="cal-day-num">9</div><div class="cal-density"><div class="cal-density-fill full" style="width:95%"></div></div></div>
+
+            <!-- Week 3 — today is May 10 -->
+            <div class="cal-day today selected"><div class="cal-day-num">10</div><div class="cal-density" style="background:rgba(255,255,255,0.2);"><div class="cal-density-fill" style="width:45%;background:white;"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">11</div><div class="cal-density"><div class="cal-density-fill" style="width:20%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">12</div><div class="cal-density"><div class="cal-density-fill" style="width:10%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">13</div><div class="cal-density"><div class="cal-density-fill" style="width:30%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">14</div><div class="cal-density"><div class="cal-density-fill" style="width:50%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">15</div><div class="cal-density"><div class="cal-density-fill busy" style="width:70%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">16</div><div class="cal-density"><div class="cal-density-fill full" style="width:90%"></div></div></div>
+
+            <!-- Week 4 -->
+            <div class="cal-day fully-blocked"><div class="cal-day-num">17</div><div class="cal-density"><div class="cal-density-fill full" style="width:0%"></div></div><div class="cal-block-dot"></div></div>
+            <div class="cal-day"><div class="cal-day-num">18</div><div class="cal-density"></div></div>
+            <div class="cal-day"><div class="cal-day-num">19</div><div class="cal-density"></div></div>
+            <div class="cal-day"><div class="cal-day-num">20</div><div class="cal-density"><div class="cal-density-fill" style="width:15%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">21</div><div class="cal-density"><div class="cal-density-fill" style="width:35%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">22</div><div class="cal-density"><div class="cal-density-fill busy" style="width:65%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">23</div><div class="cal-density"><div class="cal-density-fill full" style="width:88%"></div></div></div>
+
+            <!-- Week 5 -->
+            <div class="cal-day"><div class="cal-day-num">24</div><div class="cal-density"><div class="cal-density-fill" style="width:20%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">25</div><div class="cal-density"></div></div>
+            <div class="cal-day"><div class="cal-day-num">26</div><div class="cal-density"></div></div>
+            <div class="cal-day"><div class="cal-day-num">27</div><div class="cal-density"><div class="cal-density-fill" style="width:10%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">28</div><div class="cal-density"><div class="cal-density-fill" style="width:20%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">29</div><div class="cal-density"><div class="cal-density-fill busy" style="width:55%"></div></div></div>
+            <div class="cal-day"><div class="cal-day-num">30</div><div class="cal-density"><div class="cal-density-fill full" style="width:80%"></div></div></div>
+
+            <!-- Week 6 -->
+            <div class="cal-day"><div class="cal-day-num">31</div><div class="cal-density"><div class="cal-density-fill" style="width:30%"></div></div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">1</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">2</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">3</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">4</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">5</div></div>
+            <div class="cal-day other-month"><div class="cal-day-num">6</div></div>
+          </div>
+        </div>
+
+        <!-- Density legend -->
+        <div style="display:flex;align-items:center;gap:12px;padding:6px 16px 10px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:4px;"><div style="width:20px;height:3px;border-radius:2px;background:var(--palette-green-500);"></div><div style="font-size:9px;color:var(--staff-text-muted);">Available</div></div>
+          <div style="display:flex;align-items:center;gap:4px;"><div style="width:20px;height:3px;border-radius:2px;background:var(--staff-action);"></div><div style="font-size:9px;color:var(--staff-text-muted);">Busy</div></div>
+          <div style="display:flex;align-items:center;gap:4px;"><div style="width:20px;height:3px;border-radius:2px;background:var(--status-error-text-dark);"></div><div style="font-size:9px;color:var(--staff-text-muted);">Full</div></div>
+          <div style="display:flex;align-items:center;gap:4px;"><div style="width:5px;height:5px;border-radius:50%;background:var(--status-error-text-dark);"></div><div style="font-size:9px;color:var(--staff-text-muted);">Blocked</div></div>
+        </div>
+
+        <!-- Selected day detail — May 10 -->
+        <div class="divider"></div>
+        <div class="day-detail-header">
+          <div>
+            <div class="day-detail-date">Saturday, May 10</div>
+            <div class="day-detail-meta">8 bookings · 4 lanes active now</div>
+          </div>
+          <button class="day-add-block-btn">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Block
+          </button>
+        </div>
+
+        <div class="day-slot-list">
+          <div class="day-slot">
+            <div class="slot-time">1:00 PM</div>
+            <div class="slot-info">
+              <div class="slot-name">Sarah Johnson</div>
+              <div class="slot-meta">6 bowlers · Cosmic Bowl</div>
+            </div>
+            <div class="slot-lane">Ln 4</div>
+          </div>
+          <div class="day-slot">
+            <div class="slot-time">2:30 PM</div>
+            <div class="slot-info">
+              <div class="slot-name">Marcus Williams</div>
+              <div class="slot-meta">8 bowlers · Birthday Party</div>
+            </div>
+            <div class="slot-lane">Ln 1–2</div>
+          </div>
+          <div class="day-slot blocked-slot">
+            <div class="slot-time">4:00 PM</div>
+            <div class="slot-info">
+              <div class="slot-block-label">Blocked — League night setup</div>
+              <div class="slot-meta">Lanes 5–8 · 4:00–6:00 PM</div>
+            </div>
+            <div class="slot-lane" style="color:var(--status-error-text-dark);border-color:rgba(239,68,68,0.2);">Ln 5–8</div>
+          </div>
+          <div class="day-slot">
+            <div class="slot-time">5:00 PM</div>
+            <div class="slot-info">
+              <div class="slot-name">Taylor Chen</div>
+              <div class="slot-meta">3 bowlers · Open Bowl</div>
+            </div>
+            <div class="slot-lane">Ln 3</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen B: Block creation sheet -->
+  <div class="screen-group">
+    <div class="screen-label">Schedule B — Block creation<br>Scope toggle · Lane select · Time range</div>
+    <div class="phone">
+      <div class="staff-header">
+        <div style="font-family:var(--font-display);font-size:16px;color:var(--color-text-inverted);flex:1;">Royal Z Lanes</div>
+        <div class="staff-role-badge">Admin</div>
+      </div>
+
+      <!-- Dimmed calendar -->
+      <div class="staff-content" style="opacity:0.2;pointer-events:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 18px 4px;">
+          <div class="page-title-inner" style="padding:0;">Schedule</div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:32px;height:32px;border-radius:var(--radius-md);background:rgba(245,158,11,0.12);border:1.5px solid rgba(245,158,11,0.3);"></div>
+            <div style="width:32px;height:32px;border-radius:var(--radius-md);background:none;border:1.5px solid var(--staff-border-strong);"></div>
+          </div>
+        </div>
+        <div class="month-nav"><span style="color:var(--staff-text-muted);">‹</span><div class="month-label">May 2026</div><span style="color:var(--staff-text-muted);">›</span></div>
+        <div style="height:160px;margin:0 14px;background:var(--staff-card);border-radius:var(--radius-md);"></div>
+        <div class="divider"></div>
+        <div class="day-detail-header"><div><div class="day-detail-date">Saturday, May 10</div></div></div>
+      </div>
+
+      <!-- Block creation sheet -->
+      <div class="block-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-content">
+          <div class="sheet-title">Add block</div>
+
+          <!-- Scope: whole venue vs specific lanes -->
+          <div class="sheet-form-label">What to block</div>
+          <div class="scope-toggle" style="margin-bottom:10px;">
+            <div class="scope-opt">Whole venue</div>
+            <div class="scope-opt active">Specific lanes</div>
+          </div>
+
+          <!-- Lane selection — shown when specific lanes selected -->
+          <div class="sheet-form-field">
+            <label class="sheet-form-label">Lanes</label>
+            <div class="lane-chips">
+              <div class="lane-chip">1</div>
+              <div class="lane-chip">2</div>
+              <div class="lane-chip">3</div>
+              <div class="lane-chip">4</div>
+              <div class="lane-chip on">5</div>
+              <div class="lane-chip on">6</div>
+              <div class="lane-chip on">7</div>
+              <div class="lane-chip on">8</div>
+              <div class="lane-chip">9</div>
+              <div class="lane-chip">10</div>
+              <div class="lane-chip">11</div>
+              <div class="lane-chip">12</div>
+            </div>
+          </div>
+
+          <!-- Reason -->
+          <div class="sheet-form-field">
+            <label class="sheet-form-label">Reason <span style="text-transform:none;font-weight:400;">(shown to staff)</span></label>
+            <input class="sheet-input active" type="text" value="League night setup">
+          </div>
+
+          <!-- Date -->
+          <div class="sheet-form-field">
+            <label class="sheet-form-label">Date</label>
+            <input class="sheet-input" type="date" value="2026-05-10">
+          </div>
+
+          <!-- Time range or all day -->
+          <div class="sheet-form-field">
+            <label class="sheet-form-label">Time</label>
+            <div class="time-row">
+              <input class="sheet-input" type="time" value="16:00">
+              <input class="sheet-input" type="time" value="18:00">
+            </div>
+            <div style="font-size:10px;color:var(--staff-text-muted);margin-top:4px;">Leave blank to block the entire day</div>
+          </div>
+
+          <!-- Repeat -->
+          <div class="repeat-row">
+            <div class="repeat-label">Repeat weekly</div>
+            <button class="repeat-toggle on"></button>
+          </div>
+
+          <div class="sheet-actions">
+            <button class="btn-danger">Add block</button>
+            <button class="btn-secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen C: Blocked times list -->
+  <div class="screen-group">
+    <div class="screen-label">Schedule C — List view<br>List icon active · Month filter · Add block</div>
+    <div class="phone">
+      <div class="staff-header">
+        <div style="font-family:var(--font-display);font-size:16px;color:var(--color-text-inverted);flex:1;">Royal Z Lanes</div>
+        <div class="staff-role-badge">Admin</div>
+      </div>
+
+      <div class="staff-content">
+        <!-- Page title + view toggle inline -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 18px 4px;">
+          <div class="page-title-inner" style="padding:0;">Schedule</div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <!-- Calendar inactive -->
+            <button style="width:32px;height:32px;border-radius:var(--radius-md);background:none;border:1.5px solid var(--staff-border-strong);display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0.45;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </button>
+            <!-- List active -->
+            <button style="width:32px;height:32px;border-radius:var(--radius-md);background:rgba(245,158,11,0.12);border:1.5px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Month filter nav — same as calendar view -->
+        <div class="month-nav" style="padding-bottom:8px;">
+          <button class="month-nav-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <div class="month-label">May 2026</div>
+          <button class="month-nav-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+
+        <!-- Add block button -->
+        <div style="padding:0 16px 10px;">
+          <button style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px;background:rgba(239,68,68,0.08);border:1.5px solid rgba(239,68,68,0.2);border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-body);font-size:12px;font-weight:600;color:var(--status-error-text-dark);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add block
+          </button>
+        </div>
+
+        <!-- Upcoming blocks -->
+        <div class="section-lbl">Upcoming</div>
+
+        <div class="block-item">
+          <div class="block-item-top">
+            <div>
+              <div class="block-item-name">League night setup</div>
+              <div class="block-item-date">Sat May 10 · 4:00 PM – 6:00 PM</div>
+            </div>
+            <div class="block-scope-badge">Lanes 5–8</div>
+          </div>
+          <div class="block-item-detail">
+            <div class="block-detail-tag lanes">Lanes 5, 6, 7, 8</div>
+            <div class="block-detail-tag">Repeats weekly</div>
+          </div>
+        </div>
+
+        <div class="block-item">
+          <div class="block-item-top">
+            <div>
+              <div class="block-item-name">Private event</div>
+              <div class="block-item-date">Sun May 17 · All day</div>
+            </div>
+            <div class="block-scope-badge" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.35);">All lanes</div>
+          </div>
+          <div class="block-item-detail">
+            <div class="block-detail-tag lanes">Whole venue closed</div>
+            <div class="block-detail-tag">One time</div>
+          </div>
+        </div>
+
+        <div class="block-item">
+          <div class="block-item-top">
+            <div>
+              <div class="block-item-name">Lane 6 maintenance</div>
+              <div class="block-item-date">Mon May 18 – Fri May 22</div>
+            </div>
+            <div class="block-scope-badge">Lane 6</div>
+          </div>
+          <div class="block-item-detail">
+            <div class="block-detail-tag lanes">Lane 6 only</div>
+            <div class="block-detail-tag">5 days</div>
+          </div>
+        </div>
+
+        <!-- Past blocks -->
+        <div class="section-lbl">Past</div>
+
+        <div class="block-item" style="opacity:0.45;">
+          <div class="block-item-top">
+            <div>
+              <div class="block-item-name">Deep clean</div>
+              <div class="block-item-date">Mon May 4 · 8:00 AM – 12:00 PM</div>
+            </div>
+            <div class="block-scope-badge" style="opacity:0.6;">All lanes</div>
+          </div>
+          <div class="block-item-detail">
+            <div class="block-detail-tag">Whole venue</div>
+            <div class="block-detail-tag">One time · completed</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token note -->
+<div class="token-note">
+  <div class="token-note-title">Schedule tab patterns</div>
+  <div class="token-grid">
+    <div class="token-chip"><div class="token-swatch" style="background:var(--palette-green-500)"></div>Density bar — available (green)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:var(--staff-action)"></div>Density bar — busy (amber)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:var(--status-error-text-dark)"></div>Density bar — full (red)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.15)"></div>Partial block day — red tint bg</div>
+    <div class="token-chip"><div class="token-swatch" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25)"></div>Full block day — stronger red tint</div>
+    <div class="token-chip">Scope toggle uses red active state — communicates restriction</div>
+    <div class="token-chip">Repeat toggle → creates recurring LaneBlock records</div>
+    <div class="token-chip">Past blocks shown at 0.45 opacity — historical reference only</div>
+    <div class="token-chip">Block reason visible to staff in day detail — not to customers</div>
+  </div>
+</div>
+
+</body>
+</html>

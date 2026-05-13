@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Walk-in Booking Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --palette-amber-400:#FBBF24;--palette-amber-500:#F59E0B;
+    --palette-amber-700:#B45309;
+    --palette-stone-400:#A8A29E;--palette-stone-500:#78716C;
+    --palette-stone-600:#57534E;--palette-stone-700:#44403C;
+    --palette-stone-800:#292524;--palette-stone-900:#1C1917;
+    --palette-purple-950:#120620;--palette-purple-900:#1E0A2E;
+    --palette-purple-300:#C084FC;
+    --palette-green-500:#10B981;--palette-green-400:#6EE7B7;
+    --palette-red-400:#F87171;--palette-blue-400:#60A5FA;
+
+    --staff-bg:#0C0A09;--staff-card:#1C1917;
+    --staff-card-raised:#292524;--staff-nav:#120620;
+    --staff-header:#1E0A2E;
+    --staff-text-primary:#FAFAF9;--staff-text-secondary:#A8A29E;
+    --staff-text-muted:#57534E;
+    --staff-border:#292524;--staff-border-strong:#44403C;
+    --staff-action:#F59E0B;
+
+    --font-display:'Fraunces',Georgia,serif;
+    --font-body:'DM Sans',system-ui,sans-serif;
+    --radius-sm:0.375rem;--radius-md:0.75rem;
+    --radius-lg:1rem;--radius-full:9999px;
+    --shadow-xl:0 24px 48px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.3);
+  
+  /* ── Semantic status tokens (DESIGN_SYSTEM.md compliant) ── */
+  /* Light surface values — dark-surface values auto via [data-theme=dark] */
+  --status-ok-bg:          #D1FAE5;
+  --status-ok-text:        #065F46;
+  --status-ok-border:      #A7F3D0;
+  --status-warning-bg:     #FEF3C7;
+  --status-warning-text:   #92400E;
+  --status-warning-border: #FDE68A;
+  --status-error-bg:       #FEE2E2;
+  --status-error-text:     #991B1B;
+  --status-error-border:   #FECACA;
+  --status-info-bg:        #EFF6FF;
+  --status-info-text:      #1E40AF;
+  --status-info-border:    #BFDBFE;
+
+  /* Dark-surface overrides (staff app always dark) */
+  /* These mirror [data-theme=dark] from DESIGN_SYSTEM.md */
+  --status-ok-text-dark:      #6EE7B7;
+  --status-warning-text-dark: #FCD34D;
+  --status-error-text-dark:   #FCA5A5;
+  --status-info-text-dark:    #93C5FD;
+
+  /* ── Lane grid — semantic tokens ── */
+  --lane-available-bg:   #0A1A0F;
+  --lane-available-text: var(--status-ok-text-dark);
+  --lane-available-border: var(--palette-green-500);
+  --lane-occupied-bg:    #1A0A0A;
+  --lane-occupied-text:  var(--status-error-text-dark);
+  --lane-occupied-border: var(--status-error-text-dark);
+  --lane-current-bg:     rgba(96,165,250,0.1);
+  --lane-current-text:   var(--status-info-text-dark);
+  --lane-current-border: var(--status-info-text-dark);
+  --lane-selected-bg:    rgba(245,158,11,0.15);
+  --lane-selected-text:  var(--staff-action);
+  --lane-selected-border: var(--staff-action);
+}
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-body);background: var(--surface-dark);padding:40px 20px;min-height:100vh;}
+
+  .page-title{font-family:var(--font-display);font-size:24px;color:#FAFAF9;text-align:center;margin-bottom:6px;}
+  .page-sub{font-size:13px;color: var(--color-text-secondary);text-align:center;line-height:1.6;margin-bottom:32px;}
+  .section-heading{font-family:var(--font-display);font-size:17px;color: var(--color-text-secondary);text-align:center;margin:0 auto 20px;padding-top:28px;border-top:1px solid var(--palette-stone-800);max-width:960px;}
+  .phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:48px;}
+  .screen-group{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .screen-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color: var(--color-text-secondary);text-align:center;max-width:210px;line-height:1.5;}
+
+  .phone{width:375px;max-height:780px;background:var(--staff-bg);border-radius:36px;overflow:hidden;box-shadow:var(--shadow-xl),0 0 0 1px rgba(255,255,255,0.05);display:flex;flex-direction:column;}
+
+  /* Header */
+  .staff-header{background:var(--staff-header);padding:14px 18px 13px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .venue-name{font-family:var(--font-display);font-size:16px;color:#FAFAF9;}
+  .staff-time{font-size:10px;color: var(--color-text-secondary);margin-top:1px;}
+  .staff-role-badge{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border-radius:var(--radius-full);background:rgba(168,85,247,0.15);color:var(--palette-purple-300);border:1px solid rgba(168,85,247,0.25);}
+
+  /* Cockpit content — dimmed behind sheet */
+  .staff-content{flex:1;overflow-y:auto;background:var(--staff-bg);min-height:0;}
+
+  /* Dimmed cockpit overview */
+  .cockpit-dim{opacity:0.18;pointer-events:none;padding:12px 16px;}
+
+  /* Toggle */
+  .cockpit-toggle{display:flex;margin:0 0 12px;background:var(--staff-card);border-radius:var(--radius-md);padding:3px;border:1px solid var(--staff-border);}
+  .toggle-opt{flex:1;padding:7px;text-align:center;border-radius:calc(var(--radius-md) - 2px);font-size:12px;font-weight:600;color:var(--staff-text-muted);}
+  .toggle-opt.active{background:var(--staff-card-raised);color:var(--staff-text-primary);}
+
+  /* Stat cards placeholder */
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;}
+  .stat-card{background:var(--staff-card);border:1px solid var(--staff-border);border-radius:var(--radius-md);padding:10px 8px;text-align:center;}
+  .stat-num{font-family:var(--font-display);font-size:22px;color:var(--staff-text-primary);}
+  .stat-lbl{font-size:9px;color:var(--staff-text-muted);margin-top:4px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;}
+
+  /* Upcoming placeholder rows */
+  .upcoming-placeholder{height:52px;background:var(--staff-card);border-radius:var(--radius-md);margin-bottom:7px;border:1px solid var(--staff-border);}
+
+  /* FAB */
+  .fab{position:absolute;bottom:68px;right:16px;width:44px;height:44px;border-radius:50%;background:var(--staff-action);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(245,158,11,0.4);cursor:pointer;border:none;color:white;font-size:22px;font-weight:300;line-height:1;}
+
+  /* ── Walk-in bottom sheet ── */
+  .walkin-sheet{background:var(--staff-card);border-top:1px solid var(--staff-border);flex-shrink:0;}
+  .sheet-handle{width:32px;height:3px;border-radius:2px;background:var(--staff-border-strong);margin:12px auto 0;}
+
+  /* Sheet header with step indicator */
+  .sheet-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;}
+  .sheet-title{font-family:var(--font-display);font-size:17px;color:var(--staff-text-primary);}
+  .sheet-steps{display:flex;align-items:center;gap:5px;}
+  .step-dot{width:6px;height:6px;border-radius:50%;background:var(--staff-border-strong);}
+  .step-dot.active{background:var(--staff-action);width:18px;border-radius:3px;}
+  .step-dot.done{background:var(--staff-action);opacity:0.4;}
+
+  .sheet-content{padding:0 18px 20px;}
+
+  /* Source chips */
+  .source-chips{display:flex;gap:6px;margin-bottom:14px;}
+  .source-chip{flex:1;padding:8px 6px;border-radius:var(--radius-md);border:1.5px solid var(--staff-border-strong);background:var(--staff-card-raised);font-size:11px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;text-align:center;}
+  .source-chip.active{border-color:var(--staff-action);background:rgba(245,158,11,0.1);color:var(--status-warning-text-dark);}
+
+  /* Form fields */
+  .field{margin-bottom:11px;}
+  .field-label{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:5px;display:block;}
+  .field-input{width:100%;padding:10px 13px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);}
+  .field-input::placeholder{color:var(--staff-text-muted);}
+  .field-input.filled{border-color:var(--staff-border-strong);}
+  .field-note{font-size:10px;color:var(--staff-text-muted);margin-top:3px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:11px;}
+
+  /* Bowler stepper inline */
+  .bowler-stepper{display:flex;align-items:center;gap:10px;}
+  .stepper-btn{width:32px;height:32px;border-radius:var(--radius-sm);background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);color:var(--staff-text-primary);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;}
+  .stepper-val{font-family:var(--font-display);font-size:24px;color:var(--staff-text-primary);min-width:36px;text-align:center;}
+  .stepper-label{font-size:11px;color:var(--staff-text-muted);}
+
+  /* Package selector */
+  .pkg-options{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+  .pkg-option{display:flex;align-items:center;gap:10px;padding:10px 13px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);cursor:pointer;}
+  .pkg-option.selected{border-color:var(--staff-action);background:rgba(245,158,11,0.06);}
+  .pkg-option.none-option{border-style:dashed;}
+  .pkg-radio{width:14px;height:14px;border-radius:50%;border:2px solid var(--staff-border-strong);flex-shrink:0;}
+  .pkg-option.selected .pkg-radio{border-color:var(--staff-action);background:var(--staff-action);}
+  .pkg-option-info{flex:1;}
+  .pkg-option-name{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .pkg-option-detail{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+  .pkg-option-price{font-family:var(--font-display);font-size:14px;color:var(--staff-action);flex-shrink:0;}
+
+  /* Lane mini-grid */
+  .lane-section{margin-bottom:12px;}
+  .lane-auto-row{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:rgba(16,185,129,0.06);border:1.5px solid rgba(16,185,129,0.25);border-radius:var(--radius-md);margin-bottom:8px;}
+  .lane-auto-label{font-size:12px;font-weight:600;color:var(--status-ok-text-dark);}
+  .lane-auto-val{font-family:var(--font-display);font-size:16px;color:var(--staff-text-primary);}
+  .lane-override-btn{font-size:11px;font-weight:600;color:var(--staff-action);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
+
+  .lane-mini-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;}
+  .lane-mini{aspect-ratio:1;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid;}
+  .lane-mini.available{background:var(--lane-available-bg);border-color:var(--lane-available-border);color:var(--lane-available-text);}
+  .lane-mini.occupied{background:var(--lane-occupied-bg);border-color:var(--lane-occupied-border);color:var(--lane-occupied-text);cursor:not-allowed;opacity:0.5;}
+  .lane-mini.selected{background:var(--lane-selected-bg);border-color:var(--lane-selected-border);color:var(--lane-selected-text);}
+  .lane-mini.blocked{background:var(--surface-dark);border-color:var(--color-border-strong);color:var(--color-text-muted);cursor:not-allowed;opacity:0.4;}
+
+  /* Confirm summary */
+  .confirm-summary{background:var(--staff-card-raised);border-radius:var(--radius-md);padding:13px;margin-bottom:14px;border:1px solid var(--staff-border);}
+  .confirm-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--staff-border);}
+  .confirm-row:last-child{border-bottom:none;}
+  .confirm-label{font-size:11px;color:var(--staff-text-muted);}
+  .confirm-val{font-size:12px;font-weight:500;color:var(--staff-text-primary);}
+  .confirm-val.amber{color:var(--staff-action);}
+
+  /* Payment method */
+  .payment-chips{display:flex;gap:6px;margin-bottom:14px;}
+  .payment-chip{flex:1;padding:8px 6px;border-radius:var(--radius-md);border:1.5px solid var(--staff-border-strong);background:var(--staff-card-raised);font-size:11px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;text-align:center;}
+  .payment-chip.active{border-color:var(--staff-action);background:rgba(245,158,11,0.1);color:var(--status-warning-text-dark);}
+
+  /* Action buttons */
+  .btn-primary{width:100%;padding:13px;background:var(--staff-action);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;}
+  .btn-row{display:flex;gap:8px;}
+  .btn-back{flex:1;padding:12px;background:var(--staff-card-raised);color:var(--staff-text-secondary);border:1px solid var(--staff-border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;cursor:pointer;}
+  .btn-next{flex:2;padding:12px;background:var(--staff-action);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;}
+  .btn-next:disabled{opacity:0.35;cursor:not-allowed;}
+
+  /* Tab bar */
+  .tab-bar{background:var(--staff-nav);border-top:1px solid rgba(168,85,247,0.12);padding:8px 0 14px;display:flex;align-items:flex-start;justify-content:space-around;flex-shrink:0;}
+  .tab-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 8px;cursor:pointer;min-width:60px;position:relative;}
+  .tab-icon-wrap{width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
+  .tab-icon-wrap svg{stroke:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-icon-wrap svg{stroke:var(--staff-action);opacity:1;}
+  .tab-label{font-size:9px;font-weight:600;letter-spacing:0.03em;color:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-label{color:var(--staff-action);opacity:1;}
+  .tab-active-bar{position:absolute;top:0;left:50%;transform:translateX(-50%);width:20px;height:2px;border-radius:1px;background:var(--staff-action);opacity:0;}
+  .tab-item.active .tab-active-bar{opacity:1;}
+
+  /* Token note */
+  .token-note{background: var(--surface-dark);border:1px solid var(--palette-stone-800);border-radius:var(--radius-lg);padding:16px 20px;max-width:960px;width:100%;margin:0 auto;}
+  .token-note-title{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color: var(--color-text-secondary);margin-bottom:10px;}
+  .token-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .token-chip{display:flex;align-items:center;gap:5px;padding:3px 9px;background:var(--palette-stone-900);border:1px solid var(--palette-stone-700);border-radius:var(--radius-full);font-size:10px;font-family:monospace;color: var(--color-text-muted);}
+  .token-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="page-title">Walk-in Booking Flow</div>
+<p class="page-sub">Bottom sheet · 3 steps · Cockpit stays visible dimmed behind · Source selector · Auto lane assign with override</p>
+
+<div class="section-heading">Walk-in Flow — Three Steps</div>
+
+<div class="phone-row">
+
+  <!-- Step 1: Guest details -->
+  <div class="screen-group">
+    <div class="screen-label">Step 1 — Guest details<br>Source · Name · Bowler count</div>
+    <div class="phone" style="position:relative;">
+      <div class="staff-header">
+        <div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Saturday · 2:14 PM</div></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="staff-role-badge">Staff</div>
+          <div style="width:30px;height:30px;border-radius:50%;background:var(--palette-purple-700);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--palette-purple-300);">SJ</div>
+        </div>
+      </div>
+
+      <!-- Dimmed cockpit -->
+      <div class="staff-content">
+        <div class="cockpit-dim">
+          <div class="cockpit-toggle">
+            <div class="toggle-opt active">Overview</div>
+            <div class="toggle-opt">Lanes</div>
+          </div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:8px;">Today's bookings</div>
+          <div class="stat-row">
+            <div class="stat-card"><div class="stat-num">18</div><div class="stat-lbl">Total</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--staff-action);">6</div><div class="stat-lbl">Upcoming</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--status-error-text-dark);">4</div><div class="stat-lbl">Active</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--staff-text-muted);">8</div><div class="stat-lbl">Done</div></div>
+          </div>
+          <div class="upcoming-placeholder"></div>
+          <div class="upcoming-placeholder"></div>
+          <div class="upcoming-placeholder"></div>
+        </div>
+      </div>
+
+      <!-- Walk-in sheet — Step 1 -->
+      <div class="walkin-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <div class="sheet-title">New booking</div>
+          <div class="sheet-steps">
+            <div class="step-dot active"></div>
+            <div class="step-dot"></div>
+            <div class="step-dot"></div>
+          </div>
+        </div>
+        <div class="sheet-content">
+
+          <!-- Source selector — defaults to Walk-in -->
+          <div class="field">
+            <label class="field-label">Source</label>
+            <div class="source-chips">
+              <div class="source-chip active">Walk-in</div>
+              <div class="source-chip">Phone</div>
+              <div class="source-chip">Advance</div>
+            </div>
+          </div>
+
+          <!-- Name -->
+          <div class="field">
+            <label class="field-label">Guest name</label>
+            <input class="field-input" type="text" placeholder="First name or group name">
+          </div>
+
+          <!-- Email optional -->
+          <div class="field">
+            <label class="field-label">Email <span style="text-transform:none;font-weight:400;font-size:10px;">— optional</span></label>
+            <input class="field-input" type="email" placeholder="For confirmation email">
+            <div class="field-note">Leave blank for guests without accounts.</div>
+          </div>
+
+          <!-- Bowler count -->
+          <div class="field">
+            <label class="field-label">Bowler count</label>
+            <div class="bowler-stepper">
+              <button class="stepper-btn">−</button>
+              <div class="stepper-val">4</div>
+              <button class="stepper-btn">+</button>
+              <div class="stepper-label">bowlers<br><span style="font-size:9px;">= 1 lane</span></div>
+            </div>
+          </div>
+
+          <div class="btn-row" style="margin-top:4px;">
+            <button class="btn-next">Next — Package & lane →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Package + lane -->
+  <div class="screen-group">
+    <div class="screen-label">Step 2 — Package & lane<br>Optional package · Auto-assign · Override grid</div>
+    <div class="phone" style="position:relative;">
+      <div class="staff-header">
+        <div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Saturday · 2:14 PM</div></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="staff-role-badge">Staff</div>
+          <div style="width:30px;height:30px;border-radius:50%;background:var(--palette-purple-700);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--palette-purple-300);">SJ</div>
+        </div>
+      </div>
+
+      <div class="staff-content">
+        <div class="cockpit-dim">
+          <div class="cockpit-toggle"><div class="toggle-opt active">Overview</div><div class="toggle-opt">Lanes</div></div>
+          <div class="stat-row">
+            <div class="stat-card"><div class="stat-num">18</div><div class="stat-lbl">Total</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--staff-action);">6</div><div class="stat-lbl">Upcoming</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--status-error-text-dark);">4</div><div class="stat-lbl">Active</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--staff-text-muted);">8</div><div class="stat-lbl">Done</div></div>
+          </div>
+          <div class="upcoming-placeholder"></div>
+          <div class="upcoming-placeholder"></div>
+        </div>
+      </div>
+
+      <!-- Step 2 sheet -->
+      <div class="walkin-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <div class="sheet-title">Package & lane</div>
+          <div class="sheet-steps">
+            <div class="step-dot done"></div>
+            <div class="step-dot active"></div>
+            <div class="step-dot"></div>
+          </div>
+        </div>
+        <div class="sheet-content">
+
+          <!-- Package — optional -->
+          <div class="field">
+            <label class="field-label">Package <span style="text-transform:none;font-weight:400;font-size:10px;">— optional</span></label>
+            <select style="width:100%;padding:11px 32px 11px 13px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2357534E' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 10px center;">
+              <option value="" selected>No package</option>
+              <option value="open-bowl">Open Bowl — $8.50/hr per person</option>
+              <option value="cosmic-bowl">Cosmic Bowl — $12.00/hr per person</option>
+              <option value="birthday">Birthday Party — $185 flat</option>
+            </select>
+            <div style="font-size:10px;color:var(--staff-text-muted);margin-top:4px;">Defaults to no package — lane only.</div>
+          </div>
+
+          <!-- Lane assignment -->
+          <div class="field" style="margin-bottom:8px;">
+            <label class="field-label">Lane</label>
+          </div>
+
+          <!-- Auto-assigned -->
+          <div class="lane-auto-row">
+            <div>
+              <div class="lane-auto-label">Auto-assigned</div>
+              <div style="font-size:10px;color:var(--staff-text-muted);margin-top:1px;">Next available lane</div>
+            </div>
+            <div class="lane-auto-val">Lane 1</div>
+            <button class="lane-override-btn">Override</button>
+          </div>
+
+          <!-- Lane override grid — shown when Override tapped -->
+          <div style="margin-bottom:12px;">
+            <div style="font-size:10px;color:var(--staff-text-muted);margin-bottom:7px;">Tap to select a different lane</div>
+            <div class="lane-mini-grid">
+              <div class="lane-mini selected">1</div>
+              <div class="lane-mini occupied">2</div>
+              <div class="lane-mini occupied">3</div>
+              <div class="lane-mini available">4</div>
+              <div class="lane-mini available">5</div>
+              <div class="lane-mini blocked">6</div>
+              <div class="lane-mini available">7</div>
+              <div class="lane-mini occupied">8</div>
+              <div class="lane-mini available">9</div>
+              <div class="lane-mini available">10</div>
+              <div class="lane-mini available">11</div>
+              <div class="lane-mini available">12</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:7px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:4px;"><div style="width:8px;height:8px;border-radius:2px;background:var(--palette-green-500);border:1px solid var(--palette-green-500);"></div><div style="font-size:9px;color:var(--staff-text-muted);">Available</div></div>
+              <div style="display:flex;align-items:center;gap:4px;"><div style="width:8px;height:8px;border-radius:2px;background:rgba(248,113,113,0.2);border:1px solid #F87171;"></div><div style="font-size:9px;color:var(--staff-text-muted);">Occupied</div></div>
+              <div style="display:flex;align-items:center;gap:4px;"><div style="width:8px;height:8px;border-radius:2px;background:rgba(245,158,11,0.15);border:1px solid var(--staff-action);"></div><div style="font-size:9px;color:var(--staff-text-muted);">Selected</div></div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn-back">← Back</button>
+            <button class="btn-next">Next — Confirm →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Confirm -->
+  <div class="screen-group">
+    <div class="screen-label">Step 3 — Confirm<br>Summary · Payment method · Create</div>
+    <div class="phone" style="position:relative;">
+      <div class="staff-header">
+        <div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Saturday · 2:14 PM</div></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="staff-role-badge">Staff</div>
+          <div style="width:30px;height:30px;border-radius:50%;background:var(--palette-purple-700);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--palette-purple-300);">SJ</div>
+        </div>
+      </div>
+
+      <div class="staff-content">
+        <div class="cockpit-dim">
+          <div class="cockpit-toggle"><div class="toggle-opt active">Overview</div><div class="toggle-opt">Lanes</div></div>
+          <div class="stat-row">
+            <div class="stat-card"><div class="stat-num">18</div><div class="stat-lbl">Total</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--staff-action);">6</div><div class="stat-lbl">Upcoming</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--status-error-text-dark);">4</div><div class="stat-lbl">Active</div></div>
+            <div class="stat-card"><div class="stat-num" style="color:var(--staff-text-muted);">8</div><div class="stat-lbl">Done</div></div>
+          </div>
+          <div class="upcoming-placeholder"></div>
+        </div>
+      </div>
+
+      <!-- Step 3 sheet -->
+      <div class="walkin-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <div class="sheet-title">Confirm booking</div>
+          <div class="sheet-steps">
+            <div class="step-dot done"></div>
+            <div class="step-dot done"></div>
+            <div class="step-dot active"></div>
+          </div>
+        </div>
+        <div class="sheet-content">
+
+          <!-- Summary -->
+          <div class="confirm-summary">
+            <div class="confirm-row">
+              <div class="confirm-label">Guest</div>
+              <div class="confirm-val">Marcus Williams</div>
+            </div>
+            <div class="confirm-row">
+              <div class="confirm-label">Bowlers</div>
+              <div class="confirm-val">4 bowlers · 1 lane</div>
+            </div>
+            <div class="confirm-row">
+              <div class="confirm-label">Package</div>
+              <div class="confirm-val">Open Bowl</div>
+            </div>
+            <div class="confirm-row">
+              <div class="confirm-label">Lane</div>
+              <div class="confirm-val">Lane 1</div>
+            </div>
+            <div class="confirm-row">
+              <div class="confirm-label">Source</div>
+              <div class="confirm-val">Walk-in</div>
+            </div>
+            <div class="confirm-row">
+              <div class="confirm-label">Started</div>
+              <div class="confirm-val amber">Now · 2:14 PM</div>
+            </div>
+          </div>
+
+          <!-- Payment method -->
+          <div class="field" style="margin-bottom:8px;">
+            <label class="field-label">Payment collected at desk</label>
+          </div>
+          <div class="payment-chips" style="margin-bottom:14px;">
+            <div class="payment-chip active">Cash</div>
+            <div class="payment-chip">Card terminal</div>
+            <div class="payment-chip">Tab / invoice</div>
+          </div>
+
+          <div class="field-note" style="margin-bottom:12px;">Payment is handled at the desk — no online charge. This booking is created as checked-in immediately.</div>
+
+          <div class="btn-row">
+            <button class="btn-back">← Back</button>
+            <button class="btn-next">Create & check in</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token note -->
+<div class="token-note">
+  <div class="token-note-title">Walk-in flow patterns</div>
+  <div class="token-grid">
+    <div class="token-chip">Bottom sheet — cockpit dims to 18% opacity behind it</div>
+    <div class="token-chip">3 step dots in sheet header — active dot is wider amber pill</div>
+    <div class="token-chip">Source defaults to Walk-in — Phone and Advance available</div>
+    <div class="token-chip">Email optional — guest note explains why</div>
+    <div class="token-chip">Bowler stepper shows lane count inline (4 bowlers = 1 lane)</div>
+    <div class="token-chip">Package dropdown — defaults to "No package", scales to any number of packages</div>
+    <div class="token-chip">Auto-assign shows next available lane with Override button</div>
+    <div class="token-chip">Override reveals mini lane grid — same state colors as cockpit lanes view</div>
+    <div class="token-chip">Booking created as CHECKED_IN immediately — no hold, no Stripe</div>
+    <div class="token-chip">Payment method recorded for staff reference — Cash / Card / Tab</div>
+    <div class="token-chip">CTA: "Create & check in" — one action, two outcomes</div>
+  </div>
+</div>
+
+</body>
+</html>

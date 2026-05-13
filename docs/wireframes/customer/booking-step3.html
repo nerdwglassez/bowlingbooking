@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booking Flow — Step 3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --palette-amber-50:#FFFBEB;--palette-amber-100:#FEF3C7;
+    --palette-amber-300:#FCD34D;--palette-amber-400:#FBBF24;
+    --palette-amber-500:#F59E0B;--palette-amber-600:#D97706;
+    --palette-amber-700:#B45309;--palette-amber-800:#92400E;
+    --palette-stone-200:#E7E5E4;--palette-stone-300:#D6D3D1;
+    --palette-stone-400:#A8A29E;--palette-stone-500:#78716C;
+    --palette-stone-600:#57534E;--palette-stone-700:#44403C;
+    --palette-stone-800:#292524;--palette-stone-900:#1C1917;
+    --palette-purple-900:#1E0A2E;--palette-purple-300:#C084FC;
+    --palette-green-100:#D1FAE5;--palette-green-400:#6EE7B7;
+    --palette-green-500:#10B981;--palette-green-800:#065F46;
+    --palette-red-100:#FEE2E2;--palette-red-400:#F87171;
+    --palette-red-700:#B91C1C;
+
+    --surface-ground:#F5F2EE;--surface-card:#FDFCFA;
+    --surface-raised:#FFFFFF;--surface-sunken:#EDE9E3;
+    --surface-dark:var(--palette-purple-900);
+
+    --color-action:var(--palette-amber-500);
+    --color-action-subtle:var(--palette-amber-50);
+    --color-action-tint:var(--palette-amber-100);
+    --color-action-dark:var(--palette-amber-400);
+    --color-action-text:#FFFFFF;
+
+    --color-text-primary:var(--palette-stone-900);
+    --color-text-secondary:var(--palette-stone-600);
+    --color-text-muted:var(--palette-stone-400);
+    --color-text-inverted:#FDFCFA;
+
+    --color-border:var(--palette-stone-200);
+    --color-border-strong:var(--palette-stone-300);
+    --color-border-subtle:#F0EDE8;
+
+    --status-ok-bg:var(--palette-green-100);
+    --status-ok-text:var(--palette-green-800);
+    --status-ok-border:var(--palette-green-400);
+    --status-err-bg:var(--palette-red-100);
+    --status-err-text:var(--palette-red-700);
+    --status-err-border:var(--palette-red-400);
+
+    --font-display:'Fraunces',Georgia,serif;
+    --font-body:'DM Sans',system-ui,sans-serif;
+    --radius-sm:0.375rem;--radius-md:0.75rem;
+    --radius-lg:1rem;--radius-full:9999px;
+    --shadow-xl:0 24px 48px rgba(28,25,23,0.12),0 4px 12px rgba(28,25,23,0.08);
+  }
+
+  [data-theme="dark"] {
+    --surface-ground:#0F0E0D;--surface-card:#1C1917;
+    --surface-raised:#292524;--surface-sunken:#141211;
+    --surface-dark:#0D0517;
+    --color-text-primary:#FAFAF9;--color-text-secondary:#A8A29E;
+    --color-text-muted:#57534E;--color-border:#292524;
+    --color-border-strong:#44403C;--color-border-subtle:#1C1917;
+    --color-action-subtle:rgba(245,158,11,0.07);
+    --color-action-tint:rgba(245,158,11,0.12);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-body);background: var(--surface-sunken);padding:40px 20px;min-height:100vh;}
+
+  .page-title{font-family:var(--font-display);font-size:24px;color: var(--color-text-primary);text-align:center;margin-bottom:6px;}
+  .page-sub{font-size:13px;color: var(--color-text-secondary);text-align:center;line-height:1.6;margin-bottom:16px;}
+  .toggle-row{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:28px;}
+  .toggle-label{font-size:12px;color: var(--color-text-secondary);font-weight:500;}
+  .toggle{position:relative;width:44px;height:24px;background:var(--palette-stone-300);border-radius:12px;cursor:pointer;transition:background 0.3s;border:none;}
+  .toggle.on{background:var(--palette-stone-800);}
+  .toggle::after{content:'';position:absolute;width:18px;height:18px;background:white;border-radius:50%;top:3px;left:3px;transition:transform 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
+  .toggle.on::after{transform:translateX(20px);}
+  .section-heading{font-family:var(--font-display);font-size:17px;color: var(--color-text-secondary);text-align:center;margin:0 auto 20px;padding-top:28px;border-top:1px solid var(--palette-stone-300);max-width:960px;}
+  .phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:48px;}
+  .screen-group{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .screen-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color: var(--color-text-secondary);text-align:center;max-width:210px;line-height:1.5;}
+
+  .phone{width:375px;background:var(--surface-ground);border-radius:36px;overflow:hidden;box-shadow:var(--shadow-xl),0 0 0 1px rgba(0,0,0,0.04);transition:background 0.3s;}
+
+  .app-header{background:var(--surface-dark);padding:16px 20px 14px;display:flex;align-items:flex-start;justify-content:space-between;}
+  .venue-name{font-family:var(--font-display);font-size:17px;color:var(--color-text-inverted);}
+  .venue-address{font-size:11px;color:var(--color-action-dark);margin-top:2px;text-decoration:underline;text-underline-offset:2px;}
+  .sign-in-btn{font-size:12px;font-weight:500;color:var(--palette-purple-300);background:none;border:none;cursor:pointer;margin-top:2px;}
+
+  .step-dots{display:flex;justify-content:center;align-items:center;gap:8px;padding:12px 20px;background:var(--surface-card);border-bottom:1px solid var(--color-border);transition:all 0.3s;}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--color-border-strong);transition:all 0.3s;}
+  .dot.active{width:22px;border-radius:3px;background:var(--color-action);}
+  .dot.done{background:var(--color-action);opacity:0.35;}
+
+  .hold-bar{display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:var(--radius-md);margin-bottom:16px;background:var(--status-ok-bg);border:1px solid var(--status-ok-border);}
+  .hold-dot{width:7px;height:7px;border-radius:50%;background:var(--palette-green-500);flex-shrink:0;animation:blink 2s infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+  .hold-text{font-size:12px;font-weight:500;color:var(--status-ok-text);}
+
+  .content{padding:20px 20px 24px;background:var(--surface-ground);transition:background 0.3s;}
+  .step-title{font-family:var(--font-display);font-size:22px;color:var(--color-text-primary);margin-bottom:4px;transition:color 0.3s;}
+  .step-sub{font-size:12px;color:var(--color-text-secondary);margin-bottom:22px;transition:color 0.3s;}
+
+  .field-block{margin-bottom:22px;}
+  .block-label{font-size:10px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--color-text-muted);margin-bottom:10px;transition:color 0.3s;}
+
+  /* Form fields */
+  .form-field{margin-bottom:9px;}
+  .form-label{font-size:11px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;display:block;transition:color 0.3s;}
+  .form-input{width:100%;padding:12px 14px;background:var(--surface-card);border:1.5px solid var(--color-border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:14px;color:var(--color-text-primary);transition:all 0.3s;appearance:none;}
+  .form-input::placeholder{color:var(--color-text-muted);}
+  .form-input.filled{border-color:var(--color-border-strong);}
+  .form-input.error{border-color:var(--status-err-border);background:var(--status-err-bg);}
+  .form-error{font-size:11px;color:var(--status-err-text);margin-top:3px;}
+  .form-row{display:flex;gap:8px;}
+  .form-row .form-field{flex:1;}
+
+  /* Signed-in contact card */
+  .contact-card{background:var(--surface-card);border:1.5px solid var(--color-border);border-radius:var(--radius-lg);padding:14px 16px;display:flex;align-items:flex-start;justify-content:space-between;transition:all 0.3s;}
+  .contact-card-info{flex:1;}
+  .contact-name{font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:3px;transition:color 0.3s;}
+  .contact-detail{font-size:12px;color:var(--color-text-secondary);line-height:1.6;transition:color 0.3s;}
+  .edit-btn{font-size:12px;font-weight:600;color:var(--color-action);background:none;border:none;cursor:pointer;font-family:var(--font-body);flex-shrink:0;margin-left:12px;margin-top:1px;}
+
+  /* Shoes included notice */
+  .shoes-included{background:var(--surface-sunken);border:1.5px solid var(--color-border);border-radius:var(--radius-md);padding:12px 14px;display:flex;align-items:center;gap:10px;transition:all 0.3s;}
+  .shoes-included-icon{width:30px;height:30px;border-radius:8px;background:var(--color-border-strong);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+  .shoes-included-text{font-size:12px;color:var(--color-text-secondary);line-height:1.5;transition:color 0.3s;}
+  .shoes-included-text strong{color:var(--color-text-primary);font-weight:600;}
+
+  /* Shoe row */
+  .shoe-row{background:var(--surface-card);border:1.5px solid var(--color-border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;transition:all 0.3s;}
+  .shoe-row.renting{border-color:var(--color-action);background:var(--color-action-subtle);}
+  .shoe-row-top{display:flex;align-items:center;gap:10px;}
+  .shoe-guest{font-size:13px;font-weight:500;color:var(--color-text-primary);flex:1;transition:color 0.3s;}
+  .shoe-guest-sub{font-size:10px;color:var(--color-text-muted);margin-top:1px;transition:color 0.3s;}
+
+  /* Toggle pill */
+  .rental-toggle{display:flex;border-radius:var(--radius-full);border:1.5px solid var(--color-border);overflow:hidden;background:var(--surface-sunken);flex-shrink:0;transition:all 0.3s;}
+  .rental-opt{padding:5px 10px;font-size:11px;font-weight:600;color:var(--color-text-muted);cursor:pointer;transition:all 0.2s;background:none;border:none;font-family:var(--font-body);}
+  .rental-opt.yes{color:var(--color-action);background:var(--color-action-tint);}
+  .rental-opt.no.active,.rental-opt.yes.active{color:white;background:var(--color-action);}
+  .rental-opt.no.active{background:var(--palette-stone-500);}
+
+  /* Size row */
+  .size-row{margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border-subtle);display:flex;align-items:center;gap:10px;transition:border-color 0.3s;}
+  .size-label-txt{font-size:11px;color:var(--color-text-muted);flex-shrink:0;white-space:nowrap;transition:color 0.3s;}
+  .size-select{flex:1;padding:9px 30px 9px 12px;background:var(--surface-card);border:1.5px solid var(--color-border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--color-text-primary);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A8A29E' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;cursor:pointer;transition:all 0.3s;}
+  .size-select.set{border-color:var(--color-action);}
+
+  /* Rental summary */
+  .rental-summary{background:var(--color-action-tint);border:1px solid var(--palette-amber-300);border-radius:var(--radius-md);padding:9px 13px;margin-top:10px;font-size:12px;color: var(--color-action-text);font-weight:500;}
+
+  /* Offline code banner */
+  .offline-banner{background:var(--palette-stone-800);border-radius:var(--radius-md);padding:11px 14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:9px;}
+  .offline-banner-icon{font-size:14px;flex-shrink:0;margin-top:1px;}
+  .offline-banner-text{font-size:12px;color: var(--color-text-muted);line-height:1.5;}
+  .offline-banner-text strong{color: var(--color-text-inverted);font-weight:600;}
+
+  /* CTA */
+  .btn-primary{width:100%;padding:15px;background:var(--color-action);color:var(--color-action-text);border:none;border-radius:var(--radius-lg);font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;margin-top:4px;box-shadow:0 0 20px rgba(245,158,11,0.25);transition:opacity 0.2s;}
+  .btn-primary:disabled{opacity:0.35;cursor:not-allowed;box-shadow:none;}
+
+  /* Price footer */
+  .price-footer{background:var(--surface-dark);padding:14px 20px 20px;transition:background 0.3s;}
+  .price-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .price-row-label{font-size:12px;color: var(--color-text-muted);}
+  .price-row-val{font-size:12px;font-weight:500;color: var(--color-text-muted);}
+  .price-divider{border:none;border-top:1px solid var(--palette-stone-700);margin:8px 0;}
+  .price-total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .price-total-label{font-size:13px;font-weight:500;color:var(--color-text-inverted);}
+  .price-total-val{font-family:var(--font-display);font-size:20px;color:var(--color-action-dark);}
+
+  /* Token note */
+  .token-note{background:var(--palette-stone-50,#FAFAF9);border:1px solid var(--palette-stone-200);border-radius:var(--radius-lg);padding:16px 20px;max-width:960px;width:100%;margin:0 auto;}
+  .token-note-title{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color: var(--color-text-secondary);margin-bottom:10px;}
+  .token-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .token-chip{display:flex;align-items:center;gap:5px;padding:3px 9px;background:white;border:1px solid var(--palette-stone-200);border-radius:var(--radius-full);font-size:10px;font-family:monospace;color: var(--color-text-primary);}
+  .token-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="page-title">Booking Flow — Step 3</div>
+<p class="page-sub">Contact info & shoe rental · Four states · Purple header · Amber action · Stone surfaces</p>
+
+<div class="toggle-row">
+  <span class="toggle-label">Light</span>
+  <button class="toggle" id="themeToggle" onclick="toggleTheme()"></button>
+  <span class="toggle-label">Dark</span>
+</div>
+
+<div class="section-heading">Step 3 — Contact Info & Shoe Rental</div>
+
+<div class="phone-row">
+
+  <!-- 3a: Guest user, empty form -->
+  <div class="screen-group">
+    <div class="screen-label">3a — Guest user<br>Empty form · Shoes not included</div>
+    <div class="phone">
+      <div class="app-header">
+        <div><div class="venue-name">Royal Z Lanes</div><div class="venue-address">8512 Two Notch Rd, Columbia SC →</div></div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div><div class="dot done"></div>
+        <div class="dot active"></div><div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar"><div class="hold-dot"></div><div class="hold-text">Lanes held · 11:14 remaining</div></div>
+
+        <div class="step-title">Your details</div>
+        <div class="step-sub">6 bowlers · Cosmic Bowl · Sun May 11 · 1:00 PM</div>
+
+        <!-- Contact info -->
+        <div class="field-block">
+          <div class="block-label">Contact information</div>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">First name</label>
+              <input class="form-input" type="text" placeholder="Sarah">
+            </div>
+            <div class="form-field">
+              <label class="form-label">Last name</label>
+              <input class="form-input" type="text" placeholder="Johnson">
+            </div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Email</label>
+            <input class="form-input" type="email" placeholder="sarah@email.com">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Phone</label>
+            <input class="form-input" type="tel" placeholder="(803) 555-0100">
+          </div>
+        </div>
+
+        <!-- Shoe rental — not included -->
+        <div class="field-block">
+          <div class="block-label">Shoe rental · $4.00 / person</div>
+          <div class="shoe-row">
+            <div class="shoe-row-top">
+              <div><div class="shoe-guest">Guest 1</div><div class="shoe-guest-sub">You</div></div>
+              <div class="rental-toggle">
+                <button class="rental-opt no active">Own shoes</button>
+                <button class="rental-opt yes">Rent</button>
+              </div>
+            </div>
+          </div>
+          <div class="shoe-row">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 2</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no active">Own shoes</button>
+                <button class="rental-opt yes">Rent</button>
+              </div>
+            </div>
+          </div>
+          <div class="shoe-row renting">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 3</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no">Own shoes</button>
+                <button class="rental-opt yes active">Rent</button>
+              </div>
+            </div>
+            <div class="size-row">
+              <span class="size-label-txt">Shoe size</span>
+              <select class="size-select set">
+                <option>8</option><option>8.5</option><option selected>9</option><option>9.5</option><option>10</option>
+              </select>
+            </div>
+          </div>
+          <div class="shoe-row renting">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 4</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no">Own shoes</button>
+                <button class="rental-opt yes active">Rent</button>
+              </div>
+            </div>
+            <div class="size-row">
+              <span class="size-label-txt">Shoe size</span>
+              <select class="size-select">
+                <option value="">Select size</option>
+                <option>6</option><option>6.5</option><option>7</option><option>7.5</option>
+              </select>
+            </div>
+          </div>
+          <div class="shoe-row">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 5</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no active">Own shoes</button>
+                <button class="rental-opt yes">Rent</button>
+              </div>
+            </div>
+          </div>
+          <div class="shoe-row">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 6</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no active">Own shoes</button>
+                <button class="rental-opt yes">Rent</button>
+              </div>
+            </div>
+          </div>
+          <div class="rental-summary">2 shoe rentals · $8.00 added to total</div>
+        </div>
+
+        <button class="btn-primary" disabled>Select a shoe size for Guest 4</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3b: Signed-in user, pre-filled -->
+  <div class="screen-group">
+    <div class="screen-label">3b — Signed-in user<br>Pre-filled read-only card · Shoes partially rented</div>
+    <div class="phone">
+      <div class="app-header">
+        <div><div class="venue-name">Royal Z Lanes</div><div class="venue-address">8512 Two Notch Rd, Columbia SC →</div></div>
+        <button class="sign-in-btn">Sarah J.</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div><div class="dot done"></div>
+        <div class="dot active"></div><div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar"><div class="hold-dot"></div><div class="hold-text">Lanes held · 10:42 remaining</div></div>
+
+        <div class="step-title">Your details</div>
+        <div class="step-sub">6 bowlers · Cosmic Bowl · Sun May 11 · 1:00 PM</div>
+
+        <!-- Signed-in contact card -->
+        <div class="field-block">
+          <div class="block-label">Contact information</div>
+          <div class="contact-card">
+            <div class="contact-card-info">
+              <div class="contact-name">Sarah Johnson</div>
+              <div class="contact-detail">sarah@email.com<br>(803) 555-0147</div>
+            </div>
+            <button class="edit-btn">Edit</button>
+          </div>
+        </div>
+
+        <!-- Shoe rental -->
+        <div class="field-block">
+          <div class="block-label">Shoe rental · $4.00 / person</div>
+          <div class="shoe-row renting">
+            <div class="shoe-row-top">
+              <div><div class="shoe-guest">Guest 1</div><div class="shoe-guest-sub">You</div></div>
+              <div class="rental-toggle">
+                <button class="rental-opt no">Own shoes</button>
+                <button class="rental-opt yes active">Rent</button>
+              </div>
+            </div>
+            <div class="size-row">
+              <span class="size-label-txt">Shoe size</span>
+              <select class="size-select set"><option selected>7.5</option></select>
+            </div>
+          </div>
+          <div class="shoe-row">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 2</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no active">Own shoes</button>
+                <button class="rental-opt yes">Rent</button>
+              </div>
+            </div>
+          </div>
+          <div class="shoe-row renting">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 3</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no">Own shoes</button>
+                <button class="rental-opt yes active">Rent</button>
+              </div>
+            </div>
+            <div class="size-row">
+              <span class="size-label-txt">Shoe size</span>
+              <select class="size-select set"><option selected>10</option></select>
+            </div>
+          </div>
+          <div class="shoe-row">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 4</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no active">Own shoes</button>
+                <button class="rental-opt yes">Rent</button>
+              </div>
+            </div>
+          </div>
+          <div class="shoe-row">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 5</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no active">Own shoes</button>
+                <button class="rental-opt yes">Rent</button>
+              </div>
+            </div>
+          </div>
+          <div class="shoe-row">
+            <div class="shoe-row-top">
+              <div class="shoe-guest">Guest 6</div>
+              <div class="rental-toggle">
+                <button class="rental-opt no active">Own shoes</button>
+                <button class="rental-opt yes">Rent</button>
+              </div>
+            </div>
+          </div>
+          <div class="rental-summary">2 shoe rentals · $8.00 added to total</div>
+        </div>
+
+        <button class="btn-primary">Continue to payment →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3c: Shoes included package -->
+  <div class="screen-group">
+    <div class="screen-label">3c — Shoes included package<br>Rental section replaced by notice</div>
+    <div class="phone">
+      <div class="app-header">
+        <div><div class="venue-name">Royal Z Lanes</div><div class="venue-address">8512 Two Notch Rd, Columbia SC →</div></div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div><div class="dot done"></div>
+        <div class="dot active"></div><div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar"><div class="hold-dot"></div><div class="hold-text">Lanes held · 09:58 remaining</div></div>
+
+        <div class="step-title">Your details</div>
+        <div class="step-sub">6 bowlers · Birthday Party · Sun May 11 · 1:00 PM</div>
+
+        <div class="field-block">
+          <div class="block-label">Contact information</div>
+          <div class="form-row">
+            <div class="form-field"><label class="form-label">First name</label><input class="form-input filled" value="Marcus" type="text"></div>
+            <div class="form-field"><label class="form-label">Last name</label><input class="form-input filled" value="Williams" type="text"></div>
+          </div>
+          <div class="form-field"><label class="form-label">Email</label><input class="form-input filled" value="marcus@email.com" type="email"></div>
+          <div class="form-field"><label class="form-label">Phone</label><input class="form-input filled" value="(803) 555-0182" type="tel"></div>
+        </div>
+
+        <!-- Shoes included — no rental section -->
+        <div class="field-block">
+          <div class="block-label">Shoe rental</div>
+          <div class="shoes-included">
+            <div class="shoes-included-icon">👟</div>
+            <div class="shoes-included-text"><strong>Shoes are included</strong> with your Birthday Party package. No rental fees for any bowler in your group.</div>
+          </div>
+        </div>
+
+        <button class="btn-primary">Continue to payment →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3d: Offline payment code applied -->
+  <div class="screen-group">
+    <div class="screen-label">3d — Offline payment code<br>Banner shown · No payment at Step 4</div>
+    <div class="phone">
+      <div class="app-header">
+        <div><div class="venue-name">Royal Z Lanes</div><div class="venue-address">8512 Two Notch Rd, Columbia SC →</div></div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div><div class="dot done"></div>
+        <div class="dot active"></div><div class="dot"></div>
+      </div>
+      <div class="content" style="padding-bottom:0">
+        <div class="hold-bar"><div class="hold-dot"></div><div class="hold-text">Lanes held · 13:01 remaining</div></div>
+
+        <!-- Offline payment banner — set at Step 2 when code entered -->
+        <div class="offline-banner">
+          <div class="offline-banner-icon">🤝</div>
+          <div class="offline-banner-text"><strong>Payment arranged with venue.</strong> No card needed online — your reservation will be confirmed once payment is received. Contact us at (803) 555-0100 with any questions.</div>
+        </div>
+
+        <div class="step-title">Your details</div>
+        <div class="step-sub">24 bowlers · Corporate Bowl · Fri May 16 · 6:00 PM</div>
+
+        <div class="field-block">
+          <div class="block-label">Contact information</div>
+          <div class="contact-card">
+            <div class="contact-card-info">
+              <div class="contact-name">Jordan Rivera</div>
+              <div class="contact-detail">jordan@acmecorp.com<br>(803) 555-0193</div>
+            </div>
+            <button class="edit-btn">Edit</button>
+          </div>
+        </div>
+
+        <div class="field-block">
+          <div class="block-label">Shoe rental · Included</div>
+          <div class="shoes-included">
+            <div class="shoes-included-icon">👟</div>
+            <div class="shoes-included-text"><strong>Shoes are included</strong> with your Corporate Bowl package.</div>
+          </div>
+        </div>
+
+        <button class="btn-primary" style="margin-bottom:20px;">Continue to review →</button>
+      </div>
+
+      <!-- Price footer shows $0 due online -->
+      <div class="price-footer">
+        <div class="price-row">
+          <div class="price-row-label">Corporate Bowl · 24 people · 3 hrs</div>
+          <div class="price-row-val">$1,080.00</div>
+        </div>
+        <div class="price-row">
+          <div class="price-row-label">Corporate discount (ACME20)</div>
+          <div class="price-row-val">−$216.00</div>
+        </div>
+        <hr class="price-divider">
+        <div class="price-total-row">
+          <div class="price-total-label">Due online</div>
+          <div class="price-total-val" style="color: var(--color-text-muted);font-size:16px;">$0.00 · Pay at venue</div>
+        </div>
+        <button class="btn-primary" style="margin-top:0;opacity:0.5;pointer-events:none;">Continue to review →</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token note -->
+<div class="token-note">
+  <div class="token-note-title">New patterns introduced in Step 3</div>
+  <div class="token-grid">
+    <div class="token-chip"><div class="token-swatch" style="background: var(--surface-card)"></div>--surface-card (contact card, shoe rows)</div>
+    <div class="token-chip"><div class="token-swatch" style="background: var(--surface-sunken)"></div>--surface-sunken (shoes included, own-shoes toggle bg)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#F59E0B"></div>--color-action (rental toggle active, selected ring)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#FEF3C7"></div>--color-action-tint (rental summary, renting row bg)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#292524"></div>--palette-stone-800 (offline payment banner bg)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#D1FAE5"></div>--status-ok-bg (hold bar)</div>
+  </div>
+</div>
+
+<script>
+function toggleTheme() {
+  const t = document.getElementById('themeToggle');
+  t.classList.toggle('on');
+  const isDark = t.classList.contains('on');
+  document.querySelectorAll('.phone').forEach(p => {
+    isDark ? p.setAttribute('data-theme','dark') : p.removeAttribute('data-theme');
+  });
+  document.body.style.background = isDark ? '#0A0908' : '#D6D3D1';
+}
+</script>
+</body>
+</html>

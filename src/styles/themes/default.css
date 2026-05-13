@@ -1,0 +1,30 @@
+/* ============================================================
+   default.css — Royal Z Lanes default theme
+   
+   This is the base venue theme.
+   For other tenants, create {tenant-slug}.css overriding
+   ONLY the tokens listed below. Nothing else.
+   ============================================================ */
+
+/* No overrides needed — tokens.css IS the default theme.
+   
+   To create a new tenant theme, copy this file as {slug}.css
+   and override only these tokens:
+   
+   :root {
+     --color-action:        [brand primary];
+     --color-action-hover:  [brand primary darker];
+     --color-action-dark:   [brand primary lighter, for dark surfaces];
+     --surface-dark:        [brand dark background, optional];
+   }
+   
+   Example — kingpin-lanes.css:
+   :root {
+     --color-action:        #22C55E;
+     --color-action-hover:  #16A34A;
+     --color-action-dark:   #4ADE80;
+     --surface-dark:        #0A1628;
+   }
+   
+   That is the entire rebrand. No component files change.
+*/

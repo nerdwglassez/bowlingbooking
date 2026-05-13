@@ -1,0 +1,54 @@
+/* ============================================================
+   globals.css — global stylesheet for Royal Z Lanes
+   Imported once in src/app/layout.tsx.
+
+   Order matters:
+   1. Tailwind v4 (utilities)
+   2. Design tokens (Layer 1)
+   3. Active tenant theme override (only --color-action family + --surface-dark)
+
+   Components/pages reference --surface-*, --color-*, --status-*, --font-*,
+   --radius-*, --shadow-* only. Palette tokens (--palette-*) are forbidden
+   outside of tokens.css — see .cursor/AGENTS.md § 6 (drift sentinel).
+   ============================================================ */
+
+@import 'tailwindcss';
+@import '../styles/tokens.css';
+@import '../styles/themes/default.css';
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-ground);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings use the display font by default; pages/patterns override sizes as needed */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+/* Default focus ring uses the action color — works on light and dark surfaces */
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

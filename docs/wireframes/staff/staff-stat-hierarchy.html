@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Staff App — Stat Cards Hierarchy</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --palette-amber-400:#FBBF24;--palette-amber-500:#F59E0B;
+    --palette-stone-400:#A8A29E;--palette-stone-500:#78716C;
+    --palette-stone-600:#57534E;--palette-stone-700:#44403C;
+    --palette-stone-800:#292524;--palette-stone-900:#1C1917;
+    --palette-stone-950:#0C0A09;
+    --palette-purple-950:#120620;--palette-purple-900:#1E0A2E;
+    --palette-purple-700:#3D1A5C;--palette-purple-300:#C084FC;
+    --palette-green-500:#10B981;
+    --palette-red-400:#F87171;--palette-red-500:#EF4444;
+    --palette-red-900:#450A0A;
+
+    --staff-bg:#0C0A09;
+    --staff-card:#1C1917;
+    --staff-card-raised:#292524;
+    --staff-nav:#120620;
+    --staff-header:#1E0A2E;
+    --staff-text-primary:#FAFAF9;
+    --staff-text-secondary:#A8A29E;
+    --staff-text-muted:#57534E;
+    --staff-border:#292524;
+    --staff-border-strong:#44403C;
+    --staff-action:#F59E0B;
+
+    --lane-occupied-text:#FCA5A5;
+    --lane-upcoming-text:#FBBF24;
+    --lane-blocked-bg:#0F0F12;
+    --lane-blocked-border:#44403C;
+    --lane-blocked-text:#57534E;
+
+    --font-display:'Fraunces',Georgia,serif;
+    --font-body:'DM Sans',system-ui,sans-serif;
+    --radius-sm:0.375rem;--radius-md:0.75rem;
+    --radius-lg:1rem;--radius-full:9999px;
+    --shadow-xl:0 24px 48px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.3);
+  
+  /* ── Semantic status tokens (DESIGN_SYSTEM.md compliant) ── */
+  /* Light surface values — dark-surface values auto via [data-theme=dark] */
+  --status-ok-bg:          #D1FAE5;
+  --status-ok-text:        #065F46;
+  --status-ok-border:      #A7F3D0;
+  --status-warning-bg:     #FEF3C7;
+  --status-warning-text:   #92400E;
+  --status-warning-border: #FDE68A;
+  --status-error-bg:       #FEE2E2;
+  --status-error-text:     #991B1B;
+  --status-error-border:   #FECACA;
+  --status-info-bg:        #EFF6FF;
+  --status-info-text:      #1E40AF;
+  --status-info-border:    #BFDBFE;
+
+  /* Dark-surface overrides (staff app always dark) */
+  /* These mirror [data-theme=dark] from DESIGN_SYSTEM.md */
+  --status-ok-text-dark:      #6EE7B7;
+  --status-warning-text-dark: #FCD34D;
+  --status-error-text-dark:   #FCA5A5;
+  --status-info-text-dark:    #93C5FD;
+}
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-body);background: var(--surface-dark);padding:40px 20px;min-height:100vh;}
+
+  .page-title{font-family:var(--font-display);font-size:24px;color:#FAFAF9;text-align:center;margin-bottom:6px;}
+  .page-sub{font-size:13px;color: var(--color-text-secondary);text-align:center;line-height:1.6;margin-bottom:32px;}
+  .section-heading{font-family:var(--font-display);font-size:17px;color: var(--color-text-secondary);text-align:center;margin:0 auto 20px;padding-top:28px;border-top:1px solid var(--palette-stone-800);max-width:960px;}
+  .phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:48px;}
+  .screen-group{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .screen-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color: var(--color-text-secondary);text-align:center;max-width:210px;line-height:1.5;}
+
+  .phone{width:375px;background:var(--staff-bg);border-radius:36px;overflow:hidden;box-shadow:var(--shadow-xl),0 0 0 1px rgba(255,255,255,0.05);display:flex;flex-direction:column;}
+
+  /* Header */
+  .staff-header{background:var(--staff-header);padding:14px 18px 13px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .staff-venue{font-family:var(--font-display);font-size:16px;color:#FAFAF9;}
+  .staff-time{font-size:10px;color: var(--color-text-secondary);margin-top:1px;}
+  .staff-avatar{width:30px;height:30px;border-radius:50%;background:var(--palette-purple-700);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--palette-purple-300);}
+  .staff-role-badge{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border-radius:var(--radius-full);background:rgba(168,85,247,0.15);color:var(--palette-purple-300);border:1px solid rgba(168,85,247,0.25);}
+
+  .staff-content{flex:1;overflow-y:auto;background:var(--staff-bg);}
+
+  /* Toggle */
+  .toggle-wrap{display:flex;justify-content:center;padding-top:14px;} .cockpit-toggle{display:inline-flex;background:var(--staff-card);border-radius:var(--radius-md);padding:3px;border:1px solid var(--staff-border);}
+  .toggle-opt{padding:7px 20px;text-align:center;border-radius:calc(var(--radius-md) - 2px);font-size:12px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;white-space:nowrap;}
+  .toggle-opt.active{background:var(--staff-card-raised);color:var(--staff-text-primary);}
+
+  /* Booking context */
+  .booking-context{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 10px;}
+  .booking-context-title{font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);}
+  .booking-context-date{font-size:11px;color:var(--staff-text-muted);}
+
+  /* ── Stat card hierarchy ── */
+  .stat-section{padding:0 16px 16px;}
+
+  .stat-layout{display:flex;gap:6px;align-items:stretch;}
+
+  /* Total — prominent left card */
+  .stat-total{
+    background:var(--staff-card);
+    border:1px solid var(--staff-border-strong);
+    border-radius:var(--radius-md);
+    padding:14px 16px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    min-width:80px;
+    flex-shrink:0;
+  }
+
+  .stat-total-number{
+    font-family:var(--font-display);
+    font-size:36px;
+    color:var(--staff-text-primary);
+    line-height:1;
+  }
+
+  .stat-total-label{
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--staff-text-muted);
+    margin-top:5px;
+  }
+
+  /* Connector line between total and children */
+  .stat-connector{
+    display:flex;
+    align-items:center;
+    padding:0 2px;
+    flex-shrink:0;
+  }
+
+  .stat-connector-line{
+    width:1px;
+    height:48px;
+    background:var(--staff-border-strong);
+    border-radius:1px;
+    position:relative;
+  }
+
+  /* Children grid — 2x2 */
+  .stat-children{
+    flex:1;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:5px;
+  }
+
+  .stat-child{
+    background:var(--staff-card);
+    border:1px solid var(--staff-border);
+    border-radius:var(--radius-sm);
+    padding:8px 10px;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .stat-child-number{
+    font-family:var(--font-display);
+    font-size:20px;
+    line-height:1;
+    color:var(--staff-text-primary);
+  }
+
+  .stat-child-number.upcoming{color:var(--lane-upcoming-text);}
+  .stat-child-number.active{color:var(--lane-occupied-text);}
+  .stat-child-number.done{color:var(--staff-text-muted);}
+  .stat-child-number.late{color:var(--status-error-text-dark);}
+
+  .stat-child-label{
+    font-size:9px;
+    font-weight:600;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    color:var(--staff-text-muted);
+    margin-top:4px;
+  }
+
+  /* Late card gets distinct red treatment */
+  .stat-child.late-card{
+    background:rgba(239,68,68,0.07);
+    border-color:rgba(239,68,68,0.25);
+  }
+
+  .stat-child.late-card .stat-child-label{
+    color:rgba(248,113,113,0.6);
+  }
+
+  /* Late — zero state (no urgency) */
+  .stat-child.late-card.zero{
+    background:var(--staff-card);
+    border-color:var(--staff-border);
+  }
+  .stat-child.late-card.zero .stat-child-number{
+    color:var(--staff-text-muted);
+  }
+  .stat-child.late-card.zero .stat-child-label{
+    color:var(--staff-text-muted);
+  }
+
+  /* Late indicator dot — pulses when > 0 */
+  .late-indicator{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    margin-top:3px;
+  }
+  .late-pulse{
+    width:5px;height:5px;border-radius:50%;
+    background:var(--status-error-text-dark);
+    animation:pulse 1.5s infinite;
+    flex-shrink:0;
+  }
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)}}
+  .late-pulse-label{font-size:9px;color:var(--status-error-text-dark);font-weight:600;}
+
+  /* Search collapsed */
+  .search-collapsed{display:flex;align-items:center;gap:7px;padding:8px 16px;cursor:pointer;opacity:0.4;}
+  .search-collapsed-text{font-size:12px;color:var(--staff-text-muted);}
+
+  /* Search expanded */
+  .search-expanded{display:flex;align-items:center;gap:8px;margin:4px 16px 2px;background:var(--staff-card);border:1px solid var(--staff-border-strong);border-radius:var(--radius-md);padding:9px 12px;}
+  .search-expanded input{flex:1;background:none;border:none;outline:none;font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);}
+  .search-expanded input::placeholder{color:var(--staff-text-muted);}
+  .search-cancel{font-size:12px;color:var(--staff-action);font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+
+  /* Section label */
+  .section-lbl{font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--staff-text-muted);padding:10px 16px 6px;}
+
+  /* Upcoming list */
+  .upcoming-list{padding:0 16px 8px;}
+  .upcoming-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--staff-card);border-radius:var(--radius-md);margin-bottom:6px;cursor:pointer;border:1px solid var(--staff-border);}
+  .upcoming-item.late-item{border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.04);}
+  .upcoming-time{font-family:var(--font-display);font-size:15px;color:var(--staff-text-primary);min-width:42px;}
+  .upcoming-ampm{font-size:9px;color:var(--staff-text-muted);}
+  .upcoming-divider{width:1px;height:28px;background:var(--staff-border);flex-shrink:0;}
+  .upcoming-info{flex:1;}
+  .upcoming-name{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .upcoming-meta{font-size:10px;color:var(--staff-text-muted);margin-top:2px;}
+  .upcoming-name.late{color:var(--status-error-text-dark);}
+  .lane-pill{font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--radius-full);background:var(--staff-card-raised);color:var(--staff-text-secondary);border:1px solid var(--staff-border);white-space:nowrap;}
+  .status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .status-dot.pending{background:var(--staff-action);}
+  .status-dot.confirmed{background:var(--staff-text-muted);}
+  .status-dot.checkedin{background:var(--palette-green-500);}
+  .status-dot.payment{background:var(--status-error-text-dark);}
+  .status-dot.late{background:var(--palette-red-500);animation:pulse 1.5s infinite;}
+
+  /* Late action row */
+  .late-action-row{display:flex;gap:6px;padding:0 16px 10px;}
+  .late-action-btn{flex:1;padding:8px 10px;border-radius:var(--radius-md);font-family:var(--font-body);font-size:11px;font-weight:600;cursor:pointer;text-align:center;}
+  .late-action-checkin{background:rgba(16,185,129,0.12);color:#6EE7B7;border:1px solid rgba(16,185,129,0.25);}
+  .late-action-cancel{background:rgba(239,68,68,0.1);color:var(--status-error-text-dark);border:1px solid rgba(239,68,68,0.25);}
+
+  /* FAB */
+  .fab{position:absolute;bottom:68px;right:16px;width:44px;height:44px;border-radius:50%;background:var(--staff-action);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(245,158,11,0.4);cursor:pointer;border:none;color:white;font-size:22px;font-weight:300;line-height:1;}
+
+  /* Tab bar */
+  .tab-bar{background:var(--staff-nav);border-top:1px solid rgba(168,85,247,0.12);padding:8px 0 14px;display:flex;align-items:flex-start;justify-content:space-around;flex-shrink:0;}
+  .tab-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 8px;cursor:pointer;min-width:60px;position:relative;}
+  .tab-icon-wrap{width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
+  .tab-icon-wrap svg{stroke:var(--staff-text-muted);opacity:0.35;transition:all 0.2s;}
+  .tab-item.active .tab-icon-wrap svg{stroke:var(--staff-action);opacity:1;}
+  .tab-label{font-size:9px;font-weight:600;letter-spacing:0.03em;color:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-label{color:var(--staff-action);opacity:1;}
+  .tab-active-bar{position:absolute;top:0;left:50%;transform:translateX(-50%);width:20px;height:2px;border-radius:1px;background:var(--staff-action);opacity:0;}
+  .tab-item.active .tab-active-bar{opacity:1;}
+
+  /* Shared tab SVGs */
+  .ic-cockpit{display:contents;}
+  .ic-schedule{display:contents;}
+
+  /* Token note */
+  .token-note{background: var(--surface-dark);border:1px solid var(--palette-stone-800);border-radius:var(--radius-lg);padding:16px 20px;max-width:960px;width:100%;margin:0 auto;}
+  .token-note-title{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color: var(--color-text-secondary);margin-bottom:10px;}
+  .token-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .token-chip{display:flex;align-items:center;gap:5px;padding:3px 9px;background:var(--palette-stone-900);border:1px solid var(--palette-stone-700);border-radius:var(--radius-full);font-size:10px;font-family:monospace;color: var(--color-text-muted);}
+  .token-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+
+  /* Tab bar shorthand */
+  .std-tabs .t1,.std-tabs .t2,.std-tabs .t3,.std-tabs .t4,.std-tabs .t5{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 8px;cursor:pointer;min-width:60px;position:relative;}
+</style>
+</head>
+<body>
+
+<div class="page-title">Staff App — Stat Card Hierarchy</div>
+<p class="page-sub">Total as prominent parent · Children in 2×2 grid · Late stat in red · 5-min grace period</p>
+
+<div class="section-heading">Overview Sub-view — Stat Hierarchy</div>
+
+<div class="phone-row">
+
+  <!-- State 1: No late bookings — normal operation -->
+  <div class="screen-group">
+    <div class="screen-label">Overview A — Normal<br>Late = 0 · No urgency</div>
+    <div class="phone" style="position:relative;">
+      <div class="staff-header">
+        <div><div class="staff-venue">Royal Z Lanes</div><div class="staff-time">Saturday · 2:14 PM</div></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="staff-role-badge">Staff</div>
+          <div class="staff-avatar">SJ</div>
+        </div>
+      </div>
+
+      <div class="staff-content">
+        <div class="toggle-wrap"><div class="cockpit-toggle">
+          <div class="toggle-opt active">Overview</div>
+          <div class="toggle-opt">Lanes</div>
+        </div></div>
+
+        <div class="booking-context">
+          <div class="booking-context-title">Today's bookings</div>
+          <div class="booking-context-date">Sat May 10</div>
+        </div>
+
+        <!-- Stat hierarchy — no late bookings -->
+        <div class="stat-section">
+          <div class="stat-layout">
+
+            <!-- Total — prominent parent -->
+            <div class="stat-total">
+              <div class="stat-total-number">18</div>
+              <div class="stat-total-label">Total</div>
+            </div>
+
+            <!-- Connector -->
+            <div class="stat-connector">
+              <div class="stat-connector-line"></div>
+            </div>
+
+            <!-- Children 2×2 -->
+            <div class="stat-children">
+              <div class="stat-child">
+                <div class="stat-child-number upcoming">6</div>
+                <div class="stat-child-label">Upcoming</div>
+              </div>
+              <div class="stat-child">
+                <div class="stat-child-number active">4</div>
+                <div class="stat-child-label">Active</div>
+              </div>
+              <div class="stat-child">
+                <div class="stat-child-number done">8</div>
+                <div class="stat-child-label">Done</div>
+              </div>
+              <!-- Late — zero state, no urgency -->
+              <div class="stat-child late-card zero">
+                <div class="stat-child-number late" style="color:var(--staff-text-muted);">0</div>
+                <div class="stat-child-label">Late</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Collapsed search -->
+        <div class="search-collapsed">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#57534E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <div class="search-collapsed-text">Search bookings…</div>
+        </div>
+
+        <div class="section-lbl">Upcoming</div>
+        <div class="upcoming-list">
+          <div class="upcoming-item">
+            <div><div class="upcoming-time">2:30</div><div class="upcoming-ampm">PM</div></div>
+            <div class="upcoming-divider"></div>
+            <div class="upcoming-info">
+              <div class="upcoming-name">Sarah Johnson</div>
+              <div class="upcoming-meta">6 bowlers · Cosmic Bowl · Lane 4</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div class="lane-pill">Ln 4</div>
+              <div class="status-dot pending"></div>
+            </div>
+          </div>
+          <div class="upcoming-item">
+            <div><div class="upcoming-time">3:00</div><div class="upcoming-ampm">PM</div></div>
+            <div class="upcoming-divider"></div>
+            <div class="upcoming-info">
+              <div class="upcoming-name">Marcus Williams</div>
+              <div class="upcoming-meta">8 bowlers · Birthday Party · Ln 1–2</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div class="lane-pill">Ln 1–2</div>
+              <div class="status-dot confirmed"></div>
+            </div>
+          </div>
+          <div class="upcoming-item">
+            <div><div class="upcoming-time">3:00</div><div class="upcoming-ampm">PM</div></div>
+            <div class="upcoming-divider"></div>
+            <div class="upcoming-info">
+              <div class="upcoming-name">Taylor Chen</div>
+              <div class="upcoming-meta">3 bowlers · Open Bowl · Lane 5</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div class="lane-pill">Ln 5</div>
+              <div class="status-dot confirmed"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fab">+</div>
+
+      <div class="tab-bar">
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 2: 2 late bookings — urgent -->
+  <div class="screen-group">
+    <div class="screen-label">Overview B — Late bookings<br>2 late · Red urgency · Action row</div>
+    <div class="phone" style="position:relative;">
+      <div class="staff-header">
+        <div><div class="staff-venue">Royal Z Lanes</div><div class="staff-time">Saturday · 2:21 PM</div></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="staff-role-badge">Staff</div>
+          <div class="staff-avatar">SJ</div>
+        </div>
+      </div>
+
+      <div class="staff-content">
+        <div class="toggle-wrap"><div class="cockpit-toggle">
+          <div class="toggle-opt active">Overview</div>
+          <div class="toggle-opt">Lanes</div>
+        </div></div>
+
+        <div class="booking-context">
+          <div class="booking-context-title">Today's bookings</div>
+          <div class="booking-context-date">Sat May 10</div>
+        </div>
+
+        <!-- Stat hierarchy — 2 late -->
+        <div class="stat-section">
+          <div class="stat-layout">
+            <div class="stat-total">
+              <div class="stat-total-number">18</div>
+              <div class="stat-total-label">Total</div>
+            </div>
+            <div class="stat-connector"><div class="stat-connector-line"></div></div>
+            <div class="stat-children">
+              <div class="stat-child">
+                <div class="stat-child-number upcoming">4</div>
+                <div class="stat-child-label">Upcoming</div>
+              </div>
+              <div class="stat-child">
+                <div class="stat-child-number active">4</div>
+                <div class="stat-child-label">Active</div>
+              </div>
+              <div class="stat-child">
+                <div class="stat-child-number done">8</div>
+                <div class="stat-child-label">Done</div>
+              </div>
+              <!-- Late — 2 bookings, urgent -->
+              <div class="stat-child late-card">
+                <div class="stat-child-number late">2</div>
+                <div class="stat-child-label">Late</div>
+                <div class="late-indicator">
+                  <div class="late-pulse"></div>
+                  <div class="late-pulse-label">5+ min</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="search-collapsed">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#57534E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <div class="search-collapsed-text">Search bookings…</div>
+        </div>
+
+        <!-- Late section surfaces first -->
+        <div class="section-lbl" style="color:rgba(248,113,113,0.7);">Late — no check-in (5+ min)</div>
+
+        <div class="upcoming-list" style="padding-bottom:4px;">
+          <!-- Late item 1 -->
+          <div class="upcoming-item late-item">
+            <div><div class="upcoming-time" style="color:var(--status-error-text-dark);">2:15</div><div class="upcoming-ampm">PM</div></div>
+            <div class="upcoming-divider" style="background:rgba(239,68,68,0.3);"></div>
+            <div class="upcoming-info">
+              <div class="upcoming-name late">Rivera party</div>
+              <div class="upcoming-meta">5 bowlers · Open Bowl · 6 min late</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div class="lane-pill">Ln 3</div>
+              <div class="status-dot late"></div>
+            </div>
+          </div>
+          <!-- Late item 2 -->
+          <div class="upcoming-item late-item">
+            <div><div class="upcoming-time" style="color:var(--status-error-text-dark);">2:00</div><div class="upcoming-ampm">PM</div></div>
+            <div class="upcoming-divider" style="background:rgba(239,68,68,0.3);"></div>
+            <div class="upcoming-info">
+              <div class="upcoming-name late">Davis group</div>
+              <div class="upcoming-meta">4 bowlers · Open Bowl · 21 min late</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div class="lane-pill">Ln 7</div>
+              <div class="status-dot late"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick action row for late bookings -->
+        <div class="late-action-row">
+          <div class="late-action-btn late-action-checkin">✓ Check in late arrivals</div>
+          <div class="late-action-btn late-action-cancel">✕ Cancel to free lanes</div>
+        </div>
+
+        <div class="section-lbl">Upcoming</div>
+        <div class="upcoming-list">
+          <div class="upcoming-item">
+            <div><div class="upcoming-time">2:30</div><div class="upcoming-ampm">PM</div></div>
+            <div class="upcoming-divider"></div>
+            <div class="upcoming-info">
+              <div class="upcoming-name">Sarah Johnson</div>
+              <div class="upcoming-meta">6 bowlers · Cosmic Bowl</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div class="lane-pill">Ln 4</div>
+              <div class="status-dot pending"></div>
+            </div>
+          </div>
+          <div class="upcoming-item">
+            <div><div class="upcoming-time">3:00</div><div class="upcoming-ampm">PM</div></div>
+            <div class="upcoming-divider"></div>
+            <div class="upcoming-info">
+              <div class="upcoming-name">Marcus Williams</div>
+              <div class="upcoming-meta">8 bowlers · Birthday Party</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div class="lane-pill">Ln 1–2</div>
+              <div class="status-dot confirmed"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fab">+</div>
+
+      <div class="tab-bar">
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token note -->
+<div class="token-note">
+  <div class="token-note-title">Stat hierarchy & late booking system</div>
+  <div class="token-grid">
+    <div class="token-chip"><div class="token-swatch" style="background:#1C1917;border:1px solid #44403C;"></div>Total → larger card, border-strong</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#44403C;width:2px;height:9px;border-radius:1px;"></div>Connector line → staff-border-strong</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#FBBF24"></div>Upcoming children → amber-400</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#FCA5A5"></div>Active children → red-300 (occupied color)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#57534E"></div>Done → stone-600 (muted)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#EF4444;opacity:0.07;border:1px solid rgba(239,68,68,0.25);"></div>Late card bg → red-500 at 7% opacity</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#F87171"></div>Late number → red-400, pulses when > 0</div>
+    <div class="token-chip">Late section surfaces above Upcoming when count > 0</div>
+    <div class="token-chip">CancellationReason.NO_SHOW_LATE → new enum value</div>
+  </div>
+</div>
+
+</body>
+</html>

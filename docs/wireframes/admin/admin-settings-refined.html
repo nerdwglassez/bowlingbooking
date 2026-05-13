@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Settings — Refined</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --palette-amber-100:#FEF3C7;--palette-amber-300:#FCD34D;
+    --palette-amber-400:#FBBF24;--palette-amber-500:#F59E0B;
+    --palette-amber-600:#D97706;--palette-amber-700:#B45309;
+    --palette-amber-800:#92400E;
+    --palette-stone-300:#D6D3D1;--palette-stone-400:#A8A29E;
+    --palette-stone-500:#78716C;--palette-stone-600:#57534E;
+    --palette-stone-700:#44403C;--palette-stone-800:#292524;
+    --palette-stone-900:#1C1917;--palette-stone-950:#0C0A09;
+    --palette-purple-950:#120620;--palette-purple-900:#1E0A2E;
+    --palette-purple-700:#3D1A5C;--palette-purple-300:#C084FC;
+    --palette-green-500:#10B981;--palette-green-400:#6EE7B7;
+    --palette-red-400:#F87171;--palette-red-700:#B91C1C;
+    --palette-blue-400:#60A5FA;
+
+    --staff-bg:#0C0A09;
+    --staff-surface:#161412;
+    --staff-card:#1C1917;
+    --staff-card-raised:#292524;
+    --staff-nav:#120620;
+    --staff-header:#1E0A2E;
+    --staff-text-primary:#FAFAF9;
+    --staff-text-secondary:#A8A29E;
+    --staff-text-muted:#57534E;
+    --staff-border:#292524;
+    --staff-border-strong:#44403C;
+    --staff-action:#F59E0B;
+
+    --font-display:'Fraunces',Georgia,serif;
+    --font-body:'DM Sans',system-ui,sans-serif;
+    --radius-sm:0.375rem;--radius-md:0.75rem;
+    --radius-lg:1rem;--radius-full:9999px;
+    --shadow-xl:0 24px 48px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.3);
+  
+  /* ── Semantic status tokens (DESIGN_SYSTEM.md compliant) ── */
+  /* Light surface values — dark-surface values auto via [data-theme=dark] */
+  --status-ok-bg:          #D1FAE5;
+  --status-ok-text:        #065F46;
+  --status-ok-border:      #A7F3D0;
+  --status-warning-bg:     #FEF3C7;
+  --status-warning-text:   #92400E;
+  --status-warning-border: #FDE68A;
+  --status-error-bg:       #FEE2E2;
+  --status-error-text:     #991B1B;
+  --status-error-border:   #FECACA;
+  --status-info-bg:        #EFF6FF;
+  --status-info-text:      #1E40AF;
+  --status-info-border:    #BFDBFE;
+
+  /* Dark-surface overrides (staff app always dark) */
+  /* These mirror [data-theme=dark] from DESIGN_SYSTEM.md */
+  --status-ok-text-dark:      #6EE7B7;
+  --status-warning-text-dark: #FCD34D;
+  --status-error-text-dark:   #FCA5A5;
+  --status-info-text-dark:    #93C5FD;
+}
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-body);background: var(--surface-dark);padding:40px 20px;min-height:100vh;}
+
+  .page-title{font-family:var(--font-display);font-size:24px;color:#FAFAF9;text-align:center;margin-bottom:6px;}
+  .page-sub{font-size:13px;color: var(--color-text-secondary);text-align:center;line-height:1.6;margin-bottom:32px;}
+  .section-heading{font-family:var(--font-display);font-size:17px;color: var(--color-text-secondary);text-align:center;margin:0 auto 20px;padding-top:28px;border-top:1px solid var(--palette-stone-800);max-width:960px;}
+  .phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:48px;}
+  .screen-group{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .screen-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color: var(--color-text-secondary);text-align:center;max-width:210px;line-height:1.5;}
+
+  .phone{width:375px;background:var(--staff-bg);border-radius:36px;overflow:hidden;box-shadow:var(--shadow-xl),0 0 0 1px rgba(255,255,255,0.05);display:flex;flex-direction:column;}
+
+  /* ── Structural header — no title ── */
+  .staff-header{background:var(--staff-header);padding:14px 18px 13px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .back-btn{background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:5px;flex-shrink:0;}
+  .back-label{font-size:12px;color: var(--color-text-muted);font-family:var(--font-body);}
+  .header-spacer{flex:1;}
+  .staff-role-badge{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border-radius:var(--radius-full);}
+  .role-admin{background:rgba(245,158,11,0.12);color:var(--status-warning-text-dark);border:1px solid rgba(245,158,11,0.25);}
+  .role-manager{background:rgba(96,165,250,0.12);color:var(--status-info-text-dark);border:1px solid rgba(96,165,250,0.25);}
+  .role-staff-b{background:rgba(168,85,247,0.12);color:var(--palette-purple-300);border:1px solid rgba(168,85,247,0.25);}
+  .header-action{font-size:12px;font-weight:600;color:var(--staff-action);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
+
+  .staff-content{flex:1;overflow-y:auto;background:var(--staff-bg);}
+
+  /* ── Page title inside content ── */
+  .page-title-inner{font-family:var(--font-display);font-size:22px;color:var(--staff-text-primary);padding:18px 18px 4px;}
+  .page-title-sub{font-size:12px;color:var(--staff-text-muted);padding:0 18px 16px;line-height:1.5;}
+
+  .divider{height:1px;background:var(--staff-border);margin:14px 16px;}
+
+  .section-lbl{font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--staff-text-muted);padding:10px 16px 7px;}
+
+  .form-field{margin-bottom:12px;padding:0 16px;}
+  .form-label{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:5px;display:block;}
+  .form-input{width:100%;padding:10px 13px;background:var(--staff-card);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);appearance:none;transition:border-color 0.2s;}
+  .form-input::placeholder{color:var(--staff-text-muted);}
+  .form-input.active{border-color:var(--staff-action);}
+  .form-input-note{font-size:10px;color:var(--staff-text-muted);margin-top:4px;line-height:1.5;}
+
+  /* ── Strategy dropdown ── */
+  .strategy-dropdown-wrap{position:relative;padding:0 16px;}
+  .strategy-select{width:100%;padding:11px 36px 11px 13px;background:var(--staff-card);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2357534E' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;}
+
+  /* Strategy explainer — appears after selection */
+  .strategy-explainer{background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);border-radius:var(--radius-md);padding:11px 13px;margin:8px 16px 0;}
+  .explainer-formula{font-size:12px;font-weight:600;color:var(--status-warning-text-dark);font-family:monospace;margin-bottom:4px;}
+  .explainer-example{font-size:11px;color:var(--staff-text-muted);line-height:1.5;}
+  .explainer-example strong{color:var(--staff-text-secondary);}
+
+  /* ── Rate input row ── */
+  .rate-row{display:flex;align-items:center;gap:8px;padding:0 16px;}
+  .rate-symbol{font-size:14px;color:var(--staff-text-muted);flex-shrink:0;}
+  .rate-input{padding:10px 13px;background:var(--staff-card);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-display);font-size:18px;color:var(--staff-text-primary);width:110px;text-align:center;}
+  .rate-unit{font-size:12px;color:var(--staff-text-muted);flex:1;line-height:1.4;}
+
+  /* Shoe rental row */
+  .shoe-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--staff-card);border:1px solid var(--staff-border);border-radius:var(--radius-md);margin:0 16px;}
+  .shoe-row-label{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .shoe-row-sub{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+  .shoe-input-wrap{display:flex;align-items:center;gap:6px;}
+  .shoe-symbol{font-size:12px;color:var(--staff-text-muted);}
+  .shoe-input{padding:7px 10px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-display);font-size:15px;color:var(--staff-text-primary);width:68px;text-align:center;}
+
+  /* ── Override periods ── */
+  .period-row{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--staff-card);border:1px solid var(--staff-border);border-radius:var(--radius-md);margin:0 16px 7px;cursor:pointer;}
+  .period-color{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .period-info{flex:1;}
+  .period-name{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .period-detail{font-size:10px;color:var(--staff-text-muted);margin-top:2px;}
+  .period-rate{font-family:var(--font-display);font-size:15px;color:var(--staff-action);}
+  .period-chevron{font-size:12px;color:var(--staff-text-muted);}
+  .override-badge{font-size:9px;font-weight:700;padding:1px 6px;border-radius:var(--radius-full);background:rgba(245,158,11,0.1);color: var(--color-action-hover);border:1px solid rgba(245,158,11,0.2);margin-left:6px;}
+
+  .add-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:none;border:1.5px dashed var(--staff-border-strong);border-radius:var(--radius-md);margin:0 16px;cursor:pointer;font-family:var(--font-body);font-size:12px;font-weight:500;color:var(--staff-text-muted);width:calc(100% - 32px);}
+
+  /* Period edit sheet */
+  .edit-sheet{background:var(--staff-card);border-top:1px solid var(--staff-border);}
+  .sheet-handle{width:32px;height:3px;border-radius:2px;background:var(--staff-border-strong);margin:12px auto 14px;}
+  .sheet-content{padding:0 18px 20px;}
+  .sheet-title{font-family:var(--font-display);font-size:17px;color:var(--staff-text-primary);margin-bottom:14px;}
+  .sheet-form-field{margin-bottom:11px;}
+  .sheet-form-label{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:5px;display:block;}
+  .sheet-input{width:100%;padding:10px 13px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);}
+  .sheet-input.active{border-color:var(--staff-action);}
+  .day-chips{display:flex;gap:5px;flex-wrap:wrap;}
+  .day-chip{padding:5px 9px;border-radius:var(--radius-full);border:1.5px solid var(--staff-border-strong);background:var(--staff-card-raised);font-size:11px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;}
+  .day-chip.on{border-color:var(--staff-action);background:rgba(245,158,11,0.12);color:var(--status-warning-text-dark);}
+  .time-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;} .time-row .sheet-input{min-width:0;width:100%;}
+  .sheet-actions{display:flex;gap:8px;margin-top:14px;}
+  .btn-primary{flex:2;padding:12px;background:var(--staff-action);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;}
+  .btn-danger-ghost{flex:1;padding:12px;background:rgba(239,68,68,0.08);color:var(--status-error-text-dark);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-md);font-family:var(--font-body);font-size:12px;cursor:pointer;}
+  .btn-secondary{flex:1;padding:12px;background:var(--staff-card-raised);color:var(--staff-text-secondary);border:1px solid var(--staff-border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;cursor:pointer;}
+
+  /* ── Employee sheet ── */
+  .emp-sheet{background:var(--staff-card);border-top:1px solid var(--staff-border);}
+  .emp-sheet-header{padding:14px 18px 12px;border-bottom:1px solid var(--staff-border);display:flex;align-items:center;gap:12px;}
+  .emp-avatar{width:40px;height:40px;border-radius:50%;background:var(--staff-card-raised);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--staff-text-secondary);flex-shrink:0;}
+  .emp-name{font-family:var(--font-display);font-size:16px;color:var(--staff-text-primary);}
+  .emp-meta{font-size:11px;color:var(--staff-text-muted);margin-top:1px;}
+
+  .emp-sheet-content{padding:12px 18px 0;}
+  .emp-field-row{margin-bottom:11px;}
+  .emp-field-label{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:5px;}
+  .emp-field-input{width:100%;padding:9px 12px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);}
+  .emp-field-note{font-size:10px;color:var(--staff-text-muted);margin-top:3px;line-height:1.4;}
+
+  .role-option-row{display:flex;align-items:center;gap:12px;padding:9px 13px;background:var(--staff-card-raised);border-radius:var(--radius-md);margin-bottom:6px;cursor:pointer;border:1.5px solid var(--staff-border);}
+  .role-option-row.selected{border-color:var(--staff-action);}
+  .role-option-row.disabled{opacity:0.3;cursor:not-allowed;}
+  .role-radio{width:14px;height:14px;border-radius:50%;border:2px solid var(--staff-border-strong);flex-shrink:0;}
+  .role-option-row.selected .role-radio{border-color:var(--staff-action);background:var(--staff-action);}
+  .role-info{flex:1;}
+  .role-name{font-size:12px;font-weight:600;color:var(--staff-text-primary);}
+  .role-desc{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+
+  .danger-zone{margin:10px 18px 0;padding:10px 13px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:var(--radius-md);}
+  .danger-zone-label{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(248,113,113,0.6);margin-bottom:8px;}
+  .danger-action{display:flex;align-items:center;justify-content:space-between;padding:6px 0;cursor:pointer;}
+  .danger-action-label{font-size:12px;color:var(--status-error-text-dark);}
+  .danger-action-sub{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+  .danger-action+.danger-action{border-top:1px solid rgba(239,68,68,0.12);padding-top:10px;margin-top:4px;}
+
+  /* ── Profile page ── */
+  .profile-avatar-row{display:flex;flex-direction:column;align-items:center;padding:20px 18px 16px;gap:8px;}
+  .profile-avatar{width:64px;height:64px;border-radius:50%;background:var(--staff-card-raised);border:2px solid var(--staff-border-strong);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;color:var(--staff-text-secondary);}
+  .profile-name{font-family:var(--font-display);font-size:18px;color:var(--staff-text-primary);}
+  .profile-role{font-size:11px;color:var(--staff-text-muted);}
+
+  /* ── Staff table ── */
+  .staff-table{padding:10px 16px 0;}
+  .staff-table-header{display:grid;grid-template-columns:1fr 80px 60px;gap:8px;padding:0 4px 7px;border-bottom:1px solid var(--staff-border);}
+  .th{font-size:9px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--staff-text-muted);}
+  .staff-row{display:grid;grid-template-columns:1fr 80px 60px;gap:8px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--staff-border);cursor:pointer;}
+  .staff-row:last-child{border-bottom:none;}
+  .staff-name{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .staff-meta{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+  .role-badge-sm{font-size:9px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;padding:3px 7px;border-radius:var(--radius-full);display:inline-block;}
+  .status-dot{width:7px;height:7px;border-radius:50%;justify-self:center;}
+  .status-active{background:var(--palette-green-500);}
+  .status-inactive{background:var(--staff-border-strong);}
+  .status-pending{background:var(--staff-action);animation:blink 2s infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+
+  /* Invite btn */
+  .invite-btn-row{padding:12px 16px 0;}
+  .invite-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:11px;background:rgba(245,158,11,0.08);border:1.5px solid rgba(245,158,11,0.25);border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--staff-action);}
+
+  /* Pref toggle */
+  .pref-row{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--staff-card);border-radius:var(--radius-md);margin:0 16px 6px;border:1px solid var(--staff-border);}
+  .pref-info{flex:1;padding-right:12px;}
+  .pref-label{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .pref-sub{font-size:10px;color:var(--staff-text-muted);margin-top:2px;}
+  .pref-toggle{position:relative;width:38px;height:21px;border-radius:11px;cursor:pointer;border:none;flex-shrink:0;transition:background 0.25s;}
+  .pref-toggle.on{background:var(--staff-action);}
+  .pref-toggle.off{background:var(--staff-border-strong);}
+  .pref-toggle::after{content:'';position:absolute;width:15px;height:15px;background:white;border-radius:50%;top:3px;left:3px;transition:transform 0.25s;box-shadow:0 1px 3px rgba(0,0,0,0.3);}
+  .pref-toggle.on::after{transform:translateX(17px);}
+
+  /* Tab bar */
+  .tab-bar{background:var(--staff-nav);border-top:1px solid rgba(168,85,247,0.12);padding:8px 0 14px;display:flex;align-items:flex-start;justify-content:space-around;flex-shrink:0;}
+  .tab-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 8px;cursor:pointer;min-width:60px;position:relative;}
+  .tab-icon-wrap{width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
+  .tab-icon-wrap svg{stroke:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-icon-wrap svg{stroke:var(--staff-action);opacity:1;}
+  .tab-label{font-size:9px;font-weight:600;letter-spacing:0.03em;color:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-label{color:var(--staff-action);opacity:1;}
+  .tab-active-bar{position:absolute;top:0;left:50%;transform:translateX(-50%);width:20px;height:2px;border-radius:1px;background:var(--staff-action);opacity:0;}
+  .tab-item.active .tab-active-bar{opacity:1;}
+
+  /* Token note */
+  .token-note{background: var(--surface-dark);border:1px solid var(--palette-stone-800);border-radius:var(--radius-lg);padding:16px 20px;max-width:960px;width:100%;margin:0 auto;}
+  .token-note-title{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color: var(--color-text-secondary);margin-bottom:10px;}
+  .token-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .token-chip{display:flex;align-items:center;gap:5px;padding:3px 9px;background:var(--palette-stone-900);border:1px solid var(--palette-stone-700);border-radius:var(--radius-full);font-size:10px;font-family:monospace;color: var(--color-text-muted);}
+  .token-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="page-title">Admin Settings — Refined</div>
+<p class="page-sub">Page title in content · Strategy dropdown · Default + override model · Employee email + password · Profile page</p>
+
+<!-- ══════════ PRICING ══════════ -->
+<div class="section-heading">Pricing Settings — Default + Override Model</div>
+
+<div class="phone-row">
+
+  <!-- Pricing A: Default rate set, strategy dropdown -->
+  <div class="screen-group">
+    <div class="screen-label">Pricing A — Default rate<br>Strategy dropdown · Override periods</div>
+    <div class="phone">
+      <div class="staff-header">
+        <button class="back-btn">
+          <svg width="8" height="13" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="back-label">Settings</span>
+        </button>
+        <div class="header-spacer"></div>
+        <div class="staff-role-badge role-admin">Admin</div>
+      </div>
+
+      <div class="staff-content">
+        <!-- Page title in content -->
+        <div class="page-title-inner">Pricing</div>
+        <div class="page-title-sub">Set your default rate and add override periods for peak times, weekends, or holidays.</div>
+
+        <!-- Default rate section -->
+        <div class="section-lbl">Default rate</div>
+
+        <!-- Strategy dropdown -->
+        <div class="strategy-dropdown-wrap" style="margin-bottom:8px;">
+          <select class="strategy-select">
+            <option>Per person · per hour</option>
+            <option>Per lane · per hour</option>
+            <option>Per person · per game</option>
+            <option>Fixed packages only</option>
+          </select>
+        </div>
+
+        <!-- Strategy explainer — updates on selection -->
+        <div class="strategy-explainer">
+          <div class="explainer-formula">price = bowlers × hours × rate</div>
+          <div class="explainer-example">
+            <strong>Example:</strong> 6 bowlers, 2 hours at $8.50 → <strong style="color:var(--staff-action);">$102.00</strong>
+          </div>
+        </div>
+
+        <!-- Rate input -->
+        <div style="padding:14px 16px 0;">
+          <div class="form-label" style="padding:0;margin-bottom:8px;">Default rate</div>
+          <div class="rate-row" style="padding:0;">
+            <div class="rate-symbol">$</div>
+            <input class="rate-input" type="number" value="8.50" step="0.50">
+            <div class="rate-unit">per person<br>per hour</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Shoe rental -->
+        <div class="section-lbl">Shoe rental</div>
+        <div class="shoe-row">
+          <div>
+            <div class="shoe-row-label">Rental price</div>
+            <div class="shoe-row-sub">Per person · charged separately from lane rate</div>
+          </div>
+          <div class="shoe-input-wrap">
+            <div class="shoe-symbol">$</div>
+            <input class="shoe-input" type="number" value="4.00" step="0.50">
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Override periods -->
+        <div class="section-lbl">Rate overrides</div>
+        <div style="padding:0 16px 8px;font-size:11px;color:var(--staff-text-muted);line-height:1.5;">Override periods replace the default rate. Higher priority periods win when dates overlap.</div>
+
+        <div class="period-row">
+          <div class="period-color" style="background:var(--palette-amber-500);"></div>
+          <div class="period-info">
+            <div style="display:flex;align-items:center;">
+              <div class="period-name">Peak evenings</div>
+              <div class="override-badge">Priority 2</div>
+            </div>
+            <div class="period-detail">Fri–Sun · 5:00 PM – close</div>
+          </div>
+          <div class="period-rate">$12.00</div>
+          <div class="period-chevron">›</div>
+        </div>
+
+        <div class="period-row">
+          <div class="period-color" style="background:var(--status-info-text-dark);"></div>
+          <div class="period-info">
+            <div style="display:flex;align-items:center;">
+              <div class="period-name">Weekends</div>
+              <div class="override-badge">Priority 1</div>
+            </div>
+            <div class="period-detail">Sat–Sun · all day</div>
+          </div>
+          <div class="period-rate">$9.50</div>
+          <div class="period-chevron">›</div>
+        </div>
+
+        <div style="height:8px;"></div>
+        <button class="add-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add rate override
+        </button>
+
+        <div style="height:20px;"></div>
+        <!-- Save -->
+        <div style="padding:0 16px 20px;">
+          <button class="btn-primary" style="width:100%;padding:13px;">Save pricing settings</button>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing B: Override period edit sheet -->
+  <div class="screen-group">
+    <div class="screen-label">Pricing B — Override edit<br>Bottom sheet · Days + time window</div>
+    <div class="phone">
+      <div class="staff-header">
+        <button class="back-btn"><svg width="8" height="13" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="back-label">Settings</span></button>
+        <div class="header-spacer"></div>
+        <div class="staff-role-badge role-admin">Admin</div>
+      </div>
+
+      <div class="staff-content" style="opacity:0.2;pointer-events:none;">
+        <div class="page-title-inner">Pricing</div>
+        <div class="section-lbl">Default rate</div>
+        <div style="padding:0 16px 8px;"><select class="strategy-select"><option>Per person · per hour</option></select></div>
+        <div style="padding:8px 16px;display:flex;align-items:center;gap:8px;">
+          <span style="color:var(--staff-text-muted);font-size:14px;">$</span>
+          <input class="rate-input" value="8.50">
+          <span style="font-size:12px;color:var(--staff-text-muted);">per person / hr</span>
+        </div>
+        <div class="divider"></div>
+        <div class="section-lbl">Rate overrides</div>
+        <div class="period-row"><div class="period-color" style="background:var(--palette-amber-500);"></div><div class="period-info"><div class="period-name">Peak evenings</div></div><div class="period-rate">$12.00</div></div>
+      </div>
+
+      <div class="edit-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-content">
+          <div class="sheet-title">Edit override — Peak evenings</div>
+
+          <div class="sheet-form-field">
+            <label class="sheet-form-label">Override name</label>
+            <input class="sheet-input active" value="Peak evenings" type="text">
+          </div>
+
+          <div class="sheet-form-field">
+            <label class="sheet-form-label">Rate (per person / hr)</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;color:var(--staff-text-muted);">$</span>
+              <input class="sheet-input active" value="12.00" type="number" style="flex:1;">
+            </div>
+          </div>
+
+          <div class="sheet-form-field">
+            <label class="sheet-form-label">Active days</label>
+            <div class="day-chips">
+              <div class="day-chip">Mon</div><div class="day-chip">Tue</div>
+              <div class="day-chip">Wed</div><div class="day-chip">Thu</div>
+              <div class="day-chip on">Fri</div><div class="day-chip on">Sat</div>
+              <div class="day-chip on">Sun</div>
+            </div>
+          </div>
+
+          <div class="sheet-form-field">
+            <label class="sheet-form-label">Time window <span style="text-transform:none;font-weight:400;color:var(--staff-text-muted);"> — leave blank for all day</span></label>
+            <div class="time-row">
+              <input class="sheet-input" value="17:00" type="time">
+              <input class="sheet-input" value="23:00" type="time">
+            </div>
+          </div>
+
+          <div class="sheet-actions">
+            <button class="btn-primary">Save override</button>
+            <button class="btn-danger-ghost">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ TEAM ══════════ -->
+<div class="section-heading">Team Management — Email, Password & Role</div>
+
+<div class="phone-row">
+
+  <!-- Team A: employee sheet with email + password + role -->
+  <div class="screen-group">
+    <div class="screen-label">Team A — Employee sheet<br>Email edit · Role · Danger zone</div>
+    <div class="phone">
+      <div class="staff-header">
+        <button class="back-btn"><svg width="8" height="13" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="back-label">Team</span></button>
+        <div class="header-spacer"></div>
+        <div class="staff-role-badge role-admin">Admin</div>
+      </div>
+
+      <div class="staff-content" style="opacity:0.2;pointer-events:none;">
+        <div class="page-title-inner">Team</div>
+        <div class="invite-btn-row"><button class="invite-btn">+ Invite team member</button></div>
+        <div class="staff-table">
+          <div class="staff-table-header"><div class="th">Name</div><div class="th">Role</div><div class="th" style="text-align:center;">Status</div></div>
+          <div class="staff-row"><div><div class="staff-name">Sam Chen</div></div><div><span class="role-badge-sm role-staff-b" style="background:rgba(168,85,247,0.12);color:var(--palette-purple-300);border:1px solid rgba(168,85,247,0.25);">Staff</span></div><div class="status-dot status-active"></div></div>
+        </div>
+      </div>
+
+      <div class="emp-sheet">
+        <div class="sheet-handle"></div>
+        <div class="emp-sheet-header">
+          <div class="emp-avatar">SC</div>
+          <div>
+            <div class="emp-name">Sam Chen</div>
+            <div class="emp-meta">Staff · Active · Last seen today</div>
+          </div>
+        </div>
+
+        <div class="emp-sheet-content">
+          <!-- Email — editable by admin -->
+          <div class="emp-field-row">
+            <div class="emp-field-label">Email (login)</div>
+            <input class="emp-field-input" value="sam@royalzlanes.com" type="email">
+            <div class="emp-field-note">Changing this updates their sign-in email. A confirmation is sent to the new address.</div>
+          </div>
+
+          <!-- Role -->
+          <div class="emp-field-row">
+            <div class="emp-field-label" style="margin-bottom:8px;">Role</div>
+            <div class="role-option-row disabled">
+              <div class="role-radio"></div>
+              <div class="role-info"><div class="role-name">Admin</div><div class="role-desc">Cannot assign — ownership level</div></div>
+            </div>
+            <div class="role-option-row">
+              <div class="role-radio"></div>
+              <div class="role-info"><div class="role-name">Manager</div><div class="role-desc">Refunds, analytics, staff management</div></div>
+            </div>
+            <div class="role-option-row selected">
+              <div class="role-radio"></div>
+              <div class="role-info"><div class="role-name">Staff</div><div class="role-desc">Check-ins, bookings, walk-ins</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="danger-zone">
+          <div class="danger-zone-label">Account actions</div>
+          <div class="danger-action">
+            <div>
+              <div class="danger-action-label">Send password reset</div>
+              <div class="danger-action-sub">Emails a reset link to sam@royalzlanes.com</div>
+            </div>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="1.5" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.27 15h.65z"/></svg>
+          </div>
+          <div class="danger-action">
+            <div>
+              <div class="danger-action-label">Deactivate account</div>
+              <div class="danger-action-sub">Blocks sign-in · data preserved</div>
+            </div>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          </div>
+        </div>
+
+        <div style="padding:12px 18px 20px;display:flex;gap:8px;">
+          <button class="btn-primary" style="flex:2;">Save changes</button>
+          <button class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile page: active user -->
+  <div class="screen-group">
+    <div class="screen-label">Profile — Active user<br>Name · Email · Password · Notifs</div>
+    <div class="phone">
+      <div class="staff-header">
+        <button class="back-btn"><svg width="8" height="13" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="back-label">Settings</span></button>
+        <div class="header-spacer"></div>
+        <div class="staff-role-badge role-manager">Manager</div>
+      </div>
+
+      <div class="staff-content">
+        <!-- Avatar + name -->
+        <div class="profile-avatar-row">
+          <div class="profile-avatar">JR</div>
+          <div class="profile-name">Jordan Rivera</div>
+          <div class="profile-role">Manager · Royal Z Lanes</div>
+        </div>
+
+        <div class="divider" style="margin-top:0;"></div>
+
+        <!-- Personal info -->
+        <div class="section-lbl">Personal info</div>
+
+        <div class="form-field">
+          <label class="form-label">First name</label>
+          <input class="form-input active" value="Jordan" type="text">
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Last name</label>
+          <input class="form-input active" value="Rivera" type="text">
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Email address (sign-in)</label>
+          <input class="form-input" value="jordan@royalzlanes.com" type="email">
+          <div class="form-input-note">Changing your email will require re-verification.</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Password -->
+        <div class="section-lbl">Password</div>
+
+        <div class="form-field">
+          <label class="form-label">Current password</label>
+          <input class="form-input" placeholder="Enter current password" type="password">
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">New password</label>
+          <input class="form-input" placeholder="At least 8 characters" type="password">
+        </div>
+
+        <div style="padding:0 16px 4px;">
+          <button style="width:100%;padding:11px;background:var(--staff-card-raised);color:var(--staff-text-secondary);border:1px solid var(--staff-border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer;">Update password</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Notification prefs -->
+        <div class="section-lbl">Notifications</div>
+
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Booking alerts</div>
+            <div class="pref-sub">New bookings and cancellations</div>
+          </div>
+          <button class="pref-toggle on"></button>
+        </div>
+
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Late booking alerts</div>
+            <div class="pref-sub">When a booking is 5+ min past start</div>
+          </div>
+          <button class="pref-toggle on"></button>
+        </div>
+
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Payment pending alerts</div>
+            <div class="pref-sub">Offline bookings awaiting payment</div>
+          </div>
+          <button class="pref-toggle off"></button>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Save + sign out -->
+        <div style="padding:0 16px 8px;">
+          <button class="btn-primary" style="width:100%;padding:13px;margin-bottom:8px;">Save changes</button>
+          <button style="width:100%;padding:11px;background:rgba(239,68,68,0.08);color:var(--status-error-text-dark);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;cursor:pointer;">Sign out</button>
+        </div>
+
+        <div style="height:16px;"></div>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sign-in with forgot password -->
+  <div class="screen-group">
+    <div class="screen-label">Sign-in — Forgot password<br>Staff sign-in form · Reset path</div>
+    <div class="phone">
+      <!-- No nav header on sign-in -->
+      <div style="background:var(--staff-header);padding:32px 24px 24px;flex-shrink:0;">
+        <div style="font-family:var(--font-display);font-size:22px;color:#FAFAF9;margin-bottom:4px;">Royal Z Lanes</div>
+        <div style="font-size:11px;color: var(--color-text-secondary);">Staff sign in</div>
+      </div>
+
+      <div class="staff-content">
+        <div style="padding:24px 20px 0;">
+
+          <div style="margin-bottom:14px;">
+            <div class="form-label" style="padding:0;margin-bottom:5px;">Email address</div>
+            <input class="form-input" type="email" placeholder="you@royalzlanes.com" style="width:100%;">
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <div class="form-label" style="padding:0;margin-bottom:5px;">Password</div>
+            <input class="form-input" type="password" placeholder="••••••••" style="width:100%;">
+          </div>
+
+          <!-- Forgot password link -->
+          <div style="text-align:right;margin-bottom:20px;">
+            <span style="font-size:12px;font-weight:600;color:var(--staff-action);cursor:pointer;">Forgot password?</span>
+          </div>
+
+          <button class="btn-primary" style="width:100%;padding:14px;margin-bottom:16px;">Sign in</button>
+
+          <div style="text-align:center;font-size:11px;color:var(--staff-text-muted);line-height:1.6;">Don't have an account? Ask your venue admin to send you an invite.</div>
+        </div>
+
+        <!-- Password reset state (shown after "Forgot password?" tapped) -->
+        <div style="margin:24px 20px 0;background:var(--staff-card);border:1px solid var(--staff-border);border-radius:var(--radius-lg);padding:16px;">
+          <div style="font-family:var(--font-display);font-size:15px;color:var(--staff-text-primary);margin-bottom:4px;">Reset your password</div>
+          <div style="font-size:11px;color:var(--staff-text-muted);margin-bottom:12px;line-height:1.5;">Enter your email and we'll send a reset link if an account exists.</div>
+
+          <input class="form-input" type="email" placeholder="you@royalzlanes.com" style="width:100%;margin-bottom:10px;">
+          <button style="width:100%;padding:11px;background:rgba(245,158,11,0.1);color:var(--staff-action);border:1.5px solid rgba(245,158,11,0.25);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;">Send reset link</button>
+          <div style="font-size:10px;color:var(--staff-text-muted);text-align:center;margin-top:8px;">Check your email — the link expires in 1 hour.</div>
+        </div>
+
+        <div style="height:32px;"></div>
+      </div>
+
+      <!-- No tab bar on sign-in -->
+    </div>
+  </div>
+
+</div>
+
+<!-- Token note -->
+<div class="token-note">
+  <div class="token-note-title">Key patterns in this screen set</div>
+  <div class="token-grid">
+    <div class="token-chip">Page title in content not header — consistent across all sub-pages</div>
+    <div class="token-chip"><div class="token-swatch" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);"></div>Strategy explainer → amber tint card</div>
+    <div class="token-chip">Default + override model — simpler than strategy-per-period</div>
+    <div class="token-chip">Email change note → "Confirmation sent to new address"</div>
+    <div class="token-chip">Password reset → admin-initiated OR self-service from sign-in</div>
+    <div class="token-chip">Danger zone → deactivate + password reset grouped separately</div>
+    <div class="token-chip">Profile notifications → staff-specific (booking alerts, late alerts)</div>
+    <div class="token-chip">No tab bar on sign-in page — unauthenticated surface</div>
+  </div>
+</div>
+
+</body>
+</html>

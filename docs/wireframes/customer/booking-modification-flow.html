@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booking Modification — Drill-in Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+  :root {
+    --palette-amber-400:#FBBF24;--palette-amber-500:#F59E0B;--palette-amber-700:#B45309;
+    --palette-stone-400:#A8A29E;--palette-stone-500:#78716C;--palette-stone-600:#57534E;
+    --palette-stone-700:#44403C;--palette-stone-800:#292524;--palette-stone-900:#1C1917;
+    --palette-purple-950:#120620;--palette-purple-900:#1E0A2E;--palette-purple-300:#C084FC;
+    --palette-green-500:#10B981;--palette-green-400:#6EE7B7;
+    --palette-red-400:#F87171;--palette-blue-400:#60A5FA;
+    --staff-bg:#0C0A09;--staff-card:#1C1917;--staff-card-raised:#292524;
+    --staff-nav:#120620;--staff-header:#1E0A2E;
+    --staff-text-primary:#FAFAF9;--staff-text-secondary:#A8A29E;--staff-text-muted:#57534E;
+    --staff-border:#292524;--staff-border-strong:#44403C;--staff-action:#F59E0B;
+    --font-display:'Fraunces',Georgia,serif;--font-body:'DM Sans',system-ui,sans-serif;
+    --radius-sm:0.375rem;--radius-md:0.75rem;--radius-lg:1rem;--radius-full:9999px;
+    --shadow-xl:0 24px 48px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.3);
+  
+  /* ── Semantic status tokens (DESIGN_SYSTEM.md compliant) ── */
+  /* Light surface values — dark-surface values auto via [data-theme=dark] */
+  --status-ok-bg:          #D1FAE5;
+  --status-ok-text:        #065F46;
+  --status-ok-border:      #A7F3D0;
+  --status-warning-bg:     #FEF3C7;
+  --status-warning-text:   #92400E;
+  --status-warning-border: #FDE68A;
+  --status-error-bg:       #FEE2E2;
+  --status-error-text:     #991B1B;
+  --status-error-border:   #FECACA;
+  --status-info-bg:        #EFF6FF;
+  --status-info-text:      #1E40AF;
+  --status-info-border:    #BFDBFE;
+
+  /* Dark-surface overrides (staff app always dark) */
+  /* These mirror [data-theme=dark] from DESIGN_SYSTEM.md */
+  --status-ok-text-dark:      #6EE7B7;
+  --status-warning-text-dark: #FCD34D;
+  --status-error-text-dark:   #FCA5A5;
+  --status-info-text-dark:    #93C5FD;
+
+  /* ── Lane grid — semantic tokens ── */
+  --lane-available-bg:   #0A1A0F;
+  --lane-available-text: var(--status-ok-text-dark);
+  --lane-available-border: var(--palette-green-500);
+  --lane-occupied-bg:    #1A0A0A;
+  --lane-occupied-text:  var(--status-error-text-dark);
+  --lane-occupied-border: var(--status-error-text-dark);
+  --lane-current-bg:     rgba(96,165,250,0.1);
+  --lane-current-text:   var(--status-info-text-dark);
+  --lane-current-border: var(--status-info-text-dark);
+  --lane-selected-bg:    rgba(245,158,11,0.15);
+  --lane-selected-text:  var(--staff-action);
+  --lane-selected-border: var(--staff-action);
+}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-body);background: var(--surface-dark);padding:40px 20px;min-height:100vh;}
+  .page-title{font-family:var(--font-display);font-size:24px;color:#FAFAF9;text-align:center;margin-bottom:6px;}
+  .page-sub{font-size:13px;color: var(--color-text-secondary);text-align:center;line-height:1.6;margin-bottom:32px;}
+  .section-heading{font-family:var(--font-display);font-size:17px;color: var(--color-text-secondary);text-align:center;margin:0 auto 20px;padding-top:28px;border-top:1px solid var(--palette-stone-800);max-width:960px;}
+  .phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:48px;align-items:flex-start;}
+  .screen-group{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .screen-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color: var(--color-text-secondary);text-align:center;max-width:210px;line-height:1.5;}
+  .flow-arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:80px;color: var(--color-text-primary);font-size:10px;font-weight:600;letter-spacing:0.04em;gap:6px;text-align:center;max-width:48px;}
+  .phone{width:375px;max-height:780px;background:var(--staff-bg);border-radius:36px;overflow:hidden;box-shadow:var(--shadow-xl),0 0 0 1px rgba(255,255,255,0.05);display:flex;flex-direction:column;}
+  .staff-header{background:var(--staff-header);padding:14px 18px 13px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .venue-name{font-family:var(--font-display);font-size:16px;color:#FAFAF9;}
+  .staff-time{font-size:10px;color: var(--color-text-secondary);margin-top:1px;}
+  .staff-role-badge{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border-radius:var(--radius-full);background:rgba(245,158,11,0.12);color:var(--status-warning-text-dark);border:1px solid rgba(245,158,11,0.25);}
+  .staff-content{flex:1;overflow-y:auto;background:var(--staff-bg);min-height:0;}
+  .cockpit-dim{opacity:0.18;pointer-events:none;padding:12px 16px;}
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;}
+  .stat-card{background:var(--staff-card);border:1px solid var(--staff-border);border-radius:var(--radius-md);padding:10px 8px;text-align:center;}
+  .stat-num{font-family:var(--font-display);font-size:22px;color:var(--staff-text-primary);}
+  .stat-lbl{font-size:9px;color:var(--staff-text-muted);margin-top:4px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;}
+  .upcoming-ph{height:52px;background:var(--staff-card);border-radius:var(--radius-md);margin-bottom:7px;border:1px solid var(--staff-border);}
+  /* Sheet base */
+  .sheet{background:var(--staff-card);border-top:1px solid var(--staff-border);flex-shrink:0;}
+  .handle{width:32px;height:3px;border-radius:2px;background:var(--staff-border-strong);margin:12px auto 0;}
+  .sheet-hdr{display:flex;align-items:center;gap:8px;padding:13px 18px 11px;}
+  .back-btn{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:4px;color: var(--color-text-muted);font-size:12px;font-family:var(--font-body);padding:0;flex-shrink:0;}
+  .sheet-title{font-family:var(--font-display);font-size:17px;color:var(--staff-text-primary);flex:1;text-align:center;}
+  .sheet-close{font-size:12px;color:var(--staff-text-muted);background:none;border:none;cursor:pointer;font-family:var(--font-body);flex-shrink:0;}
+  .sc{padding:0 18px 20px;}
+  /* Booking detail */
+  .bk-hero-name{font-family:var(--font-display);font-size:20px;color:var(--staff-text-primary);padding:10px 0 3px;}
+  .bk-hero-meta{font-size:11px;color:var(--staff-text-muted);}
+  .bk-hero-row{display:flex;align-items:center;gap:8px;margin-top:6px;margin-bottom:14px;}
+  .status-badge{font-size:9px;font-weight:700;padding:3px 8px;border-radius:var(--radius-full);text-transform:uppercase;letter-spacing:0.04em;}
+  .sb-confirmed{background:rgba(245,158,11,0.1);color:var(--status-warning-text-dark);border:1px solid rgba(245,158,11,0.2);}
+  .sb-updated{background:rgba(16,185,129,0.1);color:var(--status-ok-text-dark);border:1px solid rgba(16,185,129,0.2);}
+  .detail-grid{border:1px solid var(--staff-border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:14px;}
+  .detail-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--staff-border);}
+  .detail-row:last-child{border-bottom:none;}
+  .detail-row.updated{background:rgba(16,185,129,0.03);}
+  .d-icon{width:28px;height:28px;border-radius:7px;background:var(--staff-card-raised);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .d-icon.updated{background:rgba(16,185,129,0.1);}
+  .d-label{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);}
+  .d-val{font-size:13px;font-weight:500;color:var(--staff-text-primary);margin-top:1px;}
+  .d-val.updated{color:var(--status-ok-text-dark);}
+  .d-was{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+  .bk-actions{display:flex;gap:8px;}
+  .btn-modify{flex:2;padding:12px;background:rgba(245,158,11,0.1);color:var(--status-warning-text-dark);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;}
+  .btn-sec{flex:1;padding:12px;background:var(--staff-card-raised);color:var(--staff-text-secondary);border:1px solid var(--staff-border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:12px;cursor:pointer;}
+  /* Identity strip */
+  .id-strip{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--staff-card-raised);border-radius:var(--radius-md);margin-bottom:14px;border:1px solid var(--staff-border);}
+  .id-name{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .id-meta{font-family:monospace;font-size:10px;color:var(--staff-text-muted);}
+  /* Modify fields */
+  .mod-field{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);margin-bottom:7px;cursor:pointer;}
+  .mod-field.changed{border-color:rgba(245,158,11,0.35);background:rgba(245,158,11,0.04);}
+  .mf-left{flex:1;}
+  .mf-label{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:3px;}
+  .mf-val{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .mf-val.changed{color:var(--staff-action);}
+  .mf-orig{font-size:10px;color:var(--staff-text-muted);text-decoration:line-through;margin-top:1px;}
+  .mf-chev{color:var(--staff-action);font-size:14px;margin-left:10px;flex-shrink:0;}
+  /* Change log */
+  .change-log{background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.15);border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;}
+  .cl-label{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color: var(--color-action-text);margin-bottom:6px;}
+  .cl-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;}
+  .cl-row:last-child{margin-bottom:0;}
+  .cl-field{color:var(--staff-text-muted);}
+  .cl-change{color:var(--staff-text-primary);}
+  .btn-save{width:100%;padding:13px;background:var(--staff-action);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;margin-bottom:7px;}
+  .btn-save:disabled{opacity:0.35;cursor:not-allowed;}
+  .btn-discard{width:100%;padding:11px;background:none;color:var(--staff-text-muted);border:1px solid var(--staff-border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;cursor:pointer;}
+  /* Field editor */
+  .field-editor{background:var(--staff-card);border-top:1px solid var(--staff-border);flex-shrink:0;}
+  .editor-note{font-size:11px;color:var(--staff-text-muted);margin-bottom:12px;line-height:1.5;}
+  /* Lane grid */
+  .lane-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:8px;}
+  .ln{aspect-ratio:1;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid;}
+  .ln.avail{background:var(--lane-available-bg);border-color:var(--lane-available-border);color:var(--lane-available-text);}
+  .ln.occ{background:var(--lane-occupied-bg);border-color:var(--lane-occupied-border);color:var(--lane-occupied-text);cursor:not-allowed;opacity:0.5;}
+  .ln.curr{background:rgba(96,165,250,0.1);border-color:var(--status-info-text-dark);color:var(--status-info-text-dark);}
+  .ln.sel{background:var(--lane-selected-bg);border-color:var(--lane-selected-border);color:var(--lane-selected-text);}
+  .lane-legend{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .ll-item{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--staff-text-muted);}
+  .ll-dot{width:8px;height:8px;border-radius:2px;border:1.5px solid;}
+  .avail-ok{display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-sm);margin-bottom:14px;}
+  .avail-ok span{font-size:11px;color:var(--status-ok-text-dark);}
+  .btn-apply{width:100%;padding:13px;background:var(--staff-action);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;}
+  /* Tab bar */
+  .tab-bar{background:var(--staff-nav);border-top:1px solid rgba(168,85,247,0.12);padding:8px 0 14px;display:flex;align-items:flex-start;justify-content:space-around;flex-shrink:0;}
+  .tab-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 8px;cursor:pointer;min-width:60px;position:relative;}
+  .tab-icon-wrap{width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
+  .tab-icon-wrap svg{stroke:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-icon-wrap svg{stroke:var(--staff-action);opacity:1;}
+  .tab-label{font-size:9px;font-weight:600;letter-spacing:0.03em;color:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-label{color:var(--staff-action);opacity:1;}
+  .tab-active-bar{position:absolute;top:0;left:50%;transform:translateX(-50%);width:20px;height:2px;border-radius:1px;background:var(--staff-action);opacity:0;}
+  .tab-item.active .tab-active-bar{opacity:1;}
+  /* Token note */
+  .token-note{background: var(--surface-dark);border:1px solid var(--palette-stone-800);border-radius:var(--radius-lg);padding:16px 20px;max-width:960px;width:100%;margin:0 auto;}
+  .token-note-title{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color: var(--color-text-secondary);margin-bottom:10px;}
+  .token-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .token-chip{display:flex;align-items:center;gap:5px;padding:3px 9px;background:var(--palette-stone-900);border:1px solid var(--palette-stone-700);border-radius:var(--radius-full);font-size:10px;font-family:monospace;color: var(--color-text-muted);}
+  .token-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="page-title">Booking Modification — Drill-in Flow</div>
+<p class="page-sub">Booking detail → Modify overview → Field editor slides up → Apply → Overview → Save → Detail (updated)</p>
+
+<div class="section-heading">5-State Flow</div>
+
+<div class="phone-row">
+
+<!-- ── STATE 1: Booking detail (read) ── -->
+<div class="screen-group">
+  <div class="screen-label">State 1 — Booking detail<br>Read view · Modify button</div>
+  <div class="phone">
+    <div class="staff-header"><div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Sat · 2:14 PM</div></div><div class="staff-role-badge">Manager</div></div>
+    <div class="staff-content"><div class="cockpit-dim"><div class="stat-row"><div class="stat-card"><div class="stat-num">18</div><div class="stat-lbl">Total</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-action)">6</div><div class="stat-lbl">Upcoming</div></div><div class="stat-card"><div class="stat-num" style="color:var(--status-error-text-dark)">4</div><div class="stat-lbl">Active</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-text-muted)">8</div><div class="stat-lbl">Done</div></div></div><div class="upcoming-ph"></div><div class="upcoming-ph"></div></div></div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-hdr"><div class="sheet-title"></div><button class="sheet-close">Close</button></div>
+      <div class="sc">
+        <div class="bk-hero-name">Sarah Johnson</div>
+        <div class="bk-hero-meta">RZL-4821 · Sat May 10 · 3:00 PM</div>
+        <div class="bk-hero-row"><div class="status-badge sb-confirmed">Confirmed</div></div>
+        <div class="detail-grid">
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="d-label">Party</div><div class="d-val">6 bowlers · Cosmic Bowl · 2 hrs</div></div></div>
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="11" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="d-label">Lane</div><div class="d-val">Lane 4</div></div></div>
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div><div class="d-label">Payment</div><div class="d-val">$160.00 · Visa ····4242</div></div></div>
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div><div><div class="d-label">Contact</div><div class="d-val" style="color:var(--staff-action);cursor:pointer;">sarah@email.com</div><div style="font-size:11px;color:var(--staff-action);margin-top:2px;cursor:pointer;">(803) 555-0147</div></div></div>
+        </div>
+        <div class="bk-actions"><button class="btn-modify">Modify booking</button><button class="btn-sec">Cancel</button></div>
+      </div>
+    </div>
+    <div class="tab-bar"><div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="tab-label">Team</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div></div>
+  </div>
+</div>
+
+<div class="flow-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>tap Modify</div>
+
+<!-- ── STATE 2: Modify overview ── -->
+<div class="screen-group">
+  <div class="screen-label">State 2 — Modify overview<br>All fields · Tap to drill in</div>
+  <div class="phone">
+    <div class="staff-header"><div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Sat · 2:14 PM</div></div><div class="staff-role-badge">Manager</div></div>
+    <div class="staff-content"><div class="cockpit-dim"><div class="stat-row"><div class="stat-card"><div class="stat-num">18</div><div class="stat-lbl">Total</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-action)">6</div><div class="stat-lbl">Upcoming</div></div><div class="stat-card"><div class="stat-num" style="color:var(--status-error-text-dark)">4</div><div class="stat-lbl">Active</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-text-muted)">8</div><div class="stat-lbl">Done</div></div></div><div class="upcoming-ph"></div></div></div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-hdr"><button class="back-btn"><svg width="7" height="12" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Detail</button><div class="sheet-title">Modify booking</div><button class="sheet-close">Cancel</button></div>
+      <div class="sc">
+        <div class="id-strip"><div class="id-name">Sarah Johnson</div><div class="id-meta">RZL-4821 · Sat May 10</div></div>
+        <div class="mod-field"><div class="mf-left"><div class="mf-label">Date & time</div><div class="mf-val">Sat May 10 · 3:00 PM</div></div><div class="mf-chev">›</div></div>
+        <div class="mod-field"><div class="mf-left"><div class="mf-label">Duration</div><div class="mf-val">2 hours · ends 5:00 PM</div></div><div class="mf-chev">›</div></div>
+        <div class="mod-field"><div class="mf-left"><div class="mf-label">Bowlers</div><div class="mf-val">6 bowlers · 1 lane</div></div><div class="mf-chev">›</div></div>
+        <div class="mod-field"><div class="mf-left"><div class="mf-label">Package</div><div class="mf-val">Cosmic Bowl</div></div><div class="mf-chev">›</div></div>
+        <div class="mod-field" style="margin-bottom:14px;"><div class="mf-left"><div class="mf-label">Lane</div><div class="mf-val">Lane 4</div></div><div class="mf-chev">›</div></div>
+        <div style="font-size:11px;color:var(--staff-text-muted);text-align:center;margin-bottom:12px;">Tap a field to change it</div>
+        <button class="btn-save" disabled>Save changes</button>
+        <button class="btn-discard">Discard</button>
+      </div>
+    </div>
+    <div class="tab-bar"><div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="tab-label">Team</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div></div>
+  </div>
+</div>
+
+<div class="flow-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>tap Lane</div>
+
+<!-- ── STATE 3: Field editor slides up ── -->
+<div class="screen-group">
+  <div class="screen-label">State 3 — Lane editor<br>Slides up · Modify dims behind</div>
+  <div class="phone">
+    <div class="staff-header"><div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Sat · 2:14 PM</div></div><div class="staff-role-badge">Manager</div></div>
+    <div class="staff-content">
+      <!-- Dimmed modify overview behind editor -->
+      <div style="opacity:0.18;pointer-events:none;padding:10px 16px;">
+        <div style="display:flex;justify-content:space-between;padding:7px 10px;background:var(--staff-card);border-radius:var(--radius-md);margin-bottom:8px;"><span style="font-size:12px;color:var(--staff-text-muted);">Sarah Johnson</span><span style="font-size:10px;color:var(--staff-text-muted);">RZL-4821</span></div>
+        <div class="mod-field" style="opacity:0.5;margin-bottom:6px;"><div class="mf-left"><div class="mf-label">Date & time</div><div class="mf-val">Sat May 10 · 3:00 PM</div></div></div>
+        <div class="mod-field" style="opacity:0.5;margin-bottom:6px;"><div class="mf-left"><div class="mf-label">Bowlers</div><div class="mf-val">6 bowlers</div></div></div>
+        <!-- Lane row highlighted to show it was tapped -->
+        <div class="mod-field" style="border-color:rgba(245,158,11,0.4);"><div class="mf-left"><div class="mf-label" style="color:var(--staff-action);">Lane</div><div class="mf-val">Lane 4</div></div></div>
+      </div>
+    </div>
+    <!-- Field editor slides up -->
+    <div class="field-editor">
+      <div class="handle"></div>
+      <div class="sheet-hdr"><button class="back-btn"><svg width="7" height="12" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Modify</button><div class="sheet-title">Change lane</div><div style="width:50px;"></div></div>
+      <div class="sc">
+        <div class="editor-note">Current lane is in blue. Tap an available lane to reassign.</div>
+        <div class="lane-grid">
+          <div class="ln avail">1</div><div class="ln occ">2</div><div class="ln occ">3</div>
+          <div class="ln curr">4</div><div class="ln sel">5</div><div class="ln avail">6</div>
+          <div class="ln occ">7</div><div class="ln avail">8</div><div class="ln avail">9</div>
+          <div class="ln avail">10</div><div class="ln avail">11</div><div class="ln avail">12</div>
+        </div>
+        <div class="lane-legend">
+          <div class="ll-item"><div class="ll-dot" style="background:var(--lane-available-bg);border-color:var(--lane-available-border);"></div>Available</div>
+          <div class="ll-item"><div class="ll-dot" style="background:rgba(96,165,250,0.1);border-color:var(--status-info-text-dark);"></div>Current</div>
+          <div class="ll-item"><div class="ll-dot" style="background:rgba(245,158,11,0.15);border-color:var(--staff-action);"></div>Selected</div>
+          <div class="ll-item"><div class="ll-dot" style="background:var(--lane-occupied-bg);border-color:var(--lane-occupied-border);opacity:0.5;"></div>Occupied</div>
+        </div>
+        <div class="avail-ok"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg><span>Lane 5 available at 3:00 PM</span></div>
+        <button class="btn-apply">Apply — Lane 5</button>
+      </div>
+    </div>
+    <div class="tab-bar"><div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="tab-label">Team</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div></div>
+  </div>
+</div>
+
+<div class="flow-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>tap Apply</div>
+
+<!-- ── STATE 4: Overview with change ── -->
+<div class="screen-group">
+  <div class="screen-label">State 4 — Overview + change<br>Lane changed · Save enabled</div>
+  <div class="phone">
+    <div class="staff-header"><div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Sat · 2:14 PM</div></div><div class="staff-role-badge">Manager</div></div>
+    <div class="staff-content"><div class="cockpit-dim"><div class="stat-row"><div class="stat-card"><div class="stat-num">18</div><div class="stat-lbl">Total</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-action)">6</div><div class="stat-lbl">Upcoming</div></div><div class="stat-card"><div class="stat-num" style="color:var(--status-error-text-dark)">4</div><div class="stat-lbl">Active</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-text-muted)">8</div><div class="stat-lbl">Done</div></div></div><div class="upcoming-ph"></div></div></div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-hdr"><button class="back-btn"><svg width="7" height="12" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Detail</button><div class="sheet-title">Modify booking</div><button class="sheet-close">Cancel</button></div>
+      <div class="sc">
+        <div class="id-strip"><div class="id-name">Sarah Johnson</div><div class="id-meta">RZL-4821 · Sat May 10</div></div>
+        <div class="mod-field"><div class="mf-left"><div class="mf-label">Date & time</div><div class="mf-val">Sat May 10 · 3:00 PM</div></div><div class="mf-chev">›</div></div>
+        <div class="mod-field"><div class="mf-left"><div class="mf-label">Duration</div><div class="mf-val">2 hours · ends 5:00 PM</div></div><div class="mf-chev">›</div></div>
+        <div class="mod-field"><div class="mf-left"><div class="mf-label">Bowlers</div><div class="mf-val">6 bowlers · 1 lane</div></div><div class="mf-chev">›</div></div>
+        <div class="mod-field"><div class="mf-left"><div class="mf-label">Package</div><div class="mf-val">Cosmic Bowl</div></div><div class="mf-chev">›</div></div>
+        <div class="mod-field changed" style="margin-bottom:14px;"><div class="mf-left"><div class="mf-label">Lane</div><div class="mf-val changed">Lane 5</div><div class="mf-orig">Lane 4</div></div><div class="mf-chev">›</div></div>
+        <button class="btn-save">Save 1 change</button>
+        <button class="btn-discard">Discard all changes</button>
+      </div>
+    </div>
+    <div class="tab-bar"><div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="tab-label">Team</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div></div>
+  </div>
+</div>
+
+<div class="flow-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>tap Save</div>
+
+<!-- ── STATE 5: Back to detail — updated ── -->
+<div class="screen-group">
+  <div class="screen-label">State 5 — Detail updated<br>Lane now 5 · "Updated" badge</div>
+  <div class="phone">
+    <div class="staff-header"><div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Sat · 2:14 PM</div></div><div class="staff-role-badge">Manager</div></div>
+    <div class="staff-content"><div class="cockpit-dim"><div class="stat-row"><div class="stat-card"><div class="stat-num">18</div><div class="stat-lbl">Total</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-action)">6</div><div class="stat-lbl">Upcoming</div></div><div class="stat-card"><div class="stat-num" style="color:var(--status-error-text-dark)">4</div><div class="stat-lbl">Active</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-text-muted)">8</div><div class="stat-lbl">Done</div></div></div><div class="upcoming-ph"></div><div class="upcoming-ph"></div></div></div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-hdr"><div class="sheet-title"></div><button class="sheet-close">Close</button></div>
+      <div class="sc">
+        <div class="bk-hero-name">Sarah Johnson</div>
+        <div class="bk-hero-meta">RZL-4821 · Sat May 10 · 3:00 PM</div>
+        <div class="bk-hero-row">
+          <div class="status-badge sb-confirmed">Confirmed</div>
+          <div class="status-badge sb-updated">Updated</div>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="d-label">Party</div><div class="d-val">6 bowlers · Cosmic Bowl · 2 hrs</div></div></div>
+          <div class="detail-row updated"><div class="d-icon updated"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6EE7B7" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="11" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="d-label">Lane</div><div class="d-val updated">Lane 5 <span style="font-size:10px;color:var(--staff-text-muted);font-weight:400;">← was 4</span></div></div></div>
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div><div class="d-label">Payment</div><div class="d-val">$160.00 · Visa ····4242</div></div></div>
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div><div><div class="d-label">Contact</div><div class="d-val" style="color:var(--staff-action);cursor:pointer;">sarah@email.com</div><div style="font-size:11px;color:var(--staff-action);margin-top:2px;cursor:pointer;">(803) 555-0147</div></div></div>
+        </div>
+        <div class="bk-actions"><button class="btn-modify">Modify booking</button><button class="btn-sec">Cancel</button></div>
+      </div>
+    </div>
+    <div class="tab-bar"><div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="tab-label">Team</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div></div>
+  </div>
+</div>
+
+</div>
+
+
+<!-- ── CANCEL FLOW ── -->
+<div class="section-heading">Employee Cancel Flow</div>
+
+<div class="phone-row">
+
+<!-- Cancel A: Staff taps Cancel on booking detail -->
+<div class="screen-group">
+  <div class="screen-label">Cancel A — Confirmation<br>Reason · Refund option · Confirm</div>
+  <div class="phone">
+    <div class="staff-header"><div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Sat · 2:14 PM</div></div><div class="staff-role-badge">Manager</div></div>
+    <div class="staff-content">
+      <!-- Dimmed booking detail behind cancel sheet -->
+      <div style="opacity:0.18;pointer-events:none;padding:10px 16px;">
+        <div style="font-family:var(--font-display);font-size:18px;color:var(--staff-text-primary);margin-bottom:4px;">Sarah Johnson</div>
+        <div style="font-size:11px;color:var(--staff-text-muted);margin-bottom:10px;">RZL-4821 · Sat May 10 · 3:00 PM</div>
+        <div style="height:48px;background:var(--staff-card);border-radius:var(--radius-md);margin-bottom:7px;border:1px solid var(--staff-border);"></div>
+        <div style="height:48px;background:var(--staff-card);border-radius:var(--radius-md);margin-bottom:7px;border:1px solid var(--staff-border);"></div>
+        <div style="height:48px;background:var(--staff-card);border-radius:var(--radius-md);border:1px solid var(--staff-border);"></div>
+      </div>
+    </div>
+
+    <!-- Cancel confirmation sheet -->
+    <div class="field-editor">
+      <div class="handle"></div>
+      <div class="sheet-hdr">
+        <button class="back-btn"><svg width="7" height="12" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Detail</button>
+        <div class="sheet-title">Cancel booking</div>
+        <div style="width:50px;"></div>
+      </div>
+      <div class="sc">
+
+        <!-- Who / what is being cancelled -->
+        <div style="padding:10px 12px;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);border-radius:var(--radius-md);margin-bottom:14px;">
+          <div style="font-size:13px;font-weight:600;color:var(--staff-text-primary);">Sarah Johnson</div>
+          <div style="font-size:11px;color:var(--staff-text-muted);margin-top:2px;">Sat May 10 · 3:00 PM · 6 bowlers · Lane 4</div>
+        </div>
+
+        <!-- Reason -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:6px;">Reason</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--staff-card-raised);border:1.5px solid rgba(239,68,68,0.3);border-radius:var(--radius-md);cursor:pointer;">
+              <div style="width:14px;height:14px;border-radius:50%;background:var(--status-error-text-dark);border:2px solid var(--status-error-text-dark);flex-shrink:0;"></div>
+              <div style="font-size:13px;color:var(--staff-text-primary);">Customer request</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);cursor:pointer;opacity:0.6;">
+              <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--staff-border-strong);flex-shrink:0;"></div>
+              <div style="font-size:13px;color:var(--staff-text-primary);">No show</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--staff-card-raised);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);cursor:pointer;opacity:0.6;">
+              <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--staff-border-strong);flex-shrink:0;"></div>
+              <div style="font-size:13px;color:var(--staff-text-primary);">Venue issue</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Refund toggle — manager+ only, for confirmed + paid -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:var(--staff-card-raised);border:1px solid var(--staff-border);border-radius:var(--radius-md);margin-bottom:6px;">
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--staff-text-primary);">Issue refund</div>
+            <div style="font-size:10px;color:var(--staff-text-muted);margin-top:1px;">Return $160.00 to Visa ····4242</div>
+          </div>
+          <button style="position:relative;width:38px;height:21px;border-radius:11px;cursor:pointer;border:none;background:var(--staff-action);flex-shrink:0;">
+            <span style="position:absolute;width:15px;height:15px;background:white;border-radius:50%;top:3px;left:20px;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></span>
+          </button>
+        </div>
+        <div style="font-size:10px;color:var(--staff-text-muted);padding:0 2px;margin-bottom:14px;line-height:1.5;">Refund will be processed immediately. Customer receives email confirmation.</div>
+
+        <!-- Confirm cancel -->
+        <button style="width:100%;padding:13px;background:rgba(239,68,68,0.15);color:var(--status-error-text-dark);border:1.5px solid rgba(239,68,68,0.3);border-radius:var(--radius-md);font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;margin-bottom:7px;">Cancel booking</button>
+        <button class="btn-discard">Keep booking</button>
+      </div>
+    </div>
+
+    <div class="tab-bar"><div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="tab-label">Team</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div></div>
+  </div>
+</div>
+
+<!-- Cancel B: Post-cancel — booking detail showing Cancelled status -->
+<div class="screen-group">
+  <div class="screen-label">Cancel B — Post cancel<br>Status updated · Refunded badge</div>
+  <div class="phone">
+    <div class="staff-header"><div><div class="venue-name">Royal Z Lanes</div><div class="staff-time">Sat · 2:14 PM</div></div><div class="staff-role-badge">Manager</div></div>
+    <div class="staff-content"><div class="cockpit-dim"><div class="stat-row"><div class="stat-card"><div class="stat-num">18</div><div class="stat-lbl">Total</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-action)">5</div><div class="stat-lbl">Upcoming</div></div><div class="stat-card"><div class="stat-num" style="color:var(--status-error-text-dark)">4</div><div class="stat-lbl">Active</div></div><div class="stat-card"><div class="stat-num" style="color:var(--staff-text-muted)">8</div><div class="stat-lbl">Done</div></div></div><div class="upcoming-ph"></div><div class="upcoming-ph"></div></div></div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-hdr"><div class="sheet-title"></div><button class="sheet-close">Close</button></div>
+      <div class="sc">
+        <div class="bk-hero-name">Sarah Johnson</div>
+        <div class="bk-hero-meta">RZL-4821 · Sat May 10 · 3:00 PM</div>
+        <div class="bk-hero-row">
+          <div class="status-badge" style="background:rgba(87,83,78,0.3);color:var(--staff-text-muted);border:1px solid var(--staff-border-strong);">Cancelled</div>
+          <div class="status-badge" style="background:rgba(96,165,250,0.1);color:var(--status-info-text-dark);border:1px solid rgba(96,165,250,0.2);">Refunded</div>
+        </div>
+
+        <div class="detail-grid" style="margin-top:10px;">
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="d-label">Party</div><div class="d-val" style="opacity:0.5;">6 bowlers · Cosmic Bowl · 2 hrs</div></div></div>
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="11" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="d-label">Lane</div><div class="d-val" style="opacity:0.5;">Lane 4</div></div></div>
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div><div class="d-label">Payment</div><div class="d-val" style="opacity:0.5;text-decoration:line-through;">$160.00</div><div style="font-size:11px;color:var(--status-info-text-dark);margin-top:1px;">$160.00 refunded to Visa ····4242</div></div></div>
+          <div class="detail-row"><div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.5" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div><div><div class="d-label">Contact</div><div class="d-val" style="color:var(--staff-action);cursor:pointer;">sarah@email.com</div><div style="font-size:11px;color:var(--staff-action);margin-top:2px;cursor:pointer;">(803) 555-0147</div></div></div>
+        </div>
+
+        <!-- Cancelled reason + cancelled by -->
+        <div style="background:var(--staff-card-raised);border-radius:var(--radius-md);padding:10px 13px;border:1px solid var(--staff-border);margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+            <span style="color:var(--staff-text-muted);">Reason</span>
+            <span style="color:var(--staff-text-primary);">Customer request</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+            <span style="color:var(--staff-text-muted);">Cancelled by</span>
+            <span style="color:var(--staff-text-primary);">Jordan Rivera (Manager)</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;">
+            <span style="color:var(--staff-text-muted);">At</span>
+            <span style="color:var(--staff-text-primary);">Sat May 10 · 2:14 PM</span>
+          </div>
+        </div>
+
+        <button class="btn-discard" style="width:100%;">Close</button>
+      </div>
+    </div>
+    <div class="tab-bar"><div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="tab-label">Team</div></div><div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div></div>
+  </div>
+</div>
+
+</div>
+<div class="token-note">
+  <div class="token-note-title">Modification navigation model</div>
+  <div class="token-grid">
+    <div class="token-chip">Detail → Overview → Field editor → Overview → Detail (5 states)</div>
+    <div class="token-chip">Each layer slides up — back chevron label names the parent: "Modify" or "Detail"</div>
+    <div class="token-chip">Field editor header: back to "Modify" · no cancel needed</div>
+    <div class="token-chip">Apply button label includes selected value — "Apply — Lane 5"</div>
+    <div class="token-chip">Overview dims to 18% behind field editor</div>
+    <div class="token-chip">Changed field: amber tint + new value amber + strikethrough original</div>
+    <div class="token-chip">Save disabled until at least one change applied</div>
+    <div class="token-chip">After save: detail shows "Updated" green badge + updated row highlighted</div>
+    <div class="token-chip">"← was 4" inline note fades after ~3s in real implementation</div>
+    <div class="token-chip">All changes committed atomically — single PATCH to booking endpoint</div>
+    <div class="token-chip">Save button label: "Save N change(s)" — count reflects pending changes</div>
+    <div class="token-chip">Contact row in detail: email + phone as amber tappable links</div>
+    <div class="token-chip">Cancel: reason required · refund toggle (Manager+ only) · slides up same as field editor</div>
+    <div class="token-chip">Post-cancel: Cancelled + Refunded badges · payment strikethrough + refund note · audit trail</div>
+    <div class="token-chip">Audit trail: reason, cancelled by (name + role), timestamp</div>
+  </div>
+</div>
+
+</body>
+</html>

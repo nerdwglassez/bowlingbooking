@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booking Flow — Steps 1 & 2 (Branded)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:wght@400;500;600&display=swap');
+
+  /* ── LAYER 1: Palette ── */
+  :root {
+    --palette-amber-50:   #FFFBEB;
+    --palette-amber-100:  #FEF3C7;
+    --palette-amber-200:  #FDE68A;
+    --palette-amber-300:  #FCD34D;
+    --palette-amber-400:  #FBBF24;
+    --palette-amber-500:  #F59E0B;
+    --palette-amber-600:  #D97706;
+    --palette-amber-700:  #B45309;
+    --palette-amber-900:  #78350F;
+
+    --palette-stone-50:   #FAFAF9;
+    --palette-stone-100:  #F5F5F4;
+    --palette-stone-200:  #E7E5E4;
+    --palette-stone-300:  #D6D3D1;
+    --palette-stone-400:  #A8A29E;
+    --palette-stone-500:  #78716C;
+    --palette-stone-600:  #57534E;
+    --palette-stone-700:  #44403C;
+    --palette-stone-800:  #292524;
+    --palette-stone-900:  #1C1917;
+
+    --palette-green-100:  #D1FAE5;
+    --palette-green-400:  #6EE7B7;
+    --palette-green-800:  #065F46;
+    --palette-green-500:  #10B981;
+
+    --palette-red-100:    #FEE2E2;
+    --palette-red-300:    #FCA5A5;
+    --palette-red-800:    #991B1B;
+
+    --palette-white:      #FFFFFF;
+
+    /* ── LAYER 2: Surfaces ── */
+    --surface-ground:     #F5F2EE;
+    --surface-card:       #FDFCFA;
+    --surface-raised:     var(--palette-white);
+    --surface-sunken:     #EDE9E3;
+    --surface-dark:       var(--palette-stone-900);
+    --surface-dark-mid:   var(--palette-stone-800);
+
+    /* ── LAYER 2: Brand Action ── */
+    --color-action:        var(--palette-amber-500);
+    --color-action-hover:  var(--palette-amber-600);
+    --color-action-text:   var(--palette-white);
+    --color-action-subtle: var(--palette-amber-50);
+    --color-action-tint:   var(--palette-amber-100);
+    --color-action-dark:   var(--status-warning-text);
+
+    /* ── LAYER 2: Text ── */
+    --color-text-primary:   var(--palette-stone-900);
+    --color-text-secondary: var(--palette-stone-600);
+    --color-text-muted:     var(--palette-stone-400);
+    --color-text-inverted:  #FDFCFA;
+    --color-text-on-action: var(--palette-white);
+
+    /* ── LAYER 2: Borders ── */
+    --color-border:         var(--palette-stone-200);
+    --color-border-strong:  var(--palette-stone-300);
+    --color-border-subtle:  var(--palette-stone-100);
+
+    /* ── LAYER 2: Status ── */
+    --status-available-bg:     var(--palette-green-100);
+    --status-available-text:   var(--palette-green-800);
+    --status-available-border: var(--status-ok-text);
+
+    --status-warning-bg:       var(--palette-amber-100);
+    --status-warning-text:     var(--palette-amber-700);
+    --status-warning-border:   var(--palette-amber-300);
+
+    --status-critical-bg:      var(--palette-red-100);
+    --status-critical-text:    var(--palette-red-800);
+    --status-critical-border:  var(--palette-red-300);
+
+    /* ── LAYER 2: Typography ── */
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body:    'DM Sans', system-ui, sans-serif;
+
+    /* ── LAYER 2: Radius ── */
+    --radius-sm:   0.375rem;
+    --radius-md:   0.75rem;
+    --radius-lg:   1rem;
+    --radius-xl:   1.5rem;
+    --radius-full: 9999px;
+
+    /* ── LAYER 2: Shadows ── */
+    --shadow-sm:  0 1px 2px rgba(28,25,23,0.06);
+    --shadow-md:  0 4px 12px rgba(28,25,23,0.08), 0 1px 3px rgba(28,25,23,0.06);
+    --shadow-lg:  0 12px 32px rgba(28,25,23,0.10), 0 2px 8px rgba(28,25,23,0.06);
+    --shadow-xl:  0 24px 48px rgba(28,25,23,0.12), 0 4px 12px rgba(28,25,23,0.08);
+  
+  /* ── Semantic status tokens (DESIGN_SYSTEM.md compliant) ── */
+  /* Light surface values — dark-surface values auto via [data-theme=dark] */
+  --status-ok-bg:          #D1FAE5;
+  --status-ok-text:        #065F46;
+  --status-ok-border:      #A7F3D0;
+  --status-warning-bg:     #FEF3C7;
+  --status-warning-text:   #92400E;
+  --status-warning-border: #FDE68A;
+  --status-error-bg:       #FEE2E2;
+  --status-error-text:     #991B1B;
+  --status-error-border:   #FECACA;
+  --status-info-bg:        #EFF6FF;
+  --status-info-text:      #1E40AF;
+  --status-info-border:    #BFDBFE;
+
+  /* Dark-surface overrides (staff app always dark) */
+  /* These mirror [data-theme=dark] from DESIGN_SYSTEM.md */
+  --status-ok-text-dark:      #6EE7B7;
+  --status-warning-text-dark: #FCD34D;
+  --status-error-text-dark:   #FCA5A5;
+  --status-info-text-dark:    #93C5FD;
+}
+
+  /* Dark mode */
+  [data-theme="dark"] {
+    --surface-ground:     #0F0E0D;
+    --surface-card:       #1C1917;
+    --surface-raised:     #292524;
+    --surface-sunken:     #141211;
+    --color-text-primary:   #FAFAF9;
+    --color-text-secondary: #A8A29E;
+    --color-text-muted:     #57534E;
+    --color-border:         #292524;
+    --color-border-strong:  #44403C;
+    --color-border-subtle:  #1C1917;
+    --color-action-subtle:  rgba(245,158,11,0.08);
+    --color-action-tint:    rgba(245,158,11,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--surface-sunken);
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+
+  /* ── Page chrome ── */
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    color: var(--color-text-primary);
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    text-align: center;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+
+  .toggle-row {
+    display: flex; align-items: center; gap: 10px;
+    justify-content: center; margin-bottom: 32px;
+  }
+
+  .toggle-label { font-size: 12px; color: var(--color-text-secondary); font-weight: 500; }
+
+  .toggle {
+    position: relative; width: 44px; height: 24px;
+    background: var(--palette-stone-300); border-radius: 12px;
+    cursor: pointer; transition: background 0.3s; border: none;
+  }
+  .toggle.on { background: var(--palette-stone-800); }
+  .toggle::after {
+    content: ''; position: absolute;
+    width: 18px; height: 18px; background: white;
+    border-radius: 50%; top: 3px; left: 3px;
+    transition: transform 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .toggle.on::after { transform: translateX(20px); }
+
+  .section-heading {
+    font-family: var(--font-display);
+    font-size: 18px; color: var(--color-text-secondary);
+    text-align: center;
+    margin: 0 auto 20px;
+    padding-top: 32px;
+    border-top: 1px solid var(--palette-stone-300);
+    max-width: 960px;
+  }
+
+  .phone-row {
+    display: flex; gap: 24px; justify-content: center;
+    flex-wrap: wrap; margin-bottom: 48px;
+  }
+
+  .screen-group {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 10px;
+  }
+
+  .screen-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--color-text-secondary);
+    text-align: center; max-width: 200px; line-height: 1.5;
+  }
+
+  /* ── Phone shell ── */
+  .phone {
+    width: 375px;
+    background: var(--surface-ground);
+    border-radius: 36px; overflow: hidden;
+    box-shadow: var(--shadow-xl), 0 0 0 1px rgba(0,0,0,0.04);
+    transition: background 0.3s;
+  }
+
+  /* ── App header ── */
+  .app-header {
+    background: var(--surface-dark);
+    padding: 16px 20px 14px;
+    display: flex; align-items: flex-start;
+    justify-content: space-between;
+    transition: background 0.3s;
+  }
+
+  .venue-name {
+    font-family: var(--font-display);
+    font-size: 17px; color: var(--color-text-inverted);
+    line-height: 1.2; transition: color 0.3s;
+  }
+
+  .venue-address {
+    font-size: 11px; color: var(--color-action-dark);
+    margin-top: 2px; text-decoration: underline;
+    text-underline-offset: 2px; cursor: pointer;
+    transition: color 0.3s;
+  }
+
+  .sign-in-btn {
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-muted);
+    background: none; border: none; cursor: pointer;
+    margin-top: 2px; transition: color 0.3s;
+  }
+
+  /* ── Step dots ── */
+  .step-dots {
+    display: flex; justify-content: center;
+    align-items: center; gap: 8px;
+    padding: 12px 20px;
+    background: var(--surface-card);
+    border-bottom: 1px solid var(--color-border);
+    transition: all 0.3s;
+  }
+
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--color-border-strong); transition: all 0.3s;
+  }
+  .dot.active {
+    width: 22px; border-radius: 3px;
+    background: var(--color-action);
+  }
+  .dot.done { background: var(--color-action); opacity: 0.35; }
+
+  /* ── Content ── */
+  .content {
+    padding: 20px 20px 24px;
+    background: var(--surface-ground);
+    transition: background 0.3s;
+  }
+
+  /* ── Hold bar ── */
+  .hold-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 13px; border-radius: var(--radius-md);
+    margin-bottom: 16px;
+    background: var(--surface-card);
+    border: 1px solid var(--color-border);
+    transition: all 0.3s;
+  }
+
+  .hold-bar.active {
+    background: var(--status-available-bg);
+    border-color: var(--status-available-border);
+  }
+
+  .hold-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--color-text-muted); flex-shrink: 0;
+    transition: background 0.3s;
+  }
+
+  .hold-bar.active .hold-dot {
+    background: var(--palette-green-500);
+    animation: blink 2s infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .hold-text {
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-muted); transition: color 0.3s;
+  }
+
+  .hold-bar.active .hold-text { color: var(--status-available-text); }
+
+  /* ── Step title ── */
+  .step-title {
+    font-family: var(--font-display);
+    font-size: 22px; color: var(--color-text-primary);
+    margin-bottom: 4px; transition: color 0.3s;
+  }
+
+  .step-sub {
+    font-size: 12px; color: var(--color-text-secondary);
+    margin-bottom: 22px; line-height: 1.5; transition: color 0.3s;
+  }
+
+  /* ── Field section ── */
+  .field-section { margin-bottom: 20px; }
+
+  .field-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 8px; transition: color 0.3s;
+  }
+
+  /* ── Bowler selector ── */
+  .bowler-row {
+    display: flex; align-items: center;
+    background: var(--surface-card);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg); overflow: hidden;
+    transition: all 0.3s;
+  }
+
+  .bowler-row.warn { border-color: var(--status-warning-text); }
+
+  .bowl-btn {
+    width: 52px; height: 52px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer;
+    font-size: 22px; font-weight: 300;
+    color: var(--color-action); transition: color 0.3s;
+  }
+
+  .bowl-num {
+    flex: 1; text-align: center;
+    font-family: var(--font-display);
+    font-size: 28px; color: var(--color-text-primary);
+    transition: color 0.3s;
+  }
+
+  .bowl-num.warn { color: var(--color-action-text); }
+
+  .bowler-meta {
+    font-size: 11px; color: var(--color-text-muted);
+    margin-top: 5px; text-align: center; transition: color 0.3s;
+  }
+
+  /* ── Large group warning (amber, not red) ── */
+  .group-warn {
+    background: var(--status-warning-bg);
+    border: 1px solid var(--status-warning-border);
+    border-radius: var(--radius-md);
+    padding: 11px 13px; margin-top: 10px;
+  }
+
+  .warn-title {
+    font-size: 12px; font-weight: 600;
+    color: var(--status-warning-text); margin-bottom: 4px;
+  }
+
+  .warn-body {
+    font-size: 11px; color: var(--color-action-text);
+    line-height: 1.5;
+  }
+
+  /* ── Date strip ── */
+  .date-strip {
+    display: flex; gap: 7px;
+    overflow-x: auto; padding-bottom: 6px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .date-strip::-webkit-scrollbar { display: none; }
+
+  .date-chip {
+    flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 9px 12px; border-radius: var(--radius-md);
+    border: 1.5px solid var(--color-border);
+    background: var(--surface-card);
+    cursor: pointer; min-width: 50px; transition: all 0.2s;
+  }
+
+  .date-chip.selected {
+    background: var(--color-action);
+    border-color: var(--color-action);
+  }
+
+  .date-chip.unavailable { opacity: 0.3; cursor: not-allowed; }
+
+  .date-day {
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--color-text-muted); transition: color 0.2s;
+  }
+
+  .date-chip.selected .date-day { color: rgba(255,255,255,0.75); }
+
+  .date-num {
+    font-family: var(--font-display);
+    font-size: 17px; color: var(--color-text-primary);
+    margin-top: 1px; transition: color 0.2s;
+  }
+
+  .date-chip.selected .date-num { color: white; }
+
+  .more-dates {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 9px 12px; border-radius: var(--radius-md);
+    border: 1.5px dashed var(--color-border-strong);
+    cursor: pointer; font-size: 11px; font-weight: 500;
+    color: var(--color-action); white-space: nowrap;
+    min-width: 80px; transition: all 0.2s;
+    background: var(--color-action-subtle);
+  }
+
+  /* ── Time grid ── */
+  .time-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px;
+  }
+
+  .time-slot {
+    padding: 10px 6px; border-radius: var(--radius-md);
+    border: 1.5px solid var(--color-border);
+    background: var(--surface-card);
+    text-align: center; cursor: pointer; transition: all 0.2s;
+  }
+
+  .time-slot.selected {
+    background: var(--color-action);
+    border-color: var(--color-action);
+    box-shadow: 0 0 16px rgba(245,158,11,0.25);
+  }
+
+  .time-slot.unavailable { opacity: 0.3; cursor: not-allowed; }
+
+  .time-slot-time {
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-primary); transition: color 0.2s;
+  }
+
+  .time-slot.selected .time-slot-time { color: white; }
+
+  .time-slot-avail {
+    font-size: 9px; color: var(--color-text-muted);
+    margin-top: 2px; transition: color 0.2s;
+  }
+
+  .time-slot.selected .time-slot-avail { color: rgba(255,255,255,0.7); }
+
+  .disabled-section { opacity: 0.35; pointer-events: none; }
+
+  /* ── CTA button (Primary variant) ── */
+  .btn-primary {
+    width: 100%; padding: 15px;
+    background: var(--color-action);
+    color: var(--color-text-on-action);
+    border: none; border-radius: var(--radius-lg);
+    font-family: var(--font-body);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 6px;
+    box-shadow: 0 0 20px rgba(245,158,11,0.3);
+    transition: opacity 0.2s, box-shadow 0.2s;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.35; cursor: not-allowed; box-shadow: none;
+  }
+
+  /* ═══════════════════════════════════
+     STEP 2 SPECIFIC STYLES
+  ═══════════════════════════════════ */
+
+  /* Sort/filter bar */
+  .sort-filter-bar {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .results-count {
+    font-size: 12px; color: var(--color-text-muted);
+  }
+
+  .sort-filter-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 12px;
+    background: var(--surface-card);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-family: var(--font-body);
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-primary);
+    cursor: pointer; transition: all 0.2s;
+  }
+
+  .sort-filter-btn.active {
+    border-color: var(--color-action);
+    background: var(--color-action-tint);
+    color: var(--color-action-text);
+  }
+
+  .filter-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--color-action); display: none;
+  }
+
+  .sort-filter-btn.active .filter-dot { display: block; }
+
+  /* Package card */
+  .pkg-card {
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 15px; margin-bottom: 9px;
+    background: var(--surface-card);
+    cursor: pointer; transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+
+  .pkg-card.selected {
+    border-color: var(--color-action);
+    background: var(--color-action-subtle);
+    box-shadow: 0 0 0 3px rgba(245,158,11,0.12);
+  }
+
+  .pkg-card.popular::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2.5px; background: var(--color-action);
+  }
+
+  .pkg-top {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; margin-bottom: 5px;
+  }
+
+  .pkg-name {
+    font-family: var(--font-display);
+    font-size: 15px; color: var(--color-text-primary);
+    flex: 1; transition: color 0.3s;
+  }
+
+  .pkg-badge {
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: var(--radius-full);
+    background: var(--color-action-tint);
+    color: var(--color-action-text);
+    margin-left: 8px; flex-shrink: 0;
+  }
+
+  .pkg-select-ring {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--color-border-strong);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 2px; margin-left: 8px;
+    transition: all 0.2s;
+  }
+
+  .pkg-card.selected .pkg-select-ring {
+    border-color: var(--color-action);
+    background: var(--color-action);
+  }
+
+  .pkg-check {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: white; display: none;
+  }
+
+  .pkg-card.selected .pkg-check { display: block; }
+
+  .pkg-price {
+    font-family: var(--font-display);
+    font-size: 17px; font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 5px; transition: color 0.3s;
+  }
+
+  .pkg-price span {
+    font-family: var(--font-body);
+    font-size: 11px; font-weight: 400;
+    color: var(--color-text-muted);
+  }
+
+  .pkg-desc {
+    font-size: 11px; color: var(--color-text-secondary);
+    line-height: 1.5; margin-bottom: 9px; transition: color 0.3s;
+  }
+
+  .pkg-tags {
+    display: flex; flex-wrap: wrap; gap: 5px;
+  }
+
+  .pkg-tag {
+    font-size: 10px; padding: 3px 8px;
+    border-radius: var(--radius-full);
+    background: var(--surface-ground);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    transition: all 0.3s;
+  }
+
+  .pkg-tag.included {
+    background: var(--status-available-bg);
+    color: var(--status-available-text);
+    border-color: var(--status-available-border);
+  }
+
+  /* Bottom sheet (sort/filter) */
+  .bottom-sheet {
+    background: var(--surface-raised);
+    border-top: 1px solid var(--color-border);
+    padding: 16px 20px 20px;
+    transition: all 0.3s;
+  }
+
+  .sheet-handle {
+    width: 32px; height: 3px; border-radius: 2px;
+    background: var(--color-border-strong);
+    margin: 0 auto 16px;
+  }
+
+  .sheet-title {
+    font-family: var(--font-display);
+    font-size: 16px; color: var(--color-text-primary);
+    margin-bottom: 14px; transition: color 0.3s;
+  }
+
+  .sheet-section { margin-bottom: 16px; }
+
+  .sheet-section-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 8px; transition: color 0.3s;
+  }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .chip {
+    padding: 6px 12px;
+    border-radius: var(--radius-full);
+    border: 1.5px solid var(--color-border);
+    background: var(--surface-card);
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-secondary);
+    cursor: pointer; transition: all 0.2s;
+  }
+
+  .chip.active {
+    border-color: var(--color-action);
+    background: var(--color-action-tint);
+    color: var(--color-action-text);
+  }
+
+  .sheet-actions {
+    display: flex; gap: 8px; margin-top: 16px;
+  }
+
+  .btn-secondary {
+    flex: 1; padding: 12px;
+    background: var(--surface-sunken);
+    color: var(--color-text-secondary);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    font-family: var(--font-body);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+  }
+
+  /* Mismatch warning */
+  .mismatch-warn {
+    background: var(--status-warning-bg);
+    border: 1px solid var(--status-warning-border);
+    border-radius: var(--radius-md);
+    padding: 11px 13px; margin-bottom: 12px;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+
+  .warn-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+
+  .warn-text {
+    font-size: 11px; color: var(--color-action-text);
+    line-height: 1.5;
+  }
+
+  .warn-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+  .warn-btn {
+    font-size: 11px; font-weight: 600;
+    padding: 5px 10px; border-radius: var(--radius-sm);
+    border: none; cursor: pointer;
+    font-family: var(--font-body);
+  }
+
+  .warn-btn.primary { background: var(--color-action); color: white; }
+  .warn-btn.ghost {
+    background: none; color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+  }
+
+  /* Add-on cards */
+  .addon-section {
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid var(--color-border);
+    transition: border-color 0.3s;
+  }
+
+  .addon-card {
+    display: flex; align-items: center; gap: 11px;
+    padding: 11px 13px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: 7px;
+    background: var(--surface-card);
+    cursor: pointer; transition: all 0.2s;
+  }
+
+  .addon-card.selected {
+    border-color: var(--color-action);
+    background: var(--color-action-subtle);
+  }
+
+  .addon-check {
+    width: 20px; height: 20px; border-radius: 5px;
+    border: 2px solid var(--color-border-strong);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .addon-card.selected .addon-check {
+    background: var(--color-action);
+    border-color: var(--color-action);
+  }
+
+  .addon-mark { color: white; font-size: 11px; display: none; }
+  .addon-card.selected .addon-mark { display: block; }
+
+  .addon-info { flex: 1; }
+
+  .addon-name {
+    font-size: 13px; font-weight: 500;
+    color: var(--color-text-primary); transition: color 0.3s;
+  }
+
+  .addon-desc {
+    font-size: 11px; color: var(--color-text-muted);
+    margin-top: 1px; transition: color 0.3s;
+  }
+
+  .addon-price {
+    font-family: var(--font-display);
+    font-size: 13px; color: var(--color-text-primary);
+    transition: color 0.3s;
+  }
+
+  /* Price summary footer */
+  .price-footer {
+    background: var(--surface-dark);
+    padding: 14px 20px 20px;
+    transition: background 0.3s;
+  }
+
+  .price-row {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 4px;
+  }
+
+  .price-row-label {
+    font-size: 12px; color: var(--color-text-muted);
+  }
+
+  .price-row-val {
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  .price-divider {
+    border: none; border-top: 1px solid var(--palette-stone-700);
+    margin: 8px 0;
+  }
+
+  .price-total-row {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 12px;
+  }
+
+  .price-total-label {
+    font-size: 13px; font-weight: 500;
+    color: var(--color-text-inverted);
+  }
+
+  .price-total-val {
+    font-family: var(--font-display);
+    font-size: 20px; color: var(--color-action-dark);
+  }
+
+  /* Token reference */
+  .token-note {
+    background: var(--palette-stone-50);
+    border: 1px solid var(--palette-stone-200);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    max-width: 960px; width: 100%;
+    margin: 0 auto;
+  }
+
+  .token-note-title {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--color-text-secondary); margin-bottom: 10px;
+  }
+
+  .token-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .token-chip {
+    display: flex; align-items: center; gap: 5px;
+    padding: 3px 9px;
+    background: white; border: 1px solid var(--palette-stone-200);
+    border-radius: var(--radius-full);
+    font-size: 10px; font-family: monospace;
+    color: var(--color-text-primary);
+  }
+
+  .token-swatch {
+    width: 9px; height: 9px;
+    border-radius: 50%; flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">Booking Flow — Steps 1 & 2</div>
+<p class="page-sub">Branded wireframes · Fraunces display · DM Sans body · Amber action · Stone surfaces · Actual v1 token system</p>
+
+<div class="toggle-row">
+  <span class="toggle-label">Light</span>
+  <button class="toggle" id="themeToggle" onclick="toggleTheme()"></button>
+  <span class="toggle-label">Dark</span>
+</div>
+
+<!-- ══════════ STEP 1 ══════════ -->
+<div class="section-heading">Step 1 — Date, Time & Party Size</div>
+
+<div class="phone-row">
+
+  <!-- 1a: Bowler count, no date yet -->
+  <div class="screen-group">
+    <div class="screen-label">1a — Count entered<br>No date selected yet</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Select a time to hold your lanes</div>
+        </div>
+
+        <div class="step-title">Let's get you bowling</div>
+        <div class="step-sub">How many people, and when?</div>
+
+        <div class="field-section">
+          <div class="field-label">Bowlers in your group</div>
+          <div class="bowler-row">
+            <button class="bowl-btn">−</button>
+            <div class="bowl-num">6</div>
+            <button class="bowl-btn">+</button>
+          </div>
+          <div class="bowler-meta">1 lane required</div>
+        </div>
+
+        <div class="field-section">
+          <div class="field-label">Pick a date</div>
+          <div class="date-strip">
+            <div class="date-chip unavailable"><div class="date-day">Sat</div><div class="date-num">10</div></div>
+            <div class="date-chip"><div class="date-day">Sun</div><div class="date-num">11</div></div>
+            <div class="date-chip"><div class="date-day">Mon</div><div class="date-num">12</div></div>
+            <div class="date-chip"><div class="date-day">Tue</div><div class="date-num">13</div></div>
+            <div class="date-chip"><div class="date-day">Wed</div><div class="date-num">14</div></div>
+            <div class="date-chip"><div class="date-day">Thu</div><div class="date-num">15</div></div>
+            <div class="date-chip"><div class="date-day">Fri</div><div class="date-num">16</div></div>
+            <div class="more-dates">More dates →</div>
+          </div>
+        </div>
+
+        <div class="field-section disabled-section">
+          <div class="field-label">Choose a time</div>
+          <div style="text-align:center;font-size:11px;color:var(--color-text-muted);padding:16px 0;">Select a date to see available times</div>
+        </div>
+
+        <button class="btn-primary" disabled>Select a date and time to continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1b: Date + time selected, hold active -->
+  <div class="screen-group">
+    <div class="screen-label">1b — Time selected<br>Hold active · Normal group</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar active">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Lanes held · 14:47 remaining</div>
+        </div>
+
+        <div class="step-title">Let's get you bowling</div>
+        <div class="step-sub">6 bowlers · 1 lane · Sun May 11</div>
+
+        <div class="field-section">
+          <div class="field-label">Bowlers in your group</div>
+          <div class="bowler-row">
+            <button class="bowl-btn">−</button>
+            <div class="bowl-num">6</div>
+            <button class="bowl-btn">+</button>
+          </div>
+          <div class="bowler-meta">1 lane required</div>
+        </div>
+
+        <div class="field-section">
+          <div class="field-label">Pick a date</div>
+          <div class="date-strip">
+            <div class="date-chip unavailable"><div class="date-day">Sat</div><div class="date-num">10</div></div>
+            <div class="date-chip selected"><div class="date-day">Sun</div><div class="date-num">11</div></div>
+            <div class="date-chip"><div class="date-day">Mon</div><div class="date-num">12</div></div>
+            <div class="date-chip"><div class="date-day">Tue</div><div class="date-num">13</div></div>
+            <div class="date-chip"><div class="date-day">Wed</div><div class="date-num">14</div></div>
+            <div class="date-chip"><div class="date-day">Thu</div><div class="date-num">15</div></div>
+            <div class="date-chip"><div class="date-day">Fri</div><div class="date-num">16</div></div>
+            <div class="more-dates">More dates →</div>
+          </div>
+        </div>
+
+        <div class="field-section">
+          <div class="field-label">Choose a time</div>
+          <div class="time-grid">
+            <div class="time-slot unavailable"><div class="time-slot-time">10:00 AM</div><div class="time-slot-avail">Full</div></div>
+            <div class="time-slot"><div class="time-slot-time">11:00 AM</div><div class="time-slot-avail">2 left</div></div>
+            <div class="time-slot"><div class="time-slot-time">12:00 PM</div><div class="time-slot-avail">Open</div></div>
+            <div class="time-slot selected"><div class="time-slot-time">1:00 PM</div><div class="time-slot-avail">✓ Held</div></div>
+            <div class="time-slot"><div class="time-slot-time">2:00 PM</div><div class="time-slot-avail">Open</div></div>
+            <div class="time-slot"><div class="time-slot-time">3:00 PM</div><div class="time-slot-avail">1 left</div></div>
+            <div class="time-slot"><div class="time-slot-time">4:00 PM</div><div class="time-slot-avail">Open</div></div>
+            <div class="time-slot"><div class="time-slot-time">5:00 PM</div><div class="time-slot-avail">Open</div></div>
+            <div class="time-slot unavailable"><div class="time-slot-time">6:00 PM</div><div class="time-slot-avail">Full</div></div>
+          </div>
+        </div>
+
+        <button class="btn-primary">Continue to packages →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1c: Large group warning — amber, no code input here -->
+  <div class="screen-group">
+    <div class="screen-label">1c — 20 bowlers<br>Warning only · No code input</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Select a time to hold your lanes</div>
+        </div>
+
+        <div class="step-title">Let's get you bowling</div>
+        <div class="step-sub">How many people, and when?</div>
+
+        <div class="field-section">
+          <div class="field-label">Bowlers in your group</div>
+          <!-- Amber warning state, not red error -->
+          <div class="bowler-row warn">
+            <button class="bowl-btn">−</button>
+            <div class="bowl-num warn">20</div>
+            <button class="bowl-btn">+</button>
+          </div>
+          <div class="bowler-meta" style="color: var(--color-action-text);">Large group · 4 lanes required</div>
+
+          <!-- Amber warning — no code input here, just heads up -->
+          <div class="group-warn">
+            <div class="warn-title">⚠ Large group booking</div>
+            <div class="warn-body">Groups over 18 need a group code or eligible package to complete booking. You can continue selecting your date and time — we'll ask for the code at the package step.</div>
+          </div>
+        </div>
+
+        <div class="field-section">
+          <div class="field-label">Pick a date</div>
+          <div class="date-strip">
+            <div class="date-chip"><div class="date-day">Sun</div><div class="date-num">11</div></div>
+            <div class="date-chip"><div class="date-day">Mon</div><div class="date-num">12</div></div>
+            <div class="date-chip"><div class="date-day">Tue</div><div class="date-num">13</div></div>
+            <div class="date-chip"><div class="date-day">Wed</div><div class="date-num">14</div></div>
+            <div class="more-dates">More dates →</div>
+          </div>
+        </div>
+
+        <div class="field-section disabled-section">
+          <div class="field-label">Choose a time</div>
+          <div style="text-align:center;font-size:11px;color:var(--color-text-muted);padding:16px 0;">Select a date to see available times</div>
+        </div>
+
+        <button class="btn-primary" disabled>Select a date and time to continue</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ STEP 2 ══════════ -->
+<div class="section-heading">Step 2 — Package Selection</div>
+
+<div class="phone-row">
+
+  <!-- 2a: Package list with sort/filter -->
+  <div class="screen-group">
+    <div class="screen-label">2a — Package list<br>Sort/filter control visible</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div>
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar active">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Lanes held · 13:22 remaining</div>
+        </div>
+
+        <div class="step-title">Choose a package</div>
+        <div class="step-sub">6 bowlers · Sun May 11 · 1:00 PM</div>
+
+        <div class="sort-filter-bar">
+          <div class="results-count">3 packages available</div>
+          <button class="sort-filter-btn">
+            <span>⇅ Sort & Filter</span>
+            <div class="filter-dot"></div>
+          </button>
+        </div>
+
+        <div class="pkg-card popular">
+          <div class="pkg-top">
+            <div class="pkg-name">Cosmic Bowl</div>
+            <div class="pkg-badge">Popular</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$12.00 <span>/ person / hr</span></div>
+          <div class="pkg-desc">Black lights, music, and great vibes. Our most-booked weekend experience.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag included">Shoes included</div>
+            <div class="pkg-tag">2 hr min</div>
+            <div class="pkg-tag">Fri–Sun eve</div>
+          </div>
+        </div>
+
+        <div class="pkg-card">
+          <div class="pkg-top">
+            <div class="pkg-name">Open Bowl</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$8.50 <span>/ person / hr</span></div>
+          <div class="pkg-desc">Classic bowling. Bring your own shoes or add rentals at the next step.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag">1 hr min</div>
+            <div class="pkg-tag">Shoes not included</div>
+          </div>
+        </div>
+
+        <div class="pkg-card">
+          <div class="pkg-top">
+            <div class="pkg-name">Birthday Party</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$185 <span>flat · up to 8 people</span></div>
+          <div class="pkg-desc">2 lanes, 2 hours, shoes for all, reserved table, and a pitcher on us.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag included">Shoes included</div>
+            <div class="pkg-tag">Up to 8</div>
+            <div class="pkg-tag">2 hrs</div>
+          </div>
+        </div>
+
+        <button class="btn-primary" disabled>Select a package to continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2b: Sort/filter bottom sheet open -->
+  <div class="screen-group">
+    <div class="screen-label">2b — Sort & filter<br>Bottom sheet open</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div>
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content" style="padding-bottom:12px;">
+        <div class="hold-bar active">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Lanes held · 12:58 remaining</div>
+        </div>
+
+        <div class="sort-filter-bar">
+          <div class="results-count">3 packages available</div>
+          <button class="sort-filter-btn active">
+            <span>⇅ Sort & Filter</span>
+            <div class="filter-dot"></div>
+          </button>
+        </div>
+
+        <!-- Dimmed packages behind sheet -->
+        <div style="opacity:0.3">
+          <div class="pkg-card popular">
+            <div class="pkg-top">
+              <div class="pkg-name">Cosmic Bowl</div>
+              <div class="pkg-badge">Popular</div>
+            </div>
+            <div class="pkg-price">$12.00 <span>/ person / hr</span></div>
+          </div>
+          <div class="pkg-card">
+            <div class="pkg-top"><div class="pkg-name">Open Bowl</div></div>
+            <div class="pkg-price">$8.50 <span>/ person / hr</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom sheet -->
+      <div class="bottom-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Sort & Filter</div>
+
+        <div class="sheet-section">
+          <div class="sheet-section-label">Sort by</div>
+          <div class="chip-row">
+            <div class="chip active">Popular</div>
+            <div class="chip">Price: Low to High</div>
+            <div class="chip">Price: High to Low</div>
+            <div class="chip">Name A→Z</div>
+            <div class="chip">Name Z→A</div>
+          </div>
+        </div>
+
+        <div class="sheet-section">
+          <div class="sheet-section-label">Package type</div>
+          <div class="chip-row">
+            <div class="chip active">All</div>
+            <div class="chip">Per hour</div>
+            <div class="chip">Fixed price</div>
+            <div class="chip">Add-ons</div>
+          </div>
+        </div>
+
+        <div class="sheet-section">
+          <div class="sheet-section-label">Group size</div>
+          <div class="chip-row">
+            <div class="chip active">All sizes</div>
+            <div class="chip">Small (1–6)</div>
+            <div class="chip">Medium (7–12)</div>
+            <div class="chip">Large (13–18)</div>
+          </div>
+        </div>
+
+        <div class="sheet-actions">
+          <button class="btn-secondary">Reset</button>
+          <button class="btn-primary" style="margin-top:0;flex:2;">Show results</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2c: Package selected + add-ons + price footer -->
+  <div class="screen-group">
+    <div class="screen-label">2c — Package selected<br>Add-ons + price footer</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div>
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content" style="padding-bottom:0">
+        <div class="hold-bar active">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Lanes held · 12:05 remaining</div>
+        </div>
+
+        <div class="step-title">Choose a package</div>
+        <div class="step-sub">6 bowlers · Sun May 11 · 1:00 PM</div>
+
+        <div class="sort-filter-bar">
+          <div class="results-count">3 packages available</div>
+          <button class="sort-filter-btn">⇅ Sort & Filter</button>
+        </div>
+
+        <div class="pkg-card popular selected">
+          <div class="pkg-top">
+            <div class="pkg-name">Cosmic Bowl</div>
+            <div class="pkg-badge">Popular</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$12.00 <span>/ person / hr · 2 hr min</span></div>
+          <div class="pkg-desc">Black lights, music, and great vibes.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag included">Shoes included</div>
+            <div class="pkg-tag">Fri–Sun evenings</div>
+          </div>
+        </div>
+
+        <div class="pkg-card">
+          <div class="pkg-top">
+            <div class="pkg-name">Open Bowl</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$8.50 <span>/ person / hr</span></div>
+          <div class="pkg-tags"><div class="pkg-tag">Shoes not included</div></div>
+        </div>
+
+        <div class="pkg-card">
+          <div class="pkg-top">
+            <div class="pkg-name">Birthday Party</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$185 <span>flat · up to 8</span></div>
+          <div class="pkg-tags">
+            <div class="pkg-tag included">Shoes included</div>
+            <div class="pkg-tag">Up to 8</div>
+          </div>
+        </div>
+
+        <div class="addon-section">
+          <div class="field-label" style="margin-bottom:9px;">Add-ons (optional)</div>
+
+          <div class="addon-card selected">
+            <div class="addon-check"><div class="addon-mark">✓</div></div>
+            <div class="addon-info">
+              <div class="addon-name">Pizza Package</div>
+              <div class="addon-desc">2 large pizzas at your lane</div>
+            </div>
+            <div class="addon-price">$8/pp</div>
+          </div>
+
+          <div class="addon-card">
+            <div class="addon-check"><div class="addon-mark">✓</div></div>
+            <div class="addon-info">
+              <div class="addon-name">Arcade Credits</div>
+              <div class="addon-desc">$10 credits per person</div>
+            </div>
+            <div class="addon-price">$10/pp</div>
+          </div>
+
+          <div class="addon-card">
+            <div class="addon-check"><div class="addon-mark">✓</div></div>
+            <div class="addon-info">
+              <div class="addon-name">Party Room</div>
+              <div class="addon-desc">Private room 1 hr before/after</div>
+            </div>
+            <div class="addon-price">$75</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dark price footer -->
+      <div class="price-footer">
+        <div class="price-row">
+          <div class="price-row-label">Cosmic Bowl · 6 people · 2 hrs</div>
+          <div class="price-row-val">$144.00</div>
+        </div>
+        <div class="price-row">
+          <div class="price-row-label">Pizza Package · 6 people</div>
+          <div class="price-row-val">$48.00</div>
+        </div>
+        <hr class="price-divider">
+        <div class="price-total-row">
+          <div class="price-total-label">Estimated total</div>
+          <div class="price-total-val">$192.00</div>
+        </div>
+        <button class="btn-primary" style="margin-top:0;">Continue to contact info →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2d: Mismatch warning -->
+  <div class="screen-group">
+    <div class="screen-label">2d — Package mismatch<br>Amber warning · Upgrade offer</div>
+    <div class="phone">
+      <div class="app-header">
+        <div>
+          <div class="venue-name">Royal Z Lanes</div>
+          <div class="venue-address">8512 Two Notch Rd, Columbia SC →</div>
+        </div>
+        <button class="sign-in-btn">Sign in</button>
+      </div>
+      <div class="step-dots">
+        <div class="dot done"></div>
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="content">
+        <div class="hold-bar active">
+          <div class="hold-dot"></div>
+          <div class="hold-text">Lanes held · 11:38 remaining</div>
+        </div>
+
+        <div class="step-title">Choose a package</div>
+        <div class="step-sub">5 bowlers · Sun May 11 · 1:00 PM</div>
+
+        <div class="mismatch-warn">
+          <div class="warn-icon">⚠️</div>
+          <div>
+            <div class="warn-text"><strong>This package is designed for larger groups.</strong> Your selection needs 2 lanes instead of 1. We have 2 lanes available at this time.</div>
+            <div class="warn-actions">
+              <button class="warn-btn primary">Upgrade to 2 lanes</button>
+              <button class="warn-btn ghost">Keep 1 lane</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sort-filter-bar">
+          <div class="results-count">3 packages available</div>
+          <button class="sort-filter-btn">⇅ Sort & Filter</button>
+        </div>
+
+        <div class="pkg-card popular">
+          <div class="pkg-top">
+            <div class="pkg-name">Cosmic Bowl</div>
+            <div class="pkg-badge">Popular</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$12.00 <span>/ person / hr</span></div>
+          <div class="pkg-tags">
+            <div class="pkg-tag included">Shoes included</div>
+          </div>
+        </div>
+
+        <div class="pkg-card selected">
+          <div class="pkg-top">
+            <div class="pkg-name">Birthday Party</div>
+            <div class="pkg-select-ring"><div class="pkg-check"></div></div>
+          </div>
+          <div class="pkg-price">$185 <span>flat · up to 12</span></div>
+          <div class="pkg-desc">Designed for groups of 8–12.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag included">Shoes included</div>
+            <div class="pkg-tag">2 lanes</div>
+          </div>
+        </div>
+
+        <button class="btn-primary">Continue anyway →</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token reference -->
+<div class="token-note">
+  <div class="token-note-title">v1 Design tokens applied in these wireframes</div>
+  <div class="token-grid">
+    <div class="token-chip"><div class="token-swatch" style="background:#F59E0B"></div>--color-action (amber 500)</div>
+    <div class="token-chip"><div class="token-swatch" style="background: var(--surface-ground)"></div>--surface-ground</div>
+    <div class="token-chip"><div class="token-swatch" style="background: var(--surface-card)"></div>--surface-card</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#1C1917"></div>--surface-dark (header, price footer)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#1C1917"></div>--color-text-primary (stone 900)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#57534E"></div>--color-text-secondary</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#A8A29E"></div>--color-text-muted</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#E7E5E4"></div>--color-border</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#10B981"></div>--status-available (hold active)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#FEF3C7"></div>--status-warning-bg (large group, mismatch)</div>
+    <div class="token-chip"><div class="token-swatch" style="background:#D1FAE5"></div>--status-available-bg (shoes included)</div>
+  </div>
+</div>
+
+<script>
+function toggleTheme() {
+  const t = document.getElementById('themeToggle');
+  t.classList.toggle('on');
+  const isDark = t.classList.contains('on');
+  document.querySelectorAll('.phone').forEach(p => {
+    isDark ? p.setAttribute('data-theme','dark') : p.removeAttribute('data-theme');
+  });
+  document.body.style.background = isDark ? '#0A0908' : '#D6D3D1';
+}
+</script>
+</body>
+</html>

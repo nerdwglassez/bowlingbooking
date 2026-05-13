@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — Packages</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --palette-amber-400:#FBBF24;--palette-amber-500:#F59E0B;
+    --palette-amber-600:#D97706;--palette-amber-700:#B45309;
+    --palette-stone-400:#A8A29E;--palette-stone-500:#78716C;
+    --palette-stone-600:#57534E;--palette-stone-700:#44403C;
+    --palette-stone-800:#292524;--palette-stone-900:#1C1917;
+    --palette-purple-950:#120620;--palette-purple-900:#1E0A2E;
+    --palette-purple-300:#C084FC;
+    --palette-green-500:#10B981;--palette-green-400:#6EE7B7;
+    --palette-red-400:#F87171;--palette-blue-400:#60A5FA;
+
+    --staff-bg:#0C0A09;
+    --staff-card:#1C1917;
+    --staff-card-raised:#292524;
+    --staff-nav:#120620;
+    --staff-header:#1E0A2E;
+    --staff-text-primary:#FAFAF9;
+    --staff-text-secondary:#A8A29E;
+    --staff-text-muted:#57534E;
+    --staff-border:#292524;
+    --staff-border-strong:#44403C;
+    --staff-action:#F59E0B;
+
+    --font-display:'Fraunces',Georgia,serif;
+    --font-body:'DM Sans',system-ui,sans-serif;
+    --radius-sm:0.375rem;--radius-md:0.75rem;
+    --radius-lg:1rem;--radius-full:9999px;
+    --shadow-xl:0 24px 48px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.3);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-body);background: var(--surface-dark);padding:40px 20px;min-height:100vh;}
+
+  .page-title{font-family:var(--font-display);font-size:24px;color:#FAFAF9;text-align:center;margin-bottom:6px;}
+  .page-sub{font-size:13px;color: var(--color-text-secondary);text-align:center;line-height:1.6;margin-bottom:32px;}
+  .section-heading{font-family:var(--font-display);font-size:17px;color: var(--color-text-secondary);text-align:center;margin:0 auto 20px;padding-top:28px;border-top:1px solid var(--palette-stone-800);max-width:960px;}
+  .phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:48px;}
+  .screen-group{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .screen-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color: var(--color-text-secondary);text-align:center;max-width:210px;line-height:1.5;}
+
+  .phone{width:375px;max-height:780px;background:var(--staff-bg);border-radius:36px;overflow:hidden;box-shadow:var(--shadow-xl),0 0 0 1px rgba(255,255,255,0.05);display:flex;flex-direction:column;}
+
+  /* Header */
+  .staff-header{background:var(--staff-header);padding:14px 18px 13px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .back-btn{background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:5px;flex-shrink:0;}
+  .back-label{font-size:12px;color: var(--color-text-muted);font-family:var(--font-body);}
+  .header-spacer{flex:1;}
+  .header-action{font-size:12px;font-weight:600;color:var(--staff-action);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
+  .staff-role-badge{font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border-radius:var(--radius-full);background:rgba(245,158,11,0.12);color: var(--color-action-dark);border:1px solid rgba(245,158,11,0.25);}
+
+  .staff-content{flex:1;overflow-y:auto;background:var(--staff-bg);min-height:0;}
+
+  .page-title-row{display:flex;align-items:baseline;justify-content:space-between;padding:18px 18px 4px;}
+  .page-title-inner{font-family:var(--font-display);font-size:22px;color:var(--staff-text-primary);}
+  .page-title-sub{font-size:12px;color:var(--staff-text-muted);padding:0 18px 14px;line-height:1.5;}
+
+  .section-lbl{font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--staff-text-muted);padding:10px 16px 7px;}
+  .divider{height:1px;background:var(--staff-border);margin:8px 16px;}
+
+  /* ── Package card ── */
+  .package-card{background:var(--staff-card);border:1px solid var(--staff-border);border-radius:var(--radius-lg);padding:14px 15px;margin:0 16px 10px;cursor:pointer;transition:border-color 0.2s;}
+  .package-card.inactive{opacity:0.5;}
+  .package-card:hover{border-color:var(--staff-border-strong);}
+
+  .pkg-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;}
+  .pkg-name{font-family:var(--font-display);font-size:16px;color:var(--staff-text-primary);}
+  .pkg-status{display:flex;align-items:center;gap:5px;}
+  .pkg-status-dot{width:6px;height:6px;border-radius:50%;}
+  .pkg-status-dot.active{background:var(--palette-green-500);}
+  .pkg-status-dot.inactive{background:var(--staff-border-strong);}
+  .pkg-status-label{font-size:10px;color:var(--staff-text-muted);}
+
+  .pkg-desc{font-size:12px;color:var(--staff-text-muted);margin-bottom:10px;line-height:1.5;}
+
+  .pkg-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
+  .pkg-tag{font-size:10px;padding:2px 8px;border-radius:var(--radius-full);background:var(--staff-card-raised);color:var(--staff-text-secondary);border:1px solid var(--staff-border);}
+  .pkg-tag.included{color: var(--status-ok-text);background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.2);}
+  .pkg-tag.type{color:var(--palette-blue-400);background:rgba(96,165,250,0.08);border-color:rgba(96,165,250,0.2);}
+
+  .pkg-card-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--staff-border);}
+  .pkg-price{font-family:var(--font-display);font-size:17px;color:var(--staff-action);}
+  .pkg-price-label{font-size:10px;color:var(--staff-text-muted);margin-top:2px;}
+  .pkg-edit-btn{font-size:11px;font-weight:600;color:var(--staff-action);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
+
+  /* Add package button */
+  .add-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;background:none;border:1.5px dashed var(--staff-border-strong);border-radius:var(--radius-lg);margin:0 16px 20px;cursor:pointer;font-family:var(--font-body);font-size:13px;font-weight:500;color:var(--staff-text-muted);width:calc(100% - 32px);}
+
+  /* ── Package edit page ── */
+  .form-field{padding:0 16px;margin-bottom:12px;}
+  .form-label{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:5px;display:block;}
+  .form-input{width:100%;padding:11px 13px;background:var(--staff-card);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);appearance:none;}
+  .form-input::placeholder{color:var(--staff-text-muted);}
+  .form-input.filled{border-color:var(--staff-border-strong);}
+  .form-textarea{width:100%;padding:11px 13px;background:var(--staff-card);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);resize:none;line-height:1.5;}
+  .form-select{width:100%;padding:11px 32px 11px 13px;background:var(--staff-card);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;color:var(--staff-text-primary);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2357534E' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+  .form-input-note{font-size:10px;color:var(--staff-text-muted);margin-top:4px;line-height:1.5;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px;margin-bottom:12px;}
+  .form-row>div>.form-label{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:5px;display:block;}
+
+  /* Type explainer */
+  .type-explainer{background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.15);border-radius:var(--radius-md);padding:10px 13px;margin:6px 16px 12px;}
+  .type-explainer-text{font-size:11px;color:var(--palette-blue-400);line-height:1.5;}
+
+  /* Inclusion toggles */
+  .inclusion-row{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--staff-card);border:1px solid var(--staff-border);border-radius:var(--radius-md);margin:0 16px 7px;}
+  .inclusion-info{flex:1;}
+  .inclusion-label{font-size:13px;font-weight:500;color:var(--staff-text-primary);}
+  .inclusion-sub{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+  .incl-toggle{position:relative;width:38px;height:21px;border-radius:11px;cursor:pointer;border:none;transition:background 0.25s;}
+  .incl-toggle.on{background:var(--staff-action);}
+  .incl-toggle.off{background:var(--staff-border-strong);}
+  .incl-toggle::after{content:'';position:absolute;width:15px;height:15px;background:white;border-radius:50%;top:3px;left:3px;transition:transform 0.25s;box-shadow:0 1px 3px rgba(0,0,0,0.3);}
+  .incl-toggle.on::after{transform:translateX(17px);}
+
+  /* Party type chips */
+  .party-chips{display:flex;gap:6px;flex-wrap:wrap;}
+  .party-chip{padding:6px 12px;border-radius:var(--radius-full);border:1.5px solid var(--staff-border-strong);background:var(--staff-card-raised);font-size:11px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;}
+  .party-chip.on{border-color:var(--staff-action);background:rgba(245,158,11,0.1);color: var(--color-action-dark);}
+
+  /* Availability days -->
+  .day-chips{display:flex;gap:5px;flex-wrap:wrap;}
+  .day-chip{padding:5px 9px;border-radius:var(--radius-full);border:1.5px solid var(--staff-border-strong);background:var(--staff-card-raised);font-size:11px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;}
+  .day-chip.on{border-color:var(--staff-action);background:rgba(245,158,11,0.1);color: var(--color-action-dark);}
+
+  /* Active toggle row */
+  .active-row{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:var(--staff-card);border:1px solid var(--staff-border);border-radius:var(--radius-md);margin:0 16px 12px;}
+  .active-label{font-size:13px;font-weight:600;color:var(--staff-text-primary);}
+  .active-sub{font-size:10px;color:var(--staff-text-muted);margin-top:1px;}
+
+  /* Save + danger */
+  .save-btn{width:calc(100% - 32px);margin:12px 16px 0;padding:13px;background:var(--staff-action);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;}
+  .danger-btn{width:calc(100% - 32px);margin:8px 16px 20px;padding:12px;background:rgba(239,68,68,0.08);color: var(--status-error-text);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;cursor:pointer;}
+
+  /* Tab bar */
+  .tab-bar{background:var(--staff-nav);border-top:1px solid rgba(168,85,247,0.12);padding:8px 0 14px;display:flex;align-items:flex-start;justify-content:space-around;flex-shrink:0;}
+  .tab-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 8px;cursor:pointer;min-width:60px;position:relative;}
+  .tab-icon-wrap{width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
+  .tab-icon-wrap svg{stroke:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-icon-wrap svg{stroke:var(--staff-action);opacity:1;}
+  .tab-label{font-size:9px;font-weight:600;letter-spacing:0.03em;color:var(--staff-text-muted);opacity:0.35;}
+  .tab-item.active .tab-label{color:var(--staff-action);opacity:1;}
+  .tab-active-bar{position:absolute;top:0;left:50%;transform:translateX(-50%);width:20px;height:2px;border-radius:1px;background:var(--staff-action);opacity:0;}
+  .tab-item.active .tab-active-bar{opacity:1;}
+
+  /* Token note */
+  .token-note{background: var(--surface-dark);border:1px solid var(--palette-stone-800);border-radius:var(--radius-lg);padding:16px 20px;max-width:960px;width:100%;margin:0 auto;}
+  .token-note-title{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color: var(--color-text-secondary);margin-bottom:10px;}
+  .token-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .token-chip{display:flex;align-items:center;gap:5px;padding:3px 9px;background:var(--palette-stone-900);border:1px solid var(--palette-stone-700);border-radius:var(--radius-full);font-size:10px;font-family:monospace;color: var(--color-text-muted);}
+  .token-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="page-title">Settings — Packages</div>
+<p class="page-sub">Package card list · Create / edit full page · All field types · Active toggle</p>
+
+<div class="section-heading">Packages</div>
+
+<div class="phone-row">
+
+  <!-- Packages list -->
+  <div class="screen-group">
+    <div class="screen-label">Packages A — List<br>3 active · 1 inactive · Add button</div>
+    <div class="phone">
+      <div class="staff-header">
+        <button class="back-btn"><svg width="8" height="13" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="back-label">Settings</span></button>
+        <div class="header-spacer"></div>
+        <div class="staff-role-badge">Admin</div>
+      </div>
+
+      <div class="staff-content">
+        <div class="page-title-row">
+          <div class="page-title-inner">Packages</div>
+        </div>
+        <div class="page-title-sub">Packages appear in Step 2 of the customer booking flow. Inactive packages are hidden from customers.</div>
+
+        <!-- Open Bowl -->
+        <div class="package-card">
+          <div class="pkg-card-top">
+            <div class="pkg-name">Open Bowl</div>
+            <div class="pkg-status">
+              <div class="pkg-status-dot active"></div>
+              <div class="pkg-status-label">Active</div>
+            </div>
+          </div>
+          <div class="pkg-desc">Standard lane rental. Bowlers pay per person per hour at the current rate.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag type">Rate-based</div>
+            <div class="pkg-tag">All party types</div>
+            <div class="pkg-tag">Mon–Sun</div>
+          </div>
+          <div class="pkg-card-bottom">
+            <div>
+              <div class="pkg-price">From $8.50</div>
+              <div class="pkg-price-label">per person · per hour</div>
+            </div>
+            <button class="pkg-edit-btn">Edit →</button>
+          </div>
+        </div>
+
+        <!-- Cosmic Bowl -->
+        <div class="package-card">
+          <div class="pkg-card-top">
+            <div class="pkg-name">Cosmic Bowl</div>
+            <div class="pkg-status">
+              <div class="pkg-status-dot active"></div>
+              <div class="pkg-status-label">Active</div>
+            </div>
+          </div>
+          <div class="pkg-desc">Blacklights, music, and glow-in-the-dark pins. Weekend evenings and Friday nights.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag type">Rate-based</div>
+            <div class="pkg-tag">General · groups</div>
+            <div class="pkg-tag">Fri–Sun from 6 PM</div>
+          </div>
+          <div class="pkg-card-bottom">
+            <div>
+              <div class="pkg-price">From $12.00</div>
+              <div class="pkg-price-label">per person · per hour</div>
+            </div>
+            <button class="pkg-edit-btn">Edit →</button>
+          </div>
+        </div>
+
+        <!-- Birthday Party -->
+        <div class="package-card">
+          <div class="pkg-card-top">
+            <div class="pkg-name">Birthday Party</div>
+            <div class="pkg-status">
+              <div class="pkg-status-dot active"></div>
+              <div class="pkg-status-label">Active</div>
+            </div>
+          </div>
+          <div class="pkg-desc">2 hours of bowling, shoes for all guests, and a reserved party area.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag type">Fixed price</div>
+            <div class="pkg-tag">Birthday</div>
+            <div class="pkg-tag included">Shoes included</div>
+            <div class="pkg-tag included">Games included</div>
+            <div class="pkg-tag included">Food included</div>
+            <div class="pkg-tag included">Game credits</div>
+          </div>
+          <div class="pkg-card-bottom">
+            <div>
+              <div class="pkg-price">$185.00</div>
+              <div class="pkg-price-label">flat rate · up to 10 guests</div>
+            </div>
+            <button class="pkg-edit-btn">Edit →</button>
+          </div>
+        </div>
+
+        <!-- Corporate — inactive -->
+        <div class="package-card inactive">
+          <div class="pkg-card-top">
+            <div class="pkg-name">Corporate Bowl</div>
+            <div class="pkg-status">
+              <div class="pkg-status-dot inactive"></div>
+              <div class="pkg-status-label">Inactive</div>
+            </div>
+          </div>
+          <div class="pkg-desc">Group event package for corporate teams. Minimum 20 bowlers.</div>
+          <div class="pkg-tags">
+            <div class="pkg-tag type">Fixed price</div>
+            <div class="pkg-tag">Corporate</div>
+            <div class="pkg-tag included">Shoes included</div>
+          </div>
+          <div class="pkg-card-bottom">
+            <div>
+              <div class="pkg-price">$45.00</div>
+              <div class="pkg-price-label">per person · 3 hrs</div>
+            </div>
+            <button class="pkg-edit-btn">Edit →</button>
+          </div>
+        </div>
+
+        <button class="add-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add package
+        </button>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Package edit — rate-based -->
+  <div class="screen-group">
+    <div class="screen-label">Packages B — Edit page<br>Rate-based · Cosmic Bowl</div>
+    <div class="phone">
+      <div class="staff-header">
+        <button class="back-btn"><svg width="8" height="13" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="back-label">Packages</span></button>
+        <div class="header-spacer"></div>
+        <div class="staff-role-badge">Admin</div>
+      </div>
+
+      <div class="staff-content">
+        <div class="page-title-row">
+          <div class="page-title-inner">Cosmic Bowl</div>
+        </div>
+
+        <!-- Active toggle at top — prominent -->
+        <div class="active-row">
+          <div>
+            <div class="active-label">Package active</div>
+            <div class="active-sub">Visible to customers in booking flow</div>
+          </div>
+          <button class="incl-toggle on"></button>
+        </div>
+
+        <div class="section-lbl">Details</div>
+
+        <div class="form-field">
+          <label class="form-label">Package name</label>
+          <input class="form-input filled" value="Cosmic Bowl" type="text">
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Description <span style="text-transform:none;font-weight:400;">(shown to customers)</span></label>
+          <textarea class="form-textarea" rows="2">Blacklights, music, and glow-in-the-dark pins. Weekend evenings and Friday nights.</textarea>
+        </div>
+
+        <div class="section-lbl">Pricing type</div>
+
+        <div class="form-field" style="margin-bottom:0;">
+          <select class="form-select">
+            <option selected>Rate-based — uses default / override rate</option>
+            <option>Fixed price — flat fee per booking</option>
+          </select>
+        </div>
+        <div class="type-explainer">
+          <div class="type-explainer-text">Uses your pricing rate for the time and bowler count. Rate overrides (like Peak evenings) apply automatically when this package is booked.</div>
+        </div>
+
+        <div class="section-lbl">Inclusions</div>
+
+        <!-- Games -->
+        <div class="inclusion-row">
+          <div class="inclusion-info">
+            <div class="inclusion-label">Bowling games</div>
+            <div class="inclusion-sub">Unlimited bowling during their time slot</div>
+          </div>
+          <button class="incl-toggle on"></button>
+        </div>
+
+        <!-- Shoe rental -->
+        <div class="inclusion-row">
+          <div class="inclusion-info">
+            <div class="inclusion-label">Shoe rental</div>
+            <div class="inclusion-sub">Hides shoe rental step in booking flow</div>
+          </div>
+          <button class="incl-toggle off"></button>
+        </div>
+
+        <!-- Food — off, collapsed -->
+        <div class="inclusion-row">
+          <div class="inclusion-info">
+            <div class="inclusion-label">Food</div>
+            <div class="inclusion-sub">Include food items with this package</div>
+          </div>
+          <button class="incl-toggle off"></button>
+        </div>
+
+        <!-- Game credits — off, collapsed -->
+        <div class="inclusion-row" style="margin-bottom:4px;">
+          <div class="inclusion-info">
+            <div class="inclusion-label">Game credits</div>
+            <div class="inclusion-sub">Arcade or video game card credits</div>
+          </div>
+          <button class="incl-toggle off"></button>
+        </div>
+        <div style="padding:0 16px 4px;font-size:10px;color:var(--staff-text-muted);line-height:1.5;">Toggle any inclusion on to configure its details.</div>
+
+        <div class="section-lbl">Availability</div>
+
+        <div class="form-field">
+          <label class="form-label">Available days</label>
+          <div class="day-chips">
+            <div class="day-chip">Mon</div><div class="day-chip">Tue</div>
+            <div class="day-chip">Wed</div><div class="day-chip">Thu</div>
+            <div class="day-chip on">Fri</div><div class="day-chip on">Sat</div>
+            <div class="day-chip on">Sun</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label class="form-label">From time</label>
+            <input class="form-input" value="18:00" type="time" style="padding:10px 8px;">
+          </div>
+          <div>
+            <label class="form-label">Until time</label>
+            <input class="form-input" value="23:00" type="time" style="padding:10px 8px;">
+          </div>
+        </div>
+
+        <div class="section-lbl">Party types</div>
+        <div style="padding:0 16px 12px;">
+          <div class="party-chips">
+            <div class="party-chip on">General</div>
+            <div class="party-chip on">Groups</div>
+            <div class="party-chip">Birthday</div>
+            <div class="party-chip">Corporate</div>
+          </div>
+          <div style="font-size:10px;color:var(--staff-text-muted);margin-top:6px;line-height:1.5;">Package only appears for selected party types in Step 1.</div>
+        </div>
+
+        <button class="save-btn">Save package</button>
+        <button class="danger-btn">Delete package</button>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Package edit — fixed price -->
+  <div class="screen-group">
+    <div class="screen-label">Packages C — Edit page<br>Fixed price · All 4 inclusions · Food + game credits expanded</div>
+    <div class="phone">
+      <div class="staff-header">
+        <button class="back-btn"><svg width="8" height="13" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7L7 13" stroke="#A8A29E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="back-label">Packages</span></button>
+        <div class="header-spacer"></div>
+        <div class="staff-role-badge">Admin</div>
+      </div>
+
+      <div class="staff-content">
+        <div class="page-title-row">
+          <div class="page-title-inner">Birthday Party</div>
+        </div>
+
+        <div class="active-row">
+          <div>
+            <div class="active-label">Package active</div>
+            <div class="active-sub">Visible to customers in booking flow</div>
+          </div>
+          <button class="incl-toggle on"></button>
+        </div>
+
+        <div class="section-lbl">Details</div>
+
+        <div class="form-field">
+          <label class="form-label">Package name</label>
+          <input class="form-input filled" value="Birthday Party" type="text">
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Description</label>
+          <textarea class="form-textarea" rows="2">2 hours of bowling, shoes for all guests, and a reserved party area.</textarea>
+        </div>
+
+        <div class="section-lbl">Pricing type</div>
+
+        <div class="form-field" style="margin-bottom:0;">
+          <select class="form-select">
+            <option>Rate-based — uses default / override rate</option>
+            <option selected>Fixed price — flat fee per booking</option>
+          </select>
+        </div>
+        <div class="type-explainer">
+          <div class="type-explainer-text">A single flat price regardless of bowler count or duration. Set the price, guest limit, and duration below.</div>
+        </div>
+
+        <!-- Fixed price fields -->
+        <div class="form-row">
+          <div>
+            <label class="form-label">Flat price</label>
+            <input class="form-input filled" value="185.00" type="number" style="padding:10px 8px;">
+          </div>
+          <div>
+            <label class="form-label">Max guests</label>
+            <input class="form-input filled" value="10" type="number" style="padding:10px 8px;">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Duration (fixed)</label>
+          <select class="form-select">
+            <option>1 hour</option>
+            <option>1.5 hours</option>
+            <option selected>2 hours</option>
+            <option>3 hours</option>
+          </select>
+          <div class="form-input-note">Customer cannot change duration for fixed packages.</div>
+        </div>
+
+        <div class="section-lbl">Inclusions</div>
+
+        <!-- Bowling games — on -->
+        <div class="inclusion-row">
+          <div class="inclusion-info">
+            <div class="inclusion-label">Bowling games</div>
+            <div class="inclusion-sub">Included in flat price</div>
+          </div>
+          <button class="incl-toggle on"></button>
+        </div>
+
+        <!-- Shoe rental — on -->
+        <div class="inclusion-row">
+          <div class="inclusion-info">
+            <div class="inclusion-label">Shoe rental</div>
+            <div class="inclusion-sub">Hides shoe rental step in booking flow</div>
+          </div>
+          <button class="incl-toggle on"></button>
+        </div>
+
+        <!-- Food — on, expanded with fields -->
+        <div class="inclusion-row" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div class="inclusion-info">
+              <div class="inclusion-label">Food</div>
+              <div class="inclusion-sub">Included in flat price</div>
+            </div>
+            <button class="incl-toggle on"></button>
+          </div>
+          <!-- Food detail — expanded -->
+          <div style="background:var(--staff-card-raised);border-radius:var(--radius-md);padding:10px 12px;border:1px solid var(--staff-border);">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--staff-text-muted);margin-bottom:8px;">Food items</div>
+            <!-- Structured item -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+              <input style="flex:1;padding:7px 10px;background:var(--staff-bg);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:12px;color:var(--staff-text-primary);" value="Large pizza" type="text">
+              <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                <button style="width:24px;height:24px;border-radius:4px;background:var(--staff-bg);border:1px solid var(--staff-border-strong);color:var(--staff-text-primary);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;">−</button>
+                <span style="font-family:var(--font-display);font-size:15px;color:var(--staff-text-primary);min-width:18px;text-align:center;">1</span>
+                <button style="width:24px;height:24px;border-radius:4px;background:var(--staff-bg);border:1px solid var(--staff-border-strong);color:var(--staff-text-primary);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;">+</button>
+              </div>
+              <button style="background:none;border:none;cursor:pointer;color: var(--status-error-text);font-size:15px;line-height:1;padding:2px;">×</button>
+            </div>
+            <!-- Second item -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <input style="flex:1;padding:7px 10px;background:var(--staff-bg);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-body);font-size:12px;color:var(--staff-text-primary);" value="2 pitchers of soda" type="text">
+              <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                <button style="width:24px;height:24px;border-radius:4px;background:var(--staff-bg);border:1px solid var(--staff-border-strong);color:var(--staff-text-primary);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;">−</button>
+                <span style="font-family:var(--font-display);font-size:15px;color:var(--staff-text-primary);min-width:18px;text-align:center;">1</span>
+                <button style="width:24px;height:24px;border-radius:4px;background:var(--staff-bg);border:1px solid var(--staff-border-strong);color:var(--staff-text-primary);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;">+</button>
+              </div>
+              <button style="background:none;border:none;cursor:pointer;color: var(--status-error-text);font-size:15px;line-height:1;padding:2px;">×</button>
+            </div>
+            <!-- Add item row -->
+            <button style="width:100%;padding:7px;background:none;border:1px dashed var(--staff-border-strong);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:11px;color:var(--staff-text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add food item
+            </button>
+          </div>
+        </div>
+
+        <!-- Game credits — on, expanded -->
+        <div class="inclusion-row" style="flex-direction:column;align-items:stretch;gap:10px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div class="inclusion-info">
+              <div class="inclusion-label">Game credits</div>
+              <div class="inclusion-sub">Arcade / video game card credits</div>
+            </div>
+            <button class="incl-toggle on"></button>
+          </div>
+          <!-- Game credits detail — expanded -->
+          <div style="background:var(--staff-card-raised);border-radius:var(--radius-md);padding:10px 12px;border:1px solid var(--staff-border);">
+            <!-- Unit type toggle -->
+            <div style="display:flex;gap:6px;margin-bottom:10px;">
+              <button style="flex:1;padding:6px;border-radius:var(--radius-sm);background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.3);font-family:var(--font-body);font-size:11px;font-weight:600;color: var(--color-action-dark);cursor:pointer;">$ Dollar value</button>
+              <button style="flex:1;padding:6px;border-radius:var(--radius-sm);background:var(--staff-bg);border:1.5px solid var(--staff-border-strong);font-family:var(--font-body);font-size:11px;font-weight:600;color:var(--staff-text-muted);cursor:pointer;">Credit units</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="font-size:13px;color:var(--staff-text-muted);">$</div>
+              <input style="width:80px;padding:8px 10px;background:var(--staff-bg);border:1.5px solid var(--staff-border-strong);border-radius:var(--radius-md);font-family:var(--font-display);font-size:16px;color:var(--staff-text-primary);text-align:center;" value="10.00" type="number">
+              <div style="font-size:12px;color:var(--staff-text-muted);line-height:1.4;">per person<br><span style="display:flex;align-items:center;gap:5px;margin-top:5px;"><input type="checkbox" style="width:13px;height:13px;accent-color:var(--staff-action);" checked> <span style="font-size:11px;">Per person</span></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-lbl">Availability</div>
+        <div class="form-field">
+          <label class="form-label">Available days</label>
+          <div class="day-chips">
+            <div class="day-chip on">Mon</div><div class="day-chip on">Tue</div>
+            <div class="day-chip on">Wed</div><div class="day-chip on">Thu</div>
+            <div class="day-chip on">Fri</div><div class="day-chip on">Sat</div>
+            <div class="day-chip on">Sun</div>
+          </div>
+        </div>
+
+        <div class="section-lbl">Party types</div>
+        <div style="padding:0 16px 12px;">
+          <div class="party-chips">
+            <div class="party-chip">General</div>
+            <div class="party-chip on">Birthday</div>
+            <div class="party-chip">Groups</div>
+            <div class="party-chip">Corporate</div>
+          </div>
+        </div>
+
+        <button class="save-btn">Save package</button>
+        <button class="danger-btn">Delete package</button>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="tab-label">Cockpit</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="tab-label">Schedule</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="tab-label">Reports</div></div>
+        <div class="tab-item"><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="tab-label">Team</div></div>
+        <div class="tab-item active"><div class="tab-active-bar"></div><div class="tab-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="tab-label">Settings</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token note -->
+<div class="token-note">
+  <div class="token-note-title">Package patterns</div>
+  <div class="token-grid">
+    <div class="token-chip"><div class="token-swatch" style="background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2)"></div>Type tag → blue tint</div>
+    <div class="token-chip"><div class="token-swatch" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2)"></div>Included tag → green tint</div>
+    <div class="token-chip">Inactive package card → 0.5 opacity</div>
+    <div class="token-chip">Active toggle at top of edit page — most important field, highest position</div>
+    <div class="token-chip">Pricing type dropdown → reveals different fields (rate-based vs fixed price)</div>
+    <div class="token-chip">Type explainer card → blue tint, explains what the selection means</div>
+    <div class="token-chip">Fixed price shows flat price + max guests + fixed duration</div>
+    <div class="token-chip">Rate-based shows no price fields — inherits from pricing settings</div>
+    <div class="token-chip">Party type chips filter which customers see this package in Step 1</div>
+    <div class="token-chip">4 inclusion types: GAMES · SHOE_RENTAL · FOOD · GAME_CREDITS</div>
+    <div class="token-chip">Food inclusion: structured items (name + quantity) + free text custom items</div>
+    <div class="token-chip">Game credits: dollar value OR credit units — venue chooses unit per package</div>
+    <div class="token-chip">Game credits: per person OR flat amount toggle</div>
+    <div class="token-chip">Inclusion expanded state: card-raised background, nested controls</div>
+    <div class="token-chip">v3 backlog: custom inclusion types via PackageInclusion tenant table</div>
+  </div>
+</div>
+
+</body>
+</html>

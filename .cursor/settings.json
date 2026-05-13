@@ -1,0 +1,35 @@
+{
+  "rules": [
+    {
+      "pattern": "src/components/ui/**",
+      "description": "Primitive UI components. Reference only CSS variable tokens. No raw hex. No Tailwind color classes. Export named variants."
+    },
+    {
+      "pattern": "src/components/patterns/**",
+      "description": "Pattern components composed from ui/ primitives only. No inline styles with raw values."
+    },
+    {
+      "pattern": "app/**/page.tsx",
+      "description": "Pages contain layout and component composition only. No colors, borders, or typography styles at page level."
+    },
+    {
+      "pattern": "src/styles/tokens.css",
+      "description": "Master token definitions. Palette tokens first, then semantic tokens. This is the single source of truth for all visual values."
+    },
+    {
+      "pattern": "src/lib/**",
+      "description": "Business logic and utilities. No React, no UI concerns. Fully testable in isolation."
+    }
+  ],
+  "context": [
+    ".claude/DESIGN_SYSTEM.md",
+    ".claude/CURSOR_RULES.md",
+    ".claude/BOOKING_DOMAIN.md",
+    ".claude/PROJECT_OVERVIEW.md"
+  ],
+  "docs": [
+    "docs/wireframes/customer",
+    "docs/wireframes/staff",
+    "docs/wireframes/admin"
+  ]
+}

@@ -1,0 +1,50 @@
+# Royal Z Lanes — Cursor Rules
+
+You are working on a bowling alley lane reservation system built with Next.js 14, TypeScript, Tailwind CSS, Prisma, and Stripe.
+
+## Before writing any code
+
+1. Read .claude/DESIGN_SYSTEM.md — all visual decisions come from the token system
+2. Check docs/wireframes/ for the screen you are building
+3. Read .claude/CURSOR_RULES.md for full coding standards
+4. Read .claude/BOOKING_DOMAIN.md for business logic and data model
+
+## Non-negotiable rules
+
+**Colors**: ONLY CSS custom properties. Never raw hex. Never Tailwind color classes.
+```
+RIGHT: color: var(--color-text-secondary)
+WRONG: color: var(--palette-stone-500)   ← palette tokens are for tokens.css only
+WRONG: color: '#57534E'
+WRONG: className="text-stone-500"
+```
+
+**Components**: 4-layer system — tokens → ui/ primitives → patterns/ → pages
+- Pages: layout and composition only. No colors, no borders, no typography.
+- Patterns in components/patterns/: compose from ui/ only.
+- Primitives in components/ui/: only place each element is styled.
+
+**Tailwind**: OK for layout/spacing. Never for color or dark mode.
+Never use `dark:` prefix — data-theme attribute handles both modes.
+
+**Fonts**: var(--font-display) for Fraunces, var(--font-body) for DM Sans. Never hardcode.
+
+**Lane count**: Math.ceil(bowlerCount / 6) — always. Never any other formula.
+
+**Max online booking**: 18 bowlers. Groups larger than 18 → prompt to call.
+
+**Tenant**: Never hardcode venue name, address, or colors. Always read from getTenant().
+
+**Refunds**: Server-side only. MANAGER or ADMIN role required. STAFF cannot refund.
+
+**Staff app**: data-theme="dark" in layout. Customer app: data-theme="light".
+
+## File locations
+- Tokens:        src/styles/tokens.css
+- Primitives:    src/components/ui/
+- Patterns:      src/components/patterns/
+- Business logic: src/lib/
+- Customer pages: app/(customer)/
+- Staff pages:   app/(staff)/
+- Admin pages:   app/(admin)/
+- Wireframes:    docs/wireframes/

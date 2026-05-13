@@ -1,0 +1,278 @@
+#!/usr/bin/env node
+// ============================================================
+// drift-check.mjs — Architectural drift sentinel
+//
+// Runs a set of regex checks across the design-system layers
+// to enforce the rules captured in:
+//   - .claude/CURSOR_RULES.md
+//   - .claude/contracts/PRIMITIVES.md
+//   - .claude/contracts/PATTERNS.md
+//
+// Usage:
+//   node scripts/drift-check.mjs                # scan default layers
+//   node scripts/drift-check.mjs --files <glob> # scan specific files
+//
+// Exit codes:
+//   0  → all checks PASS
+//   1  → one or more checks FAIL
+//   2  → script error (e.g. invalid args, missing files)
+// ============================================================
+
+import { readFile } from 'node:fs/promises'
+import { glob } from 'node:fs/promises'
+import { argv, exit } from 'node:process'
+
+const DEFAULT_GLOBS = ['src/**/*.{ts,tsx}']
+
+const CHECKS = [
+  {
+    name: 'invisible Unicode (zero-width / RTL / etc.)',
+    regex: /[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g,
+    appliesTo: () => true,
+    skipCommentStripping: true,
+    hint: 'Invisible Unicode characters in source are forbidden. Re-type the affected line.',
+  },
+  {
+    name: 'raw hex colors',
+    regex: /#[0-9a-fA-F]{3,8}\b/g,
+    // src/lib/email.ts is the ONE exception: email HTML must use raw hex
+    // because most clients (Gmail, Outlook, Apple Mail) strip CSS variables.
+    appliesTo: (file) => !file.endsWith('src/lib/email.ts'),
+    hint: 'Use semantic CSS variables (var(--color-*), var(--surface-*), var(--status-*)) instead.',
+  },
+  {
+    name: 'tailwind color utilities',
+    regex: /\b(bg|text|border|ring|fill|stroke)-(amber|stone|slate|zinc|red|green|blue|yellow|orange|emerald|sky|indigo|violet|fuchsia|pink|rose|gray|neutral)-[0-9]+\b/g,
+    appliesTo: () => true,
+    hint: 'Use bg-[var(--token)] / text-[var(--token)] etc., NEVER raw palette utilities.',
+  },
+  {
+    name: 'dark: prefix',
+    regex: /(?:^|[\s"'`])dark:[A-Za-z]/g,
+    appliesTo: () => true,
+    hint: 'Theming uses data-theme on <html>. Tailwind dark: prefix is banned.',
+  },
+  {
+    name: 'direct --palette-* token use',
+    regex: /var\(--palette-/g,
+    appliesTo: () => true,
+    hint: 'Palette tokens are private to tokens.css. Use semantic tokens (color/surface/status/etc.).',
+  },
+  {
+    name: "'use client' in a primitive",
+    regex: /^['"]use client['"]/gm,
+    appliesTo: (file) => file.includes('/components/ui/'),
+    hint: 'Primitives must work in Server Components. Use the peer + peer-checked CSS pattern for state, not React hooks.',
+  },
+  {
+    name: 'inline lane-count math',
+    regex: /Math\.ceil\(.*\/\s*6/g,
+    appliesTo: (file) => !file.includes('/lib/lane-logic'),
+    hint: 'Call getLaneCount() / getLaneAssignmentSummary() from @/lib/lane-logic instead.',
+  },
+  {
+    name: 'inline price formatting',
+    regex: /\/\s*100\)\.toFixed\(/g,
+    appliesTo: (file) => !file.includes('/lib/pricing'),
+    hint: 'Call formatPrice(amountCents) from @/lib/pricing instead.',
+  },
+  {
+    name: 'useState in a pattern (must be controlled)',
+    regex: /\buseState\b/g,
+    appliesTo: (file) => file.includes('/components/patterns/'),
+    hint: 'Patterns are controlled. Lift state to the page; expose value + onChange props.',
+  },
+  {
+    name: 'sticky/fixed positioning in a pattern',
+    regex: /position:\s*(?:sticky|fixed)|className=["'][^"']*\b(?:sticky|fixed)\b/g,
+    appliesTo: (file) => file.includes('/components/patterns/'),
+    hint: 'Pages own viewport positioning. Patterns render the card; the page wraps it.',
+  },
+  {
+    name: 'direct next-auth import outside src/lib/auth.ts',
+    regex: /from\s+['"]next-auth(?:\/[^'"]*)?['"]/g,
+    appliesTo: (file) => !file.endsWith('src/lib/auth.ts'),
+    hint: 'Import auth helpers from @/lib/auth only. Never import next-auth directly.',
+  },
+  {
+    name: 'direct bcryptjs import outside src/lib/auth.ts',
+    regex: /from\s+['"]bcryptjs['"]/g,
+    appliesTo: (file) =>
+      !file.endsWith('src/lib/auth.ts') && !file.endsWith('prisma/seed.ts'),
+    hint: 'Password hashing belongs to @/lib/auth (hashPassword/verifyCredentials).',
+  },
+  {
+    name: 'direct stripe SDK import outside src/lib/stripe.ts',
+    regex: /from\s+['"]stripe['"]/g,
+    appliesTo: (file) => !file.endsWith('src/lib/stripe.ts'),
+    hint: 'Use @/lib/stripe wrappers (createPaymentIntent, createRefund, constructWebhookEvent).',
+  },
+  {
+    name: 'direct resend import outside src/lib/email.ts',
+    regex: /from\s+['"]resend['"]/g,
+    appliesTo: (file) => !file.endsWith('src/lib/email.ts'),
+    hint: 'Outbound email goes through @/lib/email (sendBookingConfirmation).',
+  },
+  {
+    name: 'direct @stripe/stripe-js import outside src/lib/stripe-client.ts',
+    regex: /from\s+['"]@stripe\/stripe-js['"]/g,
+    appliesTo: (file) => !file.endsWith('src/lib/stripe-client.ts'),
+    hint: 'Use getStripeClient() from @/lib/stripe-client. Stripe.js loading is centralized.',
+  },
+]
+
+async function expandGlobs(patterns) {
+  const files = new Set()
+  for (const pattern of patterns) {
+    for await (const file of glob(pattern)) {
+      files.add(file)
+    }
+  }
+  return [...files].sort()
+}
+
+/**
+ * Strip JS/TS comments by replacing comment ranges with spaces. Preserves
+ * line numbers and column positions so violation reports point at the right
+ * place in the original file. Imperfect — won't perfectly handle `//` or `/*`
+ * inside string literals — but good enough for code-style drift checks:
+ *   - All banned identifiers (useState, Math.ceil, etc.) are normal code
+ *     tokens; if one appears in a string, we'd false-negative, which is
+ *     acceptable. The original goal is false-POSITIVE elimination on
+ *     contract comments like "// no useState is used".
+ *   - Drift agents writing banned identifiers inside string literals would
+ *     be a contortion; we accept that edge case.
+ *
+ * Returns a string of identical length to `src`.
+ */
+function stripComments(src) {
+  let out = ''
+  let i = 0
+  const n = src.length
+  while (i < n) {
+    const c = src[i]
+    const next = src[i + 1]
+
+    if (c === '/' && next === '/') {
+      while (i < n && src[i] !== '\n') {
+        out += src[i] === '\n' ? '\n' : ' '
+        i++
+      }
+      continue
+    }
+
+    if (c === '/' && next === '*') {
+      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) {
+        out += src[i] === '\n' ? '\n' : ' '
+        i++
+      }
+      if (i < n) {
+        out += '  '
+        i += 2
+      }
+      continue
+    }
+
+    if (c === '"' || c === "'" || c === '`') {
+      const quote = c
+      out += c
+      i++
+      while (i < n) {
+        const ch = src[i]
+        if (ch === '\\' && i + 1 < n) {
+          out += src[i] + src[i + 1]
+          i += 2
+          continue
+        }
+        out += ch
+        i++
+        if (ch === quote) break
+      }
+      continue
+    }
+
+    out += c
+    i++
+  }
+  return out
+}
+
+async function main() {
+  const args = argv.slice(2)
+  let patterns = DEFAULT_GLOBS
+
+  const filesIdx = args.indexOf('--files')
+  if (filesIdx !== -1) {
+    patterns = args.slice(filesIdx + 1)
+    if (patterns.length === 0) {
+      console.error('--files requires at least one glob')
+      exit(2)
+    }
+  }
+
+  const files = await expandGlobs(patterns)
+  if (files.length === 0) {
+    console.error(`No files matched: ${patterns.join(', ')}`)
+    exit(2)
+  }
+
+  let failures = 0
+  const failedChecks = new Map()
+
+  for (const file of files) {
+    const original = await readFile(file, 'utf8')
+    const stripped = stripComments(original)
+
+    for (const check of CHECKS) {
+      if (!check.appliesTo(file)) continue
+      const target = check.skipCommentStripping ? original : stripped
+      check.regex.lastIndex = 0
+      const matches = [...target.matchAll(check.regex)]
+      if (matches.length === 0) continue
+
+      failures++
+      if (!failedChecks.has(check.name)) {
+        failedChecks.set(check.name, { hint: check.hint, hits: [] })
+      }
+      for (const m of matches) {
+        const lineNumber = target.slice(0, m.index).split('\n').length
+        const match =
+          check.skipCommentStripping &&
+          /[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/.test(m[0])
+            ? `U+${m[0].codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`
+            : m[0]
+        failedChecks.get(check.name).hits.push({
+          file,
+          line: lineNumber,
+          match,
+        })
+      }
+    }
+  }
+
+  console.log(`scanned ${files.length} file(s) across ${patterns.length} pattern(s)`)
+
+  if (failures === 0) {
+    console.log('PASS: drift sentinel — all checks clean')
+    for (const check of CHECKS) {
+      console.log(`  - ${check.name}: 0 violations`)
+    }
+    exit(0)
+  }
+
+  console.log(`FAIL: drift sentinel — ${failures} violation(s)\n`)
+  for (const [name, info] of failedChecks) {
+    console.log(`× ${name}`)
+    console.log(`  fix: ${info.hint}`)
+    for (const hit of info.hits) {
+      console.log(`  - ${hit.file}:${hit.line}  →  ${hit.match}`)
+    }
+    console.log('')
+  }
+  exit(1)
+}
+
+main().catch((err) => {
+  console.error('drift-check script error:', err)
+  exit(2)
+})
