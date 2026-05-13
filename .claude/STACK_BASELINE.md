@@ -340,13 +340,42 @@ These were introduced after the customer booking flow landed. Every future agent
 - **Mock mode composes.** dev-without-db + dev-without-stripe still produces a clickable booking flow. `confirmBooking` returns a fake client_secret, webhook short-circuits, and `getPackagesForTenant` returns mock packages. Use for design exploration only.
 - **Full contract:** `.claude/contracts/PAYMENTS.md` covers schema, lifecycle diagrams, refund flow, env vars, testing patterns, and known v1 limits.
 
+### 9.8 Staff shell (Phase 8)
+
+- **Route-group layouts are the auth chokepoint.** `src/app/(staff)/layout.tsx` and `src/app/(admin)/layout.tsx` MUST call `requireRole(...)`. Pages never call it themselves — the drift sentinel fails verify if either layout omits the check. Don't add per-page guards; they drift.
+- **Chrome vs. patterns.** Components that own viewport positioning (`fixed`/`sticky` sidebars, tab bars, top bars) live in `src/components/chrome/`, not `src/components/patterns/`. Patterns render content cards; chrome positions the shell. The drift sentinel still bans `fixed` in patterns.
+- **Staff theme is locked to dark** via `proxy.ts → resolveTheme()` for `/staff/*` and `/admin/*`. The shell never sets `data-theme` directly.
+- **Staff actions live in `src/lib/actions/staff.ts`.** Every export starts with `await requireRole('STAFF', 'MANAGER', 'ADMIN')` (or stricter). Dev-without-DB returns deterministic mocks so the entire staff app is reviewable without Postgres.
+- **Walk-in bookings bypass Stripe.** `createWalkInBooking()` writes the `Booking` row directly with `status='CONFIRMED'` and `source='WALK_IN'`, plus a `Payment` row whose `status` is one of `cash` / `card_at_counter` / `pending` (set from the staff's choice on the form). The webhook never sees walk-ins. v1 cannot Stripe-refund a walk-in (the action throws); add a "manual refund" path in Phase 9 if needed.
+- **Lane blocking uses the existing `BlockedSlot` table.** `lanes: number[]` is lane numbers; empty array = all lanes. Bookings AND blocks both appear on `ScheduleTimeline`.
+- **Icons: `lucide-react`.** Used only in `src/components/chrome/` and pages. Patterns + primitives stay icon-agnostic — they take icons via props if needed.
+- **Full contract:** `.claude/contracts/STAFF.md` covers the route-group layout, the action surface, and the deferred admin surfaces.
+
+### 9.9 Admin shell (Phase 9)
+
+- **Shared shell.** `src/components/chrome/app-shell.tsx` is consumed by BOTH `(staff)/layout.tsx` and `(admin)/layout.tsx`. The layouts pass nav items + an `eyebrowLabel` ("Staff" / "Admin") + an optional `secondaryFooter` (admin uses this for the "← Staff cockpit" cross-link). Don't duplicate the shell when adding a new route group — extend AppShell with a new prop instead.
+- **Admin actions live in `src/lib/actions/admin.ts`.** Every export starts with `await requireRole('MANAGER', 'ADMIN')`. ADMIN-only assignments enforce a second check via `requireCanAssignRole(caller, targetRole)`.
+- **Soft delete only.** Packages are archived (`active = false`), users are deactivated (role → CUSTOMER + `passwordHash = null`). Hard delete is forbidden because both are referenced by historical bookings.
+- **Self-mutation forbidden.** A user cannot change their own role or deactivate themselves. The server action throws; the UI hides the affordance.
+- **Audit-log every write** in the same `prisma.$transaction` as the mutation. Action types are documented in `.claude/contracts/ADMIN.md`. Audit `details` carries only salient scalars, never the full input (Prisma's `Json` rejects typed interfaces without index signatures).
+- **Team invites use admin-set initial passwords**, told out of band. No email magic links in v1 — keeps the auth model identical to the customer Credentials flow.
+- **Operating hours edit replaces all 7 rows atomically** rather than diffing. Simpler and avoids partial-update bugs.
+- **Dev-without-DB returns deterministic mock data** for every admin read, so the full admin surface is clickable without Postgres.
+- **Full contract:** `.claude/contracts/ADMIN.md` covers route layout, action surface, lifecycle diagrams, audit-log conventions, and the deferred surfaces.
+
 ---
 
 ## 10. Open questions deferred (post-v1)
 
-- **3D Secure / `requires_action` resubmit UX.** Stripe sometimes returns `requires_action`; the current step-4 flow has no resubmit affordance. Add in Phase 8.
-- **Guest "find my booking" page.** `Booking.customerEmail` is the eventual lookup key; surface is Phase 8.
+- **3D Secure / `requires_action` resubmit UX.** Stripe sometimes returns `requires_action`; the current step-4 flow has no resubmit affordance.
+- **Guest "find my booking" page.** `Booking.customerEmail` is the eventual lookup key.
 - **Partial-refund staging.** v1 throws if a refund is already PENDING. Once we add partial-refund UI, allow stacking.
 - **Background queue for email.** v1 sends inline with the webhook; consider moving to a queue (e.g. Inngest, QStash) if Resend latency starts causing Stripe retries.
+- **Promo codes.** Needs a `PromoCode` model (not in schema) + customer-side application logic. Deferred to Phase 10.
+- **Booking-policy UI.** `Tenant.config` JSON blob is the eventual home for advance-booking window, cancellation cutoff, deposit %. v1 surfaces only `holdTimeoutMins` and `maxOnlineBowlers`. Deferred to Phase 10.
+- **Integrations panel.** Read-only status for Stripe / Resend / NextAuth secrets. Key rotation stays deploy-time only. Deferred to Phase 10.
+- **Reports / analytics + audit-log viewer.** Audit data is being captured. UI deferred to Phase 10+.
+- **Walk-in refunds.** `refundBookingAction` only handles Stripe-backed payments. Needs a "manual refund" flow for cash/card-at-counter walk-ins. Deferred to Phase 10.
+- **Per-tenant branding (theme colors).** `Tenant.themeSlug` is in the schema; v1 ships one theme.
 
 These do not block v1 launch.

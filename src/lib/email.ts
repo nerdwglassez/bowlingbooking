@@ -40,6 +40,10 @@ export interface BookingConfirmationArgs {
   venueName: string
   venueAddress: string
   venuePhone: string
+  /** Optional absolute URL to /find-my-booking/[code]?email=… */
+  manageUrl?: string
+  /** Optional absolute URL to /api/bookings/[code]/ics?email=… */
+  icsUrl?: string
 }
 
 const DATETIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -69,6 +73,12 @@ function renderHtml(
     `<tr><td><strong>Total</strong></td><td>${escapeHtml(formatPrice(args.totalCents))}</td></tr>`,
     '</table>',
     '<p><img src="' + qrDataUri + '" alt="Booking QR code" width="160" height="160" /></p>',
+    args.manageUrl
+      ? `<p><a href="${escapeHtml(args.manageUrl)}" style="color:#0066cc">View or cancel your booking</a></p>`
+      : '',
+    args.icsUrl
+      ? `<p><a href="${escapeHtml(args.icsUrl)}" style="color:#0066cc">Add to your calendar</a></p>`
+      : '',
     `<p>${escapeHtml(args.venueAddress)} · ${escapeHtml(args.venuePhone)}</p>`,
     '<p style="color:#666;font-size:0.9em">Show this email or the QR code at check-in.</p>',
     '</body></html>',
@@ -85,9 +95,13 @@ function renderText(args: BookingConfirmationArgs): string {
     `Bowlers: ${args.bowlerCount} on ${args.laneCount} lane${args.laneCount === 1 ? '' : 's'}`,
     `Total: ${formatPrice(args.totalCents)}`,
     '',
+    args.manageUrl ? `Manage booking: ${args.manageUrl}` : '',
+    args.icsUrl ? `Add to calendar: ${args.icsUrl}` : '',
     `${args.venueAddress} · ${args.venuePhone}`,
     'Show this confirmation at check-in.',
-  ].join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 function escapeHtml(s: string): string {
@@ -107,6 +121,82 @@ function escapeHtml(s: string): string {
  * Returns the provider message id when sent, or null when running in dev
  * fallback mode (no API key configured).
  */
+export interface BookingCancellationArgs {
+  customerEmail: string
+  customerName: string
+  confirmationCode: string
+  startTime: Date
+  /** Cents being refunded. 0 = cancel outside window, no refund. */
+  refundAmountCents: number
+  /** True when a Stripe refund was triggered; false for cash/manual cancels. */
+  refundPending: boolean
+}
+
+function renderCancellationHtml(args: BookingCancellationArgs): string {
+  const dateLine = DATETIME_FORMATTER.format(args.startTime)
+  const refundLine =
+    args.refundAmountCents > 0
+      ? args.refundPending
+        ? `A refund of ${escapeHtml(formatPrice(args.refundAmountCents))} is being issued. It typically takes 3–5 business days to appear on your statement.`
+        : `A refund of ${escapeHtml(formatPrice(args.refundAmountCents))} has been recorded.`
+      : 'This cancellation is outside the refund window, so no refund will be issued.'
+  return [
+    '<!doctype html>',
+    '<html><body style="font-family:system-ui,Helvetica,Arial,sans-serif;line-height:1.5;color:#111">',
+    `<h1>Booking ${escapeHtml(args.confirmationCode)} cancelled</h1>`,
+    `<p>Hi ${escapeHtml(args.customerName)}, your reservation for ${escapeHtml(dateLine)} has been cancelled.</p>`,
+    `<p>${refundLine}</p>`,
+    '<p style="color:#666;font-size:0.9em">Need to rebook? Visit our site at any time.</p>',
+    '</body></html>',
+  ].join('')
+}
+
+function renderCancellationText(args: BookingCancellationArgs): string {
+  const dateLine = DATETIME_FORMATTER.format(args.startTime)
+  const refundLine =
+    args.refundAmountCents > 0
+      ? args.refundPending
+        ? `Refund: ${formatPrice(args.refundAmountCents)} (3–5 business days to appear).`
+        : `Refund: ${formatPrice(args.refundAmountCents)} recorded.`
+      : 'No refund will be issued (outside cancellation window).'
+  return [
+    `Booking ${args.confirmationCode} cancelled`,
+    `When: ${dateLine}`,
+    refundLine,
+  ].join('\n')
+}
+
+/**
+ * Send the booking cancellation email. Called from `cancelBookingAction` and
+ * (eventually) from the staff-initiated cancel flow.
+ *
+ * Returns the provider message id when sent, or null in dev fallback mode.
+ */
+export async function sendBookingCancellation(
+  args: BookingCancellationArgs,
+): Promise<{ id: string | null }> {
+  const resend = resolveResend()
+  if (!resend) {
+    console.log(
+      `[email-mock] would send cancellation to ${args.customerEmail} ` +
+        `(code=${args.confirmationCode}, refund=${args.refundAmountCents}c)`,
+    )
+    return { id: null }
+  }
+  const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
+  const { data, error } = await resend.emails.send({
+    from,
+    to: args.customerEmail,
+    subject: `Booking ${args.confirmationCode} cancelled`,
+    html: renderCancellationHtml(args),
+    text: renderCancellationText(args),
+  })
+  if (error) {
+    throw new Error(`Resend send failed: ${error.message ?? 'unknown error'}`)
+  }
+  return { id: data?.id ?? null }
+}
+
 export async function sendBookingConfirmation(
   args: BookingConfirmationArgs,
 ): Promise<{ id: string | null }> {

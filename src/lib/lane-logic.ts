@@ -36,3 +36,9 @@ export function getLaneAssignmentSummary(bowlerCount: number): string {
   const bowlerLabel = bowlerCount === 1 ? 'bowler' : 'bowlers'
   return `${laneCount} ${laneLabel} for ${bowlerCount} ${bowlerLabel}`
 }
+
+/** Wireframe copy (`booking-step1-2-branded.html` Step 1) — lane line under bowler control */
+export function formatLaneRequirementLine(bowlerCount: number): string {
+  const laneCount = getLaneCount(bowlerCount)
+  return laneCount === 1 ? '1 lane required' : `${laneCount} lanes required`
+}

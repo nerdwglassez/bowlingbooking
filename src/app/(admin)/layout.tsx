@@ -3,16 +3,54 @@
 // Theme: ALWAYS dark. Resolved server-side via the root layout reading
 // `x-pathname` (set by proxy.ts) — see src/lib/theme.ts.
 //
-// Auth: MANAGER or ADMIN required. STAFF role is intentionally excluded;
-// admin surfaces include settings, integrations, and refund logs.
+// Auth: MANAGER or ADMIN required. STAFF is intentionally excluded; admin
+// surfaces include settings (venue, packages, team) and refund logs.
+//
+// Layout: wraps every admin page in <AppShell> with the admin nav items.
+// A "← Staff" secondary footer link lets managers jump back to the cockpit
+// without re-navigating from the home page.
 
+import { headers } from 'next/headers'
+import Link from 'next/link'
+import { Building2, ScrollText, Settings, Tag, Users } from 'lucide-react'
+
+import { AppShell } from '@/components/chrome/app-shell'
+import { Button } from '@/components/ui/button'
 import { requireRole } from '@/lib/auth'
+import { getTenant } from '@/lib/tenant'
+
+const ADMIN_NAV = [
+  { href: '/admin', label: 'Overview', icon: Settings },
+  { href: '/admin/venue', label: 'Venue', icon: Building2 },
+  { href: '/admin/packages', label: 'Packages', icon: Tag },
+  { href: '/admin/team', label: 'Team', icon: Users },
+  { href: '/admin/audit', label: 'Audit log', icon: ScrollText },
+]
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  await requireRole('MANAGER', 'ADMIN')
-  return <>{children}</>
+  const user = await requireRole('MANAGER', 'ADMIN')
+  const tenant = await getTenant()
+  const h = await headers()
+  const currentPath = h.get('x-pathname') ?? '/admin'
+
+  return (
+    <AppShell
+      currentPath={currentPath}
+      user={{ email: user.email, name: user.name, role: user.role }}
+      tenant={{ name: tenant.name }}
+      navItems={ADMIN_NAV}
+      eyebrowLabel="Admin"
+      secondaryFooter={
+        <Button asChild variant="ghost" size="sm" fullWidth>
+          <Link href="/staff">← Staff cockpit</Link>
+        </Button>
+      }
+    >
+      {children}
+    </AppShell>
+  )
 }

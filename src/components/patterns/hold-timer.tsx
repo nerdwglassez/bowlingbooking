@@ -49,7 +49,7 @@ export function HoldTimer({ expiresAt, onExpire, className }: HoldTimerProps) {
     pillClass =
       'inline-flex items-center gap-2 rounded-full bg-[var(--surface-sunken)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)]'
     dotClass = 'size-1.5 shrink-0 rounded-full bg-current opacity-70'
-    label = 'Select a time to reserve your lanes'
+    label = 'Select a time to hold your lanes'
   } else if (isExpired) {
     pillClass =
       'inline-flex items-center gap-2 rounded-full border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3 py-1 text-xs font-medium text-[var(--status-error-text)]'
@@ -58,7 +58,7 @@ export function HoldTimer({ expiresAt, onExpire, className }: HoldTimerProps) {
   } else {
     const remainingMs = expiresAt.getTime() - now
     const mmSs = formatMmSs(remainingMs)
-    label = `Lanes held — ${mmSs}`
+    label = `Lanes held · ${mmSs} remaining`
     const isWarning = remainingMs <= WARNING_MS
     if (isWarning) {
       pillClass =

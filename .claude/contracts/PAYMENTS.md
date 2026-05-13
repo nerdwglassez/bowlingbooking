@@ -4,6 +4,8 @@ Source of truth for **every file that touches Stripe, BookingHold, Booking creat
 
 The Stripe wrapper (`src/lib/stripe.ts`) is the **only** place that imports `stripe`. The email wrapper (`src/lib/email.ts`) is the only place that imports `resend`. The drift sentinel enforces both with explicit checks.
 
+> The confirmation email now also includes a "View or cancel booking" link to `/find-my-booking/[code]?email=…` and an "Add to calendar" link to `/api/bookings/[code]/ics?email=…`. The .ics endpoint is a public route that requires the email query string as anti-enumeration auth (same model as `/find-my-booking`).
+
 ---
 
 ## 1. What lives where
@@ -11,10 +13,11 @@ The Stripe wrapper (`src/lib/stripe.ts`) is the **only** place that imports `str
 | Concern | Module | Notes |
 |---|---|---|
 | Stripe SDK client + PaymentIntent + Refund | `src/lib/stripe.ts` | Singleton. Exposes `createPaymentIntent`, `createRefund`, `constructWebhookEvent`, `isStripeMocked`, and re-exports `Stripe` types. |
-| Outbound email + QR rendering | `src/lib/email.ts` | Singleton Resend client + `sendBookingConfirmation`. |
+| Outbound email + QR rendering | `src/lib/email.ts` | Singleton Resend client + `sendBookingConfirmation` (manage link + optional .ics link). |
+| Booking calendar (.ics) | `src/app/api/bookings/[code]/ics/route.ts` | `GET` with `email` query; delegates lookup to `getBookingByLookup`. |
 | Hold acquisition / release / availability | `src/lib/actions/booking.ts` | `acquireBookingHold`, `releaseBookingHold`, `getAvailableTimeSlots`, `confirmBooking`. |
 | Webhook entrypoint | `src/app/api/webhooks/stripe/route.ts` | Signature verification, idempotency, event routing. ONLY place that creates Booking + Payment rows from Stripe state. |
-| Refund action | `src/lib/actions/refund.ts` | Gated by `requireRole('MANAGER', 'ADMIN')`. Issues the Stripe refund, writes Payment.refundStatus=PENDING + AuditLog. Webhook finalizes. |
+| Refund actions | `src/lib/actions/refund.ts` | `refundBookingAction`: Stripe refund + Payment.refundStatus=PENDING + AuditLog; webhook finalizes. `manualRefundBookingAction`: walk-in / no PaymentIntent; writes Payment + Booking + AuditLog in one transaction (no Stripe). Both gated by `requireRole('MANAGER', 'ADMIN')`. |
 
 ---
 
@@ -24,13 +27,13 @@ The Stripe wrapper (`src/lib/stripe.ts`) is the **only** place that imports `str
 2. **Never `import` from `resend`** outside `src/lib/email.ts`. Same enforcement.
 3. **A Booking row is created in EXACTLY ONE place**: the webhook handler on `payment_intent.succeeded`. No other code path writes `status='CONFIRMED'` to a Booking. This guarantees: every confirmed booking has a captured Stripe payment.
 4. **`confirmBooking` does NOT create the Booking row.** It only creates the Stripe PaymentIntent and returns its `client_secret`. The browser confirms the card via Stripe.js; the webhook then creates the Booking.
-5. **The webhook is the SOLE source of truth for `Payment.refundStatus = SUCCEEDED|FAILED`** and `Booking.isRefunded = true`. The refund server action only writes `refundStatus = PENDING`. This honestly models Stripe's async settlement.
+5. **The webhook is the SOLE source of truth for `Payment.refundStatus = SUCCEEDED|FAILED`** and `Booking.isRefunded = true` **for Stripe-captured payments.** The Stripe `refundBookingAction` only writes `refundStatus = PENDING`. **Exception:** walk-in manual refunds (`manualRefundBookingAction`, §3.3) set `SUCCEEDED` synchronously — no webhook.
 6. **PaymentIntent metadata is the contract** between `confirmBooking` and the webhook. The webhook reconstructs the Booking from this metadata. Never trust client-supplied data on `success` — read the intent from Stripe.
 7. **Webhook idempotency goes through the `StripeEvent` table.** Inserting the event id is the first DB write; a `P2002` conflict means "already processed" — return 200 without re-running side effects.
 8. **Holds are availability locks, not booking drafts.** A `BookingHold` row has no package, no customer, no payment. It exists only to exclude its (time × lanes) from other customers' availability queries until either expiry or success.
 9. **Hold expiration is lazy.** `getAvailableTimeSlots` runs `bookingHold.deleteMany({ expiresAt: { lt: now } })` before computing availability. No cron is needed for v1.
 10. **Money is always integer cents.** Never use `Decimal`. Never use `toFixed` outside `src/lib/pricing.ts`.
-11. **Refunds require `requireRole('MANAGER', 'ADMIN')`.** STAFF cannot refund. This is enforced server-side in `refundBookingAction`. The drift sentinel does NOT special-case refunds — it's the server-action's responsibility.
+11. **Refunds require `requireRole('MANAGER', 'ADMIN')`.** STAFF cannot refund. This is enforced server-side in `refundBookingAction` and `manualRefundBookingAction`. The drift sentinel does NOT special-case refunds — it's the server-action's responsibility.
 12. **Webhook returns 200 quickly, even on handler error logging.** Stripe retries on non-2xx for hours. Long work goes in background jobs (none for v1).
 
 ---
@@ -82,6 +85,18 @@ Manager/Admin           Server                    Stripe
      │                     ├─ Booking.status=CANCELLED│
 ```
 
+### 3.3 Manual refund (walk-in / non-Stripe)
+
+Walk-in bookings have a Payment row with `stripePaymentIntentId = NULL` (the customer paid cash / card-at-counter / comp). For these, MANAGER+ uses `manualRefundBookingAction`:
+
+- No Stripe API call. The action writes directly to Payment + Booking + AuditLog in a single transaction.
+- `Payment.refundStatus` lands in `SUCCEEDED` immediately (there is no async settlement).
+- `Payment.status` is set to `'refunded_manual'`.
+- Audit action: `BOOKING_MANUAL_REFUND` with `details: { method, amount, notes }`.
+- The UI route is `/staff/bookings/[id]` — `RefundPanel` flips into manual mode automatically when the booking has no PaymentIntent.
+
+The Stripe-backed `refundBookingAction` refuses to operate on walk-ins, and `manualRefundBookingAction` refuses to operate on Stripe payments. The two actions are mutually exclusive.
+
 ---
 
 ## 4. Schema reference
@@ -130,7 +145,7 @@ Per the convention in `STACK_BASELINE.md §9`, all payment-adjacent code uses Vi
 
 - `src/lib/stripe.test.ts` — wraps the Stripe SDK in a fake class; tests dev fallback and SDK delegation.
 - `src/lib/actions/booking.test.ts` — mocks `@/lib/prisma`, `@/lib/stripe`, `@/lib/env`. Verifies hold lifecycle and PaymentIntent metadata shape.
-- `src/lib/actions/refund.test.ts` — mocks `@/lib/auth` (`requireRole`), `@/lib/stripe`, `@/lib/prisma`. Verifies role gating, refund clamping, and that `Booking.isRefunded` is NOT touched by the action.
+- `src/lib/actions/refund.test.ts` — mocks `@/lib/auth` (`requireRole`), `@/lib/stripe`, `@/lib/prisma`. Verifies role gating, refund clamping, Stripe vs manual paths, and that `Booking.isRefunded` is NOT touched by the Stripe refund action.
 - `src/app/api/webhooks/stripe/route.test.ts` — mocks Prisma, Stripe verification, email, and tenant lookup. Verifies idempotency (P2002 conflict), payment intent → Booking, charge.refunded reconciliation, and unknown event passthrough.
 
 When adding new payment-adjacent code, copy one of these test files as a template. The drift sentinel does NOT check test coverage, but unit-test density is what keeps webhooks honest.

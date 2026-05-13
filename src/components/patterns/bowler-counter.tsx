@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { getLaneAssignmentSummary } from '@/lib/lane-logic'
+import { formatLaneRequirementLine } from '@/lib/lane-logic'
 
 export type BowlerCounterProps = {
   value: number
@@ -18,7 +18,7 @@ export function BowlerCounter({
   max = 18,
   className,
 }: BowlerCounterProps) {
-  const summary = getLaneAssignmentSummary(value)
+  const summary = formatLaneRequirementLine(value)
   const caption =
     value === max ? `${summary} · max ${max} online` : summary
 

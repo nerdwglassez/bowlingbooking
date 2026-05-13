@@ -8,7 +8,9 @@ import {
   getAvailableDates,
   type AvailableDate,
 } from '@/lib/actions/booking'
+import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
 import { BowlerCounter } from '@/components/patterns/bowler-counter'
+import { ChooseTimePlaceholder } from '@/components/patterns/choose-time-placeholder'
 import { DateStrip } from '@/components/patterns/date-strip'
 import { HoldTimer } from '@/components/patterns/hold-timer'
 import { PriceFooter } from '@/components/patterns/price-footer'
@@ -49,22 +51,33 @@ export default function BookStepOnePage() {
   const canProceed =
     (session.bowlerCount ?? 0) >= 1 && session.date != null
 
+  const ctaLabel =
+    session.date == null
+      ? 'Select a date and time to continue'
+      : 'Choose time'
+
   function handleNext() {
     router.push('/book/time')
   }
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-32 pt-6">
-      <VenueHeader venueName={tenant.name} address={tenant.address} />
+      <VenueHeader
+        venueName={tenant.name}
+        address={tenant.address}
+        onSignIn={() => {
+          router.push('/signin')
+        }}
+      />
       <StepIndicator currentStep={1} />
       <HoldTimer expiresAt={null} />
-      <h1 className="text-2xl">Let&apos;s get you bowling</h1>
-      <p className="text-sm text-[var(--color-text-secondary)]">
-        How many people are in your group?
-      </p>
+      <BookingFlowLead
+        title="Let's get you bowling"
+        subtitle="How many people, and when?"
+      />
       <section className="flex flex-col gap-2">
         <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Bowlers
+          Bowlers in your group
         </h2>
         <BowlerCounter
           value={session.bowlerCount ?? 1}
@@ -73,7 +86,7 @@ export default function BookStepOnePage() {
       </section>
       <section className="flex flex-col gap-2">
         <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Date
+          Pick a date
         </h2>
         {datesPending ? (
           <p className="text-sm text-[var(--color-text-secondary)]">
@@ -87,10 +100,11 @@ export default function BookStepOnePage() {
           />
         )}
       </section>
+      <ChooseTimePlaceholder hasDate={session.date != null} />
       <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
         <PriceFooter
           pricing={EMPTY_PRICING}
-          ctaLabel="Choose time"
+          ctaLabel={ctaLabel}
           onCta={handleNext}
           ctaDisabled={!canProceed}
         />

@@ -79,7 +79,13 @@ export default function BookingSuccessPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-12 pt-6">
-      <VenueHeader venueName={tenant.name} address={tenant.address} />
+      <VenueHeader
+        venueName={tenant.name}
+        address={tenant.address}
+        onSignIn={() => {
+          router.push('/signin')
+        }}
+      />
       <StepIndicator currentStep={4} />
 
       {status === 'pending' ? (
@@ -116,6 +122,14 @@ export default function BookingSuccessPage() {
           />
           <Button size="lg" fullWidth onClick={() => router.push('/')}>
             Done
+          </Button>
+          <Button variant="ghost" size="lg" fullWidth asChild>
+            <a
+              href={`/api/bookings/${booking.confirmationCode}/ics?email=${encodeURIComponent(booking.customerEmail)}`}
+              download
+            >
+              Add to calendar
+            </a>
           </Button>
         </section>
       ) : null}

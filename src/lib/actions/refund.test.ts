@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const paymentUpdateMock = vi.fn()
+  const bookingUpdateMock = vi.fn()
   const auditLogCreateMock = vi.fn()
   const prismaTxStub = {
     payment: { update: paymentUpdateMock },
+    booking: { update: bookingUpdateMock },
     auditLog: { create: auditLogCreateMock },
   }
   return {
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => {
     revalidatePathMock: vi.fn(),
     bookingFindUniqueMock: vi.fn(),
     paymentUpdateMock,
+    bookingUpdateMock,
     auditLogCreateMock,
     transactionMock: vi.fn(
       async (fn: (tx: typeof prismaTxStub) => Promise<unknown>) =>
@@ -39,10 +42,12 @@ const {
   isDevWithoutDbMock,
   bookingFindUniqueMock,
   paymentUpdateMock,
+  bookingUpdateMock,
   auditLogCreateMock,
+  revalidatePathMock,
 } = mocks
 
-import { refundBookingAction } from './refund'
+import { manualRefundBookingAction, refundBookingAction } from './refund'
 
 const baseBooking = {
   id: 'bk_1',
@@ -52,6 +57,19 @@ const baseBooking = {
     stripePaymentIntentId: 'pi_1',
     amount: 5000,
     refundStatus: 'NONE',
+  },
+}
+
+const baseWalkInBooking = {
+  id: 'bk_walk',
+  isRefunded: false,
+  status: 'CONFIRMED' as const,
+  payment: {
+    id: 'pay_w',
+    stripePaymentIntentId: null,
+    amount: 5000,
+    refundStatus: 'NONE' as const,
+    refundAmount: null as number | null,
   },
 }
 
@@ -158,5 +176,222 @@ describe('refundBookingAction', () => {
     expect(result.amountCents).toBe(1234)
     expect(bookingFindUniqueMock).not.toHaveBeenCalled()
     expect(createRefundMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('manualRefundBookingAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    isDevWithoutDbMock.mockReturnValue(false)
+    requireRoleMock.mockResolvedValue({ id: 'user_mgr', role: 'MANAGER' })
+    bookingFindUniqueMock.mockResolvedValue(baseWalkInBooking)
+  })
+
+  it('requires MANAGER or ADMIN role', async () => {
+    await manualRefundBookingAction({
+      bookingId: 'bk_walk',
+      amountCents: 100,
+      method: 'cash',
+    })
+    expect(requireRoleMock).toHaveBeenCalledWith('MANAGER', 'ADMIN')
+  })
+
+  it('propagates when requireRole rejects (unauthenticated)', async () => {
+    requireRoleMock.mockRejectedValueOnce(new Error('NEXT_REDIRECT'))
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 100,
+        method: 'cash',
+      }),
+    ).rejects.toThrow('NEXT_REDIRECT')
+  })
+
+  it('propagates when requireRole rejects (STAFF)', async () => {
+    requireRoleMock.mockRejectedValueOnce(new Error('Unauthorized'))
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 100,
+        method: 'cash',
+      }),
+    ).rejects.toThrow('Unauthorized')
+  })
+
+  it('returns mocked result without prisma when dev-without-db', async () => {
+    isDevWithoutDbMock.mockReturnValue(true)
+    const result = await manualRefundBookingAction({
+      bookingId: 'bk_walk',
+      amountCents: 333,
+      method: 'check',
+    })
+    expect(result).toEqual({
+      amountCents: 333,
+      method: 'check',
+      mocked: true,
+    })
+    expect(bookingFindUniqueMock).not.toHaveBeenCalled()
+    expect(mocks.transactionMock).not.toHaveBeenCalled()
+  })
+
+  it('throws if booking is not found', async () => {
+    bookingFindUniqueMock.mockResolvedValue(null)
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'missing',
+        amountCents: 1,
+        method: 'cash',
+      }),
+    ).rejects.toThrow('Booking not found')
+  })
+
+  it('throws if booking is already fully refunded', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseWalkInBooking,
+      isRefunded: true,
+    })
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 1,
+        method: 'cash',
+      }),
+    ).rejects.toThrow(/already.*refunded/i)
+  })
+
+  it('throws if payment used Stripe', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseWalkInBooking,
+      payment: {
+        ...baseWalkInBooking.payment,
+        stripePaymentIntentId: 'pi_online',
+      },
+    })
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 1,
+        method: 'cash',
+      }),
+    ).rejects.toThrow('Use the Stripe refund flow for this booking')
+  })
+
+  it('throws when amountCents exceeds remaining refundable balance', async () => {
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 5001,
+        method: 'cash',
+      }),
+    ).rejects.toThrow(/between 1 and 5000/)
+  })
+
+  it('throws when amountCents is not positive', async () => {
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 0,
+        method: 'cash',
+      }),
+    ).rejects.toThrow(/at least 1 cent/)
+  })
+
+  it('throws when there is no payment row', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseWalkInBooking,
+      payment: null,
+    })
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 1,
+        method: 'cash',
+      }),
+    ).rejects.toThrow('No payment recorded for this booking')
+  })
+
+  it('full manual refund updates payment, cancels booking, and writes audit', async () => {
+    await manualRefundBookingAction({
+      bookingId: 'bk_walk',
+      amountCents: 5000,
+      method: 'cash',
+      notes: 'guest cancelled',
+    })
+    expect(paymentUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'pay_w' },
+      data: expect.objectContaining({
+        refundAmount: 5000,
+        refundStatus: 'SUCCEEDED',
+        refundReason: 'guest cancelled',
+        refundedBy: 'user_mgr',
+        status: 'refunded_manual',
+      }),
+    })
+    expect(bookingUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'bk_walk' },
+      data: expect.objectContaining({
+        isRefunded: true,
+        status: 'CANCELLED',
+      }),
+    })
+    expect(auditLogCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bookingId: 'bk_walk',
+        userId: 'user_mgr',
+        action: 'BOOKING_MANUAL_REFUND',
+        entityType: 'Booking',
+        entityId: 'bk_walk',
+        details: {
+          method: 'cash',
+          amount: 5000,
+          notes: 'guest cancelled',
+        },
+      }),
+    })
+  })
+
+  it('partial manual refund updates payment only; booking stays confirmed', async () => {
+    await manualRefundBookingAction({
+      bookingId: 'bk_walk',
+      amountCents: 2500,
+      method: 'check',
+    })
+    expect(paymentUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'pay_w' },
+      data: expect.objectContaining({
+        refundAmount: 2500,
+        refundStatus: 'SUCCEEDED',
+        status: 'refunded_manual',
+      }),
+    })
+    expect(bookingUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('records method and notes on the audit log details', async () => {
+    await manualRefundBookingAction({
+      bookingId: 'bk_walk',
+      amountCents: 100,
+      method: 'other',
+      notes: 'counter mistake',
+    })
+    expect(auditLogCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        details: {
+          method: 'other',
+          amount: 100,
+          notes: 'counter mistake',
+        },
+      }),
+    })
+  })
+
+  it('revalidates staff booking detail and staff home', async () => {
+    await manualRefundBookingAction({
+      bookingId: 'bk_walk',
+      amountCents: 1,
+      method: 'comp',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/staff/bookings/bk_walk')
+    expect(revalidatePathMock).toHaveBeenCalledWith('/staff')
   })
 })

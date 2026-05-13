@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  formatLaneRequirementLine,
   getLaneAssignmentSummary,
   getLaneCount,
   isEligibleForOnlineBooking,
@@ -69,5 +70,13 @@ describe('getLaneAssignmentSummary', () => {
     expect(getLaneAssignmentSummary(7)).toBe('2 lanes for 7 bowlers')
     expect(getLaneAssignmentSummary(12)).toBe('2 lanes for 12 bowlers')
     expect(getLaneAssignmentSummary(13)).toBe('3 lanes for 13 bowlers')
+  })
+})
+
+describe('formatLaneRequirementLine', () => {
+  it('matches wireframe copy for single and multiple lanes', () => {
+    expect(formatLaneRequirementLine(1)).toBe('1 lane required')
+    expect(formatLaneRequirementLine(6)).toBe('1 lane required')
+    expect(formatLaneRequirementLine(7)).toBe('2 lanes required')
   })
 })

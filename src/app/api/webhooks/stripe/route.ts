@@ -30,6 +30,20 @@ import { getTenant } from '@/lib/tenant'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+function buildManageUrl(confirmationCode: string, email: string): string {
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
+    .trim()
+    .replace(/\/$/, '')
+  return `${base}/find-my-booking/${confirmationCode}?email=${encodeURIComponent(email)}`
+}
+
+function buildIcsUrl(confirmationCode: string, email: string): string {
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
+    .trim()
+    .replace(/\/$/, '')
+  return `${base}/api/bookings/${encodeURIComponent(confirmationCode)}/ics?email=${encodeURIComponent(email)}`
+}
+
 interface BookingMetadata {
   holdId: string
   tenantId: string
@@ -180,6 +194,14 @@ async function handlePaymentIntentSucceeded(
         venueName: tenant.name,
         venueAddress: tenant.address,
         venuePhone: tenant.phone,
+        manageUrl: buildManageUrl(
+          booking.confirmationCode,
+          metadata.customerEmail,
+        ),
+        icsUrl: buildIcsUrl(
+          booking.confirmationCode,
+          metadata.customerEmail,
+        ),
       })
     } catch (err) {
       console.error('[stripe-webhook] confirmation email failed:', err)

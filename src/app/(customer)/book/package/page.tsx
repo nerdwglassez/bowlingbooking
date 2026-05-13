@@ -5,12 +5,15 @@ import { redirect, useRouter } from 'next/navigation'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import { VenueHeader } from '@/components/patterns/venue-header'
 import { StepIndicator } from '@/components/patterns/step-indicator'
+import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
 import { HoldTimer } from '@/components/patterns/hold-timer'
 import { LaneAllocationView } from '@/components/patterns/lane-allocation-view'
+import { PackageListToolbar } from '@/components/patterns/package-list-toolbar'
 import { PackageCard } from '@/components/patterns/package-card'
 import { PriceFooter } from '@/components/patterns/price-footer'
 import { useBooking } from '@/context/BookingContext'
 import { getPackagesForTenant } from '@/lib/actions/booking'
+import { formatPackageStepSubtitle } from '@/lib/booking-display'
 import { calculatePrice } from '@/lib/pricing'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 import type { Package, PricingResult } from '@/types'
@@ -75,17 +78,42 @@ export default function PackagePage() {
     router.push('/book/time')
   }, [router])
 
+  const packageSubtitle =
+    session.bowlerCount != null &&
+    session.date != null &&
+    session.startTime != null
+      ? formatPackageStepSubtitle(
+          session.bowlerCount,
+          session.date,
+          session.startTime,
+        )
+      : ''
+
+  const packageCtaLabel = canProceed
+    ? 'Continue to checkout'
+    : 'Select a package to continue'
+
   if (session.timeSlotId == null) {
     redirect('/book/time')
   }
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-32 pt-6">
-      <VenueHeader venueName={tenant.name} address={tenant.address} />
-      <StepIndicator currentStep={3} />
+      <VenueHeader
+        venueName={tenant.name}
+        address={tenant.address}
+        onSignIn={() => {
+          router.push('/signin')
+        }}
+      />
+      <StepIndicator currentStep={2} />
       <HoldTimer expiresAt={session.holdExpiresAt} onExpire={handleHoldExpired} />
 
-      <h1 className="text-2xl">Pick your bowling</h1>
+      <BookingFlowLead
+        title="Choose a package"
+        subtitle={packageSubtitle}
+      />
+      <PackageListToolbar resultCount={packages.length} />
       <LaneAllocationView bowlerCount={session.bowlerCount!} />
 
       <div className="flex flex-col gap-3">
@@ -102,7 +130,7 @@ export default function PackagePage() {
       <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
         <PriceFooter
           pricing={pricing}
-          ctaLabel="Continue to checkout"
+          ctaLabel={packageCtaLabel}
           onCta={handleNext}
           ctaDisabled={!canProceed}
         />

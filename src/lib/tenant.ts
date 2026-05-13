@@ -73,6 +73,44 @@ function mapTenant(row: {
   }
 }
 
+/**
+ * Cancellation policy read from `Tenant.config`. v1 defaults are:
+ *   cancellationWindowHours: 24
+ *   cancellationRefundPercent: 100
+ *
+ * Admins can override per-tenant by writing into the JSON column (the admin
+ * UI for editing this is deferred to Phase 11). The customer cancel action
+ * MUST resolve via `getCancellationPolicy(tenant)`; do not read the config
+ * blob directly.
+ */
+export interface CancellationPolicy {
+  /** How many hours before the booking start a customer can still cancel. */
+  windowHours: number
+  /** Percentage of totalAmount refunded when within the window (0-100). */
+  refundPercent: number
+}
+
+const DEFAULT_POLICY: CancellationPolicy = {
+  windowHours: 24,
+  refundPercent: 100,
+}
+
+export function getCancellationPolicy(tenant: Tenant): CancellationPolicy {
+  const cfg = tenant.config
+  const windowHours =
+    typeof cfg.cancellationWindowHours === 'number' &&
+    cfg.cancellationWindowHours >= 0
+      ? cfg.cancellationWindowHours
+      : DEFAULT_POLICY.windowHours
+  const refundPercent =
+    typeof cfg.cancellationRefundPercent === 'number' &&
+    cfg.cancellationRefundPercent >= 0 &&
+    cfg.cancellationRefundPercent <= 100
+      ? cfg.cancellationRefundPercent
+      : DEFAULT_POLICY.refundPercent
+  return { windowHours, refundPercent }
+}
+
 export const getTenant = cache(async function getTenant(): Promise<Tenant> {
   const slug = resolveTenantSlug()
 

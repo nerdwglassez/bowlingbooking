@@ -78,7 +78,7 @@ Same drift constraints as primitives:
 Each of the six patterns in the current batch. Read the named wireframe AND the existing primitives + lib helpers before starting your file.
 
 ### `step-indicator.tsx` — `StepIndicator`
-**Wireframe:** `docs/wireframes/customer/booking-step1.html` (top of phone — 4 dots).
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (top of phone — 4 dots). Milestone semantics: `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — scheduling (`/book` + `/book/time`) uses **1**, packages **`/book/package`** uses **2**, confirm **`/book/confirm`** uses **4** (milestone 3 has no URL in v1).
 - Props: `currentStep: 1 | 2 | 3 | 4`, `totalSteps?: number` (default 4), `className?: string`.
 - Visual: row of round dots with `gap-2`. Active dot: `bg-[var(--color-action)]`, larger (w-6 vs w-2). Completed dots: `bg-[var(--color-action)]` regular size. Future dots: `bg-[var(--color-border-strong)]`.
 - ARIA: render as `<ol aria-label="Booking progress">` with `<li>` children. Active item has `aria-current="step"`.
@@ -87,24 +87,40 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 ### `bowler-counter.tsx` — `BowlerCounter`
 **Wireframe:** `docs/wireframes/customer/booking-step1.html` (− / count / + in Bowlers section).
 - Props: `value: number`, `onChange: (next: number) => void`, `min?: number` (default 1), `max?: number` (default 18, the venue's max online), `className?: string`.
-- Visual: − Button (ghost, size sm) + a large number (h2 or h1, font-display) + + Button. Below, render the lane-count caption: call `getLaneAssignmentSummary(value)` from `src/lib/lane-logic.ts`. Append `· max ${max} online` when `value === max`.
+- Visual: − Button (ghost, size sm) + a large number (h2 or h1, font-display) + + Button. Below, render the lane-count caption: call `formatLaneRequirementLine(value)` from `src/lib/lane-logic.ts` (wireframe: “N lane(s) required”). Append `· max ${max} online` when `value === max`.
 - If `value === max`, the + button is disabled. If `value === min`, the − button is disabled.
 - `'use client'`.
 - Use the `<Button>` primitive. NO custom `<button>`s.
 
 ### `date-strip.tsx` — `DateStrip`
-**Wireframe:** `docs/wireframes/customer/booking-step1.html` and `booking-step2-refined.html` (horizontal scrolling row of day chips).
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (horizontal scrolling row of day chips in Step 1).
 - Props: `dates: Array<{ date: string /* YYYY-MM-DD */; weekday: string /* "Mon" */; day: number /* 12 */; available: boolean }>`, `selectedDate: string | null`, `onSelect: (date: string) => void`, `className?: string`.
 - Visual: horizontal `flex gap-2 overflow-x-auto` row. Each chip is a `<Button>` primitive — `variant="secondary"` unselected, `variant="primary"` when `selectedDate === date.date`. Unavailable dates render as ghost-variant buttons with `disabled`. Inside the button, two lines: weekday (small caps, text-xs) and day number (font-display, text-lg).
 - `'use client'`.
 - ARIA: `<div role="listbox" aria-label="Choose a date">` with `<Button role="option" aria-selected={...}>`.
 
 ### `time-slot-grid.tsx` — `TimeSlotGrid`
-**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html` (responsive grid of times).
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1b time grid (responsive grid of times on `/book/time`).
 - Props: `slots: TimeSlot[]` (from `@/types`), `selectedSlotId: string | null`, `onSelect: (slot: TimeSlot) => void`, `className?: string`.
 - Visual: `grid grid-cols-3 gap-2 sm:grid-cols-4`. Each cell is a `<Button>` primitive: `variant="primary"` if selected, `variant="secondary"` if available, `variant="ghost"` + `disabled` if not. Inside: time formatted as `h:mm a` (use `Intl.DateTimeFormat`, NOT a third-party lib). Optionally render a small `<Badge variant="ok">Popular</Badge>` below the time if you decide to flag popular slots — but only if the data carries that hint (it doesn't yet, so SKIP this feature in v1).
 - `'use client'`.
 - ARIA: `<div role="radiogroup" aria-label="Choose a time">`.
+
+### `booking-flow-lead.tsx` — `BookingFlowLead`
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (`step-title` + `step-sub`); same structure on package step in `booking-step2-refined.html`.
+- Props: `title: string`, `subtitle: string`, `className?: string`.
+- Title uses `font-family: var(--font-display)`; subtitle is body text with `--color-text-secondary`.
+- `'use client'`.
+
+### `choose-time-placeholder.tsx` — `ChooseTimePlaceholder`
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` Step **1a** — “Choose a time” block before a date is selected (split-flow: lives on `/book` while `/book/time` holds the real grid).
+- Props: `hasDate: boolean`, `className?: string`.
+- `'use client'`.
+
+### `package-list-toolbar.tsx` — `PackageListToolbar`
+**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html` — results count + Sort & Filter control (sheet wiring deferred).
+- Props: `resultCount: number`, `className?: string`.
+- `'use client'`.
 
 ### `package-card.tsx` — `PackageCard`
 **Wireframe:** none yet — infer from `.claude/DESIGN_SYSTEM.md` Card patterns and the `Package` type. Render a CardHeader with `<h3>` package name + `<Badge>` for `partyTypes[0]` if present, CardBody with description and the list of what's included (game/shoes), and CardFooter with the price (call `formatPrice(pkg.basePrice)`) plus a select Button.
@@ -114,17 +130,17 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - The footer Button: `variant="primary"` when not selected (label: "Select"), `variant="secondary"` when selected (label: "Selected").
 
 ### `venue-header.tsx` — `VenueHeader`
-**Wireframe:** `docs/wireframes/customer/booking-step1.html` (top of phone — venue name + address + sign-in button).
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (top of phone — venue name + address + sign-in button).
 - Props: `venueName: string`, `address: string`, `signedIn?: boolean`, `onSignIn?: () => void`, `signInLabel?: string` (default "Sign in"), `className?: string`.
 - Structure: `<header className="flex items-center justify-between gap-3">`. Left side: a column with venue name (h2 or h3, default heading style) and address as `<p className="text-sm text-[var(--color-text-secondary)]">`. Right side: a `<Button variant="ghost" size="sm">` for sign-in if `!signedIn && onSignIn`, otherwise render nothing.
 - DO NOT hardcode any tenant text. `venueName`, `address`, and the optional user state all come in via props. (The calling page resolves these from `getTenant()` / `auth()`.)
 - `'use client'` so callers can pass a click handler — small cost, broad reuse.
 
 ### `hold-timer.tsx` — `HoldTimer`
-**Wireframe:** `docs/wireframes/customer/booking-step1.html` and `booking-step2-refined.html` (small pill near the top showing remaining hold time).
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (hold bar in Step 1; package list in `booking-step2-refined.html` also shows hold).
 - Props: `expiresAt: Date | null`, `onExpire?: () => void`, `className?: string`.
-- When `expiresAt` is null, render a passive "Select a time to reserve your lanes" pill in `--surface-sunken` / `--color-text-secondary`.
-- When `expiresAt` is in the future, render a live pill showing `m:ss` remaining. Background: `--status-warning-bg` if less than 2 minutes, otherwise `--status-ok-bg`. Text uses the matching status `--*-text` token.
+- When `expiresAt` is null, render a passive “Select a time to hold your lanes” pill in `--surface-sunken` / `--color-text-secondary`.
+- When `expiresAt` is in the future, render a live pill showing `Lanes held · m:ss remaining`. Background: `--status-warning-bg` if less than 2 minutes, otherwise `--status-ok-bg`. Text uses the matching status `--*-text` token.
 - When `expiresAt` is reached, call `onExpire` (once) and render "Hold expired — pick a new time" with `--status-error-*` tokens.
 - **Pattern exception:** uses `useSyncExternalStore` against a module-level 1-second tick store. NO `useState`. See §2 rule 7. Add a top-of-file comment explaining the exception.
 - `'use client'`.

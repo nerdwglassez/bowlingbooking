@@ -9,19 +9,15 @@ import {
   getAvailableTimeSlots,
   releaseBookingHold,
 } from '@/lib/actions/booking'
+import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
 import { HoldTimer } from '@/components/patterns/hold-timer'
 import { PriceFooter } from '@/components/patterns/price-footer'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { TimeSlotGrid } from '@/components/patterns/time-slot-grid'
 import { VenueHeader } from '@/components/patterns/venue-header'
+import { formatBowlersLanesDateSummary } from '@/lib/booking-display'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 import type { PricingResult, TimeSlot } from '@/types'
-
-const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
-  weekday: 'long',
-  month: 'short',
-  day: 'numeric',
-})
 
 const EMPTY_PRICING: PricingResult = {
   baseAmount: 0,
@@ -101,9 +97,10 @@ export default function BookTimePage() {
     redirect('/book')
   }
 
-  const dateLabel = DATE_FORMATTER.format(
-    new Date(`${session.date}T12:00:00`),
-  )
+  const schedulingSubtitle =
+    session.bowlerCount != null && session.date != null
+      ? formatBowlersLanesDateSummary(session.bowlerCount, session.date)
+      : ''
 
   const canProceed =
     session.timeSlotId != null &&
@@ -112,17 +109,26 @@ export default function BookTimePage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-32 pt-6">
-      <VenueHeader venueName={tenant.name} address={tenant.address} />
-      <StepIndicator currentStep={2} />
+      <VenueHeader
+        venueName={tenant.name}
+        address={tenant.address}
+        onSignIn={() => {
+          router.push('/signin')
+        }}
+      />
+      <StepIndicator currentStep={1} />
       <HoldTimer
         expiresAt={session.holdExpiresAt}
         onExpire={() => setTimeSlot(null, null)}
       />
 
-      <h1 className="text-2xl">Pick a time</h1>
-      <p className="text-sm text-[var(--color-text-secondary)]">
-        Showing {dateLabel} · {session.bowlerCount} bowlers
-      </p>
+      <BookingFlowLead
+        title="Let's get you bowling"
+        subtitle={schedulingSubtitle}
+      />
+      <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+        Choose a time
+      </h2>
 
       {slotsPending ? (
         <p className="text-sm text-[var(--color-text-secondary)]">
@@ -139,7 +145,7 @@ export default function BookTimePage() {
       <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
         <PriceFooter
           pricing={EMPTY_PRICING}
-          ctaLabel="Choose package"
+          ctaLabel="Continue to packages →"
           onCta={handleNext}
           ctaDisabled={!canProceed}
         />

@@ -252,11 +252,60 @@ async function main() {
 
   console.log(`scanned ${files.length} file(s) across ${patterns.length} pattern(s)`)
 
+  // Route-group auth guards. Each (staff)/(admin) layout MUST call
+  // requireRole() so a forgotten check on a new page can't accidentally
+  // expose the entire route group. We don't enforce on individual
+  // page.tsx files; the layout is the chokepoint by design.
+  const layoutGuards = [
+    {
+      file: 'src/app/(staff)/layout.tsx',
+      pattern: /requireRole\s*\(/,
+    },
+    {
+      file: 'src/app/(admin)/layout.tsx',
+      pattern: /requireRole\s*\(/,
+    },
+  ]
+  for (const guard of layoutGuards) {
+    try {
+      const src = await readFile(guard.file, 'utf8')
+      if (!guard.pattern.test(src)) {
+        failures++
+        if (!failedChecks.has('missing requireRole() in route-group layout')) {
+          failedChecks.set('missing requireRole() in route-group layout', {
+            hint: 'Every (staff) / (admin) layout.tsx MUST call requireRole(...). Pages inherit gating from the layout — no exceptions.',
+            hits: [],
+          })
+        }
+        failedChecks
+          .get('missing requireRole() in route-group layout')
+          .hits.push({ file: guard.file, line: 1, match: '(no match)' })
+      }
+    } catch {
+      // layout file missing entirely is also a failure
+      failures++
+      if (!failedChecks.has('missing requireRole() in route-group layout')) {
+        failedChecks.set('missing requireRole() in route-group layout', {
+          hint: 'Every (staff) / (admin) layout.tsx MUST call requireRole(...). Pages inherit gating from the layout — no exceptions.',
+          hits: [],
+        })
+      }
+      failedChecks
+        .get('missing requireRole() in route-group layout')
+        .hits.push({
+          file: guard.file,
+          line: 1,
+          match: '(layout file missing)',
+        })
+    }
+  }
+
   if (failures === 0) {
     console.log('PASS: drift sentinel — all checks clean')
     for (const check of CHECKS) {
       console.log(`  - ${check.name}: 0 violations`)
     }
+    console.log('  - route-group layout guards: ok')
     exit(0)
   }
 

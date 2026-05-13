@@ -146,31 +146,34 @@ Page agents should call these by importing from `@/lib/actions/booking`. If a fu
 
 Each of the four booking pages. Read the named wireframe AND the relevant patterns before starting.
 
-### `app/(customer)/book/page.tsx` — Step 1 (Group size + date)
-**Wireframe:** `docs/wireframes/customer/booking-step1.html`.
-- Compose: `<VenueHeader>` (from page layout's tenant data), `<StepIndicator currentStep={1}>`, `<HoldTimer expiresAt={null}>` (no hold yet), `<BowlerCounter>`, `<DateStrip>`, `<PriceFooter ctaLabel="Choose time" onCta={…} ctaDisabled={!canProceed} />`.
+### `app/(customer)/book/page.tsx` — Scheduling part A (group size + date)
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1 variants **1a** / **1b** (date + time split: this route covers **1a** date entry + disabled time placeholder; time grid lives on `/book/time`).
+**Phase 0:** `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — scheduling is **milestone 1** (`StepIndicator currentStep={1}` on `/book` and `/book/time`).
+- Compose: `<VenueHeader onSignIn={…}>`, `<StepIndicator currentStep={1}>`, `<HoldTimer expiresAt={null}>`, `<BookingFlowLead>`, `<BowlerCounter>`, `<DateStrip>`, `<ChooseTimePlaceholder>`, `<PriceFooter>` (CTA varies: disabled **“Select a date and time to continue”** until date chosen, then **“Choose time”**).
 - State reads: `session.bowlerCount`, `session.date`.
 - State writes: `setBowlerCount(n)`, `setDate(d)`.
-- Data: call `getAvailableDates(tenant.id, 7)` from a server action on mount via `useEffect`-style pattern. For v1, just hardcode 7 dates starting from today (use `Intl.DateTimeFormat` + `Date`) — DO NOT call Prisma directly from the client.
+- Data: `getAvailableDates(tenant.id, 7)` via server action — DO NOT call Prisma directly from the client.
 - CTA: requires `bowlerCount >= 1 && date != null`. On click, `router.push('/book/time')`.
-- The `<PriceFooter>` at this stage has only the package-less line item: pass `pricing: { baseAmount: 0, gameAmount: 0, shoeAmount: 0, totalAmount: 0, lineItems: [] }`. The CTA label is the navigation, not the payment.
+- The `<PriceFooter>` at this stage has only the package-less line item: pass `pricing: { baseAmount: 0, gameAmount: 0, shoeAmount: 0, totalAmount: 0, lineItems: [] }`.
 
-### `app/(customer)/book/time/page.tsx` — Step 2 (Time slot)
-**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html`.
+### `app/(customer)/book/time/page.tsx` — Scheduling part B (time slot + hold)
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1 variant **1b** (time grid + hold + **“Continue to packages →”**).
+**Phase 0:** same milestone as `/book` — `<StepIndicator currentStep={1}>`.
 - Guard: if `!session.bowlerCount || !session.date`, `redirect('/book')`.
-- Compose: header + step indicator (currentStep=2) + `<HoldTimer>` (showing `session.holdExpiresAt`) + `<TimeSlotGrid>` + `<PriceFooter>`.
-- Data: call `getAvailableTimeSlots(tenant.id, session.date, session.bowlerCount)`. For v1, mock 8 slots.
-- On select: call `acquireBookingHold({ tenantId, bowlerCount })` → get `{ expiresAt }` → `setTimeSlot(slot, expiresAt)`. The HoldTimer now ticks. (V1: hold is client-only; no DB row yet.)
-- On expire: `setTimeSlot(null, null)`. Stay on the page; user picks a new slot.
-- CTA: requires `session.timeSlotId != null && session.holdExpiresAt > now`. On click, `router.push('/book/package')`.
+- Compose: header + `<BookingFlowLead>` (title **“Let's get you bowling”**, subtitle `formatBowlersLanesDateSummary`) + `<HoldTimer>` + **“Choose a time”** section label + `<TimeSlotGrid>` + `<PriceFooter ctaLabel="Continue to packages →">`.
+- Data: `getAvailableTimeSlots(tenant.id, session.date, session.bowlerCount)`.
+- On select: `acquireBookingHold({ tenantId, startTime, endTime, bowlerCount })` → `setTimeSlot(slot, { id: holdId, expiresAt })`.
+- On expire: `setTimeSlot(null, null)`.
+- CTA: requires valid slot + active hold. On click, `router.push('/book/package')`.
 
-### `app/(customer)/book/package/page.tsx` — Step 3 (Package selection)
-**Wireframe:** `docs/wireframes/customer/booking-step3-final.html`.
+### `app/(customer)/book/package/page.tsx` — Package selection (user’s second full-screen chapter; milestone **2**)
+**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html` (and Step 2 block in `booking-step1-2-branded.html`). Lane strip also referenced in `booking-step3-final.html`.
+**Phase 0:** `<StepIndicator currentStep={2}>`. Milestone **3** in the four-dot wireframe has no dedicated URL; confirm uses **4**.
 - Guard: if `!session.timeSlotId`, `redirect('/book/time')`.
-- Compose: header + step indicator (currentStep=3) + `<HoldTimer>` + `<LaneAllocationView bowlerCount={session.bowlerCount!}>` + a vertical stack of `<PackageCard>`s + `<PriceFooter>`.
+- Compose: header + `<StepIndicator currentStep={2}>` + `<HoldTimer>` + `<BookingFlowLead title="Choose a package">` + `<PackageListToolbar>` + `<LaneAllocationView>` + `<PackageCard>` stack + `<PriceFooter>` (disabled label **“Select a package to continue”** until selection + valid hold).
 - Data: `getPackagesForTenant(tenant.id)`.
-- On select: call `calculatePrice({ package: pkg, bowlerCount: session.bowlerCount! })` from `@/lib/pricing` → `setPackage(pkg, result.totalAmount)`. The `<PriceFooter>` now shows real line items derived from `pricing.lineItems`.
-- CTA: requires `session.packageId != null`. On click, `router.push('/book/confirm')`.
+- On select: `calculatePrice` → `setPackage(pkg, totalAmount)`.
+- CTA: requires `session.packageId != null` and valid hold. On click, `router.push('/book/confirm')`.
 
 ### `app/(customer)/book/confirm/page.tsx` — Step 4 (Customer info + checkout)
 **Wireframe:** `docs/wireframes/customer/booking-step4-confirmation.html`.
