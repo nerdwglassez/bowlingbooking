@@ -26,6 +26,7 @@
 import { isDevWithoutDb } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { getLaneCount } from '@/lib/lane-logic'
+import { calculatePrice } from '@/lib/pricing'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
 import type { Package, TimeSlot } from '@/types'
 
@@ -192,7 +193,7 @@ export async function acquireBookingHold(
 }
 
 export async function releaseBookingHold(holdId: string): Promise<void> {
-  if (isDevWithoutDb() || !holdId.startsWith('hold_')) return
+  if (isDevWithoutDb() || holdId.trim().length === 0) return
   await prisma.bookingHold.deleteMany({ where: { id: holdId } })
 }
 
@@ -298,6 +299,14 @@ export async function confirmBooking(
     throw new Error('confirmBooking: totalAmount must be positive')
   }
 
+  let tenantId = input.tenantId
+  let packageId = input.packageId
+  let partyType = input.partyType
+  let bowlerCount = input.bowlerCount
+  let startTime = input.startTime
+  let endTime = input.endTime
+  let totalAmount = input.totalAmount
+
   if (!isDevWithoutDb()) {
     const hold = await prisma.bookingHold.findUnique({
       where: { id: input.holdId },
@@ -305,25 +314,60 @@ export async function confirmBooking(
     if (!hold || hold.expiresAt <= new Date()) {
       throw new Error('Hold expired or not found — pick a new time slot.')
     }
+    if (hold.tenantId !== input.tenantId) {
+      throw new Error('Booking hold does not match this venue.')
+    }
+    if (
+      hold.bowlerCount !== input.bowlerCount ||
+      hold.startTime.getTime() !== input.startTime.getTime() ||
+      hold.endTime.getTime() !== input.endTime.getTime()
+    ) {
+      throw new Error('Booking hold no longer matches selected slot.')
+    }
+
+    const pkg = await prisma.package.findFirst({
+      where: { id: input.packageId, tenantId: hold.tenantId, active: true },
+    })
+    if (!pkg) {
+      throw new Error('Selected package is no longer available.')
+    }
+    if (!pkg.partyTypes.includes(input.partyType)) {
+      throw new Error('Selected package is not available for this party type.')
+    }
+
+    tenantId = hold.tenantId
+    packageId = pkg.id
+    partyType = input.partyType
+    bowlerCount = hold.bowlerCount
+    startTime = hold.startTime
+    endTime = hold.endTime
+    totalAmount = calculatePrice({
+      package: pkg as unknown as Package,
+      bowlerCount,
+    }).totalAmount
+
+    if (input.totalAmount !== totalAmount) {
+      throw new Error('Booking total changed — review your package pricing.')
+    }
   }
 
   const metadata: Record<string, string> = {
     holdId: input.holdId,
-    tenantId: input.tenantId,
-    packageId: input.packageId,
-    partyType: input.partyType,
-    bowlerCount: String(input.bowlerCount),
-    startTime: input.startTime.toISOString(),
-    endTime: input.endTime.toISOString(),
+    tenantId,
+    packageId,
+    partyType,
+    bowlerCount: String(bowlerCount),
+    startTime: startTime.toISOString(),
+    endTime: endTime.toISOString(),
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
   }
 
   const intent = await createPaymentIntent({
-    amountCents: input.totalAmount,
+    amountCents: totalAmount,
     customerEmail: input.customerEmail,
-    description: `Booking for ${input.bowlerCount} bowlers`,
+    description: `Booking for ${bowlerCount} bowlers`,
     metadata,
   })
 
