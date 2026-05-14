@@ -180,8 +180,9 @@ describe('POST /api/webhooks/stripe', () => {
     )
   })
 
-  it('returns duplicate:true on Stripe event re-delivery', async () => {
+  it('returns duplicate:true on Stripe event re-delivery after idempotent handling', async () => {
     mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.paymentFindUnique.mockResolvedValue({ id: 'pay_existing' })
     mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
 
     const res = await POST(makeRequest('{}') as never)
@@ -189,6 +190,39 @@ describe('POST /api/webhooks/stripe', () => {
     const body = await res.json()
     expect(body).toEqual({ received: true, duplicate: true })
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('does not poison retries when booking creation fails after Stripe payment succeeds', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingCreate.mockRejectedValueOnce({ code: 'P2002' })
+
+    const first = await POST(makeRequest('{}') as never)
+    expect(first.status).toBe(500)
+    expect(mocks.stripeEventCreate).not.toHaveBeenCalled()
+
+    mocks.bookingCreate.mockResolvedValue({
+      id: 'bk_retry',
+      confirmationCode: 'XYZ789',
+      startTime: new Date('2025-06-01T18:00:00Z'),
+      endTime: new Date('2025-06-01T19:00:00Z'),
+      bowlerCount: 6,
+      laneCount: 1,
+      customerEmail: 'jane@example.com',
+      totalAmount: 4500,
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+
+    const retry = await POST(makeRequest('{}') as never)
+    expect(retry.status).toBe(200)
+    expect(mocks.bookingCreate).toHaveBeenCalledTimes(2)
+    expect(mocks.paymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bookingId: 'bk_retry',
+        stripePaymentIntentId: 'pi_1',
+      }),
+    })
+    expect(mocks.stripeEventCreate).toHaveBeenCalledOnce()
   })
 
   it('skips Booking creation when a Payment row already exists for the intent', async () => {

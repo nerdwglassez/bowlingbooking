@@ -2,9 +2,9 @@
 //
 // Responsibilities (in order):
 //   1. Verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET.
-//   2. Insert the event into the StripeEvent table for idempotency. A unique
-//      conflict on `id` means we've already processed this event — return
-//      200 without re-running side effects.
+//   2. Process the event using domain-level idempotency. Stripe may retry
+//      after transient failures, so never mark an event processed before its
+//      side effects are durable.
 //   3. Switch on event type:
 //        - payment_intent.succeeded → create Booking from the intent's
 //          metadata, delete the matching BookingHold, send confirmation email.
@@ -82,7 +82,7 @@ function generateConfirmationCode(): string {
   return out
 }
 
-async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
+async function markStripeEventProcessed(event: Stripe.Event): Promise<boolean> {
   try {
     await prisma.stripeEvent.create({
       data: {
@@ -93,7 +93,8 @@ async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
     })
     return true
   } catch (err) {
-    // Unique constraint violation = already processed
+    // Unique constraint violation = already logged. The domain handlers are
+    // themselves idempotent, so this is safe on Stripe re-delivery.
     if (
       typeof err === 'object' &&
       err !== null &&
@@ -244,11 +245,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ received: true, mocked: true })
   }
 
-  const fresh = await recordStripeEvent(event)
-  if (!fresh) {
-    return NextResponse.json({ received: true, duplicate: true })
-  }
-
   try {
     switch (event.type) {
       case 'payment_intent.succeeded':
@@ -270,5 +266,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     )
   }
 
+  const logged = await markStripeEventProcessed(event)
+  if (!logged) {
+    return NextResponse.json({ received: true, duplicate: true })
+  }
   return NextResponse.json({ received: true })
 }
