@@ -2,16 +2,17 @@
 //
 // Responsibilities (in order):
 //   1. Verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET.
-//   2. Insert the event into the StripeEvent table for idempotency. A unique
-//      conflict on `id` means we've already processed this event — return
-//      200 without re-running side effects.
+//   2. Check StripeEvent for idempotency. An existing row means we've already
+//      processed this event — return 200 without re-running side effects.
 //   3. Switch on event type:
 //        - payment_intent.succeeded → create Booking from the intent's
 //          metadata, delete the matching BookingHold, send confirmation email.
 //        - charge.refunded / refund.updated → reconcile Payment.refundStatus
 //          and Booking.isRefunded.
 //        - other events → log + ignore.
-//   4. Always respond 200 quickly. Stripe retries on non-2xx for hours;
+//   4. Insert StripeEvent only after processing succeeds, so Stripe retries can
+//      recover from transient handler failures.
+//   5. Always respond 200 quickly. Stripe retries on non-2xx for hours;
 //      put expensive work in background jobs (none for v1).
 //
 // Dev-without-Stripe: if STRIPE_WEBHOOK_SECRET is unset and NODE_ENV !==
@@ -44,6 +45,15 @@ interface BookingMetadata {
 }
 
 const PARTY_TYPES = new Set(['OPEN', 'BIRTHDAY', 'CORPORATE', 'COSMIC'])
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2002'
+  )
+}
 
 function parseBookingMetadata(
   raw: Record<string, string> | null | undefined,
@@ -94,16 +104,19 @@ async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
     return true
   } catch (err) {
     // Unique constraint violation = already processed
-    if (
-      typeof err === 'object' &&
-      err !== null &&
-      'code' in err &&
-      (err as { code?: string }).code === 'P2002'
-    ) {
+    if (isUniqueConstraintError(err)) {
       return false
     }
     throw err
   }
+}
+
+async function hasRecordedStripeEvent(eventId: string): Promise<boolean> {
+  const existing = await prisma.stripeEvent.findUnique({
+    where: { id: eventId },
+    select: { id: true },
+  })
+  return existing != null
 }
 
 async function handlePaymentIntentSucceeded(
@@ -244,8 +257,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ received: true, mocked: true })
   }
 
-  const fresh = await recordStripeEvent(event)
-  if (!fresh) {
+  if (await hasRecordedStripeEvent(event.id)) {
     return NextResponse.json({ received: true, duplicate: true })
   }
 
@@ -261,6 +273,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         break
       default:
         console.log(`[stripe-webhook] ignored event type: ${event.type}`)
+    }
+
+    const recorded = await recordStripeEvent(event)
+    if (!recorded) {
+      return NextResponse.json({ received: true, duplicate: true })
     }
   } catch (err) {
     console.error(`[stripe-webhook] handler error for ${event.type}:`, err)
