@@ -113,6 +113,7 @@ export interface CreateRefundInput {
   amountCents?: number
   reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer'
   metadata?: Record<string, string>
+  idempotencyKey?: string
 }
 
 export interface CreateRefundResult {
@@ -139,12 +140,15 @@ export async function createRefund(
       mocked: true,
     }
   }
-  const refund = await stripe.refunds.create({
-    payment_intent: input.paymentIntentId,
-    amount: input.amountCents,
-    reason: input.reason,
-    metadata: input.metadata,
-  })
+  const refund = await stripe.refunds.create(
+    {
+      payment_intent: input.paymentIntentId,
+      amount: input.amountCents,
+      reason: input.reason,
+      metadata: input.metadata,
+    },
+    input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
+  )
   return {
     id: refund.id,
     status: refund.status ?? 'pending',

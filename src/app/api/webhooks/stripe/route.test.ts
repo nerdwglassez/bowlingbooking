@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
   const paymentUpdate = vi.fn()
   const bookingUpdate = vi.fn()
   const bookingHoldDeleteMany = vi.fn()
+  const stripeEventDelete = vi.fn()
 
   const txStub = {
     booking: { create: bookingCreate, update: bookingUpdate },
@@ -23,7 +24,9 @@ const mocks = vi.hoisted(() => {
     paymentUpdate,
     bookingUpdate,
     bookingHoldDeleteMany,
+    stripeEventDelete,
     constructWebhookEventMock: vi.fn(),
+    createRefundMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
     getTenantMock: vi.fn(async () => ({
       id: 't1',
@@ -40,13 +43,17 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    stripeEvent: { create: mocks.stripeEventCreate },
+    stripeEvent: {
+      create: mocks.stripeEventCreate,
+      delete: mocks.stripeEventDelete,
+    },
     payment: { findUnique: mocks.paymentFindUnique },
     $transaction: mocks.transactionMock,
   },
 }))
 vi.mock('@/lib/stripe', () => ({
   constructWebhookEvent: mocks.constructWebhookEventMock,
+  createRefund: mocks.createRefundMock,
 }))
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
 vi.mock('@/lib/tenant', () => ({ getTenant: mocks.getTenantMock }))
@@ -122,6 +129,14 @@ beforeEach(() => {
     totalAmount: 4500,
   })
   mocks.sendEmailMock.mockResolvedValue({ id: 'email_1' })
+  mocks.bookingHoldDeleteMany.mockResolvedValue({ count: 1 })
+  mocks.createRefundMock.mockResolvedValue({
+    id: 're_1',
+    status: 'pending',
+    amount: 4500,
+    mocked: false,
+  })
+  mocks.stripeEventDelete.mockResolvedValue({})
 })
 
 describe('POST /api/webhooks/stripe', () => {
@@ -172,12 +187,47 @@ describe('POST /api/webhooks/stripe', () => {
         status: 'succeeded',
       }),
     })
-    expect(mocks.bookingHoldDeleteMany).toHaveBeenCalledWith({
-      where: { id: 'hold_1' },
-    })
+    expect(mocks.bookingHoldDeleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'hold_1',
+          tenantId: 't1',
+          bowlerCount: 6,
+          startTime: new Date('2025-06-01T18:00:00.000Z'),
+          endTime: new Date('2025-06-01T19:00:00.000Z'),
+          expiresAt: { gt: expect.any(Date) },
+        }),
+      }),
+    )
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'jane@example.com' }),
     )
+  })
+
+  it('refunds paid intents whose hold was already consumed or expired', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingHoldDeleteMany.mockResolvedValue({ count: 0 })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(200)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+    expect(mocks.paymentCreate).not.toHaveBeenCalled()
+    expect(mocks.createRefundMock).toHaveBeenCalledWith({
+      paymentIntentId: 'pi_1',
+      amountCents: 4500,
+      reason: 'duplicate',
+      metadata: {
+        holdId: 'hold_1',
+        tenantId: 't1',
+        reason: 'booking_hold_unavailable',
+      },
+      idempotencyKey: 'booking-hold-unavailable:pi_1',
+    })
+    warn.mockRestore()
   })
 
   it('returns duplicate:true on Stripe event re-delivery', async () => {
@@ -189,6 +239,22 @@ describe('POST /api/webhooks/stripe', () => {
     const body = await res.json()
     expect(body).toEqual({ received: true, duplicate: true })
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('releases the Stripe event lock when handler work fails', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingCreate.mockRejectedValue(new Error('db unavailable'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(500)
+    expect(mocks.stripeEventDelete).toHaveBeenCalledWith({
+      where: { id: 'evt_1' },
+    })
+    error.mockRestore()
   })
 
   it('skips Booking creation when a Payment row already exists for the intent', async () => {
