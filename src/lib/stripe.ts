@@ -140,15 +140,17 @@ export async function createRefund(
       mocked: true,
     }
   }
-  const refund = await stripe.refunds.create(
-    {
-      payment_intent: input.paymentIntentId,
-      amount: input.amountCents,
-      reason: input.reason,
-      metadata: input.metadata,
-    },
-    input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
-  )
+  const refundInput = {
+    payment_intent: input.paymentIntentId,
+    amount: input.amountCents,
+    reason: input.reason,
+    metadata: input.metadata,
+  }
+  const refund = input.idempotencyKey
+    ? await stripe.refunds.create(refundInput, {
+        idempotencyKey: input.idempotencyKey,
+      })
+    : await stripe.refunds.create(refundInput)
   return {
     id: refund.id,
     status: refund.status ?? 'pending',
