@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   laneCount: vi.fn(),
   packageFindMany: vi.fn(),
   packageFindFirst: vi.fn(),
+  transactionMock: vi.fn(),
 }))
 
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
@@ -35,6 +36,7 @@ vi.mock('@/lib/prisma', () => ({
       findMany: mocks.packageFindMany,
       findFirst: mocks.packageFindFirst,
     },
+    $transaction: mocks.transactionMock,
   },
 }))
 
@@ -54,6 +56,23 @@ beforeEach(() => {
   })
   mocks.isDevWithoutDbMock.mockReturnValue(false)
   mocks.isStripeMockedMock.mockReturnValue(false)
+  mocks.transactionMock.mockImplementation(async (fn) =>
+    fn({
+      tenant: { findUnique: mocks.tenantFindUnique },
+      bookingHold: {
+        create: mocks.bookingHoldCreate,
+        findUnique: mocks.bookingHoldFindUnique,
+        deleteMany: mocks.bookingHoldDeleteMany,
+        findMany: mocks.bookingHoldFindMany,
+      },
+      booking: { findMany: mocks.bookingFindMany },
+      lane: { count: mocks.laneCount },
+      package: {
+        findMany: mocks.packageFindMany,
+        findFirst: mocks.packageFindFirst,
+      },
+    }),
+  )
 })
 
 describe('acquireBookingHold', () => {
@@ -72,6 +91,9 @@ describe('acquireBookingHold', () => {
 
   it('creates a BookingHold row with the tenant hold timeout', async () => {
     mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    mocks.laneCount.mockResolvedValue(8)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
     const expiresAt = new Date(Date.now() + 7 * 60_000)
     mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
 
@@ -85,6 +107,10 @@ describe('acquireBookingHold', () => {
     })
 
     expect(result.holdId).toBe('h1')
+    expect(mocks.transactionMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ isolationLevel: 'Serializable' }),
+    )
     expect(mocks.bookingHoldCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tenantId: 't1',
@@ -95,6 +121,24 @@ describe('acquireBookingHold', () => {
       }),
       select: { id: true, expiresAt: true },
     })
+  })
+
+  it('rejects hold acquisition when overlapping reservations consume capacity', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    mocks.laneCount.mockResolvedValue(2)
+    mocks.bookingFindMany.mockResolvedValue([{ laneCount: 1 }])
+    mocks.bookingHoldFindMany.mockResolvedValue([{ laneCount: 1 }])
+
+    await expect(
+      acquireBookingHold({
+        tenantId: 't1',
+        startTime: new Date('2026-01-01T18:00:00Z'),
+        endTime: new Date('2026-01-01T19:00:00Z'),
+        bowlerCount: 6,
+      }),
+    ).rejects.toThrow(/no longer available/i)
+
+    expect(mocks.bookingHoldCreate).not.toHaveBeenCalled()
   })
 
   it('throws if tenant is not found', async () => {
