@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const stripeEventCreate = vi.fn()
+  const stripeEventDelete = vi.fn()
   const bookingCreate = vi.fn()
   const paymentCreate = vi.fn()
   const paymentFindUnique = vi.fn()
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     stripeEventCreate,
+    stripeEventDelete,
     bookingCreate,
     paymentCreate,
     paymentFindUnique,
@@ -40,7 +42,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    stripeEvent: { create: mocks.stripeEventCreate },
+    stripeEvent: {
+      create: mocks.stripeEventCreate,
+      delete: mocks.stripeEventDelete,
+    },
     payment: { findUnique: mocks.paymentFindUnique },
     $transaction: mocks.transactionMock,
   },
@@ -180,15 +185,56 @@ describe('POST /api/webhooks/stripe', () => {
     )
   })
 
-  it('returns duplicate:true on Stripe event re-delivery', async () => {
+  it('returns duplicate:true on Stripe event re-delivery after reconciliation', async () => {
     mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
     mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
+    mocks.paymentFindUnique.mockResolvedValue({ id: 'pay_existing' })
 
     const res = await POST(makeRequest('{}') as never)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ received: true, duplicate: true })
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('reconciles a duplicate delivery when the event marker exists but payment is missing', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
+    mocks.paymentFindUnique.mockResolvedValue(null)
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toEqual({ received: true, duplicate: true })
+    expect(mocks.bookingCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tenantId: 't1',
+        packageId: 'pkg_classic',
+        status: 'CONFIRMED',
+        customerEmail: 'jane@example.com',
+      }),
+    })
+    expect(mocks.paymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bookingId: 'bk_1',
+        stripePaymentIntentId: 'pi_1',
+      }),
+    })
+  })
+
+  it('clears a fresh event marker if processing fails so Stripe can retry', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingCreate.mockRejectedValue(new Error('transient db failure'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(500)
+    expect(mocks.stripeEventDelete).toHaveBeenCalledWith({
+      where: { id: 'evt_1' },
+    })
+    error.mockRestore()
   })
 
   it('skips Booking creation when a Payment row already exists for the intent', async () => {

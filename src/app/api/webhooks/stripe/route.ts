@@ -106,6 +106,17 @@ async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
   }
 }
 
+async function forgetStripeEvent(eventId: string): Promise<void> {
+  try {
+    await prisma.stripeEvent.delete({ where: { id: eventId } })
+  } catch (err) {
+    console.error(
+      `[stripe-webhook] failed to clear failed event marker ${eventId}:`,
+      err,
+    )
+  }
+}
+
 async function handlePaymentIntentSucceeded(
   intent: Stripe.PaymentIntent,
 ): Promise<void> {
@@ -245,9 +256,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const fresh = await recordStripeEvent(event)
-  if (!fresh) {
-    return NextResponse.json({ received: true, duplicate: true })
-  }
 
   try {
     switch (event.type) {
@@ -264,11 +272,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error(`[stripe-webhook] handler error for ${event.type}:`, err)
+    if (fresh) {
+      await forgetStripeEvent(event.id)
+    }
     return NextResponse.json(
       { error: 'handler-error' },
       { status: 500 },
     )
   }
 
-  return NextResponse.json({ received: true })
+  return NextResponse.json(
+    fresh ? { received: true } : { received: true, duplicate: true },
+  )
 }
