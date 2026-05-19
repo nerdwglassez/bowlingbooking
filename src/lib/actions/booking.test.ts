@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   laneCount: vi.fn(),
   packageFindMany: vi.fn(),
   packageFindFirst: vi.fn(),
+  transactionMock: vi.fn(),
 }))
 
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
@@ -35,6 +36,7 @@ vi.mock('@/lib/prisma', () => ({
       findMany: mocks.packageFindMany,
       findFirst: mocks.packageFindFirst,
     },
+    $transaction: mocks.transactionMock,
   },
 }))
 
@@ -46,6 +48,24 @@ import {
   releaseBookingHold,
 } from './booking'
 
+function makeTransactionClient() {
+  return {
+    tenant: { findUnique: mocks.tenantFindUnique },
+    bookingHold: {
+      create: mocks.bookingHoldCreate,
+      findUnique: mocks.bookingHoldFindUnique,
+      deleteMany: mocks.bookingHoldDeleteMany,
+      findMany: mocks.bookingHoldFindMany,
+    },
+    booking: { findMany: mocks.bookingFindMany },
+    lane: { count: mocks.laneCount },
+    package: {
+      findMany: mocks.packageFindMany,
+      findFirst: mocks.packageFindFirst,
+    },
+  }
+}
+
 beforeEach(() => {
   Object.values(mocks).forEach((m) => {
     if (typeof m === 'function' && 'mockReset' in m) {
@@ -54,6 +74,9 @@ beforeEach(() => {
   })
   mocks.isDevWithoutDbMock.mockReturnValue(false)
   mocks.isStripeMockedMock.mockReturnValue(false)
+  mocks.transactionMock.mockImplementation(async (fn) =>
+    fn(makeTransactionClient()),
+  )
 })
 
 describe('acquireBookingHold', () => {
