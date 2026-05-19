@@ -72,6 +72,9 @@ describe('acquireBookingHold', () => {
 
   it('creates a BookingHold row with the tenant hold timeout', async () => {
     mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    mocks.laneCount.mockResolvedValue(8)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
     const expiresAt = new Date(Date.now() + 7 * 60_000)
     mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
 
@@ -85,6 +88,13 @@ describe('acquireBookingHold', () => {
     })
 
     expect(result.holdId).toBe('h1')
+    expect(mocks.transactionMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ isolationLevel: 'Serializable' }),
+    )
+    expect(mocks.bookingHoldDeleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 't1', expiresAt: { lt: expect.any(Date) } },
+    })
     expect(mocks.bookingHoldCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tenantId: 't1',
@@ -95,6 +105,45 @@ describe('acquireBookingHold', () => {
       }),
       select: { id: true, expiresAt: true },
     })
+  })
+
+  it('rejects the hold when overlapping reservations consume capacity', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    mocks.laneCount.mockResolvedValue(2)
+    mocks.bookingFindMany.mockResolvedValue([{ laneCount: 1 }])
+    mocks.bookingHoldFindMany.mockResolvedValue([{ laneCount: 1 }])
+
+    await expect(
+      acquireBookingHold({
+        tenantId: 't1',
+        startTime: new Date('2026-01-01T18:00:00Z'),
+        endTime: new Date('2026-01-01T19:00:00Z'),
+        bowlerCount: 6,
+      }),
+    ).rejects.toThrow(/no longer available/i)
+    expect(mocks.bookingHoldCreate).not.toHaveBeenCalled()
+  })
+
+  it('retries serializable transaction conflicts before creating a hold', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    mocks.laneCount.mockResolvedValue(8)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    const expiresAt = new Date(Date.now() + 7 * 60_000)
+    mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
+    mocks.transactionMock.mockImplementationOnce(async () => {
+      throw { code: 'P2034' }
+    })
+
+    const result = await acquireBookingHold({
+      tenantId: 't1',
+      startTime: new Date('2026-01-01T18:00:00Z'),
+      endTime: new Date('2026-01-01T19:00:00Z'),
+      bowlerCount: 6,
+    })
+
+    expect(result.holdId).toBe('h1')
+    expect(mocks.transactionMock).toHaveBeenCalledTimes(2)
   })
 
   it('throws if tenant is not found', async () => {

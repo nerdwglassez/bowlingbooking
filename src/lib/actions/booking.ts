@@ -28,9 +28,11 @@ import { prisma } from '@/lib/prisma'
 import { getLaneCount } from '@/lib/lane-logic'
 import { calculatePrice } from '@/lib/pricing'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
+import { Prisma } from '@prisma/client'
 import type { Package, TimeSlot } from '@/types'
 
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
+const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
 
 // ── Date strip ────────────────────────────────────────────
 
@@ -163,33 +165,102 @@ export async function acquireBookingHold(
   input: AcquireHoldInput,
 ): Promise<AcquireHoldResult> {
   const laneCount = getLaneCount(input.bowlerCount)
-  let holdMins = HOLD_TIMEOUT_MINS_DEFAULT
 
   if (isDevWithoutDb()) {
+    const holdMins = HOLD_TIMEOUT_MINS_DEFAULT
     const expiresAt = new Date(Date.now() + holdMins * 60_000)
     return { holdId: `hold_mock_${Date.now()}`, expiresAt }
   }
 
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: input.tenantId },
-    select: { holdTimeoutMins: true },
-  })
-  if (!tenant) throw new Error('Tenant not found')
-  holdMins = tenant.holdTimeoutMins ?? HOLD_TIMEOUT_MINS_DEFAULT
+  const hold = await withSerializableRetry(() =>
+    prisma.$transaction(
+      async (tx) => {
+        const now = new Date()
+        const tenant = await tx.tenant.findUnique({
+          where: { id: input.tenantId },
+          select: { holdTimeoutMins: true },
+        })
+        if (!tenant) throw new Error('Tenant not found')
 
-  const expiresAt = new Date(Date.now() + holdMins * 60_000)
-  const hold = await prisma.bookingHold.create({
-    data: {
-      tenantId: input.tenantId,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      bowlerCount: input.bowlerCount,
-      laneCount,
-      expiresAt,
-    },
-    select: { id: true, expiresAt: true },
-  })
+        await tx.bookingHold.deleteMany({
+          where: { tenantId: input.tenantId, expiresAt: { lt: now } },
+        })
+
+        const totalLanes = await tx.lane.count({
+          where: { tenantId: input.tenantId, active: true },
+        })
+        const confirmedBookings = await tx.booking.findMany({
+          where: {
+            tenantId: input.tenantId,
+            status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { laneCount: true },
+        })
+        const activeHolds = await tx.bookingHold.findMany({
+          where: {
+            tenantId: input.tenantId,
+            expiresAt: { gt: now },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { laneCount: true },
+        })
+
+        const reservedLanes = [...confirmedBookings, ...activeHolds].reduce(
+          (sum, reservation) => sum + reservation.laneCount,
+          0,
+        )
+        if (totalLanes - reservedLanes < laneCount) {
+          throw new Error('Selected time slot is no longer available.')
+        }
+
+        const holdMins = tenant.holdTimeoutMins ?? HOLD_TIMEOUT_MINS_DEFAULT
+        const expiresAt = new Date(now.getTime() + holdMins * 60_000)
+        return tx.bookingHold.create({
+          data: {
+            tenantId: input.tenantId,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            bowlerCount: input.bowlerCount,
+            laneCount,
+            expiresAt,
+          },
+          select: { id: true, expiresAt: true },
+        })
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    ),
+  )
   return { holdId: hold.id, expiresAt: hold.expiresAt }
+}
+
+async function withSerializableRetry<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  for (let attempt = 1; attempt <= HOLD_TRANSACTION_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await operation()
+    } catch (err) {
+      if (!isPrismaSerializationConflict(err)) {
+        throw err
+      }
+      if (attempt === HOLD_TRANSACTION_MAX_ATTEMPTS) {
+        throw new Error('Selected time slot is no longer available.')
+      }
+    }
+  }
+  throw new Error('Selected time slot is no longer available.')
+}
+
+function isPrismaSerializationConflict(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2034'
+  )
 }
 
 export async function releaseBookingHold(holdId: string): Promise<void> {
