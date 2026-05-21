@@ -2,9 +2,10 @@
 //
 // Responsibilities (in order):
 //   1. Verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET.
-//   2. Insert the event into the StripeEvent table for idempotency. A unique
-//      conflict on `id` means we've already processed this event — return
-//      200 without re-running side effects.
+//   2. Insert the event into the StripeEvent table for idempotency. The row is
+//      a processed marker, so handler failures remove it before returning 500.
+//      A unique conflict on `id` means we've already processed this event —
+//      return 200 without re-running side effects.
 //   3. Switch on event type:
 //        - payment_intent.succeeded → create Booking from the intent's
 //          metadata, delete the matching BookingHold, send confirmation email.
@@ -104,6 +105,10 @@ async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
     }
     throw err
   }
+}
+
+async function clearStripeEventMarker(eventId: string): Promise<void> {
+  await prisma.stripeEvent.deleteMany({ where: { id: eventId } })
 }
 
 async function handlePaymentIntentSucceeded(
@@ -264,6 +269,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error(`[stripe-webhook] handler error for ${event.type}:`, err)
+    try {
+      await clearStripeEventMarker(event.id)
+    } catch (cleanupErr) {
+      console.error(
+        `[stripe-webhook] failed to clear failed event marker ${event.id}:`,
+        cleanupErr,
+      )
+    }
     return NextResponse.json(
       { error: 'handler-error' },
       { status: 500 },
