@@ -123,11 +123,28 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
     return mockTenant(slug)
   }
 
-  const row = await prisma.tenant.findUnique({ where: { slug } })
-  if (!row) {
-    throw new Error(
-      `Tenant not found for slug "${slug}". Check DEFAULT_TENANT_SLUG and database seed/migrations.`,
-    )
+  try {
+    const row = await prisma.tenant.findUnique({ where: { slug } })
+    if (!row) {
+      throw new Error(
+        `Tenant not found for slug "${slug}". Check DEFAULT_TENANT_SLUG and database seed/migrations.`,
+      )
+    }
+    return mapTenant(row)
+  } catch (err) {
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      err instanceof Error &&
+      (err.message.includes('Environment variable not found: DATABASE_URL') ||
+        err.name === 'PrismaClientInitializationError')
+    ) {
+      warnOnce(
+        'tenant-db',
+        `DATABASE_URL not available to Prisma — returning mock tenant "${slug}" for dev. ` +
+          `Ensure .env.local exists at the repo root and restart \`npm run dev\`.`,
+      )
+      return mockTenant(slug)
+    }
+    throw err
   }
-  return mapTenant(row)
 })

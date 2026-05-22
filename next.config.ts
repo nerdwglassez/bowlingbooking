@@ -3,7 +3,8 @@ import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 
 const nextConfig: NextConfig = {
-  // No custom Next.js options needed in v1.
+  // Keep Prisma on the Node runtime with real process.env (not a bundled stub).
+  serverExternalPackages: ['@prisma/client', 'prisma'],
 }
 
 // Sentry build-time config. When SENTRY_AUTH_TOKEN is unset (dev / preview),
