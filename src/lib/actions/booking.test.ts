@@ -197,8 +197,8 @@ describe('acquireBookingHold', () => {
     await expect(
       acquireBookingHold({
         tenantId: 'missing',
-        startTime: new Date(),
-        endTime: new Date(),
+        startTime: new Date('2026-01-01T18:00:00Z'),
+        endTime: new Date('2026-01-01T19:00:00Z'),
         bowlerCount: 1,
       }),
     ).rejects.toThrow(/Tenant not found/i)
