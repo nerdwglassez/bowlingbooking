@@ -175,10 +175,23 @@ When adding new payment-adjacent code, copy one of these test files as a templat
 
 ---
 
-## 9. Open items / known v1 limits
+## 9. Customer payment UX (Phase 12 M12-M2)
 
-- **No "find my booking" page** for guests. `Booking.customerEmail` is the eventual lookup key; the page is Phase 8.
-- **No 3D Secure resubmit UX.** If Stripe returns `requires_action`, the current step-4 UX just errors out. Phase 8 staff app needs a "resend payment link" affordance.
+### 3D Secure / `requires_action`
+
+- `PaymentForm` calls `stripe.confirmPayment({ redirect: 'if_required' })`.
+- On `authentication_required` or `payment_intent_authentication_failure`, show a user-safe retry message and keep the form submittable.
+- If `paymentIntent.status === 'requires_action'` after confirm, prompt the customer to complete bank verification and tap Pay again.
+
+### Staff payment resume link
+
+- **`createPaymentResumeLink(paymentIntentId)`** in `src/lib/actions/payment-resume.ts` — STAFF+; validates the PI is still resumable via `retrievePaymentIntent` in `src/lib/stripe.ts`.
+- Returns a signed URL to **`/book/resume-payment?t=…`** (HMAC token in `src/lib/payment-resume-token.ts`, 24h TTL, signed with `AUTH_SECRET`).
+- **`getResumePaymentClientSecret(token)`** — public; returns `client_secret` for `PaymentForm`.
+- Staff UI: `PaymentResumePanel` on `/staff` cockpit.
+
+## 10. Open items / known v1 limits
+
 - **No webhook retry tooling.** Stripe retries automatically. If we need to replay manually (rare), we can `DELETE FROM stripe_event WHERE id = '…'` and have Stripe redeliver — that's it.
 - **Email sending is in-line with the webhook.** If Resend is slow we delay returning 200 to Stripe. Acceptable for v1; move to a background queue if it ever causes retries.
-- **Refunds don't support multi-stage (partial-then-partial-then-full).** The action throws if a refund is already PENDING. We can lift this once we add partial-refund UI in Phase 8.
+- **Stripe partial refunds:** multiple partial refunds are allowed while `refundStatus !== PENDING` and remaining balance &gt; 0. `charge.refunded` sets `Booking.isRefunded` only when `amount_refunded >= payment.amount`.

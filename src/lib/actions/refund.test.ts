@@ -161,9 +161,50 @@ describe('refundBookingAction', () => {
   })
 
   it('does not flip Booking.isRefunded in the action (webhook owns that)', async () => {
-    await refundBookingAction({ bookingId: 'bk_1' })
     const result = await refundBookingAction({ bookingId: 'bk_1' })
     expect(result.status).toBe('PENDING')
+    expect(bookingUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('allows a second partial refund after the first succeeded', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseBooking,
+      isRefunded: false,
+      payment: {
+        ...baseBooking.payment,
+        refundAmount: 2000,
+        refundStatus: 'SUCCEEDED',
+      },
+    })
+    createRefundMock.mockResolvedValue({
+      id: 're_2',
+      status: 'pending',
+      amount: 1500,
+      mocked: false,
+    })
+    await refundBookingAction({ bookingId: 'bk_1', amountCents: 1500 })
+    expect(createRefundMock).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 1500 }),
+    )
+    expect(paymentUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
+      data: expect.objectContaining({ refundAmount: 3500 }),
+    })
+  })
+
+  it('throws when nothing remains to refund', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseBooking,
+      isRefunded: true,
+      payment: {
+        ...baseBooking.payment,
+        refundAmount: 5000,
+        refundStatus: 'SUCCEEDED',
+      },
+    })
+    await expect(refundBookingAction({ bookingId: 'bk_1' })).rejects.toThrow(
+      /fully refunded/i,
+    )
   })
 
   it('returns mocked result without DB calls when dev-without-db', async () => {

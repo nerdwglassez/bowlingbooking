@@ -92,7 +92,8 @@ export function rateLimitBucketForPathname(
 ): RateLimitBucket | null {
   if (
     pathname === '/find-my-booking' ||
-    pathname.startsWith('/find-my-booking/')
+    pathname.startsWith('/find-my-booking/') ||
+    pathname === '/book/resume-payment'
   ) {
     return 'find_booking'
   }

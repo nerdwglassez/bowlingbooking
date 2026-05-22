@@ -391,6 +391,12 @@ These were introduced after the customer booking flow landed. Every future agent
 
 ---
 
+### 9.15 Payments polish (Phase 12 M12-M2)
+
+- **3DS retry** — `PaymentForm` uses `redirect: 'if_required'` and user-safe messages for authentication failures.
+- **Payment resume links** — staff `createPaymentResumeLink` + customer `/book/resume-payment`; token signing in `src/lib/payment-resume-token.ts`.
+- **Stacked Stripe partial refunds** — `refundBookingAction` refunds against **remaining** balance; webhook cancels booking only when fully refunded.
+
 ### 9.14 Ops / abuse resistance (Phase 12 M12-M1)
 
 - **Rate limits** for public surfaces live in `src/lib/rate-limit.ts` + `src/lib/env.ts`; enforced in `src/proxy.ts`, `getBookingByLookup`, `validatePromoCode`, and the `.ics` route. Full contract: `.claude/contracts/OPS.md`.

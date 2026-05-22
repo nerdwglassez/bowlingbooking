@@ -105,4 +105,4 @@ When you add a new staff action, mirror the existing test layout: `vi.hoisted` f
 - `/admin/team` — user CRUD UI. Phase 9.
 - Reports / analytics / contacts — wireframes in `docs/wireframes/staff/`. Phase 10+ post-launch.
 - Walk-in manual refunds (cash returned, mark `isRefunded`). Phase 9.
-- 3DS / `requires_action` resubmit affordance on customer step 4.
+- ~~3DS / `requires_action` resubmit affordance~~ — shipped M12-M2: `PaymentResumePanel` on `/staff` + `/book/resume-payment`.

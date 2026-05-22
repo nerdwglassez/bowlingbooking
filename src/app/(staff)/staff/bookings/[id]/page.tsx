@@ -157,9 +157,8 @@ export default async function StaffBookingDetailPage({ params }: PageProps) {
 
       {canRefund &&
       booking.payment &&
-      booking.payment.amount > 0 &&
-      !booking.isRefunded &&
-      booking.payment.refundStatus !== 'PENDING' ? (
+      booking.payment.refundStatus !== 'PENDING' &&
+      booking.payment.amount - (booking.payment.refundAmount ?? 0) > 0 ? (
         <RefundPanel
           key={`${booking.id}:${booking.payment.amount - (booking.payment.refundAmount ?? 0)}`}
           bookingId={booking.id}

@@ -61,6 +61,19 @@ export function PaymentForm(props: PaymentFormProps) {
   )
 }
 
+function paymentErrorMessage(
+  code: string | undefined,
+  fallback: string | undefined,
+): string {
+  if (code === 'authentication_required') {
+    return 'Your bank needs extra verification. Complete the prompt, then tap Pay again.'
+  }
+  if (code === 'payment_intent_authentication_failure') {
+    return 'Bank verification failed. Try again or use a different card.'
+  }
+  return fallback ?? 'Payment failed. Try again or use another card.'
+}
+
 function PaymentFormInner({ amountCents, returnUrl }: PaymentFormProps) {
   const stripe = useStripe()
   const elements = useElements()
@@ -75,11 +88,30 @@ function PaymentFormInner({ amountCents, returnUrl }: PaymentFormProps) {
     const result = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: returnUrl },
+      redirect: 'if_required',
     })
     if (result.error) {
-      setError(result.error.message ?? 'Payment failed. Try another card.')
+      setError(
+        paymentErrorMessage(result.error.code, result.error.message),
+      )
       setSubmitting(false)
+      return
     }
+    if (result.paymentIntent?.status === 'requires_action') {
+      setError(
+        'Complete verification with your bank, then tap Pay again if needed.',
+      )
+      setSubmitting(false)
+      return
+    }
+    if (
+      result.paymentIntent?.status === 'succeeded' ||
+      result.paymentIntent?.status === 'processing'
+    ) {
+      window.location.href = returnUrl
+      return
+    }
+    setSubmitting(false)
   }
 
   return (

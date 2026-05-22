@@ -179,9 +179,6 @@ export async function refundBookingAction(
     include: { payment: true },
   })
   if (!booking) throw new Error('Booking not found')
-  if (booking.isRefunded) {
-    throw new Error('Booking already fully refunded')
-  }
   const payment = booking.payment
   if (!payment || !payment.stripePaymentIntentId) {
     throw new Error('No captured payment to refund for this booking')
@@ -190,10 +187,20 @@ export async function refundBookingAction(
     throw new Error('Refund already in progress for this booking')
   }
 
+  const alreadyRefunded = payment.refundAmount ?? 0
+  const remaining = payment.amount - alreadyRefunded
+  if (remaining <= 0 || booking.isRefunded) {
+    throw new Error('Booking already fully refunded')
+  }
+
   const amount =
     input.amountCents == null || input.amountCents <= 0
-      ? payment.amount
-      : Math.min(input.amountCents, payment.amount)
+      ? remaining
+      : Math.min(input.amountCents, remaining)
+
+  if (amount < 1) {
+    throw new Error('Refund amount must be at least 1 cent')
+  }
 
   const refund = await createRefund({
     paymentIntentId: payment.stripePaymentIntentId,
@@ -210,7 +217,7 @@ export async function refundBookingAction(
       where: { id: payment.id },
       data: {
         stripeRefundId: refund.id,
-        refundAmount: amount,
+        refundAmount: alreadyRefunded + amount,
         refundStatus: 'PENDING',
         refundReason: input.notes ?? input.reason ?? null,
         refundedBy: user.id,

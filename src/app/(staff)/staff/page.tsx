@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { BookingListRow } from '@/components/patterns/booking-list-row'
 import { EmptyState } from '@/components/patterns/empty-state'
+import { PaymentResumePanel } from './payment-resume-panel'
 import { getTodayBookings } from '@/lib/actions/staff'
 import { getTenant } from '@/lib/tenant'
 
@@ -80,6 +81,8 @@ export default async function StaffCockpitPage() {
           ))}
         </ul>
       )}
+
+      <PaymentResumePanel />
     </>
   )
 }

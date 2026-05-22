@@ -108,6 +108,64 @@ export async function createPaymentIntent(
   }
 }
 
+const RESUMABLE_PI_STATUSES = new Set([
+  'requires_payment_method',
+  'requires_confirmation',
+  'requires_action',
+  'processing',
+])
+
+export interface RetrievePaymentIntentResult {
+  id: string
+  clientSecret: string
+  amount: number
+  status: string
+  customerEmail: string | null
+  mocked: boolean
+}
+
+/**
+ * Load a PaymentIntent for the customer resume-payment page. Rejects intents
+ * that are already captured or canceled.
+ */
+export async function retrievePaymentIntent(
+  paymentIntentId: string,
+): Promise<RetrievePaymentIntentResult> {
+  const stripe = getStripe()
+  if (!stripe) {
+    if (!paymentIntentId.startsWith('pi_mock_')) {
+      throw new Error('Payment intent not found')
+    }
+    return {
+      id: paymentIntentId,
+      clientSecret: `${paymentIntentId}_secret_mock`,
+      amount: 0,
+      status: 'requires_payment_method',
+      customerEmail: null,
+      mocked: true,
+    }
+  }
+
+  const intent = await stripe.paymentIntents.retrieve(paymentIntentId)
+  if (!RESUMABLE_PI_STATUSES.has(intent.status)) {
+    throw new Error(
+      `Payment cannot be resumed (status: ${intent.status}).`,
+    )
+  }
+  if (!intent.client_secret) {
+    throw new Error('Payment intent is missing a client secret')
+  }
+
+  return {
+    id: intent.id,
+    clientSecret: intent.client_secret,
+    amount: intent.amount,
+    status: intent.status,
+    customerEmail: intent.receipt_email ?? intent.metadata?.customerEmail ?? null,
+    mocked: false,
+  }
+}
+
 export interface CreateRefundInput {
   paymentIntentId: string
   amountCents?: number
