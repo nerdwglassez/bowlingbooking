@@ -235,12 +235,36 @@ Sentry is wired (Phase 11). Without a DSN, the observability wrapper is a consol
 
 ### Tuning
 
-- `tracesSampleRate` is **0** in v1 (no performance traces). Bump to `0.1` once Sentry usage stabilizes and you want span data.
+- **Performance traces:** in **production**, `tracesSampleRate` defaults to **0.1** via `getSentryTracesSampleRate()` in `src/lib/env.ts`. Override with `SENTRY_TRACES_SAMPLE_RATE` (0–1). Dev/staging stay at **0**.
 - Session Replay is **off**. Turn on in `instrumentation-client.ts` after reviewing the privacy implications (replays capture user input).
 
-## 9. Known gaps (Phase 12+)
+---
 
-- **No in-app rate limiting** on `/find-my-booking` lookup — put **WAF / reverse-proxy rate limits** in front of production.
+## 8b. Edge security (rate limits)
+
+Public surfaces (no login) are brute-forceable: booking lookup (email + code), `.ics` download, promo validation.
+
+### Required in production
+
+Configure **WAF / reverse-proxy** limits in front of the app. Starting points (per client IP, per minute):
+
+| Path / behavior | Suggested limit |
+|-----------------|-----------------|
+| `/find-my-booking` (pages + server actions) | 30 |
+| `/api/bookings/*/ics` | 20 |
+| Promo validate (server action traffic to `/book/*`) | 40 |
+
+Record your provider’s actual rules here when deployed (Cloudflare rate rule IDs, Vercel Firewall, etc.).
+
+### In-app backstop (M12-M1)
+
+`src/proxy.ts` and server actions use `src/lib/rate-limit.ts` with the same default caps. Enabled in **production** automatically; disabled in **test**; in **local dev** set `RATE_LIMIT_ENABLED=true` in `.env.local` to exercise.
+
+Env vars: see `.env.example` (`RATE_LIMIT_*`, `SENTRY_TRACES_SAMPLE_RATE`). Contract: `.claude/contracts/OPS.md`.
+
+**Serverless caveat:** in-memory limits are per instance — edge limits remain authoritative.
+
+## 9. Known gaps (Phase 12+)
 - **No customer accounts** — lookup is **confirmation code + email** only.
 - **Reports** — `/admin/reports` (ADMIN-only KPIs + charts). Deferred: CSV export, timezone-correct buckets, MANAGER access.
 - **Booking policy** — editable on `/admin/venue` (`cancellationWindowHours`, `cancellationRefundPercent`, `holdTimeoutMins`, `maxOnlineBowlers`). Deferred: advance-booking window, deposit %, other `Tenant.config` knobs.
@@ -273,3 +297,4 @@ npm run start    # next start
 
 - `.claude/contracts/PAYMENTS.md` — Stripe, webhook, refund ownership.
 - `.claude/contracts/AUTH.md` — roles, `requireRole`, session rules.
+- `.claude/contracts/OPS.md` — edge rate limits, in-app buckets, Sentry trace sampling.

@@ -28,7 +28,10 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
+vi.mock('@/lib/env', () => ({
+  isDevWithoutDb: mocks.isDevWithoutDbMock,
+  isRateLimitEnabled: () => false,
+}))
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {

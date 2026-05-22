@@ -10,9 +10,39 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { isRateLimitEnabled } from '@/lib/env'
+import {
+  checkRateLimit,
+  getClientIdFromHeaderValues,
+  rateLimitBucketForPathname,
+} from '@/lib/rate-limit'
+
 export function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  if (isRateLimitEnabled()) {
+    const bucket = rateLimitBucketForPathname(pathname)
+    if (bucket) {
+      const clientId = getClientIdFromHeaderValues((name) =>
+        request.headers.get(name),
+      )
+      const result = checkRateLimit(bucket, clientId)
+      if (!result.allowed) {
+        return NextResponse.json(
+          { error: 'Too many requests' },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(result.retryAfterSec),
+            },
+          },
+        )
+      }
+    }
+  }
+
   const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-pathname', request.nextUrl.pathname)
+  requestHeaders.set('x-pathname', pathname)
 
   return NextResponse.next({
     request: { headers: requestHeaders },

@@ -68,7 +68,7 @@ const CHECKS = [
   },
   {
     name: 'inline lane-count math',
-    regex: /Math\.ceil\(.*\/\s*6/g,
+    regex: /Math\.ceil\(.*\/\s*6(?!\d)/g,
     appliesTo: (file) => !file.includes('/lib/lane-logic'),
     hint: 'Call getLaneCount() / getLaneAssignmentSummary() from @/lib/lane-logic instead.',
   },

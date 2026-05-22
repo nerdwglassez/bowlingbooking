@@ -11,15 +11,14 @@
 //   - Failures return a generic "not found" without revealing which half
 //     was wrong, to defeat enumeration.
 //
-// Rate limiting: NOT implemented in code for v1. Confirmation codes are 6
-// chars from a 32-char alphabet (≈1 in 10^9 per guess), and a malicious
-// attacker would also need a valid email. Production deployments should
-// rate-limit at the reverse proxy / WAF layer — documented in RUNBOOK.md.
+// Rate limiting: in-app backstop via assertPublicRateLimit (M12-M1) plus WAF
+// at the edge — see `.claude/contracts/OPS.md` and RUNBOOK § Edge security.
 
 import { revalidatePath } from 'next/cache'
 
 import { isDevWithoutDb } from '@/lib/env'
 import { sendBookingCancellation } from '@/lib/email'
+import { assertPublicRateLimit } from '@/lib/rate-limit-request'
 import { prisma } from '@/lib/prisma'
 import { createRefund, isStripeMocked } from '@/lib/stripe'
 import { getCancellationPolicy, getTenant } from '@/lib/tenant'
@@ -61,6 +60,8 @@ export interface LookupInput {
 export async function getBookingByLookup(
   input: LookupInput,
 ): Promise<CustomerBookingDetail | null> {
+  await assertPublicRateLimit('find_booking')
+
   const email = input.email.trim().toLowerCase()
   const code = input.confirmationCode.trim().toUpperCase()
   if (!email || !code) return null

@@ -10,15 +10,14 @@
 
 import * as Sentry from '@sentry/nextjs'
 
+import { getSentryTracesSampleRate } from '@/lib/env'
+
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN
 
 Sentry.init({
   dsn,
   environment: process.env.NODE_ENV,
   enabled: Boolean(dsn),
-  // Conservative defaults; tune per-tenant traffic. Tracing is OFF in v1
-  // because we have no spans to send yet; flip to 0.1 once we instrument
-  // server actions with Sentry.startSpan.
-  tracesSampleRate: 0,
+  tracesSampleRate: getSentryTracesSampleRate(),
   sendDefaultPii: false,
 })

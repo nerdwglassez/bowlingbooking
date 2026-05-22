@@ -5,7 +5,10 @@ const mocks = vi.hoisted(() => ({
   promoFindUnique: vi.fn(),
 }))
 
-vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
+vi.mock('@/lib/env', () => ({
+  isDevWithoutDb: mocks.isDevWithoutDbMock,
+  isRateLimitEnabled: () => false,
+}))
 vi.mock('@/lib/prisma', () => ({
   prisma: { promoCode: { findUnique: mocks.promoFindUnique } },
 }))

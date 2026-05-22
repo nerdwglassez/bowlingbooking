@@ -48,4 +48,4 @@ Apply a Prisma migration that adds `promo_codes`, `Booking.promo_code_id`, and `
 
 ## Abuse / rate limiting
 
-Promo validation is a public server action (unsigned customers). Treat it like confirmation-code lookup: **WAF / edge rate limits** — see `docs/RUNBOOK.md`.
+Promo validation is a public server action (unsigned customers). **`validatePromoCode`** calls `assertPublicRateLimit('promo_validate')`; edge WAF limits are still required — see `.claude/contracts/OPS.md` and `docs/RUNBOOK.md` § Edge security.

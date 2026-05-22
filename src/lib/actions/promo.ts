@@ -5,6 +5,7 @@ import type { PromoDiscountType } from '@prisma/client'
 import type { PromoValidationResult } from '@/types'
 import { isDevWithoutDb } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
+import { assertPublicRateLimit } from '@/lib/rate-limit-request'
 
 export type { PromoValidationResult } from '@/types'
 
@@ -62,6 +63,8 @@ export async function validatePromoCode(
   rawCode: string,
   subtotalCents: number,
 ): Promise<PromoValidationResult> {
+  await assertPublicRateLimit('promo_validate')
+
   const code = rawCode.trim().toLowerCase()
   if (!code) {
     throw new Error('Promo code not found')

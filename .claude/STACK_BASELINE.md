@@ -391,6 +391,12 @@ These were introduced after the customer booking flow landed. Every future agent
 
 ---
 
+### 9.14 Ops / abuse resistance (Phase 12 M12-M1)
+
+- **Rate limits** for public surfaces live in `src/lib/rate-limit.ts` + `src/lib/env.ts`; enforced in `src/proxy.ts`, `getBookingByLookup`, `validatePromoCode`, and the `.ics` route. Full contract: `.claude/contracts/OPS.md`.
+- **WAF remains mandatory** in production; in-app limits are per-instance best-effort only.
+- **Sentry traces:** `getSentryTracesSampleRate()` — 0 in non-production, default 0.1 in production (`SENTRY_TRACES_SAMPLE_RATE` optional).
+
 ### 9.12 Promo codes (Phase 11 M5)
 
 - **Public validation** — `validatePromoCode` in `src/lib/actions/promo.ts` has no session; it only reads `PromoCode` and returns resolved cents. Brute force is bounded by the same edge/WAF posture as other public lookups (`docs/RUNBOOK.md`).

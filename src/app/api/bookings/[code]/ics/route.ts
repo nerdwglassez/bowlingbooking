@@ -2,6 +2,8 @@ import {
   getBookingByLookup,
   type CustomerBookingDetail,
 } from '@/lib/actions/customer'
+import { RateLimitExceededError } from '@/lib/rate-limit'
+import { assertPublicRateLimit } from '@/lib/rate-limit-request'
 import { getTenant } from '@/lib/tenant'
 
 export const runtime = 'nodejs'
@@ -93,6 +95,21 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ code: string }> },
 ): Promise<Response> {
+  try {
+    await assertPublicRateLimit('booking_ics')
+  } catch (err) {
+    if (err instanceof RateLimitExceededError) {
+      return new Response('Too many requests', {
+        status: 429,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Retry-After': String(err.retryAfterSec),
+        },
+      })
+    }
+    throw err
+  }
+
   const emailRaw = new URL(req.url).searchParams.get('email')
   const email = emailRaw?.trim() ?? ''
   if (!email) {
