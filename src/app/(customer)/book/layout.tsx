@@ -18,7 +18,7 @@ export default async function BookingLayout({
         phone: tenant.phone,
       }}
     >
-      <BookingProvider>{children}</BookingProvider>
+      <BookingProvider tenantId={tenant.id}>{children}</BookingProvider>
     </TenantProvider>
   )
 }

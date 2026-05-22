@@ -52,7 +52,7 @@ Built to be licensed to other bowling alleys (multi-tenant SaaS architecture).
 - Admins have full settings access
 
 ## Booking hold
-- A time slot is held when customer reaches step 2
+- A time slot is held when the customer picks a start time on the scheduling screen (`/book`)
 - Hold is neutral amber (NOT green) — not confirmed until payment
 - Hold expires after timeout; booking auto-cancelled
 

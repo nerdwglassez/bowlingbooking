@@ -23,6 +23,7 @@
 //
 // All monetary amounts in args/returns are integer cents.
 
+import { validatePromoCode } from '@/lib/actions/promo'
 import { isDevWithoutDb } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { getLaneCount } from '@/lib/lane-logic'
@@ -68,6 +69,45 @@ export async function getAvailableDates(
 
 // ── Time slots ────────────────────────────────────────────
 
+/** Mock tenant lane count for dev-without-DB availability demos (BOOKING_DOMAIN). */
+const MOCK_TOTAL_LANES_DEV = 8
+
+function mockReservedLanesForHour(hour: number): number {
+  switch (hour) {
+    case 16:
+      return 8
+    case 17:
+      return 7
+    case 18:
+      return 6
+    case 19:
+      return 4
+    case 20:
+      return 2
+    case 21:
+      return 1
+    default:
+      return 0
+  }
+}
+
+function enrichTimeSlotAvailability(
+  slot: TimeSlot,
+  laneCount: number,
+  totalLanes: number,
+  reservedLanes: number,
+): TimeSlot {
+  const freeLanes = Math.max(0, totalLanes - reservedLanes)
+  const available = totalLanes > 0 && freeLanes >= laneCount
+  const spotsRemaining = available ? Math.floor(freeLanes / laneCount) : 0
+  return {
+    ...slot,
+    available,
+    lanesFree: freeLanes,
+    spotsRemaining,
+  }
+}
+
 export async function getAvailableTimeSlots(
   tenantId: string,
   dateISO: string,
@@ -76,12 +116,22 @@ export async function getAvailableTimeSlots(
   if (!isDevWithoutDb()) {
     await cleanupExpiredHolds(tenantId)
   }
+  const laneCount = getLaneCount(bowlerCount)
   const slots = buildMockSlotsFor(dateISO)
+
   if (isDevWithoutDb()) {
-    return slots
+    return slots.map((slot) => {
+      const hour = slot.startTime.getHours()
+      const reserved = mockReservedLanesForHour(hour)
+      return enrichTimeSlotAvailability(
+        slot,
+        laneCount,
+        MOCK_TOTAL_LANES_DEV,
+        reserved,
+      )
+    })
   }
 
-  const laneCount = getLaneCount(bowlerCount)
   const totalLanes = await prisma.lane.count({
     where: { tenantId, active: true },
   })
@@ -115,8 +165,7 @@ export async function getAvailableTimeSlots(
       (b) => b.startTime < slot.endTime && b.endTime > slot.startTime,
     )
     const reserved = overlapping.reduce((acc, b) => acc + b.laneCount, 0)
-    const available = totalLanes - reserved >= laneCount
-    return { ...slot, available }
+    return enrichTimeSlotAvailability(slot, laneCount, totalLanes, reserved)
   })
 }
 
@@ -134,6 +183,8 @@ function buildMockSlotsFor(dateISO: string): TimeSlot[] {
       endTime: end,
       available: true,
       laneNumbers: [],
+      lanesFree: 0,
+      spotsRemaining: 0,
     })
   }
   return out
@@ -269,7 +320,10 @@ export interface ConfirmBookingInput {
   bowlerCount: number
   startTime: Date
   endTime: Date
+  /** Package subtotal in cents (before promo). */
   totalAmount: number
+  /** Optional promo code string; re-validated server-side. */
+  promoCode?: string | null
   customerName: string
   customerEmail: string
   customerPhone: string
@@ -305,7 +359,7 @@ export async function confirmBooking(
   let bowlerCount = input.bowlerCount
   let startTime = input.startTime
   let endTime = input.endTime
-  let totalAmount = input.totalAmount
+  let subtotalCents = input.totalAmount
 
   if (!isDevWithoutDb()) {
     const hold = await prisma.bookingHold.findUnique({
@@ -341,14 +395,32 @@ export async function confirmBooking(
     bowlerCount = hold.bowlerCount
     startTime = hold.startTime
     endTime = hold.endTime
-    totalAmount = calculatePrice({
+    subtotalCents = calculatePrice({
       package: pkg as unknown as Package,
       bowlerCount,
     }).totalAmount
 
-    if (input.totalAmount !== totalAmount) {
+    if (input.totalAmount !== subtotalCents) {
       throw new Error('Booking total changed — review your package pricing.')
     }
+  }
+
+  let discountCents = 0
+  let promoCodeNormalized: string | null = null
+  const rawPromo = input.promoCode?.trim()
+  if (rawPromo) {
+    const validated = await validatePromoCode(
+      tenantId,
+      rawPromo,
+      subtotalCents,
+    )
+    discountCents = validated.discountCents
+    promoCodeNormalized = validated.code
+  }
+
+  const chargeCents = subtotalCents - discountCents
+  if (chargeCents <= 0) {
+    throw new Error('Booking total after discount must be greater than zero.')
   }
 
   const metadata: Record<string, string> = {
@@ -362,10 +434,15 @@ export async function confirmBooking(
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
+    subtotalCents: String(subtotalCents),
+  }
+  if (promoCodeNormalized != null && discountCents > 0) {
+    metadata.promoCode = promoCodeNormalized
+    metadata.discountCents = String(discountCents)
   }
 
   const intent = await createPaymentIntent({
-    amountCents: totalAmount,
+    amountCents: chargeCents,
     customerEmail: input.customerEmail,
     description: `Booking for ${bowlerCount} bowlers`,
     metadata,

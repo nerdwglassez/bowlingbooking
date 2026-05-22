@@ -8,6 +8,7 @@ import { StepIndicator } from '@/components/patterns/step-indicator'
 import { HoldTimer } from '@/components/patterns/hold-timer'
 import { BookingSummaryCard } from '@/components/patterns/booking-summary-card'
 import { PriceFooter } from '@/components/patterns/price-footer'
+import { PromoInput } from '@/components/patterns/promo-input'
 import { Input } from '@/components/ui/input'
 import { useBooking } from '@/context/BookingContext'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
@@ -49,12 +50,16 @@ export default function ConfirmBookingPage() {
 }
 
 function ConfirmBookingContent() {
-  const { session, setCustomerInfo, setPaymentIntent } = useBooking()
+  const { session, setCustomerInfo, setPaymentIntent, applyPromoCode, clearPromoCode } =
+    useBooking()
   const tenant = useTenant()
   const router = useRouter()
   const [emailTouched, setEmailTouched] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [promoDraft, setPromoDraft] = useState('')
+  const [promoError, setPromoError] = useState<string | null>(null)
+  const [promoLoading, setPromoLoading] = useState(false)
   const nowMs = useWallClockNow()
 
   const pricing = useMemo(
@@ -65,6 +70,17 @@ function ConfirmBookingContent() {
       }),
     [session.selectedPackage, session.bowlerCount],
   )
+
+  const discountCents = session.promoCode?.discountCents ?? 0
+  const finalTotalCents = useMemo(() => {
+    if (session.totalAmount == null) return 0
+    return Math.max(0, session.totalAmount - discountCents)
+  }, [session.totalAmount, discountCents])
+
+  const promoLine = useMemo(() => {
+    if (session.promoCode == null || discountCents <= 0) return null
+    return { code: session.promoCode.code, discountCents }
+  }, [session.promoCode, discountCents])
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
     session.customerEmail,
@@ -81,7 +97,22 @@ function ConfirmBookingContent() {
   const hasPaymentIntent = session.stripeClientSecret != null
 
   function handleHoldExpired() {
-    router.push('/book/time')
+    router.push('/book')
+  }
+
+  async function handleApplyPromo() {
+    setPromoError(null)
+    setPromoLoading(true)
+    try {
+      await applyPromoCode(promoDraft)
+      setPromoDraft('')
+    } catch (err) {
+      setPromoError(
+        err instanceof Error ? err.message : 'Could not apply promo code',
+      )
+    } finally {
+      setPromoLoading(false)
+    }
   }
 
   async function handleContinue() {
@@ -98,6 +129,7 @@ function ConfirmBookingContent() {
         startTime: session.startTime!,
         endTime: session.endTime!,
         totalAmount: session.totalAmount!,
+        promoCode: session.promoCode?.code ?? null,
         customerName: session.customerName,
         customerEmail: session.customerEmail,
         customerPhone: session.customerPhone,
@@ -148,7 +180,7 @@ function ConfirmBookingContent() {
         bowlerCount={session.bowlerCount!}
         laneCount={session.laneCount!}
         packageName={session.selectedPackage!.name}
-        totalAmount={session.totalAmount!}
+        totalAmount={finalTotalCents}
       />
 
       {hasPaymentIntent ? (
@@ -158,7 +190,7 @@ function ConfirmBookingContent() {
           </h2>
           <PaymentForm
             clientSecret={session.stripeClientSecret!}
-            amountCents={session.totalAmount!}
+            amountCents={finalTotalCents}
             returnUrl={returnUrl}
             onMockConfirm={handleMockConfirm}
           />
@@ -208,6 +240,24 @@ function ConfirmBookingContent() {
       )}
 
       {!hasPaymentIntent ? (
+        <PromoInput
+          value={promoDraft}
+          onChange={setPromoDraft}
+          onApply={() => void handleApplyPromo()}
+          onClear={clearPromoCode}
+          appliedCode={session.promoCode?.code ?? null}
+          discountCents={
+            session.promoCode != null && discountCents > 0
+              ? discountCents
+              : null
+          }
+          error={promoError}
+          loading={promoLoading}
+          disabled={!holdValid}
+        />
+      ) : null}
+
+      {!hasPaymentIntent ? (
         <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
           <PriceFooter
             pricing={pricing}
@@ -215,6 +265,8 @@ function ConfirmBookingContent() {
             onCta={handleContinue}
             ctaDisabled={!detailsValid || !holdValid}
             ctaLoading={submitting}
+            finalTotalCents={finalTotalCents}
+            promoLine={promoLine}
           />
         </div>
       ) : null}

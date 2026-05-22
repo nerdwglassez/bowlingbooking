@@ -14,6 +14,7 @@ Status: locked for Phase 9 (v1 critical path). Promo codes / booking-policy UI /
 | Packages list / new / edit       | `src/app/(admin)/admin/packages/{page,package-editor,new/page,[id]/page}.tsx` |
 | Team list / new / edit           | `src/app/(admin)/admin/team/{page,team-editor,new/page,[id]/page}.tsx` |
 | Audit log (read-only)            | `src/app/(admin)/admin/audit/page.tsx`                         |
+| Reports (read-only)              | `src/app/(admin)/admin/reports/{page,kpi-tiles,reports-charts}.tsx` |
 | Server actions                   | `src/lib/actions/admin.ts`                                     |
 | Form patterns                    | `src/components/patterns/{venue-details-form,operating-hours-editor,package-form,user-form}.tsx` |
 
@@ -21,7 +22,7 @@ Status: locked for Phase 9 (v1 critical path). Promo codes / booking-policy UI /
 
 1. **Auth lives in the route-group layout.** `(admin)/layout.tsx` MUST call `requireRole('MANAGER', 'ADMIN')`. Pages NEVER call it for auth gating — only to retrieve the current user's identity/role for in-page decisions (e.g. "can this caller assign the ADMIN role?"). The drift sentinel fails verify if the layout omits the check.
 
-2. **Server actions enforce role independently.** Every export in `src/lib/actions/admin.ts` starts with `await requireRole('MANAGER', 'ADMIN')`, except `listAuditLogs`, which is **ADMIN-only** (`await requireRole('ADMIN')`) — see [Audit log viewer](#audit-log-viewer). The layout gates the UI; the server action gates the call. Both are required because a client can still invoke a server action directly.
+2. **Server actions enforce role independently.** Every export in `src/lib/actions/admin.ts` starts with `await requireRole('MANAGER', 'ADMIN')`, except `listAuditLogs` and `getReportsSummary`, which are **ADMIN-only** (`await requireRole('ADMIN')`) — see [Audit log viewer](#audit-log-viewer) and [Reports viewer](#reports-viewer-phase-11). The layout gates the UI; the server action gates the call. Both are required because a client can still invoke a server action directly.
 
 3. **ADMIN role can only be assigned by an ADMIN.** `createTeamUserAction` and `updateTeamUserAction` enforce this via `requireCanAssignRole(caller, targetRole)`. MANAGERs can create/edit STAFF or MANAGER, but cannot promote anyone to ADMIN.
 
@@ -103,6 +104,34 @@ prisma.$transaction([
 
 We replace all 7 rows in a single transaction rather than diffing — simpler and atomic.
 
+## Booking policy (Phase 11)
+
+The Venue page now also edits the customer cancellation policy:
+
+| Field                       | Storage              | Default | Range  |
+| --------------------------- | -------------------- | ------- | ------ |
+| `holdTimeoutMins`           | `Tenant` column      | 10      | 1..60  |
+| `maxOnlineBowlers`          | `Tenant` column      | 18      | 1..36  |
+| `cancellationWindowHours`   | `Tenant.config` JSON | 24      | 0..240 |
+| `cancellationRefundPercent` | `Tenant.config` JSON | 100     | 0..100 |
+
+The cancellation values live in `Tenant.config` (not as new columns) because they're per-tenant policy knobs — schema-less is fine and we avoid a migration. `updateTenantAction` reads the existing config row inside the transaction and merges the two policy keys without disturbing anything else (e.g. other future JSON keys survive an unrelated venue edit).
+
+Server-side reads:
+
+- Admin path → `getTenantForAdmin` returns the values directly on `AdminTenantDetail`, defaulted from the same constants used by the customer-facing helper.
+- Customer path → `getCancellationPolicy(tenant)` in `src/lib/tenant.ts` is unchanged; it reads the same keys.
+
+Both readers fall back to the defaults when the config row is missing or out-of-range, so a half-configured tenant always behaves like the v1 default rather than crashing.
+
+### Branding (Phase 11)
+
+- **`Tenant.themeSlug`** drives the visual rebrand (preset name, not free-form CSS). It is a **top-level Prisma column** — not stored in `Tenant.config`.
+- The canonical preset list lives in **`src/lib/themes.ts`** (`THEME_PRESETS`, `isValidThemeSlug`, `getThemePreset`). Unknown slugs saved in the DB are treated as **`default`** at render time (`data-theme-preset` on `<html>`); the admin save path rejects unknown slugs.
+- Each preset is a CSS file under **`src/styles/themes/`** keyed by **`[data-theme-preset="<slug>"]`** (set on `<html>` in the root layout, orthogonal to **`data-theme`** for light/dark).
+- **Adding a preset:** add the CSS file (override only `--color-action*` and optionally `--surface-dark`), append an entry to `THEME_PRESETS`, and add an `@import` in `src/app/globals.css`. The drift sentinel does not scan `.css` files for raw hex; theme files may use hex literals there only.
+- **Cancellation policy and theme preset** both ride **`updateTenantAction`** — one **Save venue details** button on `/admin/venue`.
+
 ## Drift rules
 
 No new sentinel rules in Phase 9. The Phase 8 `route-group layout guard` already enforces `requireRole(` in `(admin)/layout.tsx`. All existing pattern rules apply to the new admin patterns (controlled, no `useState`, no chrome positioning, etc.).
@@ -111,7 +140,7 @@ No new sentinel rules in Phase 9. The Phase 8 `route-group layout guard` already
 
 | Surface          | Test approach                                                                  |
 | ---------------- | ------------------------------------------------------------------------------ |
-| `admin.ts` actions | `src/lib/actions/admin.test.ts` — Vitest tests covering role gating, ADMIN-assignment guard, validation, transaction body, audit-log writes, self-mutation refusal, and `listAuditLogs` (ADMIN-only, paging, filters, user join). |
+| `admin.ts` actions | `src/lib/actions/admin.test.ts` — Vitest tests covering role gating, ADMIN-assignment guard, validation, transaction body, audit-log writes, self-mutation refusal, `listAuditLogs` (ADMIN-only, paging, filters, user join), and `getReportsSummary` (ADMIN-only, range normalization, aggregation, top packages cap, empty window). |
 | Patterns         | Controlled patterns tested via the page tests they're embedded in (no separate unit tests). |
 | Pages            | Manual smoke test with `DATABASE_URL` unset → admin pages render with mock data. |
 
@@ -144,11 +173,48 @@ Reads `AuditLog` rows ordered by `createdAt` DESC. User name + email are joined 
 - Search inside `details` JSON (Phase 11+)
 - Real-time tail (Phase 11+)
 
+## Reports viewer (Phase 11)
+
+### Route
+
+`/admin/reports` — read-only charts and KPIs, **ADMIN role only** (same posture as the audit log: MANAGER is excluded in v1).
+
+### Why ADMIN-only
+
+Revenue and refund aggregates are sensitive financial summaries. MANAGER continues to operate bookings, refunds, and walk-ins on staff surfaces; the reports page is an executive slice reserved for ADMIN.
+
+### Range
+
+- Query string `?range=7d` | `?range=30d` | `?range=90d`; invalid or missing values fall back to **`30d`** (server action is canonical).
+- Window: **UTC calendar days** from the start of **(today − N + 1)** through the end of **today** (inclusive), where N is 7, 30, or 90. Daily chart buckets use the **UTC date** of `Booking.startTime`. **Trade-off:** true tenant-local midnight boundaries are deferred (documented here and in `getReportsSummary` in `admin.ts`).
+
+### Charts (v1)
+
+- **KPI tiles:** gross revenue (cents), paid booking count, refund total, average booking value (`formatPrice` in UI).
+- **Line chart:** gross revenue per day (paid CONFIRMED + COMPLETED only).
+- **Bar chart:** same paid booking count per day.
+- **Top packages:** top **5** packages by gross revenue (table). Client chart island uses **`recharts`**; strokes/fills use CSS variables only.
+
+### Server aggregation
+
+`getReportsSummary` loads matching rows inside a single **`prisma.$transaction`** so the booking list and refund aggregate see a consistent snapshot.
+
+**Paid booking:** `status IN ('CONFIRMED','COMPLETED')`, optional `payment` with `status` in **`succeeded`** (Stripe) or **`cash`** (walk-in). Gross revenue is the sum of **`Booking.totalAmount`** over that set (integer cents).
+
+**Refunds:** **`refundTotalCents`** is the sum of **`Payment.refundAmount`** where **`refundStatus = SUCCEEDED`**, for payments whose **booking `startTime`** falls in the same window. This is **gross refunded amount**; it is **not** subtracted from **`grossRevenueCents`** (gross stays gross).
+
+### Read path auditing
+
+Read-only report loads are **not** written to `AuditLog` (too noisy for v1).
+
+### Deferred (reports)
+
+- CSV export, custom date range, comparison to previous period
+- Tenant-timezone-correct daily buckets and window edges
+- Manager-visible read replica of reports
+
 ## Deferred
 
-- **Promo codes** — needs a `PromoCode` model (not in schema) + customer-side application logic.
-- **Booking-policy UI** — `Tenant.config` JSON blob is the eventual home for advance-booking-window, cancellation-cutoff, deposit %. v1 surfaces only `holdTimeoutMins` and `maxOnlineBowlers`.
 - **Integrations panel** — read-only status for Stripe / Resend / NextAuth secrets. Key rotation stays deploy-time only.
-- **Branding** — tenant-specific theme colors per `Tenant.themeSlug`. v1 ships one theme.
-- **Reports / analytics** — Phase 10+.
-- **Walk-in manual refunds** — mark `Booking.isRefunded = true` + AuditLog. Deferred from Phase 8.
+- **Advance booking policy** — deposit %, advance-booking window, and other `Tenant.config` knobs beyond cancellation window / refund % (see [Booking policy (Phase 11)](#booking-policy-phase-11)).
+- **Deeper analytics** — cohorting, warehouse sync, and exports beyond the v1 `/admin/reports` KPIs and charts.

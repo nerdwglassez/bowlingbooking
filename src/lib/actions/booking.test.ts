@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   isDevWithoutDbMock: vi.fn(() => false),
   createPaymentIntentMock: vi.fn(),
   isStripeMockedMock: vi.fn(() => false),
+  validatePromoCodeMock: vi.fn(),
   tenantFindUnique: vi.fn(),
   bookingHoldCreate: vi.fn(),
   bookingHoldFindUnique: vi.fn(),
@@ -16,6 +17,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
+vi.mock('@/lib/actions/promo', () => ({
+  validatePromoCode: mocks.validatePromoCodeMock,
+}))
 vi.mock('@/lib/stripe', () => ({
   createPaymentIntent: mocks.createPaymentIntentMock,
   isStripeMocked: mocks.isStripeMockedMock,
@@ -54,6 +58,13 @@ beforeEach(() => {
   })
   mocks.isDevWithoutDbMock.mockReturnValue(false)
   mocks.isStripeMockedMock.mockReturnValue(false)
+  mocks.validatePromoCodeMock.mockResolvedValue({
+    code: 'none',
+    description: null,
+    discountType: 'PERCENT',
+    discountValue: 0,
+    discountCents: 0,
+  })
 })
 
 describe('acquireBookingHold', () => {
@@ -131,13 +142,27 @@ describe('releaseBookingHold', () => {
 })
 
 describe('getAvailableTimeSlots', () => {
-  it('returns mock slots untouched in dev-without-db', async () => {
+  it('returns mock slots with availability fields in dev-without-db', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
     const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
     expect(slots.length).toBe(8)
-    expect(slots.every((s) => s.available)).toBe(true)
     expect(mocks.bookingHoldDeleteMany).not.toHaveBeenCalled()
     expect(mocks.bookingFindMany).not.toHaveBeenCalled()
+
+    const hour16 = slots.find((s) => s.id === '2026-01-01-16')
+    expect(hour16?.available).toBe(false)
+    expect(hour16?.lanesFree).toBe(0)
+    expect(hour16?.spotsRemaining).toBe(0)
+
+    const hour20 = slots.find((s) => s.id === '2026-01-01-20')
+    expect(hour20?.available).toBe(true)
+    expect(hour20?.lanesFree).toBe(6)
+    expect(hour20?.spotsRemaining).toBe(6)
+
+    const hour22 = slots.find((s) => s.id === '2026-01-01-22')
+    expect(hour22?.available).toBe(true)
+    expect(hour22?.lanesFree).toBe(8)
+    expect(hour22?.spotsRemaining).toBe(8)
   })
 
   it('cleans up expired holds before computing availability', async () => {
@@ -170,7 +195,10 @@ describe('getAvailableTimeSlots', () => {
     const occupied = slots.find((s) => s.id === '2026-01-01-18')
     const free = slots.find((s) => s.id === '2026-01-01-20')
     expect(occupied?.available).toBe(false)
+    expect(occupied?.spotsRemaining).toBe(0)
     expect(free?.available).toBe(true)
+    expect(free?.lanesFree).toBe(2)
+    expect(free?.spotsRemaining).toBe(2)
   })
 })
 
@@ -285,6 +313,49 @@ describe('confirmBooking', () => {
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
           customerName: 'Jane',
+          subtotalCents: '4500',
+        }),
+      }),
+    )
+    expect(mocks.validatePromoCodeMock).not.toHaveBeenCalled()
+  })
+
+  it('applies promo to charge amount and Stripe metadata', async () => {
+    mocks.validatePromoCodeMock.mockResolvedValue({
+      code: 'save10',
+      description: null,
+      discountType: 'FIXED',
+      discountValue: 500,
+      discountCents: 500,
+    })
+    const startTime = new Date('2026-02-01T18:00:00Z')
+    const endTime = new Date('2026-02-01T19:00:00Z')
+    await confirmBooking({
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_classic',
+      partyType: 'OPEN',
+      bowlerCount: 4,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      promoCode: 'SAVE10',
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+    })
+    expect(mocks.validatePromoCodeMock).toHaveBeenCalledWith(
+      't1',
+      'SAVE10',
+      4500,
+    )
+    expect(mocks.createPaymentIntentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountCents: 4000,
+        metadata: expect.objectContaining({
+          promoCode: 'save10',
+          discountCents: '500',
+          subtotalCents: '4500',
         }),
       }),
     )

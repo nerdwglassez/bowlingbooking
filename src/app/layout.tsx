@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import { Fraunces, DM_Sans } from 'next/font/google'
 import { resolveTheme } from '@/lib/theme'
+import {
+  DEFAULT_THEME_SLUG,
+  isValidThemeSlug,
+} from '@/lib/themes'
+import { getTenant } from '@/lib/tenant'
 import './globals.css'
 
 const fraunces = Fraunces({
@@ -26,12 +31,16 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const theme = await resolveTheme()
+  const [theme, tenant] = await Promise.all([resolveTheme(), getTenant()])
+  const themePreset = isValidThemeSlug(tenant.themeSlug)
+    ? tenant.themeSlug
+    : DEFAULT_THEME_SLUG
 
   return (
     <html
       lang="en"
       data-theme={theme}
+      data-theme-preset={themePreset}
       className={`${fraunces.variable} ${dmSans.variable}`}
     >
       <body>{children}</body>

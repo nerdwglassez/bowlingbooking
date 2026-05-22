@@ -6,8 +6,8 @@ Wireframe sections **Step 1 (a–c)** and **Step 2 (a–d)** in `docs/wireframes
 
 | App route | Progress dot (`StepIndicator`) | Primary customer HTML |
 |-----------|-------------------------------|------------------------|
-| `/book` | **1** — scheduling | `booking-step1-2-branded.html` — Step 1 variants **1a** (no date / time placeholder), **1b** (time + hold split: title/subtitle parity on `/book/time`) |
-| `/book/time` | **1** — scheduling (same milestone as `/book`) | Same file — time grid + hold (**1b**); dots stay on first milestone until packages |
+| `/book` | **1** — scheduling | `booking-step1-2-branded.html` — Step 1 **1a** / **1b**: bowlers, date, and **“Choose a time”** (placeholder until a date is chosen, then time grid + hold on the **same** screen) |
+| `/book/time` | *(redirect)* | Redirects to `/book` for old bookmarks |
 | `/book/package` | **2** — packages | `booking-step1-2-branded.html` Step 2 + `booking-step2-refined.html` |
 | `/book/confirm` | **4** — checkout / payment | `booking-step4-confirmation.html` (dot 4 active in wireframe; milestone 3 has no dedicated URL — merged into confirm) |
 

@@ -1,30 +1,24 @@
 /* ============================================================
-   default.css — Royal Z Lanes default theme
+   default.css — Royal Z Lanes default theme preset
    
-   This is the base venue theme.
-   For other tenants, create {tenant-slug}.css overriding
-   ONLY the tokens listed below. Nothing else.
+   This file intentionally applies no overrides: `tokens.css` is the default.
+   
+   Other presets live in sibling files (`midnight.css`, `sunset.css`, …).
+   Each non-default preset uses a root selector:
+     [data-theme-preset="<slug>"] { … }
+   Set `data-theme-preset` on `<html>` (alongside `data-theme="light|dark"`).
+   The two attributes are orthogonal: light/dark mode vs brand palette.
+   
+   Override ONLY these semantic tokens (nothing else in components):
+     --color-action
+     --color-action-hover
+     --color-action-subtle
+     --color-action-tint
+     --color-action-text   (text on tint backgrounds — keep WCAG AA)
+     --color-action-dark   (accent on dark surfaces)
+   Optional:
+     --surface-dark        (staff chrome / brand stripe)
+   
+   After adding a new preset CSS file, import it in `src/app/globals.css`
+   and register it in `src/lib/themes.ts` (`THEME_PRESETS`).
    ============================================================ */
-
-/* No overrides needed — tokens.css IS the default theme.
-   
-   To create a new tenant theme, copy this file as {slug}.css
-   and override only these tokens:
-   
-   :root {
-     --color-action:        [brand primary];
-     --color-action-hover:  [brand primary darker];
-     --color-action-dark:   [brand primary lighter, for dark surfaces];
-     --surface-dark:        [brand dark background, optional];
-   }
-   
-   Example — kingpin-lanes.css:
-   :root {
-     --color-action:        #22C55E;
-     --color-action-hover:  #16A34A;
-     --color-action-dark:   #4ADE80;
-     --surface-dark:        #0A1628;
-   }
-   
-   That is the entire rebrand. No component files change.
-*/

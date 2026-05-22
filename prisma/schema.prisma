@@ -73,6 +73,11 @@ enum CancellationReason {
   SYSTEM_EXPIRED
 }
 
+enum PromoDiscountType {
+  PERCENT // value 0..100, applies as a percent of subtotal
+  FIXED // value in cents, capped at subtotal
+}
+
 // ── Models ─────────────────────────────────────────────────
 
 model Tenant {
@@ -94,6 +99,7 @@ model Tenant {
   users            User[]
   operatingHours   OperatingHours[]
   blockedSlots     BlockedSlot[]
+  promoCodes       PromoCode[]
 }
 
 model User {
@@ -128,6 +134,8 @@ model Booking {
   customerEmail    String        @map("customer_email")
   customerPhone    String?       @map("customer_phone")
   totalAmount      Int           @map("total_amount")
+  discountAmount   Int           @default(0) @map("discount_amount")
+  promoCodeId      String?       @map("promo_code_id")
   notes            String?
   isRefunded       Boolean       @default(false) @map("is_refunded")
   createdAt        DateTime      @default(now()) @map("created_at")
@@ -135,6 +143,7 @@ model Booking {
   tenant           Tenant        @relation(fields: [tenantId], references: [id])
   user             User?         @relation(fields: [userId], references: [id])
   package          Package       @relation(fields: [packageId], references: [id])
+  promoCode        PromoCode?    @relation(fields: [promoCodeId], references: [id])
   lanes            BookingLane[]
   payment          Payment?
   auditLogs        AuditLog[]
@@ -264,4 +273,29 @@ model StripeEvent {
   processedAt DateTime @default(now()) @map("processed_at")
 
   @@index([type])
+}
+
+model PromoCode {
+  id            String            @id @default(cuid())
+  tenantId      String            @map("tenant_id")
+  code          String // case-insensitive uniqueness per tenant; store lowercased
+  description   String?
+  discountType  PromoDiscountType @map("discount_type")
+  /// Percent (1..100) when discountType=PERCENT, or cents (>0) when FIXED.
+  discountValue Int               @map("discount_value")
+  /// Optional max number of uses across all customers. null = unlimited.
+  maxUses       Int?              @map("max_uses")
+  /// Incremented every time a booking is created with this code.
+  usesCount     Int               @default(0) @map("uses_count")
+  /// UTC. Code rejected at or after this time. null = no expiry.
+  expiresAt     DateTime?         @map("expires_at")
+  active        Boolean           @default(true)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  bookings Booking[]
+
+  @@unique([tenantId, code])
+  @@map("promo_codes")
 }

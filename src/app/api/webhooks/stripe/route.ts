@@ -87,6 +87,32 @@ function parseBookingMetadata(
   }
 }
 
+function parsePromoFromIntentMetadata(
+  raw: Record<string, string> | null | undefined,
+): { promoCode: string | null; discountCents: number } {
+  if (!raw) return { promoCode: null, discountCents: 0 }
+  const code = raw.promoCode?.trim()
+  if (!code) return { promoCode: null, discountCents: 0 }
+  const d = Number.parseInt(raw.discountCents ?? '', 10)
+  const discountCents = Number.isFinite(d) && d > 0 ? d : 0
+  return { promoCode: code.toLowerCase(), discountCents }
+}
+
+function promoRowCanIncrement(
+  row: {
+    active: boolean
+    expiresAt: Date | null
+    maxUses: number | null
+    usesCount: number
+  },
+  now: Date,
+): boolean {
+  if (!row.active) return false
+  if (row.expiresAt != null && row.expiresAt <= now) return false
+  if (row.maxUses != null && row.usesCount >= row.maxUses) return false
+  return true
+}
+
 function generateConfirmationCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let out = ''
@@ -142,8 +168,40 @@ async function handlePaymentIntentSucceeded(
 
   const confirmationCode = generateConfirmationCode()
   const laneCount = getLaneCount(metadata.bowlerCount)
+  const rawMeta = intent.metadata as Record<string, string> | null
+  const { promoCode: metaPromoCode, discountCents: metaDiscount } =
+    parsePromoFromIntentMetadata(rawMeta)
+  const now = new Date()
 
   const booking = await prisma.$transaction(async (tx) => {
+    let promoCodeId: string | null = null
+    let discountAmount = 0
+    if (metaPromoCode != null && metaDiscount > 0) {
+      discountAmount = metaDiscount
+      const promoRow = await tx.promoCode.findUnique({
+        where: {
+          tenantId_code: {
+            tenantId: metadata.tenantId,
+            code: metaPromoCode,
+          },
+        },
+      })
+      if (
+        promoRow != null &&
+        promoRowCanIncrement(promoRow, now)
+      ) {
+        promoCodeId = promoRow.id
+        await tx.promoCode.update({
+          where: { id: promoRow.id },
+          data: { usesCount: { increment: 1 } },
+        })
+      } else {
+        console.warn(
+          `[stripe-webhook] promo "${metaPromoCode}" not applicable at capture for intent ${intent.id} — recording discount from PaymentIntent metadata`,
+        )
+      }
+    }
+
     const created = await tx.booking.create({
       data: {
         tenantId: metadata.tenantId,
@@ -160,9 +218,27 @@ async function handlePaymentIntentSucceeded(
         customerEmail: metadata.customerEmail,
         customerPhone: metadata.customerPhone || null,
         totalAmount: intent.amount,
+        discountAmount,
+        promoCodeId,
         isRefunded: false,
       },
     })
+
+    if (promoCodeId != null) {
+      await tx.auditLog.create({
+        data: {
+          bookingId: created.id,
+          userId: null,
+          action: 'BOOKING_PROMO_APPLIED',
+          entityType: 'Booking',
+          entityId: created.id,
+          details: {
+            promoCode: metaPromoCode,
+            discountCents: discountAmount,
+          },
+        },
+      })
+    }
 
     await tx.payment.create({
       data: {

@@ -10,6 +10,7 @@ import { HoldTimer } from '@/components/patterns/hold-timer'
 import { LaneAllocationView } from '@/components/patterns/lane-allocation-view'
 import { PackageListToolbar } from '@/components/patterns/package-list-toolbar'
 import { PackageCard } from '@/components/patterns/package-card'
+import { PackageDetailSheet } from '@/components/patterns/package-detail-sheet'
 import { PriceFooter } from '@/components/patterns/price-footer'
 import { useBooking } from '@/context/BookingContext'
 import { getPackagesForTenant } from '@/lib/actions/booking'
@@ -31,6 +32,7 @@ export default function PackagePage() {
   const tenant = useTenant()
   const { session, setPackage } = useBooking()
   const [packages, setPackages] = useState<Package[]>([])
+  const [detailPkg, setDetailPkg] = useState<Package | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -75,7 +77,7 @@ export default function PackagePage() {
   }, [router])
 
   const handleHoldExpired = useCallback(() => {
-    router.push('/book/time')
+    router.push('/book')
   }, [router])
 
   const packageSubtitle =
@@ -94,7 +96,7 @@ export default function PackagePage() {
     : 'Select a package to continue'
 
   if (session.timeSlotId == null) {
-    redirect('/book/time')
+    redirect('/book')
   }
 
   return (
@@ -123,9 +125,22 @@ export default function PackagePage() {
             pkg={pkg}
             selected={session.packageId === pkg.id}
             onSelect={handlePackageSelect}
+            onOpenDetails={setDetailPkg}
           />
         ))}
       </div>
+
+      <PackageDetailSheet
+        pkg={detailPkg}
+        open={detailPkg != null}
+        onClose={() => {
+          setDetailPkg(null)
+        }}
+        onSelectThisPackage={(pkg) => {
+          handlePackageSelect(pkg)
+          setDetailPkg(null)
+        }}
+      />
 
       <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
         <PriceFooter

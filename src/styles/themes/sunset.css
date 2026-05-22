@@ -1,0 +1,13 @@
+/* Sunset — coral / warm orange brand accent.
+ * Palette: Tailwind default "orange" scale (https://tailwindcss.com/docs/colors).
+ * Contrast: orange-900 (#7C2D12) on orange-100 (#FFEDD5) ≥ WCAG AA 4.5:1 for body text. */
+
+[data-theme-preset='sunset'] {
+  --color-action: #ea580c;
+  --color-action-hover: #c2410c;
+  --color-action-subtle: #fff7ed;
+  --color-action-tint: #ffedd5;
+  --color-action-text: #7c2d12;
+  --color-action-dark: #fb923c;
+  --surface-dark: #431407;
+}

@@ -110,7 +110,14 @@ export interface Payment {
   refundedBy: string | null
 }
 
-// ── Booking session (multi-step form state) ────────────────
+/** Resolved promo preview for the booking flow (matches validatePromoCode). */
+export interface PromoValidationResult {
+  code: string
+  description: string | null
+  discountType: 'PERCENT' | 'FIXED'
+  discountValue: number
+  discountCents: number
+}
 
 export interface BookingSession {
   // Step 1
@@ -141,6 +148,8 @@ export interface BookingSession {
   stripeClientSecret: string | null
   /** Stripe PaymentIntent id. Kept for client-side confirm + retry. */
   stripePaymentIntentId: string | null
+  /** Applied promo preview; null until validated via applyPromoCode. */
+  promoCode: PromoValidationResult | null
 }
 
 // ── Availability ───────────────────────────────────────────
@@ -151,6 +160,10 @@ export interface TimeSlot {
   endTime: Date
   available: boolean
   laneNumbers: number[]
+  /** Unreserved lanes for this interval (see `.claude/BOOKING_DOMAIN.md` — Availability logic). */
+  lanesFree: number
+  /** `floor(lanesFree / laneCount)` for this request; 0 when the slot is full. */
+  spotsRemaining: number
 }
 
 // ── Pricing ────────────────────────────────────────────────

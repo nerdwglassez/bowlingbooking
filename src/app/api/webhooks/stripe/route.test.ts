@@ -8,11 +8,16 @@ const mocks = vi.hoisted(() => {
   const paymentUpdate = vi.fn()
   const bookingUpdate = vi.fn()
   const bookingHoldDeleteMany = vi.fn()
+  const promoFindUnique = vi.fn()
+  const promoUpdate = vi.fn()
+  const auditCreate = vi.fn()
 
   const txStub = {
     booking: { create: bookingCreate, update: bookingUpdate },
     payment: { create: paymentCreate, update: paymentUpdate },
     bookingHold: { deleteMany: bookingHoldDeleteMany },
+    promoCode: { findUnique: promoFindUnique, update: promoUpdate },
+    auditLog: { create: auditCreate },
   }
 
   return {
@@ -23,6 +28,9 @@ const mocks = vi.hoisted(() => {
     paymentUpdate,
     bookingUpdate,
     bookingHoldDeleteMany,
+    promoFindUnique,
+    promoUpdate,
+    auditCreate,
     constructWebhookEventMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
     getTenantMock: vi.fn(async () => ({
@@ -109,8 +117,14 @@ beforeEach(() => {
         booking: { create: mocks.bookingCreate, update: mocks.bookingUpdate },
         payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
         bookingHold: { deleteMany: mocks.bookingHoldDeleteMany },
+        promoCode: {
+          findUnique: mocks.promoFindUnique,
+          update: mocks.promoUpdate,
+        },
+        auditLog: { create: mocks.auditCreate },
       } as Parameters<typeof fn>[0]),
   )
+  mocks.promoFindUnique.mockResolvedValue(null)
   mocks.bookingCreate.mockResolvedValue({
     id: 'bk_1',
     confirmationCode: 'ABC123',
@@ -161,6 +175,8 @@ describe('POST /api/webhooks/stripe', () => {
         bowlerCount: 6,
         laneCount: 1,
         totalAmount: 4500,
+        discountAmount: 0,
+        promoCodeId: null,
         customerEmail: 'jane@example.com',
       }),
     })
@@ -178,6 +194,53 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'jane@example.com' }),
     )
+  })
+
+  it('links valid promo, increments uses, and writes BOOKING_PROMO_APPLIED audit', async () => {
+    const meta = {
+      ...validMetadata,
+      promoCode: 'summer',
+      discountCents: '500',
+    }
+    const evt = {
+      id: 'evt_promo',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_promo',
+          amount: 4000,
+          status: 'succeeded',
+          metadata: meta,
+        },
+      },
+    }
+    mocks.constructWebhookEventMock.mockReturnValue(evt)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.promoFindUnique.mockResolvedValue({
+      id: 'promo_1',
+      active: true,
+      expiresAt: null,
+      maxUses: null,
+      usesCount: 0,
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        totalAmount: 4000,
+        discountAmount: 500,
+        promoCodeId: 'promo_1',
+      }),
+    })
+    expect(mocks.promoUpdate).toHaveBeenCalledWith({
+      where: { id: 'promo_1' },
+      data: { usesCount: { increment: 1 } },
+    })
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'BOOKING_PROMO_APPLIED' }),
+    })
   })
 
   it('returns duplicate:true on Stripe event re-delivery', async () => {

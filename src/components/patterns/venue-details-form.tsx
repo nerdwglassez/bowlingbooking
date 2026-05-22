@@ -7,14 +7,18 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { getThemePreset, THEME_PRESETS } from '@/lib/themes'
 
 export interface VenueDetailsFormValues {
   name: string
   address: string
   phone: string
   timezone: string
+  themeSlug: string
   holdTimeoutMins: number
   maxOnlineBowlers: number
+  cancellationWindowHours: number
+  cancellationRefundPercent: number
 }
 
 export interface VenueDetailsFormProps {
@@ -47,6 +51,8 @@ export function VenueDetailsForm({
   function patch(update: Partial<VenueDetailsFormValues>) {
     onChange({ ...values, ...update })
   }
+
+  const selectedPreset = getThemePreset(values.themeSlug)
 
   return (
     <form
@@ -144,6 +150,95 @@ export function VenueDetailsForm({
           Groups over the max are prompted to call. Hold timeout drives the
           countdown shown on step 3 of the customer flow.
         </p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-[var(--color-text-secondary)]">
+              Cancellation window (hours before)
+            </span>
+            <Input
+              type="number"
+              min={0}
+              max={240}
+              step={1}
+              value={values.cancellationWindowHours}
+              onChange={(e) =>
+                patch({
+                  cancellationWindowHours: Math.max(
+                    0,
+                    Math.floor(Number(e.target.value) || 0),
+                  ),
+                })
+              }
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-[var(--color-text-secondary)]">
+              Refund percent within window
+            </span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={values.cancellationRefundPercent}
+              onChange={(e) =>
+                patch({
+                  cancellationRefundPercent: Math.max(
+                    0,
+                    Math.min(100, Math.floor(Number(e.target.value) || 0)),
+                  ),
+                })
+              }
+              required
+            />
+          </label>
+        </div>
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Customers cancelling before the window receive the configured refund
+          percent. Outside the window, no refund is issued. Setting hours = 0
+          disables cancellation refunds entirely.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
+        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+          Branding
+        </h2>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[var(--color-text-secondary)]">Theme preset</span>
+          <Select
+            value={values.themeSlug}
+            onChange={(e) => patch({ themeSlug: e.target.value })}
+          >
+            {THEME_PRESETS.map((p) => (
+              <option key={p.slug} value={p.slug}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <div className="flex items-start gap-3 text-sm">
+          <span
+            className="mt-0.5 shrink-0 rounded-[var(--radius-sm)] border border-solid border-[var(--color-border)]"
+            style={{
+              width: '1rem',
+              height: '1rem',
+              backgroundColor: selectedPreset.swatchHex,
+            }}
+            aria-hidden
+          />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-[var(--color-text-primary)]">
+              {selectedPreset.name}
+            </span>
+            {selectedPreset.description ? (
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                {selectedPreset.description}
+              </span>
+            ) : null}
+          </div>
+        </div>
       </section>
 
       {error ? (

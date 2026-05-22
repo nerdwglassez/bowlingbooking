@@ -66,6 +66,15 @@ const eslintConfig = defineConfig([
       'no-restricted-syntax': 'off',
     },
   },
+  {
+    // Theme preset registry: swatchHex is admin-only metadata for the venue
+    // picker (runtime CSS lives in src/styles/themes/*.css).
+    name: 'royalz/theme-swatch-metadata-exception',
+    files: ['src/lib/themes.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
   globalIgnores([
     '.next/**',
     'out/**',

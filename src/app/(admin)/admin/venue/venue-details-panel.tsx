@@ -23,8 +23,11 @@ export function VenueDetailsPanel({
     address: initial.address,
     phone: initial.phone,
     timezone: initial.timezone,
+    themeSlug: initial.themeSlug,
     holdTimeoutMins: initial.holdTimeoutMins,
     maxOnlineBowlers: initial.maxOnlineBowlers,
+    cancellationWindowHours: initial.cancellationWindowHours,
+    cancellationRefundPercent: initial.cancellationRefundPercent,
   })
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)

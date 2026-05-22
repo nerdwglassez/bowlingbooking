@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const tenantUpdate = vi.fn()
@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => {
   const hoursFindMany = vi.fn()
   const packageCreate = vi.fn()
   const packageUpdate = vi.fn()
+  const promoFindMany = vi.fn()
+  const promoFindFirst = vi.fn()
+  const promoFindUnique = vi.fn()
+  const promoCreate = vi.fn()
+  const promoUpdate = vi.fn()
   const packageFindMany = vi.fn()
   const packageFindUnique = vi.fn()
   const userCreate = vi.fn()
@@ -17,15 +22,26 @@ const mocks = vi.hoisted(() => {
   const auditCreate = vi.fn()
   const auditFindMany = vi.fn()
   const auditCount = vi.fn()
+  const bookingFindMany = vi.fn()
+  const paymentAggregate = vi.fn()
   const txStub = {
-    tenant: { update: tenantUpdate },
+    tenant: { update: tenantUpdate, findUnique: tenantFindUnique },
     operatingHours: {
       deleteMany: hoursDeleteMany,
       createMany: hoursCreateMany,
     },
     package: { create: packageCreate, update: packageUpdate },
+    promoCode: {
+      findMany: promoFindMany,
+      findFirst: promoFindFirst,
+      findUnique: promoFindUnique,
+      create: promoCreate,
+      update: promoUpdate,
+    },
     user: { create: userCreate, update: userUpdate },
     auditLog: { create: auditCreate },
+    booking: { findMany: bookingFindMany },
+    payment: { aggregate: paymentAggregate },
   }
   return {
     requireRoleMock: vi.fn(),
@@ -39,6 +55,11 @@ const mocks = vi.hoisted(() => {
     hoursFindMany,
     packageCreate,
     packageUpdate,
+    promoFindMany,
+    promoFindFirst,
+    promoFindUnique,
+    promoCreate,
+    promoUpdate,
     packageFindMany,
     packageFindUnique,
     userCreate,
@@ -48,6 +69,8 @@ const mocks = vi.hoisted(() => {
     auditCreate,
     auditFindMany,
     auditCount,
+    bookingFindMany,
+    paymentAggregate,
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
@@ -84,6 +107,13 @@ vi.mock('@/lib/prisma', () => ({
       findMany: mocks.auditFindMany,
       count: mocks.auditCount,
     },
+    promoCode: {
+      findMany: mocks.promoFindMany,
+      findFirst: mocks.promoFindFirst,
+      findUnique: mocks.promoFindUnique,
+      create: mocks.promoCreate,
+      update: mocks.promoUpdate,
+    },
     $transaction: mocks.txMock,
   },
 }))
@@ -91,16 +121,22 @@ vi.mock('@/lib/prisma', () => ({
 import {
   archivePackageAction,
   createPackageAction,
+  createPromoAction,
   createTeamUserAction,
+  deactivatePromoAction,
   deactivateTeamUserAction,
   getOperatingHours,
+  getPromoForAdmin,
+  getReportsSummary,
   getTenantForAdmin,
   listAuditLogs,
   listPackagesForAdmin,
+  listPromosForAdmin,
   listTeamForAdmin,
   resetUserPasswordAction,
   updateOperatingHoursAction,
   updatePackageAction,
+  updatePromoAction,
   updateTeamUserAction,
   updateTenantAction,
 } from './admin'
@@ -143,7 +179,10 @@ beforeEach(() => {
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
-        tenant: { update: mocks.tenantUpdate },
+        tenant: {
+          update: mocks.tenantUpdate,
+          findUnique: mocks.tenantFindUnique,
+        },
         operatingHours: {
           deleteMany: mocks.hoursDeleteMany,
           createMany: mocks.hoursCreateMany,
@@ -152,10 +191,21 @@ beforeEach(() => {
           create: mocks.packageCreate,
           update: mocks.packageUpdate,
         },
+        promoCode: {
+          findMany: mocks.promoFindMany,
+          findFirst: mocks.promoFindFirst,
+          findUnique: mocks.promoFindUnique,
+          create: mocks.promoCreate,
+          update: mocks.promoUpdate,
+        },
         user: { create: mocks.userCreate, update: mocks.userUpdate },
         auditLog: { create: mocks.auditCreate },
+        booking: { findMany: mocks.bookingFindMany },
+        payment: { aggregate: mocks.paymentAggregate },
       } as Parameters<typeof fn>[0]),
   )
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.paymentAggregate.mockResolvedValue({ _sum: { refundAmount: null } })
 })
 
 describe('admin actions: role gating', () => {
@@ -163,12 +213,14 @@ describe('admin actions: role gating', () => {
     mocks.tenantFindUnique.mockResolvedValue(null)
     mocks.hoursFindMany.mockResolvedValue([])
     mocks.packageFindMany.mockResolvedValue([])
+    mocks.promoFindMany.mockResolvedValue([])
     mocks.userFindMany.mockResolvedValue([])
     await getTenantForAdmin('t1')
     await getOperatingHours('t1')
     await listPackagesForAdmin('t1')
+    await listPromosForAdmin('t1')
     await listTeamForAdmin('t1')
-    expect(mocks.requireRoleMock).toHaveBeenCalledTimes(4)
+    expect(mocks.requireRoleMock).toHaveBeenCalledTimes(5)
     for (const call of mocks.requireRoleMock.mock.calls) {
       expect(call).toEqual(['MANAGER', 'ADMIN'])
     }
@@ -176,81 +228,113 @@ describe('admin actions: role gating', () => {
 })
 
 describe('updateTenantAction', () => {
+  const baseInput = {
+    tenantId: 't1',
+    name: 'X',
+    address: 'a',
+    phone: 'p',
+    timezone: 'America/New_York',
+    themeSlug: 'default',
+    holdTimeoutMins: 10,
+    maxOnlineBowlers: 18,
+    cancellationWindowHours: 24,
+    cancellationRefundPercent: 100,
+  }
+
   it('rejects empty name', async () => {
     await expect(
-      updateTenantAction({
-        tenantId: 't1',
-        name: '   ',
-        address: 'a',
-        phone: 'p',
-        timezone: 'America/New_York',
-        holdTimeoutMins: 10,
-        maxOnlineBowlers: 18,
-      }),
+      updateTenantAction({ ...baseInput, name: '   ' }),
     ).rejects.toThrow(/name/i)
   })
 
   it('rejects out-of-range holdTimeoutMins', async () => {
     await expect(
-      updateTenantAction({
-        tenantId: 't1',
-        name: 'X',
-        address: 'a',
-        phone: 'p',
-        timezone: 'America/New_York',
-        holdTimeoutMins: 0,
-        maxOnlineBowlers: 18,
-      }),
+      updateTenantAction({ ...baseInput, holdTimeoutMins: 0 }),
     ).rejects.toThrow(/holdTimeoutMins/i)
   })
 
   it('rejects maxOnlineBowlers > 36', async () => {
     await expect(
-      updateTenantAction({
-        tenantId: 't1',
-        name: 'X',
-        address: 'a',
-        phone: 'p',
-        timezone: 'America/New_York',
-        holdTimeoutMins: 10,
-        maxOnlineBowlers: 100,
-      }),
+      updateTenantAction({ ...baseInput, maxOnlineBowlers: 100 }),
     ).rejects.toThrow(/maxOnlineBowlers/i)
+  })
+
+  it('rejects negative cancellationWindowHours', async () => {
+    await expect(
+      updateTenantAction({ ...baseInput, cancellationWindowHours: -1 }),
+    ).rejects.toThrow(/cancellationWindowHours/i)
+  })
+
+  it('rejects cancellationWindowHours > 240', async () => {
+    await expect(
+      updateTenantAction({ ...baseInput, cancellationWindowHours: 999 }),
+    ).rejects.toThrow(/cancellationWindowHours/i)
+  })
+
+  it('rejects cancellationRefundPercent outside 0..100', async () => {
+    await expect(
+      updateTenantAction({ ...baseInput, cancellationRefundPercent: 150 }),
+    ).rejects.toThrow(/cancellationRefundPercent/i)
+    await expect(
+      updateTenantAction({ ...baseInput, cancellationRefundPercent: -5 }),
+    ).rejects.toThrow(/cancellationRefundPercent/i)
+  })
+
+  it('rejects non-integer policy values', async () => {
+    await expect(
+      updateTenantAction({ ...baseInput, cancellationWindowHours: 24.5 }),
+    ).rejects.toThrow(/cancellationWindowHours/i)
+    await expect(
+      updateTenantAction({ ...baseInput, cancellationRefundPercent: 50.5 }),
+    ).rejects.toThrow(/cancellationRefundPercent/i)
+  })
+
+  it('rejects unknown theme slug', async () => {
+    await expect(
+      updateTenantAction({ ...baseInput, themeSlug: 'not-a-real-preset' }),
+    ).rejects.toThrow(/themeSlug/i)
   })
 
   it('returns mocked result in dev-without-db', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
-    const r = await updateTenantAction({
-      tenantId: 't1',
-      name: 'X',
-      address: 'a',
-      phone: 'p',
-      timezone: 'America/New_York',
-      holdTimeoutMins: 10,
-      maxOnlineBowlers: 18,
-    })
+    const r = await updateTenantAction({ ...baseInput })
     expect(r.mocked).toBe(true)
     expect(mocks.tenantUpdate).not.toHaveBeenCalled()
   })
 
-  it('writes the Tenant + AuditLog rows', async () => {
+  it('writes the Tenant + AuditLog rows, merging cancellation policy into config', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({
+      config: {
+        otherFutureKey: 'preserved',
+        cancellationWindowHours: 12,
+      },
+    })
     mocks.tenantUpdate.mockResolvedValue({})
     await updateTenantAction({
-      tenantId: 't1',
+      ...baseInput,
       name: '  New Name  ',
       address: 'New addr',
       phone: '(555)',
       timezone: 'America/Chicago',
+      themeSlug: 'midnight',
       holdTimeoutMins: 15,
       maxOnlineBowlers: 24,
+      cancellationWindowHours: 48,
+      cancellationRefundPercent: 75,
     })
     expect(mocks.tenantUpdate).toHaveBeenCalledWith({
       where: { id: 't1' },
       data: expect.objectContaining({
         name: 'New Name',
         timezone: 'America/Chicago',
+        themeSlug: 'midnight',
         holdTimeoutMins: 15,
         maxOnlineBowlers: 24,
+        config: {
+          otherFutureKey: 'preserved',
+          cancellationWindowHours: 48,
+          cancellationRefundPercent: 75,
+        },
       }),
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
@@ -259,8 +343,108 @@ describe('updateTenantAction', () => {
         action: 'TENANT_UPDATED',
         entityType: 'Tenant',
         entityId: 't1',
+        details: expect.objectContaining({
+          themeSlug: 'midnight',
+          cancellationWindowHours: 48,
+          cancellationRefundPercent: 75,
+        }),
       }),
     })
+  })
+
+  it('writes themeSlug to Tenant column and audit details', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ config: {} })
+    mocks.tenantUpdate.mockResolvedValue({})
+    await updateTenantAction({ ...baseInput, themeSlug: 'sunset' })
+    expect(mocks.tenantUpdate).toHaveBeenCalledWith({
+      where: { id: 't1' },
+      data: expect.objectContaining({ themeSlug: 'sunset' }),
+    })
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        details: expect.objectContaining({ themeSlug: 'sunset' }),
+      }),
+    })
+  })
+
+  it('writes default config when no prior config row exists', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ config: null })
+    mocks.tenantUpdate.mockResolvedValue({})
+    await updateTenantAction({ ...baseInput })
+    expect(mocks.tenantUpdate).toHaveBeenCalledWith({
+      where: { id: 't1' },
+      data: expect.objectContaining({
+        config: {
+          cancellationWindowHours: 24,
+          cancellationRefundPercent: 100,
+        },
+      }),
+    })
+  })
+})
+
+describe('getTenantForAdmin', () => {
+  it('returns defaulted cancellation policy when Tenant.config is missing keys', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(false)
+    mocks.tenantFindUnique.mockResolvedValue({
+      id: 't1',
+      name: 'X',
+      slug: 'x',
+      address: 'a',
+      phone: 'p',
+      timezone: 'America/New_York',
+      themeSlug: 'default',
+      holdTimeoutMins: 10,
+      maxOnlineBowlers: 18,
+      config: null,
+    })
+    const out = await getTenantForAdmin('t1')
+    expect(out?.cancellationWindowHours).toBe(24)
+    expect(out?.cancellationRefundPercent).toBe(100)
+  })
+
+  it('returns cancellation policy values from Tenant.config when present', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(false)
+    mocks.tenantFindUnique.mockResolvedValue({
+      id: 't1',
+      name: 'X',
+      slug: 'x',
+      address: 'a',
+      phone: 'p',
+      timezone: 'America/New_York',
+      themeSlug: 'default',
+      holdTimeoutMins: 10,
+      maxOnlineBowlers: 18,
+      config: {
+        cancellationWindowHours: 12,
+        cancellationRefundPercent: 50,
+      },
+    })
+    const out = await getTenantForAdmin('t1')
+    expect(out?.cancellationWindowHours).toBe(12)
+    expect(out?.cancellationRefundPercent).toBe(50)
+  })
+
+  it('ignores out-of-range policy values in config and falls back to defaults', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(false)
+    mocks.tenantFindUnique.mockResolvedValue({
+      id: 't1',
+      name: 'X',
+      slug: 'x',
+      address: 'a',
+      phone: 'p',
+      timezone: 'America/New_York',
+      themeSlug: 'default',
+      holdTimeoutMins: 10,
+      maxOnlineBowlers: 18,
+      config: {
+        cancellationWindowHours: -5,
+        cancellationRefundPercent: 200,
+      },
+    })
+    const out = await getTenantForAdmin('t1')
+    expect(out?.cancellationWindowHours).toBe(24)
+    expect(out?.cancellationRefundPercent).toBe(100)
   })
 })
 
@@ -787,5 +971,265 @@ describe('listAuditLogs', () => {
         where: expect.objectContaining({ userId: 'u_filter' }),
       }),
     )
+  })
+})
+
+describe('getReportsSummary', () => {
+  let reportsAuthUser: ReturnType<typeof adminUser> | ReturnType<typeof managerUser> | ReturnType<typeof staffUser> | null
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: new Date('2026-06-01T12:00:00.000Z') })
+    reportsAuthUser = adminUser()
+    mocks.requireRoleMock.mockImplementation(async (...allowed: string[]) => {
+      if (reportsAuthUser === null) {
+        throw new Error('__redirect:/signin')
+      }
+      if (!allowed.includes(reportsAuthUser.role)) {
+        throw new Error('__unauthorized')
+      }
+      return reportsAuthUser
+    })
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.paymentAggregate.mockResolvedValue({ _sum: { refundAmount: null } })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('rejects when unauthenticated (requireRole)', async () => {
+    reportsAuthUser = null
+    await expect(getReportsSummary('t1', '30d')).rejects.toThrow('__redirect')
+  })
+
+  it('rejects for MANAGER role (ADMIN-only)', async () => {
+    reportsAuthUser = managerUser()
+    await expect(getReportsSummary('t1', '30d')).rejects.toThrow('__unauthorized')
+  })
+
+  it('rejects for STAFF role', async () => {
+    reportsAuthUser = staffUser()
+    await expect(getReportsSummary('t1', '30d')).rejects.toThrow('__unauthorized')
+  })
+
+  it('calls requireRole with ADMIN for ADMIN user', async () => {
+    reportsAuthUser = adminUser()
+    await getReportsSummary('t1', '30d')
+    expect(mocks.requireRoleMock).toHaveBeenCalledWith('ADMIN')
+  })
+
+  it('returns deterministic mock summary in dev-without-db', async () => {
+    reportsAuthUser = adminUser()
+    mocks.isDevWithoutDbMock.mockReturnValue(true)
+    const s = await getReportsSummary('tenant_dev_mock', '30d')
+    expect(s.range).toBe('30d')
+    expect(s.daily.length).toBe(30)
+    expect(s.topPackages).toHaveLength(5)
+    expect(s.kpi.bookingCount).toBeGreaterThan(0)
+    expect(mocks.txMock).not.toHaveBeenCalled()
+  })
+
+  it("maps invalid range input to '30d'", async () => {
+    reportsAuthUser = adminUser()
+    mocks.isDevWithoutDbMock.mockReturnValue(true)
+    const s = await getReportsSummary('t1', 'nope')
+    expect(s.range).toBe('30d')
+  })
+
+  it('aggregates daily revenue and counts from Prisma rows', async () => {
+    reportsAuthUser = adminUser()
+    mocks.bookingFindMany.mockResolvedValue([
+      {
+        id: 'b1',
+        startTime: new Date('2026-05-15T18:00:00.000Z'),
+        totalAmount: 4000,
+        status: 'CONFIRMED',
+        packageId: 'p1',
+        payment: { status: 'succeeded' },
+        package: { id: 'p1', name: 'Pkg A' },
+      },
+      {
+        id: 'b2',
+        startTime: new Date('2026-05-15T20:00:00.000Z'),
+        totalAmount: 5000,
+        status: 'COMPLETED',
+        packageId: 'p1',
+        payment: { status: 'cash' },
+        package: { id: 'p1', name: 'Pkg A' },
+      },
+      {
+        id: 'b3',
+        startTime: new Date('2026-05-20T10:00:00.000Z'),
+        totalAmount: 3000,
+        status: 'CONFIRMED',
+        packageId: 'p2',
+        payment: { status: 'succeeded' },
+        package: { id: 'p2', name: 'Pkg B' },
+      },
+      {
+        id: 'b_unpaid',
+        startTime: new Date('2026-05-16T10:00:00.000Z'),
+        totalAmount: 9999,
+        status: 'CONFIRMED',
+        packageId: 'p9',
+        payment: { status: 'requires_payment_method' },
+        package: { id: 'p9', name: 'Ghost' },
+      },
+    ])
+    mocks.paymentAggregate.mockResolvedValue({ _sum: { refundAmount: 1500 } })
+
+    const s = await getReportsSummary('t1', '30d')
+
+    expect(s.kpi.grossRevenueCents).toBe(4000 + 5000 + 3000)
+    expect(s.kpi.bookingCount).toBe(3)
+    expect(s.kpi.refundTotalCents).toBe(1500)
+    expect(s.kpi.averageBookingCents).toBe(Math.floor(12_000 / 3))
+
+    const may15 = s.daily.find((d) => d.date === '2026-05-15')
+    expect(may15?.revenueCents).toBe(9000)
+    expect(may15?.bookingCount).toBe(2)
+
+    const may20 = s.daily.find((d) => d.date === '2026-05-20')
+    expect(may20?.revenueCents).toBe(3000)
+    expect(may20?.bookingCount).toBe(1)
+  })
+
+  it('ranks top packages by revenue and caps at five', async () => {
+    reportsAuthUser = adminUser()
+    const rows = [1, 2, 3, 4, 5, 6].map((i) => ({
+      id: `b_${i}`,
+      startTime: new Date('2026-05-28T12:00:00.000Z'),
+      totalAmount: i * 1000,
+      status: 'CONFIRMED' as const,
+      packageId: `p_${i}`,
+      payment: { status: 'succeeded' as const },
+      package: { id: `p_${i}`, name: `Package ${i}` },
+    }))
+    mocks.bookingFindMany.mockResolvedValue(rows)
+
+    const s = await getReportsSummary('t1', '7d')
+
+    expect(s.topPackages).toHaveLength(5)
+    expect(s.topPackages[0].packageId).toBe('p_6')
+    expect(s.topPackages[0].revenueCents).toBe(6000)
+    expect(s.topPackages[4].packageId).toBe('p_2')
+  })
+
+  it('returns zeros for KPIs and filled daily zeros when there are no paid bookings', async () => {
+    reportsAuthUser = adminUser()
+    mocks.bookingFindMany.mockResolvedValue([
+      {
+        id: 'b_hold',
+        startTime: new Date('2026-05-30T12:00:00.000Z'),
+        totalAmount: 100,
+        status: 'CANCELLED',
+        packageId: 'p1',
+        payment: null,
+        package: { id: 'p1', name: 'X' },
+      },
+    ])
+    mocks.paymentAggregate.mockResolvedValue({ _sum: { refundAmount: null } })
+
+    const s = await getReportsSummary('t1', '7d')
+
+    expect(s.kpi.grossRevenueCents).toBe(0)
+    expect(s.kpi.bookingCount).toBe(0)
+    expect(s.kpi.refundTotalCents).toBe(0)
+    expect(s.kpi.averageBookingCents).toBe(0)
+    expect(s.topPackages).toHaveLength(0)
+    expect(s.daily.every((d) => d.revenueCents === 0 && d.bookingCount === 0)).toBe(
+      true,
+    )
+  })
+})
+
+describe('promo admin actions', () => {
+  const baseInput = {
+    tenantId: 't1',
+    code: 'SAVE10',
+    description: 'Save',
+    discountType: 'PERCENT' as const,
+    discountValue: 10,
+    maxUses: null as number | null,
+    expiresAt: null as Date | null,
+  }
+
+  it('rejects STAFF for listPromosForAdmin', async () => {
+    mocks.requireRoleMock.mockRejectedValueOnce(new Error('__unauthorized'))
+    await expect(listPromosForAdmin('t1')).rejects.toThrow('__unauthorized')
+  })
+
+  it('listPromosForAdmin reads from prisma', async () => {
+    mocks.promoFindMany.mockResolvedValue([])
+    const rows = await listPromosForAdmin('t1')
+    expect(rows).toEqual([])
+    expect(mocks.promoFindMany).toHaveBeenCalled()
+  })
+
+  it('getPromoForAdmin returns null when missing', async () => {
+    mocks.promoFindUnique.mockResolvedValue(null)
+    const row = await getPromoForAdmin('missing')
+    expect(row).toBeNull()
+  })
+
+  it('createPromoAction writes audit in transaction', async () => {
+    mocks.promoFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+    mocks.promoCreate.mockResolvedValue({ id: 'promo_new' })
+    const result = await createPromoAction(baseInput)
+    expect(result.id).toBe('promo_new')
+    expect(result.mocked).toBe(false)
+    expect(mocks.promoCreate).toHaveBeenCalled()
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'PROMO_CREATED' }),
+    })
+  })
+
+  it('createPromoAction rejects duplicate active code', async () => {
+    mocks.promoFindFirst.mockResolvedValue({ id: 'x', active: true })
+    await expect(createPromoAction(baseInput)).rejects.toThrow(/already exists/i)
+  })
+
+  it('createPromoAction rejects inactive code collision', async () => {
+    mocks.promoFindFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'x', active: false })
+    await expect(createPromoAction(baseInput)).rejects.toThrow(/inactive/i)
+  })
+
+  it('createPromoAction validates code pattern', async () => {
+    await expect(
+      createPromoAction({ ...baseInput, code: 'ab' }),
+    ).rejects.toThrow(/promo:/i)
+  })
+
+  it('createPromoAction returns mocked in dev-without-db', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(true)
+    const result = await createPromoAction(baseInput)
+    expect(result.mocked).toBe(true)
+    expect(mocks.promoCreate).not.toHaveBeenCalled()
+  })
+
+  it('updatePromoAction writes PROMO_UPDATED audit', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(false)
+    mocks.promoFindUnique.mockResolvedValue({
+      id: 'p1',
+      tenantId: 't1',
+    })
+    await updatePromoAction({ ...baseInput, id: 'p1', code: 'OTHER' })
+    expect(mocks.promoUpdate).toHaveBeenCalled()
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'PROMO_UPDATED' }),
+    })
+  })
+
+  it('deactivatePromoAction sets active false and audits', async () => {
+    await deactivatePromoAction('p1')
+    expect(mocks.promoUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { active: false },
+    })
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'PROMO_DEACTIVATED' }),
+    })
   })
 })

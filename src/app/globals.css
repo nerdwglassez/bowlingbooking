@@ -15,6 +15,8 @@
 @import 'tailwindcss';
 @import '../styles/tokens.css';
 @import '../styles/themes/default.css';
+@import '../styles/themes/midnight.css';
+@import '../styles/themes/sunset.css';
 
 html,
 body {

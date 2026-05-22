@@ -66,6 +66,19 @@ npm ci
 
 2. **Provision Postgres** and set `DATABASE_URL` in the deployment environment (see §1 for URL shape).
 
+   **Schema changes:** When `prisma/schema.prisma` gains new models (e.g. promo codes), generate SQL on a dev machine with a real database, commit the folder, then deploy:
+
+   ```bash
+   # Prisma CLI reads `.env` by default; Next.js reads `.env.local`. Either copy
+   # DATABASE_URL into `.env`, or load local env first:
+   set -a && source .env.local && set +a
+   npx prisma migrate dev --name add-promo-codes
+   ```
+
+   (Use a descriptive `--name` per change.) Commit `prisma/migrations/`. Staging/production still run **`npx prisma migrate deploy`** only — never `migrate dev` on prod.
+
+   **Wrong schema on the database:** If `migrate dev` reports drift from tables like `discount_codes` / `settings`, the `DATABASE_URL` points at a **non–royalz-lanes** database (e.g. an old prototype). Use a **fresh Neon branch/database** for this app, or run `npx prisma migrate reset` on a **dev-only** database (destroys all data). Initial baseline migration: `prisma/migrations/20260522120000_init_royalz_lanes/`.
+
 3. **Apply migrations** (production — **never** `migrate dev` on prod):
 
 ```bash
@@ -153,14 +166,15 @@ Use Stripe **test** mode keys on a staging hostname first if possible; same step
 2. Visit **`/signin?from=/admin`** (or open **`/admin`** first, then sign in). Sign in as the seeded admin → you should land on **`/admin`** with the admin shell.
 3. While signed in as that admin, open **`/staff`** — **`requireRole('STAFF','MANAGER','ADMIN')`** allows **`ADMIN`**; you should see the staff cockpit.
 4. Complete a **test booking** using card **`4242 4242 4242 4242`** (any future expiry, any CVC).
-5. In Stripe Dashboard → **Developers → Events**, confirm **`payment_intent.succeeded`** delivered **200** to your endpoint; check app logs for `[stripe-webhook]` lines on failure.
-6. Confirm the **booking confirmation email** arrived (inbox or Resend dashboard).
-7. Open **`/staff/bookings/[id]`** for that booking (navigate from staff UI). As **`MANAGER`** or **`ADMIN`** (seeded admin qualifies), issue a **refund**. UI should show refund **pending** first.
-8. Confirm **`charge.refunded`** webhook fired and **`Payment.refundStatus`** moved to **`SUCCEEDED`** (and booking cancelled / refunded flags per webhook).
-9. Visit **`/find-my-booking`**, enter the **confirmation code** and **customer email** from the booking.
-10. Confirm the booking detail loads and **cancel** is available when policy allows.
-11. Create a **second** test booking; use **`/find-my-booking`** to **cancel** that one (leave the refunded booking alone).
-12. Confirm **cancellation email** in Resend/inbox; if a refund applies, Stripe refund + **`charge.refunded`** should move status from **pending** to **succeeded** as in step 8.
+5. **Promo code E2E:** In **`/admin/promos`**, create an active promo; run checkout again and apply the code on the confirm step; confirm Stripe charged the discounted amount and the booking row shows **`discount_amount`** (and **`promo_code_id`** when the code was still valid when the webhook ran).
+6. In Stripe Dashboard → **Developers → Events**, confirm **`payment_intent.succeeded`** delivered **200** to your endpoint; check app logs for `[stripe-webhook]` lines on failure.
+7. Confirm the **booking confirmation email** arrived (inbox or Resend dashboard).
+8. Open **`/staff/bookings/[id]`** for that booking (navigate from staff UI). As **`MANAGER`** or **`ADMIN`** (seeded admin qualifies), issue a **refund**. UI should show refund **pending** first.
+9. Confirm **`charge.refunded`** webhook fired and **`Payment.refundStatus`** moved to **`SUCCEEDED`** (and booking cancelled / refunded flags per webhook).
+10. Visit **`/find-my-booking`**, enter the **confirmation code** and **customer email** from the booking.
+11. Confirm the booking detail loads and **cancel** is available when policy allows.
+12. Create a **second** test booking; use **`/find-my-booking`** to **cancel** that one (leave the refunded booking alone).
+13. Confirm **cancellation email** in Resend/inbox; if a refund applies, Stripe refund + **`charge.refunded`** should move status from **pending** to **succeeded** as in step 9.
 
 **Lookup rules:** Email is compared **case-insensitively** (normalized to lowercase); confirmation code is normalized to **uppercase** for the DB match (`src/lib/actions/customer.ts`).
 
@@ -199,18 +213,43 @@ Use Stripe **test** mode keys on a staging hostname first if possible; same step
 
 ---
 
-## 8. Known gaps (Phase 11+)
+## 8. Sentry / error monitoring
 
-- **No error monitoring** is wired. Failures surface in **server logs** only. Add Sentry (or similar) before scaling traffic.
+Sentry is wired (Phase 11). Without a DSN, the observability wrapper is a console-logging no-op and production emits a one-shot warning.
+
+### Setup
+
+1. Create a Sentry project at https://sentry.io. Pick "Next.js" as the platform.
+2. Copy the **DSN** from Project Settings → Client Keys. Set `NEXT_PUBLIC_SENTRY_DSN` in the production environment.
+3. (Optional, recommended) For readable stack traces, generate an internal-integration auth token with the `project:releases` scope at https://sentry.io/settings/account/api/auth-tokens/. Set in CI only:
+   - `SENTRY_AUTH_TOKEN`
+   - `SENTRY_ORG` (slug)
+   - `SENTRY_PROJECT` (slug)
+4. Verify locally by setting `NEXT_PUBLIC_SENTRY_DSN` in `.env.local`, then trigger an error (e.g. visit `/api/bookings/x/ics?email=y` and check Sentry's Issues page).
+
+### Code conventions
+
+- **Application code** imports `captureException` / `captureMessage` / `withObservability` from `@/lib/observability` — never `@sentry/nextjs` directly. The drift sentinel enforces this.
+- **SDK init files** (`sentry.server.config.ts`, `sentry.edge.config.ts`, `instrumentation-client.ts`, `instrumentation.ts`) are the only places that may import the Sentry SDK directly.
+- **`app/global-error.tsx`** captures unhandled client React errors via the wrapper.
+
+### Tuning
+
+- `tracesSampleRate` is **0** in v1 (no performance traces). Bump to `0.1` once Sentry usage stabilizes and you want span data.
+- Session Replay is **off**. Turn on in `instrumentation-client.ts` after reviewing the privacy implications (replays capture user input).
+
+## 9. Known gaps (Phase 12+)
+
 - **No in-app rate limiting** on `/find-my-booking` lookup — put **WAF / reverse-proxy rate limits** in front of production.
 - **No customer accounts** — lookup is **confirmation code + email** only.
-- **No reports/analytics dashboard** — operators use **SQL** / BI on Postgres for now.
-- **No booking-policy admin UI** — defaults: **24h** before start = **100%** refund; after window = **0%** (`getCancellationPolicy` in `src/lib/tenant.ts`). Per-tenant overrides require editing **`Tenant.config`** JSON in the database.
+- **Reports** — `/admin/reports` (ADMIN-only KPIs + charts). Deferred: CSV export, timezone-correct buckets, MANAGER access.
+- **Booking policy** — editable on `/admin/venue` (`cancellationWindowHours`, `cancellationRefundPercent`, `holdTimeoutMins`, `maxOnlineBowlers`). Deferred: advance-booking window, deposit %, other `Tenant.config` knobs.
 - **No partial-refund stacking** — while **`refundStatus === PENDING`**, further refunds are rejected until the webhook settles.
+- **No booking modification / reschedule** — customers can cancel but not change times.
 
 ---
 
-## 9. Backup and recovery
+## 10. Backup and recovery
 
 - **Postgres:** Use your provider’s **automated backups** and **point-in-time recovery** (Neon supports PITR on paid tiers — enable per vendor docs).
 - **Application state:** All durable state lives in **Postgres** (bookings, payments, holds, `StripeEvent`, users, tenant, **`AuditLog`**). No separate app-owned object store for core booking data.

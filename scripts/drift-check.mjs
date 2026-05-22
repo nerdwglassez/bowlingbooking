@@ -37,7 +37,9 @@ const CHECKS = [
     regex: /#[0-9a-fA-F]{3,8}\b/g,
     // src/lib/email.ts is the ONE exception: email HTML must use raw hex
     // because most clients (Gmail, Outlook, Apple Mail) strip CSS variables.
-    appliesTo: (file) => !file.endsWith('src/lib/email.ts'),
+    // src/lib/themes.ts holds swatchHex metadata for the admin theme picker only.
+    appliesTo: (file) =>
+      !file.endsWith('src/lib/email.ts') && !file.endsWith('src/lib/themes.ts'),
     hint: 'Use semantic CSS variables (var(--color-*), var(--surface-*), var(--status-*)) instead.',
   },
   {
@@ -118,6 +120,21 @@ const CHECKS = [
     regex: /from\s+['"]@stripe\/stripe-js['"]/g,
     appliesTo: (file) => !file.endsWith('src/lib/stripe-client.ts'),
     hint: 'Use getStripeClient() from @/lib/stripe-client. Stripe.js loading is centralized.',
+  },
+  {
+    // The four SDK-config files are the only places that may `import * as
+    // Sentry`. Everything else funnels through src/lib/observability.ts so we
+    // can swap providers, tag context centrally, and drift-rule-enforce the
+    // boundary. Drift check + chokepoint pattern matches stripe.ts / email.ts.
+    name: 'direct @sentry/nextjs import outside src/lib/observability.ts',
+    regex: /from\s+['"]@sentry\/nextjs['"]/g,
+    appliesTo: (file) =>
+      !file.endsWith('src/lib/observability.ts') &&
+      !file.endsWith('sentry.server.config.ts') &&
+      !file.endsWith('sentry.edge.config.ts') &&
+      !file.endsWith('instrumentation-client.ts') &&
+      !file.endsWith('instrumentation.ts'),
+    hint: 'Use captureException / captureMessage / withObservability from @/lib/observability.',
   },
 ]
 
@@ -300,12 +317,55 @@ async function main() {
     }
   }
 
+  // Non-async exports in 'use server' files. Next.js rejects these at module-
+  // eval time with "A 'use server' file can only export async functions, found
+  // object." — TypeScript doesn't catch it. We do.
+  //
+  // Allowed in a 'use server' file:
+  //   export async function …
+  //   export default async function …
+  //   export interface / type / enum   (type-only, erased at runtime)
+  //
+  // Rejected:
+  //   export const | let | var | function | class | default {…}
+  //
+  // If you need a constant or non-async helper, move it to a sibling non-
+  // 'use server' module and import it (see src/lib/audit-actions.ts for the
+  // canonical pattern).
+  const USE_SERVER_DIRECTIVE = /^\s*(['"])use server\1/
+  const BAD_VALUE_EXPORT = /^export\s+(?!async\s+)(?:const|let|var|function|class)\b/gm
+  for (const file of files) {
+    const original = await readFile(file, 'utf8')
+    if (!USE_SERVER_DIRECTIVE.test(original)) continue
+    const stripped = stripComments(original)
+    BAD_VALUE_EXPORT.lastIndex = 0
+    const matches = [...stripped.matchAll(BAD_VALUE_EXPORT)]
+    if (matches.length === 0) continue
+    for (const m of matches) {
+      failures++
+      const lineNumber = stripped.slice(0, m.index).split('\n').length
+      const key = "non-async export in 'use server' file"
+      if (!failedChecks.has(key)) {
+        failedChecks.set(key, {
+          hint: "Next.js requires 'use server' files to only export async functions. Move constants/types/classes to a sibling non-'use server' module.",
+          hits: [],
+        })
+      }
+      failedChecks.get(key).hits.push({
+        file,
+        line: lineNumber,
+        match: m[0].trim(),
+      })
+    }
+  }
+
   if (failures === 0) {
     console.log('PASS: drift sentinel — all checks clean')
     for (const check of CHECKS) {
       console.log(`  - ${check.name}: 0 violations`)
     }
     console.log('  - route-group layout guards: ok')
+    console.log("  - non-async exports in 'use server' files: ok")
     exit(0)
   }
 

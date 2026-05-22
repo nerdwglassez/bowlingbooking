@@ -289,7 +289,7 @@ Key patterns:
 - FeaturedBookingCard — dark card, confirmation code, booking details, action buttons
 - StaffCockpitHeader — purple surface, venue name (Fraunces), role badge, avatar
 - LaneTimelineRow — lane label, track bar, booking blocks, now-line
-- PackageCard — package info, price, includes flags, select button
+- PackageCard — package summary card, **What's included →** opens detail sheet, tags, select CTA
 - PriceFooter — dark surface, line items, total, CTA button
 
 ---

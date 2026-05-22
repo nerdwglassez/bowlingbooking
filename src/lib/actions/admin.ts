@@ -3,8 +3,8 @@
 // admin.ts — Server actions for the admin settings shell.
 //
 // Every mutation action enforces MANAGER or ADMIN via `requireRole(...)`.
-// `listAuditLogs` is read-only and ADMIN-only. Role-gating is server-side
-// ONLY; never trust a client-side role claim.
+// `listAuditLogs` and `getReportsSummary` are read-only and ADMIN-only.
+// Role-gating is server-side ONLY; never trust a client-side role claim.
 //
 // Dev-without-DB: reads return deterministic mock data so the admin app is
 // reviewable without Postgres. Writes log + return a synthesized result
@@ -17,6 +17,7 @@ import type { Prisma } from '@prisma/client'
 import { hashPassword, requireRole, type CurrentUser } from '@/lib/auth'
 import { isDevWithoutDb } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
+import { isValidThemeSlug } from '@/lib/themes'
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -30,6 +31,10 @@ export interface AdminTenantDetail {
   themeSlug: string
   holdTimeoutMins: number
   maxOnlineBowlers: number
+  /** Hours before booking start a customer may still cancel. From Tenant.config. */
+  cancellationWindowHours: number
+  /** Percent of total refunded when cancelling within window (0-100). From Tenant.config. */
+  cancellationRefundPercent: number
 }
 
 export interface AdminOperatingHour {
@@ -81,10 +86,13 @@ export async function getTenantForAdmin(
       themeSlug: 'default',
       holdTimeoutMins: 10,
       maxOnlineBowlers: 18,
+      cancellationWindowHours: 24,
+      cancellationRefundPercent: 100,
     }
   }
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } })
   if (!tenant) return null
+  const policy = readCancellationFromConfig(tenant.config)
   return {
     id: tenant.id,
     name: tenant.name,
@@ -95,7 +103,35 @@ export async function getTenantForAdmin(
     themeSlug: tenant.themeSlug,
     holdTimeoutMins: tenant.holdTimeoutMins,
     maxOnlineBowlers: tenant.maxOnlineBowlers,
+    cancellationWindowHours: policy.windowHours,
+    cancellationRefundPercent: policy.refundPercent,
   }
+}
+
+// Tenant.config is a Prisma JSON column. We only own two keys today
+// (cancellationWindowHours, cancellationRefundPercent); see
+// `getCancellationPolicy` in src/lib/tenant.ts for the runtime read path.
+// This helper keeps admin reads and customer reads symmetric.
+function readCancellationFromConfig(config: unknown): {
+  windowHours: number
+  refundPercent: number
+} {
+  const obj =
+    config && typeof config === 'object' && !Array.isArray(config)
+      ? (config as Record<string, unknown>)
+      : {}
+  const windowHours =
+    typeof obj.cancellationWindowHours === 'number' &&
+    obj.cancellationWindowHours >= 0
+      ? obj.cancellationWindowHours
+      : 24
+  const refundPercent =
+    typeof obj.cancellationRefundPercent === 'number' &&
+    obj.cancellationRefundPercent >= 0 &&
+    obj.cancellationRefundPercent <= 100
+      ? obj.cancellationRefundPercent
+      : 100
+  return { windowHours, refundPercent }
 }
 
 export interface UpdateTenantInput {
@@ -104,8 +140,11 @@ export interface UpdateTenantInput {
   address: string
   phone: string
   timezone: string
+  themeSlug: string
   holdTimeoutMins: number
   maxOnlineBowlers: number
+  cancellationWindowHours: number
+  cancellationRefundPercent: number
 }
 
 export interface UpdateTenantResult {
@@ -130,6 +169,29 @@ export async function updateTenantAction(
       'updateTenantAction: maxOnlineBowlers must be between 1 and 36',
     )
   }
+  if (
+    !Number.isInteger(input.cancellationWindowHours) ||
+    input.cancellationWindowHours < 0 ||
+    input.cancellationWindowHours > 240
+  ) {
+    throw new Error(
+      'updateTenantAction: cancellationWindowHours must be 0..240',
+    )
+  }
+  if (
+    !Number.isInteger(input.cancellationRefundPercent) ||
+    input.cancellationRefundPercent < 0 ||
+    input.cancellationRefundPercent > 100
+  ) {
+    throw new Error(
+      'updateTenantAction: cancellationRefundPercent must be 0..100',
+    )
+  }
+  if (!isValidThemeSlug(input.themeSlug)) {
+    throw new Error(
+      `updateTenantAction: themeSlug must be a known preset (got "${input.themeSlug}")`,
+    )
+  }
 
   if (isDevWithoutDb()) {
     console.log(`[admin] mock tenant update by ${user.email}`, input)
@@ -137,6 +199,22 @@ export async function updateTenantAction(
   }
 
   await prisma.$transaction(async (tx) => {
+    const existing = await tx.tenant.findUnique({
+      where: { id: input.tenantId },
+      select: { config: true },
+    })
+    const existingConfig =
+      existing?.config &&
+      typeof existing.config === 'object' &&
+      !Array.isArray(existing.config)
+        ? (existing.config as Record<string, unknown>)
+        : {}
+    const nextConfig = {
+      ...existingConfig,
+      cancellationWindowHours: input.cancellationWindowHours,
+      cancellationRefundPercent: input.cancellationRefundPercent,
+    }
+
     await tx.tenant.update({
       where: { id: input.tenantId },
       data: {
@@ -144,8 +222,10 @@ export async function updateTenantAction(
         address: input.address.trim(),
         phone: input.phone.trim(),
         timezone: input.timezone,
+        themeSlug: input.themeSlug,
         holdTimeoutMins: input.holdTimeoutMins,
         maxOnlineBowlers: input.maxOnlineBowlers,
+        config: nextConfig,
       },
     })
     await tx.auditLog.create({
@@ -159,8 +239,11 @@ export async function updateTenantAction(
           address: input.address,
           phone: input.phone,
           timezone: input.timezone,
+          themeSlug: input.themeSlug,
           holdTimeoutMins: input.holdTimeoutMins,
           maxOnlineBowlers: input.maxOnlineBowlers,
+          cancellationWindowHours: input.cancellationWindowHours,
+          cancellationRefundPercent: input.cancellationRefundPercent,
         },
       },
     })
@@ -466,6 +549,320 @@ export async function archivePackageAction(
   })
 
   revalidatePath('/admin/packages')
+  return { mocked: false }
+}
+
+// ── Promo codes ───────────────────────────────────────────
+
+export interface AdminPromoRow {
+  id: string
+  code: string
+  description: string | null
+  discountType: 'PERCENT' | 'FIXED'
+  discountValue: number
+  maxUses: number | null
+  usesCount: number
+  expiresAt: Date | null
+  active: boolean
+  createdAt: Date
+}
+
+export type AdminPromoDetail = AdminPromoRow
+
+export interface PromoInput {
+  tenantId: string
+  code: string
+  description: string | null
+  discountType: 'PERCENT' | 'FIXED'
+  discountValue: number
+  maxUses: number | null
+  expiresAt: Date | null
+}
+
+const PROMO_CODE_PATTERN = /^[a-zA-Z0-9_-]{3,32}$/
+
+function normalizePromoCode(raw: string): string {
+  return raw.trim().toLowerCase()
+}
+
+function validatePromoInput(input: PromoInput): void {
+  if (!input.tenantId?.trim()) {
+    throw new Error('promo: tenant is required')
+  }
+  const code = normalizePromoCode(input.code)
+  if (!code) {
+    throw new Error('promo: code is required')
+  }
+  if (!PROMO_CODE_PATTERN.test(code)) {
+    throw new Error(
+      'promo: code must be 3–32 characters and only letters, digits, hyphen, or underscore',
+    )
+  }
+  if (input.discountType === 'PERCENT') {
+    if (
+      !Number.isInteger(input.discountValue) ||
+      input.discountValue < 1 ||
+      input.discountValue > 100
+    ) {
+      throw new Error('promo: percent discount must be a whole number from 1 to 100')
+    }
+  } else {
+    if (!Number.isInteger(input.discountValue) || input.discountValue < 1) {
+      throw new Error('promo: fixed discount must be at least 1 cent')
+    }
+  }
+  if (input.maxUses != null) {
+    if (!Number.isInteger(input.maxUses) || input.maxUses < 1) {
+      throw new Error('promo: max uses must be at least 1 when set')
+    }
+  }
+  if (input.expiresAt != null) {
+    const t = input.expiresAt.getTime()
+    if (Number.isNaN(t) || input.expiresAt <= new Date()) {
+      throw new Error('promo: expiry must be a future date and time')
+    }
+  }
+}
+
+function mockPromos(_tenantId: string): AdminPromoRow[] {
+  const now = new Date()
+  return [
+    {
+      id: 'promo_mock_1',
+      code: 'welcome10',
+      description: 'Welcome 10%',
+      discountType: 'PERCENT',
+      discountValue: 10,
+      maxUses: 100,
+      usesCount: 2,
+      expiresAt: null,
+      active: true,
+      createdAt: new Date(now.getTime() - 86_400_000),
+    },
+    {
+      id: 'promo_mock_2',
+      code: 'off500',
+      description: '$5 off',
+      discountType: 'FIXED',
+      discountValue: 500,
+      maxUses: null,
+      usesCount: 0,
+      expiresAt: null,
+      active: false,
+      createdAt: new Date(now.getTime() - 172_800_000),
+    },
+  ]
+}
+
+export async function listPromosForAdmin(
+  tenantId: string,
+): Promise<AdminPromoRow[]> {
+  await requireRole('MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) {
+    return mockPromos(tenantId)
+  }
+  const rows = await prisma.promoCode.findMany({
+    where: { tenantId },
+    orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
+  })
+  return rows.map((r) => ({
+    id: r.id,
+    code: r.code,
+    description: r.description,
+    discountType: r.discountType,
+    discountValue: r.discountValue,
+    maxUses: r.maxUses,
+    usesCount: r.usesCount,
+    expiresAt: r.expiresAt,
+    active: r.active,
+    createdAt: r.createdAt,
+  }))
+}
+
+export async function getPromoForAdmin(
+  promoId: string,
+): Promise<AdminPromoDetail | null> {
+  await requireRole('MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) {
+    return mockPromos('t').find((p) => p.id === promoId) ?? null
+  }
+  const r = await prisma.promoCode.findUnique({ where: { id: promoId } })
+  if (!r) return null
+  return {
+    id: r.id,
+    code: r.code,
+    description: r.description,
+    discountType: r.discountType,
+    discountValue: r.discountValue,
+    maxUses: r.maxUses,
+    usesCount: r.usesCount,
+    expiresAt: r.expiresAt,
+    active: r.active,
+    createdAt: r.createdAt,
+  }
+}
+
+export async function createPromoAction(
+  input: PromoInput,
+): Promise<{ id: string; mocked: boolean }> {
+  const user = await requireRole('MANAGER', 'ADMIN')
+  validatePromoInput(input)
+  const code = normalizePromoCode(input.code)
+
+  if (isDevWithoutDb()) {
+    console.log(`[admin] mock promo create by ${user.email}`, { ...input, code })
+    return { id: `promo_mock_${Date.now()}`, mocked: true }
+  }
+
+  const existingActive = await prisma.promoCode.findFirst({
+    where: { tenantId: input.tenantId, code, active: true },
+  })
+  if (existingActive) {
+    throw new Error('A promo with this code already exists for this venue.')
+  }
+
+  const anySameCode = await prisma.promoCode.findFirst({
+    where: { tenantId: input.tenantId, code },
+  })
+  if (anySameCode && !anySameCode.active) {
+    throw new Error(
+      'This code already exists on an inactive promo. Reactivate that record or pick a different code.',
+    )
+  }
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.promoCode.create({
+        data: {
+          tenantId: input.tenantId,
+          code,
+          description: input.description?.trim() || null,
+          discountType: input.discountType,
+          discountValue: input.discountValue,
+          maxUses: input.maxUses,
+          expiresAt: input.expiresAt,
+          active: true,
+        },
+      })
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'PROMO_CREATED',
+          entityType: 'PromoCode',
+          entityId: row.id,
+          details: {
+            code,
+            discountType: input.discountType,
+            discountValue: input.discountValue,
+            maxUses: input.maxUses,
+          },
+        },
+      })
+      return row
+    })
+    revalidatePath('/admin/promos')
+    return { id: created.id, mocked: false }
+  } catch (err) {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code?: string }).code === 'P2002'
+    ) {
+      throw new Error('A promo with this code already exists for this venue.')
+    }
+    throw err
+  }
+}
+
+export async function updatePromoAction(
+  input: PromoInput & { id: string },
+): Promise<{ mocked: boolean }> {
+  const user = await requireRole('MANAGER', 'ADMIN')
+  validatePromoInput(input)
+  const code = normalizePromoCode(input.code)
+
+  if (isDevWithoutDb()) {
+    console.log(`[admin] mock promo update by ${user.email}`, { ...input, code })
+    return { mocked: true }
+  }
+
+  const existing = await prisma.promoCode.findUnique({ where: { id: input.id } })
+  if (!existing || existing.tenantId !== input.tenantId) {
+    throw new Error('Promo not found.')
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.promoCode.update({
+        where: { id: input.id },
+        data: {
+          code,
+          description: input.description?.trim() || null,
+          discountType: input.discountType,
+          discountValue: input.discountValue,
+          maxUses: input.maxUses,
+          expiresAt: input.expiresAt,
+        },
+      })
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'PROMO_UPDATED',
+          entityType: 'PromoCode',
+          entityId: input.id,
+          details: {
+            code,
+            discountType: input.discountType,
+            discountValue: input.discountValue,
+            maxUses: input.maxUses,
+          },
+        },
+      })
+    })
+  } catch (err) {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code?: string }).code === 'P2002'
+    ) {
+      throw new Error('A promo with this code already exists for this venue.')
+    }
+    throw err
+  }
+
+  revalidatePath('/admin/promos')
+  revalidatePath(`/admin/promos/${input.id}`)
+  return { mocked: false }
+}
+
+export async function deactivatePromoAction(
+  promoId: string,
+): Promise<{ mocked: boolean }> {
+  const user = await requireRole('MANAGER', 'ADMIN')
+
+  if (isDevWithoutDb()) {
+    console.log(`[admin] mock promo deactivate by ${user.email}`, promoId)
+    return { mocked: true }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.promoCode.update({
+      where: { id: promoId },
+      data: { active: false },
+    })
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'PROMO_DEACTIVATED',
+        entityType: 'PromoCode',
+        entityId: promoId,
+      },
+    })
+  })
+
+  revalidatePath('/admin/promos')
+  revalidatePath(`/admin/promos/${promoId}`)
   return { mocked: false }
 }
 
@@ -955,6 +1352,327 @@ export async function listAuditLogs(
     pageSize,
     hasMore: page * pageSize < total,
   }
+}
+
+// ── Reports (read-only, ADMIN-only) ───────────────────────
+//
+// v1 uses UTC calendar days for the query window and for daily chart buckets
+// (booking.startTime UTC date). True tenant-local midnight boundaries are
+// deferred — see .claude/contracts/ADMIN.md.
+
+export type ReportsRange = '7d' | '30d' | '90d'
+
+export interface ReportsKpi {
+  /** Sum of `Booking.totalAmount` for paid CONFIRMED/COMPLETED rows in window. */
+  grossRevenueCents: number
+  /** CONFIRMED + COMPLETED bookings with captured payment in window. */
+  bookingCount: number
+  /** Sum of `Payment.refundAmount` where `refundStatus = SUCCEEDED` for
+   *  bookings whose `startTime` falls in the window (not netted against gross). */
+  refundTotalCents: number
+  averageBookingCents: number
+}
+
+export interface ReportsDailyPoint {
+  /** `YYYY-MM-DD` (UTC date of `Booking.startTime` for v1). */
+  date: string
+  revenueCents: number
+  bookingCount: number
+}
+
+export interface ReportsTopPackage {
+  packageId: string
+  packageName: string
+  bookingCount: number
+  revenueCents: number
+}
+
+export interface ReportsSummary {
+  range: ReportsRange
+  startDate: Date
+  endDate: Date
+  kpi: ReportsKpi
+  daily: ReportsDailyPoint[]
+  topPackages: ReportsTopPackage[]
+}
+
+function normalizeReportsRangeInput(raw: string | undefined): ReportsRange {
+  if (raw === '7d' || raw === '90d') return raw
+  return '30d'
+}
+
+function reportsDayCount(range: ReportsRange): number {
+  if (range === '7d') return 7
+  if (range === '90d') return 90
+  return 30
+}
+
+function utcStartOfCalendarDay(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0),
+  )
+}
+
+function utcEndOfCalendarDay(d: Date): Date {
+  return new Date(
+    Date.UTC(
+      d.getUTCFullYear(),
+      d.getUTCMonth(),
+      d.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    ),
+  )
+}
+
+function utcYmd(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+function enumerateUtcYmdRange(startDate: Date, endDate: Date): string[] {
+  const keys: string[] = []
+  let cur = utcStartOfCalendarDay(startDate)
+  const end = utcStartOfCalendarDay(endDate)
+  while (cur <= end) {
+    keys.push(utcYmd(cur))
+    cur = new Date(cur)
+    cur.setUTCDate(cur.getUTCDate() + 1)
+  }
+  return keys
+}
+
+function isCapturedPayment(
+  payment: { status: string } | null | undefined,
+): boolean {
+  if (!payment) return false
+  return payment.status === 'succeeded' || payment.status === 'cash'
+}
+
+type ReportBookingRow = {
+  id: string
+  startTime: Date
+  totalAmount: number
+  status: string
+  packageId: string
+  payment: { status: string } | null
+  package: { id: string; name: string }
+}
+
+function buildReportsSummaryFromBookings(
+  range: ReportsRange,
+  startDate: Date,
+  endDate: Date,
+  bookings: ReportBookingRow[],
+  refundTotalCents: number,
+): ReportsSummary {
+  const paidRows = bookings.filter(
+    (b) =>
+      (b.status === 'CONFIRMED' || b.status === 'COMPLETED') &&
+      isCapturedPayment(b.payment),
+  )
+
+  let grossRevenueCents = 0
+  const dailyAcc = new Map<string, { revenueCents: number; bookingCount: number }>()
+  const pkgAcc = new Map<
+    string,
+    { packageId: string; packageName: string; bookingCount: number; revenueCents: number }
+  >()
+
+  for (const b of paidRows) {
+    grossRevenueCents += b.totalAmount
+    const dayKey = utcYmd(b.startTime)
+    const curDay = dailyAcc.get(dayKey) ?? { revenueCents: 0, bookingCount: 0 }
+    curDay.revenueCents += b.totalAmount
+    curDay.bookingCount += 1
+    dailyAcc.set(dayKey, curDay)
+
+    const curPkg =
+      pkgAcc.get(b.packageId) ?? {
+        packageId: b.packageId,
+        packageName: b.package.name,
+        bookingCount: 0,
+        revenueCents: 0,
+      }
+    curPkg.bookingCount += 1
+    curPkg.revenueCents += b.totalAmount
+    pkgAcc.set(b.packageId, curPkg)
+  }
+
+  const bookingCount = paidRows.length
+  const averageBookingCents =
+    bookingCount > 0 ? Math.floor(grossRevenueCents / bookingCount) : 0
+
+  const allDays = enumerateUtcYmdRange(startDate, endDate)
+  const daily: ReportsDailyPoint[] = allDays.map((date) => {
+    const acc = dailyAcc.get(date)
+    return {
+      date,
+      revenueCents: acc?.revenueCents ?? 0,
+      bookingCount: acc?.bookingCount ?? 0,
+    }
+  })
+
+  const topPackages = [...pkgAcc.values()]
+    .sort((a, b) => b.revenueCents - a.revenueCents || b.bookingCount - a.bookingCount)
+    .slice(0, 5)
+
+  return {
+    range,
+    startDate,
+    endDate,
+    kpi: {
+      grossRevenueCents,
+      bookingCount,
+      refundTotalCents,
+      averageBookingCents,
+    },
+    daily,
+    topPackages,
+  }
+}
+
+function mockReportsSummary(
+  tenantId: string,
+  range: ReportsRange,
+): ReportsSummary {
+  void tenantId
+  const days = reportsDayCount(range)
+  const anchor = new Date('2026-05-13T12:00:00.000Z')
+  const endDate = utcEndOfCalendarDay(anchor)
+  const start = utcStartOfCalendarDay(anchor)
+  start.setUTCDate(start.getUTCDate() - (days - 1))
+  const startDate = start
+
+  const daily: ReportsDailyPoint[] = []
+  let grossRevenueCents = 0
+  let bookingCount = 0
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startDate)
+    d.setUTCDate(startDate.getUTCDate() + i)
+    const revenueCents = Math.round(
+      6200 + Math.sin(i * 0.55) * 1800 + ((i * 17) % 900),
+    )
+    const bc = Math.max(1, Math.round(3 + (i % 5) * 0.8))
+    const date = utcYmd(d)
+    daily.push({ date, revenueCents, bookingCount: bc })
+    grossRevenueCents += revenueCents
+    bookingCount += bc
+  }
+
+  const refundTotalCents = 8900
+  const topPackages: ReportsTopPackage[] = [
+    {
+      packageId: 'pkg-mock-a',
+      packageName: 'Classic Bowling',
+      bookingCount: 42,
+      revenueCents: 158_400,
+    },
+    {
+      packageId: 'pkg-mock-b',
+      packageName: 'Birthday Party',
+      bookingCount: 11,
+      revenueCents: 132_000,
+    },
+    {
+      packageId: 'pkg-mock-c',
+      packageName: 'Cosmic Friday',
+      bookingCount: 28,
+      revenueCents: 98_200,
+    },
+    {
+      packageId: 'pkg-mock-d',
+      packageName: 'Pay-Per-Game',
+      bookingCount: 19,
+      revenueCents: 45_600,
+    },
+    {
+      packageId: 'pkg-mock-e',
+      packageName: 'Corporate Event',
+      bookingCount: 4,
+      revenueCents: 38_000,
+    },
+  ]
+
+  return {
+    range,
+    startDate,
+    endDate,
+    kpi: {
+      grossRevenueCents,
+      bookingCount,
+      refundTotalCents,
+      averageBookingCents:
+        bookingCount > 0 ? Math.floor(grossRevenueCents / bookingCount) : 0,
+    },
+    daily,
+    topPackages,
+  }
+}
+
+export async function getReportsSummary(
+  tenantId: string,
+  rangeInput: string | undefined,
+): Promise<ReportsSummary> {
+  await requireRole('ADMIN')
+  const range = normalizeReportsRangeInput(rangeInput)
+
+  if (isDevWithoutDb()) {
+    return mockReportsSummary(tenantId, range)
+  }
+
+  const dayCount = reportsDayCount(range)
+  const now = new Date()
+  const endDate = utcEndOfCalendarDay(now)
+  const startDate = utcStartOfCalendarDay(now)
+  startDate.setUTCDate(startDate.getUTCDate() - (dayCount - 1))
+
+  const { bookings, refundTotalCents } = await prisma.$transaction(
+    async (tx) => {
+      const bookingsInner = await tx.booking.findMany({
+        where: {
+          tenantId,
+          startTime: { gte: startDate, lte: endDate },
+          status: { in: ['CONFIRMED', 'COMPLETED'] },
+        },
+        select: {
+          id: true,
+          startTime: true,
+          totalAmount: true,
+          status: true,
+          packageId: true,
+          payment: { select: { status: true } },
+          package: { select: { id: true, name: true } },
+        },
+      })
+
+      const refundAgg = await tx.payment.aggregate({
+        where: {
+          refundStatus: 'SUCCEEDED',
+          refundAmount: { not: null },
+          booking: {
+            tenantId,
+            startTime: { gte: startDate, lte: endDate },
+          },
+        },
+        _sum: { refundAmount: true },
+      })
+
+      return {
+        bookings: bookingsInner,
+        refundTotalCents: refundAgg._sum.refundAmount ?? 0,
+      }
+    },
+  )
+
+  return buildReportsSummaryFromBookings(
+    range,
+    startDate,
+    endDate,
+    bookings,
+    refundTotalCents,
+  )
 }
 
 // ── Helpers ───────────────────────────────────────────────

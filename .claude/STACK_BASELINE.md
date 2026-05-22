@@ -363,19 +363,52 @@ These were introduced after the customer booking flow landed. Every future agent
 - **Dev-without-DB returns deterministic mock data** for every admin read, so the full admin surface is clickable without Postgres.
 - **Full contract:** `.claude/contracts/ADMIN.md` covers route layout, action surface, lifecycle diagrams, audit-log conventions, and the deferred surfaces.
 
+### 9.10 Customer self-service + runbook (Phase 10)
+
+- **Customer cancel via lookup, not login.** `/find-my-booking` takes email + confirmation code (case-insensitive). No customer accounts in v1. Rate-limiting lives at the reverse proxy / WAF; documented in `docs/RUNBOOK.md`.
+- **Cancellation policy lives in `Tenant.config` JSON**, read via `getCancellationPolicy(tenant)` in `src/lib/tenant.ts`. Defaults: 24h window, 100% refund. Admin UI to edit deferred to Phase 11.
+- **Customer-initiated refunds reuse the Stripe webhook path** — `cancelBookingAction` calls `createRefund`, then the `charge.refunded` webhook flips `Payment.refundStatus = SUCCEEDED`. One refund pipeline, no new state machine.
+- **Walk-in manual refunds are a sibling action.** `manualRefundBookingAction` writes directly to Payment + Booking + AuditLog. No Stripe call. The two actions are mutually exclusive: Stripe action rejects walk-ins, manual action rejects Stripe payments.
+- **Audit log viewer is ADMIN-only.** MANAGER can view bookings / refunds / walk-ins via the normal pages. The audit log adds nothing they need for daily ops and contains PII in `details`.
+- **`.ics` is a public route** at `/api/bookings/[code]/ics?email=…`. Same email-as-auth model as `/find-my-booking`. Linked from success page + confirmation email.
+- **Production runbook lives at `docs/RUNBOOK.md`** — env vars, Stripe webhook setup, Resend DNS, migrate deploy, seed flow, smoke checklist, ops triage, known gaps. **Single source of truth for operators.**
+
+### 9.11 Drift sentinel additions (Phase 11)
+
+- **Non-async exports in `'use server'` files are banned.** Next.js rejects them at module-eval time ("A 'use server' file can only export async functions"); TypeScript doesn't catch it. The drift sentinel does. Canonical pattern: when a `'use server'` module needs to expose a constant, move the constant to a sibling non-`'use server'` module (e.g. `src/lib/audit-actions.ts` is the sibling for `src/lib/actions/admin.ts`). Allowed in a `'use server'` file: `export async function`, `export default async function`, and erased type-only declarations (`interface`, `type`, `enum`).
+- **`src/lib/themes.ts` may use raw hex** in `swatchHex` strings only (admin theme-picker metadata). The drift sentinel excludes this file from the `raw hex colors` rule alongside `src/lib/email.ts`. ESLint mirrors this via `eslint.config.mjs` (`royalz/theme-swatch-metadata-exception`).
+
+### 9.12 Branding (Phase 11)
+
+- **`Tenant.themeSlug`** selects a visual preset. The root layout sets **`data-theme-preset`** on `<html>` (from `getTenant()` + `isValidThemeSlug`), separate from **`data-theme`** (light/dark from `resolveTheme()`).
+- Presets are registered in **`src/lib/themes.ts`** and implemented as **`src/styles/themes/<slug>.css`** imports in **`src/app/globals.css`**. Each active file overrides only the **`--color-action*`** family (and optionally **`--surface-dark`**); components stay unchanged.
+- Admins pick a preset on **`/admin/venue`**; **`updateTenantAction`** validates the slug, persists the column, and logs **`themeSlug`** in audit `details`.
+
+### 9.13 Admin reports charts (Phase 11 M6)
+
+- **`recharts`** powers the `/admin/reports` client chart island (`reports-charts.tsx`); the route remains a Server Component and passes serialized `daily` / `topPackages` props.
+- **Strokes and fills** use semantic CSS variables (e.g. `var(--color-action)`), never raw hex, so charts match the token system on `data-theme="dark"` admin chrome.
+
 ---
+
+### 9.12 Promo codes (Phase 11 M5)
+
+- **Public validation** — `validatePromoCode` in `src/lib/actions/promo.ts` has no session; it only reads `PromoCode` and returns resolved cents. Brute force is bounded by the same edge/WAF posture as other public lookups (`docs/RUNBOOK.md`).
+- **Triple validation** — Customer preview (`BookingContext.applyPromoCode`), `confirmBooking` (PaymentIntent amount), and webhook (increment + link). Metadata carries `promoCode` + `discountCents`; webhook honors paid amount even if the code was deactivated between intent creation and capture (warn + still record `discountAmount`).
+- **Contract** — `.claude/contracts/PROMO_CODES.md` is the source of truth for schema, audit actions, and invariants (`usesCount` only in webhook, soft delete only).
 
 ## 10. Open questions deferred (post-v1)
 
 - **3D Secure / `requires_action` resubmit UX.** Stripe sometimes returns `requires_action`; the current step-4 flow has no resubmit affordance.
-- **Guest "find my booking" page.** `Booking.customerEmail` is the eventual lookup key.
-- **Partial-refund staging.** v1 throws if a refund is already PENDING. Once we add partial-refund UI, allow stacking.
+- **Partial-refund staging.** v1 throws if a Stripe refund is already PENDING. Manual refunds already support cumulative partials. Once we add Stripe partial-refund UI, allow stacking.
 - **Background queue for email.** v1 sends inline with the webhook; consider moving to a queue (e.g. Inngest, QStash) if Resend latency starts causing Stripe retries.
-- **Promo codes.** Needs a `PromoCode` model (not in schema) + customer-side application logic. Deferred to Phase 10.
-- **Booking-policy UI.** `Tenant.config` JSON blob is the eventual home for advance-booking window, cancellation cutoff, deposit %. v1 surfaces only `holdTimeoutMins` and `maxOnlineBowlers`. Deferred to Phase 10.
-- **Integrations panel.** Read-only status for Stripe / Resend / NextAuth secrets. Key rotation stays deploy-time only. Deferred to Phase 10.
-- **Reports / analytics + audit-log viewer.** Audit data is being captured. UI deferred to Phase 10+.
-- **Walk-in refunds.** `refundBookingAction` only handles Stripe-backed payments. Needs a "manual refund" flow for cash/card-at-counter walk-ins. Deferred to Phase 10.
-- **Per-tenant branding (theme colors).** `Tenant.themeSlug` is in the schema; v1 ships one theme.
+- **Booking modification / reschedule.** Customers can cancel but not reschedule. Deferred to Phase 12.
+- **Customer accounts (sign-up, magic link, `/account` dashboard).** Bookings have nullable `userId`; the lookup-by-code flow covers v1. Deferred to Phase 12.
+- **Integrations panel.** Read-only status for Stripe / Resend / NextAuth secrets. Key rotation stays deploy-time only.
+- **Email reminders (24h before).** Needs a scheduler (cron or Inngest).
+- **SMS notifications.** Twilio integration.
+- **PWA manifest** for the staff app.
+- **a11y + Lighthouse perf audit** before mass operator onboarding.
+- **Multi-tenant subdomain routing.** Currently single-tenant; `getTenant()` is the chokepoint that future routing will rewrite.
 
 These do not block v1 launch.

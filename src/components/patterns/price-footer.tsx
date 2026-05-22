@@ -12,6 +12,10 @@ export type PriceFooterProps = {
   ctaDisabled?: boolean
   ctaLoading?: boolean
   className?: string
+  /** Integer cents; defaults to `pricing.totalAmount` when omitted. */
+  finalTotalCents?: number
+  /** When set with a positive discount, replaces line-item breakdown with subtotal / promo / total rows. */
+  promoLine?: { code: string; discountCents: number } | null
 }
 
 export function PriceFooter({
@@ -21,27 +25,50 @@ export function PriceFooter({
   ctaDisabled,
   ctaLoading,
   className,
+  finalTotalCents,
+  promoLine,
 }: PriceFooterProps) {
+  const totalCents = finalTotalCents ?? pricing.totalAmount
+  const showPromoSummary =
+    promoLine != null && promoLine.discountCents > 0
+
   return (
     <Card variant="elevated" className={className}>
       <CardBody className="space-y-2">
-        {pricing.lineItems.map((item, index) => (
-          <div
-            key={`${item.type}-${index}`}
-            className="flex items-center justify-between text-sm"
-          >
-            <span className="text-[var(--color-text-secondary)]">
-              {item.label}
-            </span>
-            <span>{formatPrice(item.amount)}</span>
-          </div>
-        ))}
+        {showPromoSummary ? (
+          <>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[var(--color-text-secondary)]">Subtotal</span>
+              <span>{formatPrice(pricing.totalAmount)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[var(--color-text-secondary)]">
+                Promo ({promoLine.code.toUpperCase()})
+              </span>
+              <span className="text-[var(--status-error-text)]">
+                {formatPrice(-promoLine.discountCents)}
+              </span>
+            </div>
+          </>
+        ) : (
+          pricing.lineItems.map((item, index) => (
+            <div
+              key={`${item.type}-${index}`}
+              className="flex items-center justify-between text-sm"
+            >
+              <span className="text-[var(--color-text-secondary)]">
+                {item.label}
+              </span>
+              <span>{formatPrice(item.amount)}</span>
+            </div>
+          ))
+        )}
       </CardBody>
       <CardFooter className="flex-col items-stretch gap-3 border-t border-[var(--color-border)]">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">Total</span>
           <span className="text-2xl font-semibold">
-            {formatPrice(pricing.totalAmount)}
+            {formatPrice(totalCents)}
           </span>
         </div>
         <Button

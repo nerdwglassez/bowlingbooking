@@ -78,7 +78,7 @@ Same drift constraints as primitives:
 Each of the six patterns in the current batch. Read the named wireframe AND the existing primitives + lib helpers before starting your file.
 
 ### `step-indicator.tsx` — `StepIndicator`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (top of phone — 4 dots). Milestone semantics: `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — scheduling (`/book` + `/book/time`) uses **1**, packages **`/book/package`** uses **2**, confirm **`/book/confirm`** uses **4** (milestone 3 has no URL in v1).
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (top of phone — 4 dots). Milestone semantics: `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — scheduling on **`/book`** uses **1**, packages **`/book/package`** uses **2**, confirm **`/book/confirm`** uses **4** (milestone 3 has no URL in v1).
 - Props: `currentStep: 1 | 2 | 3 | 4`, `totalSteps?: number` (default 4), `className?: string`.
 - Visual: row of round dots with `gap-2`. Active dot: `bg-[var(--color-action)]`, larger (w-6 vs w-2). Completed dots: `bg-[var(--color-action)]` regular size. Future dots: `bg-[var(--color-border-strong)]`.
 - ARIA: render as `<ol aria-label="Booking progress">` with `<li>` children. Active item has `aria-current="step"`.
@@ -100,21 +100,17 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - ARIA: `<div role="listbox" aria-label="Choose a date">` with `<Button role="option" aria-selected={...}>`.
 
 ### `time-slot-grid.tsx` — `TimeSlotGrid`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1b time grid (responsive grid of times on `/book/time`).
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1b time grid on **`/book`** inside the “Choose a time” section.
+**Domain:** `.claude/BOOKING_DOMAIN.md` — Availability logic; each slot exposes `lanesFree` and `spotsRemaining` from `getAvailableTimeSlots`.
 - Props: `slots: TimeSlot[]` (from `@/types`), `selectedSlotId: string | null`, `onSelect: (slot: TimeSlot) => void`, `className?: string`.
-- Visual: `grid grid-cols-3 gap-2 sm:grid-cols-4`. Each cell is a `<Button>` primitive: `variant="primary"` if selected, `variant="secondary"` if available, `variant="ghost"` + `disabled` if not. Inside: time formatted as `h:mm a` (use `Intl.DateTimeFormat`, NOT a third-party lib). Optionally render a small `<Badge variant="ok">Popular</Badge>` below the time if you decide to flag popular slots — but only if the data carries that hint (it doesn't yet, so SKIP this feature in v1).
+- Visual: `grid grid-cols-3 gap-2 sm:grid-cols-4`. Each cell is a `<Button>`: `variant="ghost"` + `disabled` when `!slot.available`; `variant="primary"` if selected; else `variant="secondary"`. Taller cells (`!h-auto min-h-[4.25rem]`) stack **time** (formatted `h:mm a` via `Intl`) and a second line from `formatTimeSlotAvailabilityCaption` in `@/lib/booking-display` — **Open**, **N left**, **Full**, or **✓ Held** for the selected slot (wireframe Step 1b).
 - `'use client'`.
-- ARIA: `<div role="radiogroup" aria-label="Choose a time">`.
+- ARIA: `<div role="radiogroup" aria-label="Choose a time">`; each option may set `aria-label` including the availability line.
 
 ### `booking-flow-lead.tsx` — `BookingFlowLead`
 **Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (`step-title` + `step-sub`); same structure on package step in `booking-step2-refined.html`.
 - Props: `title: string`, `subtitle: string`, `className?: string`.
 - Title uses `font-family: var(--font-display)`; subtitle is body text with `--color-text-secondary`.
-- `'use client'`.
-
-### `choose-time-placeholder.tsx` — `ChooseTimePlaceholder`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` Step **1a** — “Choose a time” block before a date is selected (split-flow: lives on `/book` while `/book/time` holds the real grid).
-- Props: `hasDate: boolean`, `className?: string`.
 - `'use client'`.
 
 ### `package-list-toolbar.tsx` — `PackageListToolbar`
@@ -123,11 +119,16 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - `'use client'`.
 
 ### `package-card.tsx` — `PackageCard`
-**Wireframe:** none yet — infer from `.claude/DESIGN_SYSTEM.md` Card patterns and the `Package` type. Render a CardHeader with `<h3>` package name + `<Badge>` for `partyTypes[0]` if present, CardBody with description and the list of what's included (game/shoes), and CardFooter with the price (call `formatPrice(pkg.basePrice)`) plus a select Button.
-- Props: `pkg: Package` (from `@/types`), `selected: boolean`, `onSelect: (pkg: Package) => void`, `className?: string`.
-- Visual: use `<Card variant={selected ? 'elevated' : 'default'}>`. When selected, also add a `border-[var(--color-action)]` override via className.
+**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html` — list cards (2a): name, party `<Badge>`, **From** + `formatPrice(basePrice)`, `line-clamp-3` description, **What's included →** ghost link (wireframe `.read-more`: 11px, `color-action`), neutral tag row via `packageSummaryTags` + `<Badge variant="default">`, footer **Select** / **Selected**.
+**Lib:** `@/lib/package-detail` for tag strings; inclusion copy for the sheet lives in `packageInclusionLines`.
+- Props: `pkg`, `selected`, `onSelect(pkg)`, **`onOpenDetails(pkg)`** (required on `/book/package`).
 - `'use client'`.
-- The footer Button: `variant="primary"` when not selected (label: "Select"), `variant="secondary"` when selected (label: "Selected").
+
+### `package-detail-sheet.tsx` — `PackageDetailSheet`
+**Wireframe:** `booking-step2-refined.html` variant **2c** — bottom sheet: handle, title, From price, full description, **What's included** + bullets from `packageInclusionLines`, **Select this package** + **Close**; backdrop click and `Escape` call `onClose`.
+- Props: `pkg: Package | null`, `open`, `onClose`, `onSelectThisPackage(pkg)`.
+- Overlay `bg-[var(--surface-overlay)]`; panel uses `--surface-card`, `--color-border`, `--shadow-xl`.
+- `'use client'`.
 
 ### `venue-header.tsx` — `VenueHeader`
 **Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (top of phone — venue name + address + sign-in button).
@@ -197,6 +198,7 @@ import { Toggle } from '@/components/ui/toggle'
 // Business logic
 import { getLaneCount, getLaneAssignmentSummary, isEligibleForOnlineBooking } from '@/lib/lane-logic'
 import { calculatePrice, formatPrice } from '@/lib/pricing'
+import { packageInclusionLines, packageSummaryTags } from '@/lib/package-detail'
 
 // Types
 import type { Package, Booking, TimeSlot, PricingResult, LineItem } from '@/types'

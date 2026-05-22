@@ -65,10 +65,10 @@ src/app/(customer)/
 ├── layout.tsx                  ← customer route-group layout (already exists)
 └── book/
     ├── layout.tsx              ← wraps booking shell in <BookingProvider>
-    ├── page.tsx                ← step 1: group size + date
-    ├── time/page.tsx           ← step 2: time slot + acquire hold
-    ├── package/page.tsx        ← step 3: package selection
-    └── confirm/page.tsx        ← step 4: customer info + checkout
+    ├── page.tsx                ← scheduling: bowlers + date + “Choose a time” + grid + hold + CTA to packages
+    ├── time/page.tsx           ← redirects to `/book` (bookmark compatibility)
+    ├── package/page.tsx        ← package selection
+    └── confirm/page.tsx        ← customer info + checkout
 ```
 
 Each `page.tsx` exports a default React component. Naming is fixed by Next.js conventions — do NOT invent your own.
@@ -129,12 +129,12 @@ V1 surface:
 | Action | Purpose | Used by |
 |---|---|---|
 | `getTenant()` (already in `lib/tenant.ts`) | Resolve tenant from `DEFAULT_TENANT_SLUG` env | every step's layout |
-| `getAvailableDates(tenantId, days)` | Return next N days with availability flags for the strip | step 1 |
-| `getAvailableTimeSlots(tenantId, dateISO, bowlerCount)` | Return time slots for the chosen date | step 2 |
-| `acquireBookingHold({tenantId, bowlerCount})` | Return `{ expiresAt: Date }` — V1 is client-only (no DB row until step 4). | step 2's "Reserve" CTA |
-| `releaseBookingHold()` | No-op stub (Phase 7 makes holds server-authoritative). | step 2/3 cleanup |
-| `getPackagesForTenant(tenantId)` | Fetch active packages | step 3 |
-| `confirmBooking(input)` | Convert HOLD → CONFIRMED after payment intent succeeds | step 4 |
+| `getAvailableDates(tenantId, days)` | Return next N days with availability flags for the strip | `/book` |
+| `getAvailableTimeSlots(tenantId, dateISO, bowlerCount)` | Return time slots for the chosen date | `/book` (after date selected) |
+| `acquireBookingHold({tenantId, startTime, endTime, bowlerCount})` | Create hold; returns `holdId` + `expiresAt` | `/book` time cell select |
+| `releaseBookingHold()` | Release prior hold when switching slots | `/book` |
+| `getPackagesForTenant(tenantId)` | Fetch active packages | `/book/package` |
+| `confirmBooking(input)` | Convert HOLD → CONFIRMED after payment intent succeeds | `/book/confirm` |
 
 For v1, **`getAvailableDates`, `getAvailableTimeSlots`, and `getPackagesForTenant` may return mock data** so the flow renders. `acquireBookingHold` should write a real HOLD row (Prisma is wired). `confirmBooking` stubs the Stripe path — we wire it in Phase 7.
 
@@ -146,31 +146,22 @@ Page agents should call these by importing from `@/lib/actions/booking`. If a fu
 
 Each of the four booking pages. Read the named wireframe AND the relevant patterns before starting.
 
-### `app/(customer)/book/page.tsx` — Scheduling part A (group size + date)
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1 variants **1a** / **1b** (date + time split: this route covers **1a** date entry + disabled time placeholder; time grid lives on `/book/time`).
-**Phase 0:** `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — scheduling is **milestone 1** (`StepIndicator currentStep={1}` on `/book` and `/book/time`).
-- Compose: `<VenueHeader onSignIn={…}>`, `<StepIndicator currentStep={1}>`, `<HoldTimer expiresAt={null}>`, `<BookingFlowLead>`, `<BowlerCounter>`, `<DateStrip>`, `<ChooseTimePlaceholder>`, `<PriceFooter>` (CTA varies: disabled **“Select a date and time to continue”** until date chosen, then **“Choose time”**).
-- State reads: `session.bowlerCount`, `session.date`.
-- State writes: `setBowlerCount(n)`, `setDate(d)`.
-- Data: `getAvailableDates(tenant.id, 7)` via server action — DO NOT call Prisma directly from the client.
-- CTA: requires `bowlerCount >= 1 && date != null`. On click, `router.push('/book/time')`.
-- The `<PriceFooter>` at this stage has only the package-less line item: pass `pricing: { baseAmount: 0, gameAmount: 0, shoeAmount: 0, totalAmount: 0, lineItems: [] }`.
+### `app/(customer)/book/page.tsx` — Scheduling (wireframe Step 1: bowlers + date + “Choose a time” on one screen)
+**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1 variants **1a** / **1b** (same route: empty “Choose a time” until a date exists, then `<TimeSlotGrid>` + hold in place).
+**Phase 0:** `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — `<StepIndicator currentStep={1}>`.
+- Compose: `<VenueHeader onSignIn={…}>`, `<StepIndicator currentStep={1}>`, `<HoldTimer expiresAt={session.holdExpiresAt}>` (null until a slot is held), `<BookingFlowLead>` (subtitle `formatBowlersLanesDateSummary` once date is set), `<BowlerCounter>`, `<DateStrip>`, bordered **“Choose a time”** section (muted hint if `!session.date`; else loading / `<TimeSlotGrid>`), `<PriceFooter>` — CTA **“Select a date and time to continue”** until slot + valid hold, then **“Continue to packages →”** → `router.push('/book/package')`.
+- State reads/writes: `setBowlerCount`, `setDate`, `setTimeSlot`; session fields as today.
+- Data: `getAvailableDates`, `getAvailableTimeSlots` — DO NOT call Prisma from the client.
+- Slot select: `acquireBookingHold` → `setTimeSlot`; switching slots calls `releaseBookingHold` for the prior id when it changes.
 
-### `app/(customer)/book/time/page.tsx` — Scheduling part B (time slot + hold)
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1 variant **1b** (time grid + hold + **“Continue to packages →”**).
-**Phase 0:** same milestone as `/book` — `<StepIndicator currentStep={1}>`.
-- Guard: if `!session.bowlerCount || !session.date`, `redirect('/book')`.
-- Compose: header + `<BookingFlowLead>` (title **“Let's get you bowling”**, subtitle `formatBowlersLanesDateSummary`) + `<HoldTimer>` + **“Choose a time”** section label + `<TimeSlotGrid>` + `<PriceFooter ctaLabel="Continue to packages →">`.
-- Data: `getAvailableTimeSlots(tenant.id, session.date, session.bowlerCount)`.
-- On select: `acquireBookingHold({ tenantId, startTime, endTime, bowlerCount })` → `setTimeSlot(slot, { id: holdId, expiresAt })`.
-- On expire: `setTimeSlot(null, null)`.
-- CTA: requires valid slot + active hold. On click, `router.push('/book/package')`.
+### `app/(customer)/book/time/page.tsx` — Legacy URL
+Redirects to `/book` so old links still work.
 
 ### `app/(customer)/book/package/page.tsx` — Package selection (user’s second full-screen chapter; milestone **2**)
 **Wireframe:** `docs/wireframes/customer/booking-step2-refined.html` (and Step 2 block in `booking-step1-2-branded.html`). Lane strip also referenced in `booking-step3-final.html`.
 **Phase 0:** `<StepIndicator currentStep={2}>`. Milestone **3** in the four-dot wireframe has no dedicated URL; confirm uses **4**.
-- Guard: if `!session.timeSlotId`, `redirect('/book/time')`.
-- Compose: header + `<StepIndicator currentStep={2}>` + `<HoldTimer>` + `<BookingFlowLead title="Choose a package">` + `<PackageListToolbar>` + `<LaneAllocationView>` + `<PackageCard>` stack + `<PriceFooter>` (disabled label **“Select a package to continue”** until selection + valid hold).
+- Guard: if `!session.timeSlotId`, `redirect('/book')`.
+- Compose: header + `<StepIndicator currentStep={2}>` + `<HoldTimer>` + `<BookingFlowLead title="Choose a package">` + `<PackageListToolbar>` + `<LaneAllocationView>` + `<PackageCard onOpenDetails={…}>` list + `<PackageDetailSheet>` + `<PriceFooter>` (disabled **“Select a package to continue”** until selection + valid hold).
 - Data: `getPackagesForTenant(tenant.id)`.
 - On select: `calculatePrice` → `setPackage(pkg, totalAmount)`.
 - CTA: requires `session.packageId != null` and valid hold. On click, `router.push('/book/confirm')`.
@@ -189,12 +180,15 @@ Each of the four booking pages. Read the named wireframe AND the relevant patter
 
 ```tsx
 // Patterns
+import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
 import { VenueHeader } from '@/components/patterns/venue-header'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { HoldTimer } from '@/components/patterns/hold-timer'
 import { BowlerCounter } from '@/components/patterns/bowler-counter'
 import { DateStrip } from '@/components/patterns/date-strip'
 import { TimeSlotGrid } from '@/components/patterns/time-slot-grid'
+import { PackageListToolbar } from '@/components/patterns/package-list-toolbar'
+import { PackageDetailSheet } from '@/components/patterns/package-detail-sheet'
 import { PackageCard } from '@/components/patterns/package-card'
 import { LaneAllocationView } from '@/components/patterns/lane-allocation-view'
 import { BookingSummaryCard } from '@/components/patterns/booking-summary-card'

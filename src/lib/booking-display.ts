@@ -1,5 +1,10 @@
 import { getLaneCount } from '@/lib/lane-logic'
 
+import type { TimeSlot } from '@/types'
+
+/** At or above this many remaining "party spots", show wireframe label `Open`. */
+const SLOT_AVAILABILITY_OPEN_THRESHOLD = 3
+
 const DATE_SHORT = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
   month: 'short',
@@ -35,4 +40,31 @@ export function formatPackageStepSubtitle(
     .toLowerCase()
     .replace(/\s/g, '')
   return `${bowlerCount} ${bowlerWord} · ${DATE_SHORT.format(d)} · ${timePart}`
+}
+
+/**
+ * Second line under the time on each cell (`booking-step1-2-branded.html` Step 1b).
+ * Uses `TimeSlot` availability fields from `getAvailableTimeSlots`.
+ */
+export function formatTimeSlotAvailabilityCaption(
+  slot: TimeSlot,
+  selectedSlotId: string | null,
+): string {
+  if (selectedSlotId != null && slot.id === selectedSlotId) {
+    return '✓ Held'
+  }
+  if (!slot.available) {
+    return 'Full'
+  }
+  const spots = slot.spotsRemaining
+  if (spots >= SLOT_AVAILABILITY_OPEN_THRESHOLD) {
+    return 'Open'
+  }
+  if (spots === 1) {
+    return '1 left'
+  }
+  if (spots <= 0) {
+    return 'Full'
+  }
+  return `${spots} left`
 }

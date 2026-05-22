@@ -12,7 +12,7 @@
 
 import { headers } from 'next/headers'
 import Link from 'next/link'
-import { Building2, ScrollText, Settings, Tag, Users } from 'lucide-react'
+import { BarChart3, Building2, ScrollText, Settings, Tag, Ticket, Users } from 'lucide-react'
 
 import { AppShell } from '@/components/chrome/app-shell'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,9 @@ const ADMIN_NAV = [
   { href: '/admin', label: 'Overview', icon: Settings },
   { href: '/admin/venue', label: 'Venue', icon: Building2 },
   { href: '/admin/packages', label: 'Packages', icon: Tag },
+  { href: '/admin/promos', label: 'Promos', icon: Ticket },
   { href: '/admin/team', label: 'Team', icon: Users },
+  { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { href: '/admin/audit', label: 'Audit log', icon: ScrollText },
 ]
 

@@ -23,6 +23,10 @@ export const AUDIT_LOG_ACTIONS = [
   'LANE_BLOCK_CREATED',
   'LANE_BLOCK_REMOVED',
   'BOOKING_MANUAL_REFUND',
+  'BOOKING_PROMO_APPLIED',
+  'PROMO_CREATED',
+  'PROMO_UPDATED',
+  'PROMO_DEACTIVATED',
 ] as const
 
 export type AuditAction = (typeof AUDIT_LOG_ACTIONS)[number]

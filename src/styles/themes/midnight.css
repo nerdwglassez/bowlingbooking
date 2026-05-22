@@ -1,0 +1,13 @@
+/* Midnight — cyan / deep blue brand accent.
+ * Palette: Tailwind default "cyan" scale (https://tailwindcss.com/docs/colors).
+ * Contrast: cyan-800 (#155E75) on cyan-100 (#CFFAFE) ≥ WCAG AA 4.5:1 for body text. */
+
+[data-theme-preset='midnight'] {
+  --color-action: #0891b2;
+  --color-action-hover: #0e7490;
+  --color-action-subtle: #ecfeff;
+  --color-action-tint: #cffafe;
+  --color-action-text: #155e75;
+  --color-action-dark: #22d3ee;
+  --surface-dark: #082f49;
+}

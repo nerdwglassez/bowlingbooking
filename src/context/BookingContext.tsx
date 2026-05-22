@@ -7,8 +7,16 @@
 // dependent downstream selections so the user can't end up with a stale hold
 // or mismatched package.
 
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import type { BookingSession, Package, TimeSlot } from '@/types'
+import { validatePromoCode } from '@/lib/actions/promo'
 import { getLaneCount } from '@/lib/lane-logic'
 
 const DEFAULT_BOWLER_COUNT = 1
@@ -31,6 +39,7 @@ const defaultSession: BookingSession = {
   customerPhone: '',
   stripeClientSecret: null,
   stripePaymentIntentId: null,
+  promoCode: null,
 }
 
 export interface CustomerInfoUpdate {
@@ -50,13 +59,25 @@ interface BookingContextValue {
   setPackage: (pkg: Package, totalAmount: number) => void
   setCustomerInfo: (update: CustomerInfoUpdate) => void
   setPaymentIntent: (clientSecret: string, paymentIntentId: string) => void
+  applyPromoCode: (code: string) => Promise<void>
+  clearPromoCode: () => void
   resetSession: () => void
 }
 
 const BookingContext = createContext<BookingContextValue | null>(null)
 
-export function BookingProvider({ children }: { children: ReactNode }) {
+export function BookingProvider({
+  children,
+  tenantId,
+}: {
+  children: ReactNode
+  tenantId: string
+}) {
   const [session, setSession] = useState<BookingSession>(defaultSession)
+  const sessionRef = useRef(session)
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
 
   function setBowlerCount(n: number) {
     setSession((prev) => ({
@@ -74,6 +95,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       totalAmount: null,
       stripeClientSecret: null,
       stripePaymentIntentId: null,
+      promoCode: null,
     }))
   }
 
@@ -92,6 +114,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       totalAmount: null,
       stripeClientSecret: null,
       stripePaymentIntentId: null,
+      promoCode: null,
     }))
   }
 
@@ -112,6 +135,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       totalAmount: null,
       stripeClientSecret: null,
       stripePaymentIntentId: null,
+      promoCode: null,
     }))
   }
 
@@ -124,6 +148,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       totalAmount,
       stripeClientSecret: null,
       stripePaymentIntentId: null,
+      promoCode: null,
     }))
   }
 
@@ -144,6 +169,24 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     }))
   }
 
+  async function applyPromoCode(code: string) {
+    const subtotal = sessionRef.current.totalAmount
+    if (subtotal == null) {
+      throw new Error('Select a package first')
+    }
+    const result = await validatePromoCode(tenantId, code, subtotal)
+    setSession((prev) => ({ ...prev, promoCode: result }))
+  }
+
+  function clearPromoCode() {
+    setSession((prev) => ({
+      ...prev,
+      promoCode: null,
+      stripeClientSecret: null,
+      stripePaymentIntentId: null,
+    }))
+  }
+
   function resetSession() {
     setSession(defaultSession)
   }
@@ -158,6 +201,8 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         setPackage,
         setCustomerInfo,
         setPaymentIntent,
+        applyPromoCode,
+        clearPromoCode,
         resetSession,
       }}
     >
