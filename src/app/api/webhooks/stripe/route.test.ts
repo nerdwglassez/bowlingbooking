@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const stripeEventCreate = vi.fn()
+  const stripeEventDelete = vi.fn()
   const bookingCreate = vi.fn()
   const paymentCreate = vi.fn()
   const paymentFindUnique = vi.fn()
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     stripeEventCreate,
+    stripeEventDelete,
     bookingCreate,
     paymentCreate,
     paymentFindUnique,
@@ -40,7 +42,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    stripeEvent: { create: mocks.stripeEventCreate },
+    stripeEvent: {
+      create: mocks.stripeEventCreate,
+      delete: mocks.stripeEventDelete,
+    },
     payment: { findUnique: mocks.paymentFindUnique },
     $transaction: mocks.transactionMock,
   },
@@ -121,6 +126,7 @@ beforeEach(() => {
     customerEmail: 'jane@example.com',
     totalAmount: 4500,
   })
+  mocks.stripeEventDelete.mockResolvedValue({})
   mocks.sendEmailMock.mockResolvedValue({ id: 'email_1' })
 })
 
@@ -189,6 +195,22 @@ describe('POST /api/webhooks/stripe', () => {
     const body = await res.json()
     expect(body).toEqual({ received: true, duplicate: true })
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('clears the event marker when payment-intent processing fails so Stripe can retry', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingCreate.mockRejectedValue(new Error('database unavailable'))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(500)
+    expect(mocks.stripeEventDelete).toHaveBeenCalledWith({
+      where: { id: 'evt_1' },
+    })
+    err.mockRestore()
   })
 
   it('skips Booking creation when a Payment row already exists for the intent', async () => {

@@ -29,8 +29,11 @@ import { getLaneCount } from '@/lib/lane-logic'
 import { calculatePrice } from '@/lib/pricing'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
 import type { Package, TimeSlot } from '@/types'
+import { Prisma } from '@prisma/client'
 
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
+const HOLD_WRITE_CONFLICT_RETRIES = 3
+const RESERVING_BOOKING_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] as const
 
 // ── Date strip ────────────────────────────────────────────
 
@@ -170,26 +173,78 @@ export async function acquireBookingHold(
     return { holdId: `hold_mock_${Date.now()}`, expiresAt }
   }
 
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: input.tenantId },
-    select: { holdTimeoutMins: true },
-  })
-  if (!tenant) throw new Error('Tenant not found')
-  holdMins = tenant.holdTimeoutMins ?? HOLD_TIMEOUT_MINS_DEFAULT
+  for (let attempt = 1; attempt <= HOLD_WRITE_CONFLICT_RETRIES; attempt++) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const now = new Date()
+          const tenant = await tx.tenant.findUnique({
+            where: { id: input.tenantId },
+            select: { holdTimeoutMins: true },
+          })
+          if (!tenant) throw new Error('Tenant not found')
+          holdMins = tenant.holdTimeoutMins ?? HOLD_TIMEOUT_MINS_DEFAULT
 
-  const expiresAt = new Date(Date.now() + holdMins * 60_000)
-  const hold = await prisma.bookingHold.create({
-    data: {
-      tenantId: input.tenantId,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      bowlerCount: input.bowlerCount,
-      laneCount,
-      expiresAt,
-    },
-    select: { id: true, expiresAt: true },
-  })
-  return { holdId: hold.id, expiresAt: hold.expiresAt }
+          await tx.bookingHold.deleteMany({
+            where: { tenantId: input.tenantId, expiresAt: { lt: now } },
+          })
+
+          const [totalLanes, confirmed, held] = await Promise.all([
+            tx.lane.count({
+              where: { tenantId: input.tenantId, active: true },
+            }),
+            tx.booking.findMany({
+              where: {
+                tenantId: input.tenantId,
+                status: { in: [...RESERVING_BOOKING_STATUSES] },
+                startTime: { lt: input.endTime },
+                endTime: { gt: input.startTime },
+              },
+              select: { laneCount: true },
+            }),
+            tx.bookingHold.findMany({
+              where: {
+                tenantId: input.tenantId,
+                expiresAt: { gt: now },
+                startTime: { lt: input.endTime },
+                endTime: { gt: input.startTime },
+              },
+              select: { laneCount: true },
+            }),
+          ])
+
+          const reserved = [...confirmed, ...held].reduce(
+            (acc, b) => acc + b.laneCount,
+            0,
+          )
+          if (totalLanes - reserved < laneCount) {
+            throw new Error('Selected time slot is no longer available.')
+          }
+
+          const expiresAt = new Date(now.getTime() + holdMins * 60_000)
+          const hold = await tx.bookingHold.create({
+            data: {
+              tenantId: input.tenantId,
+              startTime: input.startTime,
+              endTime: input.endTime,
+              bowlerCount: input.bowlerCount,
+              laneCount,
+              expiresAt,
+            },
+            select: { id: true, expiresAt: true },
+          })
+          return { holdId: hold.id, expiresAt: hold.expiresAt }
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+    } catch (err) {
+      if (isPrismaWriteConflict(err) && attempt < HOLD_WRITE_CONFLICT_RETRIES) {
+        continue
+      }
+      throw err
+    }
+  }
+  throw new Error('Could not reserve selected time slot. Please try again.')
 }
 
 export async function releaseBookingHold(holdId: string): Promise<void> {
@@ -368,6 +423,7 @@ export async function confirmBooking(
     amountCents: totalAmount,
     customerEmail: input.customerEmail,
     description: `Booking for ${bowlerCount} bowlers`,
+    idempotencyKey: `booking-hold-${input.holdId}`,
     metadata,
   })
 
@@ -447,4 +503,10 @@ function toISODate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+function isPrismaWriteConflict(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034'
+  )
 }

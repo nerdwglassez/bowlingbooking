@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   laneCount: vi.fn(),
   packageFindMany: vi.fn(),
   packageFindFirst: vi.fn(),
+  transactionMock: vi.fn(),
 }))
 
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
@@ -35,6 +36,7 @@ vi.mock('@/lib/prisma', () => ({
       findMany: mocks.packageFindMany,
       findFirst: mocks.packageFindFirst,
     },
+    $transaction: mocks.transactionMock,
   },
 }))
 
@@ -54,6 +56,26 @@ beforeEach(() => {
   })
   mocks.isDevWithoutDbMock.mockReturnValue(false)
   mocks.isStripeMockedMock.mockReturnValue(false)
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.transactionMock.mockImplementation(async (fn) =>
+    fn({
+      tenant: { findUnique: mocks.tenantFindUnique },
+      bookingHold: {
+        create: mocks.bookingHoldCreate,
+        findUnique: mocks.bookingHoldFindUnique,
+        deleteMany: mocks.bookingHoldDeleteMany,
+        findMany: mocks.bookingHoldFindMany,
+      },
+      booking: { findMany: mocks.bookingFindMany },
+      lane: { count: mocks.laneCount },
+      package: {
+        findMany: mocks.packageFindMany,
+        findFirst: mocks.packageFindFirst,
+      },
+    }),
+  )
 })
 
 describe('acquireBookingHold', () => {
@@ -107,6 +129,23 @@ describe('acquireBookingHold', () => {
         bowlerCount: 1,
       }),
     ).rejects.toThrow(/Tenant not found/i)
+  })
+
+  it('rejects a hold when overlapping reservations consume lane capacity', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    mocks.laneCount.mockResolvedValue(2)
+    mocks.bookingFindMany.mockResolvedValue([{ laneCount: 1 }])
+    mocks.bookingHoldFindMany.mockResolvedValue([{ laneCount: 1 }])
+
+    await expect(
+      acquireBookingHold({
+        tenantId: 't1',
+        startTime: new Date('2026-01-01T18:00:00Z'),
+        endTime: new Date('2026-01-01T19:00:00Z'),
+        bowlerCount: 6,
+      }),
+    ).rejects.toThrow(/no longer available/i)
+    expect(mocks.bookingHoldCreate).not.toHaveBeenCalled()
   })
 })
 
@@ -277,6 +316,7 @@ describe('confirmBooking', () => {
       expect.objectContaining({
         amountCents: 4500,
         customerEmail: 'jane@example.com',
+        idempotencyKey: 'booking-hold-h1',
         metadata: expect.objectContaining({
           holdId: 'h1',
           tenantId: 't1',

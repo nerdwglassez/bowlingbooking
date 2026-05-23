@@ -63,6 +63,7 @@ export interface CreatePaymentIntentInput {
   metadata: Record<string, string>
   customerEmail?: string
   description?: string
+  idempotencyKey?: string
 }
 
 export interface CreatePaymentIntentResult {
@@ -91,14 +92,19 @@ export async function createPaymentIntent(
       mocked: true,
     }
   }
-  const intent = await stripe.paymentIntents.create({
-    amount: input.amountCents,
-    currency: 'usd',
-    automatic_payment_methods: { enabled: true },
-    metadata: input.metadata,
-    receipt_email: input.customerEmail,
-    description: input.description,
-  })
+  const intent = await stripe.paymentIntents.create(
+    {
+      amount: input.amountCents,
+      currency: 'usd',
+      automatic_payment_methods: { enabled: true },
+      metadata: input.metadata,
+      receipt_email: input.customerEmail,
+      description: input.description,
+    },
+    input.idempotencyKey
+      ? { idempotencyKey: input.idempotencyKey }
+      : undefined,
+  )
   return {
     id: intent.id,
     clientSecret: intent.client_secret ?? '',

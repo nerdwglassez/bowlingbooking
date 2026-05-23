@@ -106,6 +106,17 @@ async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
   }
 }
 
+async function releaseStripeEventForRetry(eventId: string): Promise<void> {
+  try {
+    await prisma.stripeEvent.delete({ where: { id: eventId } })
+  } catch (err) {
+    console.error(
+      `[stripe-webhook] failed to clear retry marker for ${eventId}:`,
+      err,
+    )
+  }
+}
+
 async function handlePaymentIntentSucceeded(
   intent: Stripe.PaymentIntent,
 ): Promise<void> {
@@ -264,6 +275,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error(`[stripe-webhook] handler error for ${event.type}:`, err)
+    await releaseStripeEventForRetry(event.id)
     return NextResponse.json(
       { error: 'handler-error' },
       { status: 500 },

@@ -75,6 +75,7 @@ describe('stripe.ts', () => {
         metadata: { holdId: 'h_1' },
         customerEmail: 'a@b.co',
         description: 'desc',
+        idempotencyKey: 'booking-hold-h_1',
       })
       expect(result.mocked).toBe(false)
       expect(result.id).toBe('pi_123')
@@ -86,6 +87,9 @@ describe('stripe.ts', () => {
         receipt_email: 'a@b.co',
         description: 'desc',
         metadata: { holdId: 'h_1' },
+      })
+      expect(paymentIntentsCreate.mock.calls[0][1]).toEqual({
+        idempotencyKey: 'booking-hold-h_1',
       })
     })
   })
