@@ -61,6 +61,9 @@ export async function refundBookingAction(
     include: { payment: true },
   })
   if (!booking) throw new Error('Booking not found')
+  if (!user.tenantId || booking.tenantId !== user.tenantId) {
+    throw new Error('Booking not found')
+  }
   if (booking.isRefunded) {
     throw new Error('Booking already fully refunded')
   }
@@ -70,6 +73,9 @@ export async function refundBookingAction(
   }
   if (payment.refundStatus === 'PENDING') {
     throw new Error('Refund already in progress for this booking')
+  }
+  if (payment.refundStatus === 'SUCCEEDED') {
+    throw new Error('Booking already has a settled refund')
   }
 
   const amount =
@@ -81,6 +87,7 @@ export async function refundBookingAction(
     paymentIntentId: payment.stripePaymentIntentId,
     amountCents: amount,
     reason: input.reason,
+    idempotencyKey: `booking-refund:${booking.id}`,
     metadata: {
       bookingId: booking.id,
       requestedBy: user.id,

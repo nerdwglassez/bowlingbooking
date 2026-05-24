@@ -46,6 +46,7 @@ import { refundBookingAction } from './refund'
 
 const baseBooking = {
   id: 'bk_1',
+  tenantId: 't1',
   isRefunded: false,
   payment: {
     id: 'pay_1',
@@ -59,7 +60,11 @@ describe('refundBookingAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     isDevWithoutDbMock.mockReturnValue(false)
-    requireRoleMock.mockResolvedValue({ id: 'user_admin', role: 'ADMIN' })
+    requireRoleMock.mockResolvedValue({
+      id: 'user_admin',
+      role: 'ADMIN',
+      tenantId: 't1',
+    })
     bookingFindUniqueMock.mockResolvedValue(baseBooking)
     createRefundMock.mockResolvedValue({
       id: 're_1',
@@ -84,6 +89,17 @@ describe('refundBookingAction', () => {
     )
   })
 
+  it('throws if the booking belongs to another tenant', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseBooking,
+      tenantId: 't2',
+    })
+    await expect(refundBookingAction({ bookingId: 'bk_1' })).rejects.toThrow(
+      /not found/i,
+    )
+    expect(createRefundMock).not.toHaveBeenCalled()
+  })
+
   it('throws if a refund is already pending', async () => {
     bookingFindUniqueMock.mockResolvedValue({
       ...baseBooking,
@@ -92,6 +108,17 @@ describe('refundBookingAction', () => {
     await expect(refundBookingAction({ bookingId: 'bk_1' })).rejects.toThrow(
       /in progress/i,
     )
+  })
+
+  it('throws if a refund already settled for this booking', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseBooking,
+      payment: { ...baseBooking.payment, refundStatus: 'SUCCEEDED' },
+    })
+    await expect(refundBookingAction({ bookingId: 'bk_1' })).rejects.toThrow(
+      /settled refund/i,
+    )
+    expect(createRefundMock).not.toHaveBeenCalled()
   })
 
   it('issues a full refund when amount is omitted', async () => {
@@ -104,6 +131,7 @@ describe('refundBookingAction', () => {
           bookingId: 'bk_1',
           requestedBy: 'user_admin',
         }),
+        idempotencyKey: 'booking-refund:bk_1',
       }),
     )
   })

@@ -327,6 +327,39 @@ describe('POST /api/webhooks/stripe', () => {
     })
   })
 
+  it('marks partial refunds succeeded without cancelling the booking', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_partial',
+      type: 'charge.refunded',
+      data: {
+        object: {
+          id: 'ch_1',
+          payment_intent: 'pi_1',
+          amount_refunded: 2500,
+          refunded: false,
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      stripePaymentIntentId: 'pi_1',
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.paymentUpdate).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
+      data: expect.objectContaining({
+        refundAmount: 2500,
+        refundStatus: 'SUCCEEDED',
+      }),
+    })
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+  })
+
   it('ignores unknown event types but still returns 200', async () => {
     mocks.constructWebhookEventMock.mockReturnValue({
       id: 'evt_x',

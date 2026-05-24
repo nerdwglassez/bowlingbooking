@@ -103,7 +103,7 @@ describe('stripe.ts', () => {
       expect(r.status).toBe('pending')
     })
 
-    it('forwards amount, reason, metadata to Stripe SDK', async () => {
+    it('forwards amount, reason, metadata, and idempotency to Stripe SDK', async () => {
       vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_xyz')
       refundsCreate.mockResolvedValue({
         id: 're_1',
@@ -116,13 +116,17 @@ describe('stripe.ts', () => {
         amountCents: 500,
         reason: 'requested_by_customer',
         metadata: { bookingId: 'bk_1' },
+        idempotencyKey: 'booking-refund:bk_1',
       })
-      expect(refundsCreate).toHaveBeenCalledWith({
-        payment_intent: 'pi_1',
-        amount: 500,
-        reason: 'requested_by_customer',
-        metadata: { bookingId: 'bk_1' },
-      })
+      expect(refundsCreate).toHaveBeenCalledWith(
+        {
+          payment_intent: 'pi_1',
+          amount: 500,
+          reason: 'requested_by_customer',
+          metadata: { bookingId: 'bk_1' },
+        },
+        { idempotencyKey: 'booking-refund:bk_1' },
+      )
     })
   })
 
