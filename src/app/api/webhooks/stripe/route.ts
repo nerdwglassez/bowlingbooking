@@ -19,6 +19,7 @@
 // as plain JSON. This is what tests use.
 
 import { NextResponse, type NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 
 import { sendBookingConfirmation } from '@/lib/email'
 import { isDevWithoutDb } from '@/lib/env'
@@ -106,6 +107,23 @@ async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
   }
 }
 
+async function clearStripeEventMarker(eventId: string): Promise<void> {
+  try {
+    await prisma.stripeEvent.delete({ where: { id: eventId } })
+  } catch (err) {
+    // Missing marker means another retry/repair already cleared it.
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code?: string }).code === 'P2025'
+    ) {
+      return
+    }
+    console.error(`[stripe-webhook] failed to clear event marker ${eventId}:`, err)
+  }
+}
+
 async function handlePaymentIntentSucceeded(
   intent: Stripe.PaymentIntent,
 ): Promise<void> {
@@ -129,40 +147,98 @@ async function handlePaymentIntentSucceeded(
   const confirmationCode = generateConfirmationCode()
   const laneCount = getLaneCount(metadata.bowlerCount)
 
-  const booking = await prisma.$transaction(async (tx) => {
-    const created = await tx.booking.create({
-      data: {
-        tenantId: metadata.tenantId,
-        confirmationCode,
-        partyType: metadata.partyType,
-        bowlerCount: metadata.bowlerCount,
-        laneCount,
-        startTime: metadata.startTime,
-        endTime: metadata.endTime,
-        packageId: metadata.packageId,
-        status: 'CONFIRMED',
-        source: 'ONLINE',
-        customerName: metadata.customerName,
-        customerEmail: metadata.customerEmail,
-        customerPhone: metadata.customerPhone || null,
-        totalAmount: intent.amount,
-        isRefunded: false,
-      },
-    })
+  const booking = await prisma.$transaction(
+    async (tx) => {
+      const now = new Date()
+      const hold = await tx.bookingHold.findUnique({
+        where: { id: metadata.holdId },
+        select: {
+          tenantId: true,
+          startTime: true,
+          endTime: true,
+          bowlerCount: true,
+        },
+      })
+      if (
+        hold &&
+        (hold.tenantId !== metadata.tenantId ||
+          hold.bowlerCount !== metadata.bowlerCount ||
+          hold.startTime.getTime() !== metadata.startTime.getTime() ||
+          hold.endTime.getTime() !== metadata.endTime.getTime())
+      ) {
+        throw new Error(
+          'PaymentIntent metadata does not match the booking hold.',
+        )
+      }
 
-    await tx.payment.create({
-      data: {
-        bookingId: created.id,
-        stripePaymentIntentId: intent.id,
-        amount: intent.amount,
-        status: intent.status,
-      },
-    })
+      const [totalLanes, confirmed, activeHolds] = await Promise.all([
+        tx.lane.count({
+          where: { tenantId: metadata.tenantId, active: true },
+        }),
+        tx.booking.findMany({
+          where: {
+            tenantId: metadata.tenantId,
+            status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+            startTime: { lt: metadata.endTime },
+            endTime: { gt: metadata.startTime },
+          },
+          select: { laneCount: true },
+        }),
+        tx.bookingHold.findMany({
+          where: {
+            id: { not: metadata.holdId },
+            tenantId: metadata.tenantId,
+            expiresAt: { gt: now },
+            startTime: { lt: metadata.endTime },
+            endTime: { gt: metadata.startTime },
+          },
+          select: { laneCount: true },
+        }),
+      ])
 
-    await tx.bookingHold.deleteMany({ where: { id: metadata.holdId } })
+      const reserved = [...confirmed, ...activeHolds].reduce(
+        (acc, reservation) => acc + reservation.laneCount,
+        0,
+      )
+      if (totalLanes - reserved < laneCount) {
+        throw new Error('Paid booking can no longer be safely placed.')
+      }
 
-    return created
-  })
+      const created = await tx.booking.create({
+        data: {
+          tenantId: metadata.tenantId,
+          confirmationCode,
+          partyType: metadata.partyType,
+          bowlerCount: metadata.bowlerCount,
+          laneCount,
+          startTime: metadata.startTime,
+          endTime: metadata.endTime,
+          packageId: metadata.packageId,
+          status: 'CONFIRMED',
+          source: 'ONLINE',
+          customerName: metadata.customerName,
+          customerEmail: metadata.customerEmail,
+          customerPhone: metadata.customerPhone || null,
+          totalAmount: intent.amount,
+          isRefunded: false,
+        },
+      })
+
+      await tx.payment.create({
+        data: {
+          bookingId: created.id,
+          stripePaymentIntentId: intent.id,
+          amount: intent.amount,
+          status: intent.status,
+        },
+      })
+
+      await tx.bookingHold.deleteMany({ where: { id: metadata.holdId } })
+
+      return created
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  )
 
   if (metadata.customerEmail) {
     try {
@@ -245,9 +321,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const fresh = await recordStripeEvent(event)
-  if (!fresh) {
-    return NextResponse.json({ received: true, duplicate: true })
-  }
+  const duplicate = !fresh
 
   try {
     switch (event.type) {
@@ -264,11 +338,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error(`[stripe-webhook] handler error for ${event.type}:`, err)
+    await clearStripeEventMarker(event.id)
     return NextResponse.json(
       { error: 'handler-error' },
       { status: 500 },
     )
   }
 
-  return NextResponse.json({ received: true })
+  return NextResponse.json({ received: true, ...(duplicate ? { duplicate } : {}) })
 }

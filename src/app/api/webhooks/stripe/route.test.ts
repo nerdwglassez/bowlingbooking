@@ -2,27 +2,46 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const stripeEventCreate = vi.fn()
+  const stripeEventDelete = vi.fn()
   const bookingCreate = vi.fn()
   const paymentCreate = vi.fn()
   const paymentFindUnique = vi.fn()
   const paymentUpdate = vi.fn()
   const bookingUpdate = vi.fn()
+  const bookingFindMany = vi.fn()
   const bookingHoldDeleteMany = vi.fn()
+  const bookingHoldFindUnique = vi.fn()
+  const bookingHoldFindMany = vi.fn()
+  const laneCount = vi.fn()
 
   const txStub = {
-    booking: { create: bookingCreate, update: bookingUpdate },
+    booking: {
+      create: bookingCreate,
+      update: bookingUpdate,
+      findMany: bookingFindMany,
+    },
     payment: { create: paymentCreate, update: paymentUpdate },
-    bookingHold: { deleteMany: bookingHoldDeleteMany },
+    bookingHold: {
+      deleteMany: bookingHoldDeleteMany,
+      findUnique: bookingHoldFindUnique,
+      findMany: bookingHoldFindMany,
+    },
+    lane: { count: laneCount },
   }
 
   return {
     stripeEventCreate,
+    stripeEventDelete,
     bookingCreate,
     paymentCreate,
     paymentFindUnique,
     paymentUpdate,
     bookingUpdate,
+    bookingFindMany,
     bookingHoldDeleteMany,
+    bookingHoldFindUnique,
+    bookingHoldFindMany,
+    laneCount,
     constructWebhookEventMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
     getTenantMock: vi.fn(async () => ({
@@ -40,7 +59,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    stripeEvent: { create: mocks.stripeEventCreate },
+    stripeEvent: {
+      create: mocks.stripeEventCreate,
+      delete: mocks.stripeEventDelete,
+    },
     payment: { findUnique: mocks.paymentFindUnique },
     $transaction: mocks.transactionMock,
   },
@@ -106,9 +128,18 @@ beforeEach(() => {
   mocks.transactionMock.mockImplementation(
     async (fn) =>
       fn({
-        booking: { create: mocks.bookingCreate, update: mocks.bookingUpdate },
+        booking: {
+          create: mocks.bookingCreate,
+          update: mocks.bookingUpdate,
+          findMany: mocks.bookingFindMany,
+        },
         payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
-        bookingHold: { deleteMany: mocks.bookingHoldDeleteMany },
+        bookingHold: {
+          deleteMany: mocks.bookingHoldDeleteMany,
+          findUnique: mocks.bookingHoldFindUnique,
+          findMany: mocks.bookingHoldFindMany,
+        },
+        lane: { count: mocks.laneCount },
       } as Parameters<typeof fn>[0]),
   )
   mocks.bookingCreate.mockResolvedValue({
@@ -122,6 +153,17 @@ beforeEach(() => {
     totalAmount: 4500,
   })
   mocks.sendEmailMock.mockResolvedValue({ id: 'email_1' })
+  mocks.stripeEventDelete.mockResolvedValue({})
+  mocks.bookingHoldFindUnique.mockResolvedValue({
+    tenantId: 't1',
+    startTime: new Date(validMetadata.startTime),
+    endTime: new Date(validMetadata.endTime),
+    bowlerCount: 6,
+    expiresAt: new Date(Date.now() + 60_000),
+  })
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
 })
 
 describe('POST /api/webhooks/stripe', () => {
@@ -183,6 +225,7 @@ describe('POST /api/webhooks/stripe', () => {
   it('returns duplicate:true on Stripe event re-delivery', async () => {
     mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
     mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
+    mocks.paymentFindUnique.mockResolvedValue({ id: 'pay_existing' })
 
     const res = await POST(makeRequest('{}') as never)
     expect(res.status).toBe(200)
@@ -199,6 +242,36 @@ describe('POST /api/webhooks/stripe', () => {
     const res = await POST(makeRequest('{}') as never)
     expect(res.status).toBe(200)
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('clears the event marker when handler side effects fail so Stripe can retry', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingCreate.mockRejectedValue(new Error('db unavailable'))
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(500)
+    expect(mocks.stripeEventDelete).toHaveBeenCalledWith({
+      where: { id: 'evt_1' },
+    })
+  })
+
+  it('does not create a paid booking when current lane capacity is exhausted', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.laneCount.mockResolvedValue(1)
+    mocks.bookingFindMany.mockResolvedValue([{ laneCount: 1 }])
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(500)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+    expect(mocks.stripeEventDelete).toHaveBeenCalledWith({
+      where: { id: 'evt_1' },
+    })
   })
 
   it('returns 200 but skips processing on malformed metadata', async () => {

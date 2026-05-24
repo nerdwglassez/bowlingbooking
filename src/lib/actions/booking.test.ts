@@ -1,19 +1,41 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  isDevWithoutDbMock: vi.fn(() => false),
-  createPaymentIntentMock: vi.fn(),
-  isStripeMockedMock: vi.fn(() => false),
-  tenantFindUnique: vi.fn(),
-  bookingHoldCreate: vi.fn(),
-  bookingHoldFindUnique: vi.fn(),
-  bookingHoldDeleteMany: vi.fn(),
-  bookingFindMany: vi.fn(),
-  bookingHoldFindMany: vi.fn(),
-  laneCount: vi.fn(),
-  packageFindMany: vi.fn(),
-  packageFindFirst: vi.fn(),
-}))
+const mocks = vi.hoisted(() => {
+  const bookingHoldCreate = vi.fn()
+  const bookingHoldFindUnique = vi.fn()
+  const bookingHoldDeleteMany = vi.fn()
+  const bookingFindMany = vi.fn()
+  const bookingHoldFindMany = vi.fn()
+  const laneCount = vi.fn()
+  const txStub = {
+    bookingHold: {
+      create: bookingHoldCreate,
+      findUnique: bookingHoldFindUnique,
+      deleteMany: bookingHoldDeleteMany,
+      findMany: bookingHoldFindMany,
+    },
+    booking: { findMany: bookingFindMany },
+    lane: { count: laneCount },
+  }
+  return {
+    isDevWithoutDbMock: vi.fn(() => false),
+    createPaymentIntentMock: vi.fn(),
+    isStripeMockedMock: vi.fn(() => false),
+    tenantFindUnique: vi.fn(),
+    bookingHoldCreate,
+    bookingHoldFindUnique,
+    bookingHoldDeleteMany,
+    bookingFindMany,
+    bookingHoldFindMany,
+    laneCount,
+    packageFindMany: vi.fn(),
+    packageFindFirst: vi.fn(),
+    txStub,
+    transactionMock: vi.fn(
+      async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
+    ),
+  }
+})
 
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
 vi.mock('@/lib/stripe', () => ({
@@ -35,6 +57,7 @@ vi.mock('@/lib/prisma', () => ({
       findMany: mocks.packageFindMany,
       findFirst: mocks.packageFindFirst,
     },
+    $transaction: mocks.transactionMock,
   },
 }))
 
@@ -54,6 +77,13 @@ beforeEach(() => {
   })
   mocks.isDevWithoutDbMock.mockReturnValue(false)
   mocks.isStripeMockedMock.mockReturnValue(false)
+  mocks.transactionMock.mockImplementation(
+    async (fn: (tx: typeof mocks.txStub) => Promise<unknown>) =>
+      fn(mocks.txStub),
+  )
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
 })
 
 describe('acquireBookingHold', () => {
@@ -95,6 +125,45 @@ describe('acquireBookingHold', () => {
       }),
       select: { id: true, expiresAt: true },
     })
+  })
+
+  it('rejects a hold when overlapping reservations consume lane capacity', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    mocks.laneCount.mockResolvedValue(2)
+    mocks.bookingFindMany.mockResolvedValue([{ laneCount: 1 }])
+    mocks.bookingHoldFindMany.mockResolvedValue([{ laneCount: 1 }])
+
+    await expect(
+      acquireBookingHold({
+        tenantId: 't1',
+        startTime: new Date('2026-01-01T18:00:00Z'),
+        endTime: new Date('2026-01-01T19:00:00Z'),
+        bowlerCount: 6,
+      }),
+    ).rejects.toThrow(/no longer available/i)
+    expect(mocks.bookingHoldCreate).not.toHaveBeenCalled()
+  })
+
+  it('retries serializable transaction conflicts before creating the hold', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    const expiresAt = new Date(Date.now() + 7 * 60_000)
+    mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
+    mocks.transactionMock
+      .mockRejectedValueOnce({ code: 'P2034' })
+      .mockImplementationOnce(
+        async (fn: (tx: typeof mocks.txStub) => Promise<unknown>) =>
+          fn(mocks.txStub),
+      )
+
+    const result = await acquireBookingHold({
+      tenantId: 't1',
+      startTime: new Date('2026-01-01T18:00:00Z'),
+      endTime: new Date('2026-01-01T19:00:00Z'),
+      bowlerCount: 6,
+    })
+
+    expect(result.holdId).toBe('h1')
+    expect(mocks.transactionMock).toHaveBeenCalledTimes(2)
   })
 
   it('throws if tenant is not found', async () => {
