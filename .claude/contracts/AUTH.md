@@ -17,6 +17,7 @@ The auth module (`src/lib/auth.ts`) is the **only** place that touches `next-aut
 | Auth requirement (any user) | `requireUser(currentPath?)` in `src/lib/auth.ts` | Redirects to `/signin?from=…`. Returns the user. |
 | Role gating | `requireRole(...allowed)` in `src/lib/auth.ts` | Redirects on no session; `unauthorized()` on wrong role. Returns the user. |
 | Sign-in surface | `src/app/signin/page.tsx` (Phase 6b) | The only place the user authenticates. Calls `signIn('credentials', …)`. |
+| Auth HTTP handlers | `src/app/api/auth/[...nextauth]/route.ts` | Exports `GET` / `POST` from `handlers` in `src/lib/auth.ts`. Required for sessions. |
 | Sign-out surface | Sign-out server action (Phase 6b) | Calls `signOut()`. |
 
 ---

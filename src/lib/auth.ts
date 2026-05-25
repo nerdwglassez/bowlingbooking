@@ -129,6 +129,8 @@ export { AuthError }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: resolveAuthSecret(),
+  // Required on Vercel so session cookies use the deployment hostname.
+  trustHost: true,
   session: {
     strategy: 'jwt',
     maxAge: SESSION_MAX_AGE_SECONDS,

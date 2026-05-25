@@ -103,6 +103,8 @@ npx prisma db seed
 6. **Set `DEFAULT_TENANT_SLUG`** to match the seeded slug (default **`royalz`**) unless you changed the seed.
 
 7. **Configure remaining env vars** (§2): `AUTH_SECRET`, URLs, Stripe, Resend, `NEXT_PUBLIC_APP_URL`, publishable Stripe key.
+   - **`AUTH_URL`** (or `NEXTAUTH_URL`) must be the **public site URL** for that deployment, e.g. `https://bowlingbookingv2.vercel.app` — not `http://localhost:3000`. Wrong values break sign-in cookies on Vercel.
+   - Sign-in posts to **`/api/auth/*`** via `src/app/api/auth/[...nextauth]/route.ts`; without it, `/signin` cannot create a session.
 
 8. **Build and start**
 
