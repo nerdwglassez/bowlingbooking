@@ -10,6 +10,8 @@
 //
 // Layout: wraps every staff page in <AppShell> with the staff nav items.
 
+export const dynamic = 'force-dynamic'
+
 import { headers } from 'next/headers'
 import { Calendar, ClipboardList, Plus } from 'lucide-react'
 

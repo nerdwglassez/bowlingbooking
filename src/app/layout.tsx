@@ -26,6 +26,9 @@ export const metadata: Metadata = {
   description: 'Book a lane at Royal Z Lanes',
 }
 
+/** Uses headers (theme path) + DB (tenant) — never statically prerender. */
+export const dynamic = 'force-dynamic'
+
 export default async function RootLayout({
   children,
 }: {

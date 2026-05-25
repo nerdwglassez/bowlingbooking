@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 
+export const dynamic = 'force-dynamic'
+
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { getCurrentUser } from '@/lib/auth'
 import { getTenant } from '@/lib/tenant'

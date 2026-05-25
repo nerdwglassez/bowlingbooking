@@ -196,6 +196,18 @@ export interface CurrentUser {
   tenantId: string | null
 }
 
+function isDynamicServerUsageError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  const digest =
+    typeof err === 'object' && err !== null && 'digest' in err
+      ? String((err as { digest?: unknown }).digest)
+      : ''
+  return (
+    err.message.includes('Dynamic server usage') ||
+    digest.includes('DYNAMIC_SERVER_USAGE')
+  )
+}
+
 /**
  * Return the current authenticated user, or `null` if not signed in. Safe to
  * call from server components, server actions, and route handlers.
@@ -213,6 +225,9 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       tenantId: session.user.tenantId,
     }
   } catch (err) {
+    if (isDynamicServerUsageError(err)) {
+      throw err
+    }
     console.error('[auth] session read failed', err)
     return null
   }

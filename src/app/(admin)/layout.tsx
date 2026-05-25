@@ -10,6 +10,8 @@
 // A "← Staff" secondary footer link lets managers jump back to the cockpit
 // without re-navigating from the home page.
 
+export const dynamic = 'force-dynamic'
+
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { BarChart3, Building2, ScrollText, Settings, Tag, Ticket, Users } from 'lucide-react'
