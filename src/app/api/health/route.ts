@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { isDevWithoutDb } from '@/lib/env'
+import { hasDatabaseUrl, isDevWithoutDb } from '@/lib/env'
 import { getTenant } from '@/lib/tenant'
 
 export const runtime = 'nodejs'
@@ -17,6 +17,17 @@ export async function GET() {
       mode: 'mock',
       message: 'DATABASE_URL unset — dev mock tenant only',
     })
+  }
+
+  if (!hasDatabaseUrl()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'DATABASE_URL is not set on this deployment.',
+        fix: 'Vercel → Project → Settings → Environment Variables: add DATABASE_URL (same Neon URL as .env.local), enable Production and Preview, then Redeploy.',
+      },
+      { status: 503 },
+    )
   }
 
   try {

@@ -20,12 +20,14 @@ const REAL_DB_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i
  *
  * Production always returns false: deployments must have a real DATABASE_URL.
  */
+export function hasDatabaseUrl(): boolean {
+  const url = process.env['DATABASE_URL']?.trim()
+  return !!url && REAL_DB_URL_PATTERN.test(url)
+}
+
 export function isDevWithoutDb(): boolean {
   if (process.env.NODE_ENV === 'production') return false
-  // Bracket access avoids Turbopack statically inlining a stale/missing value.
-  const url = process.env['DATABASE_URL']?.trim()
-  if (!url) return true
-  return !REAL_DB_URL_PATTERN.test(url)
+  return !hasDatabaseUrl()
 }
 
 const warnedOnce = new Set<string>()
