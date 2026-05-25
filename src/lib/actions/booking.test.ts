@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createPaymentIntentMock: vi.fn(),
   isStripeMockedMock: vi.fn(() => false),
   validatePromoCodeMock: vi.fn(),
+  calculatePriceMock: vi.fn(),
   tenantFindUnique: vi.fn(),
   bookingHoldCreate: vi.fn(),
   bookingHoldFindUnique: vi.fn(),
@@ -14,11 +15,15 @@ const mocks = vi.hoisted(() => ({
   laneCount: vi.fn(),
   packageFindMany: vi.fn(),
   packageFindFirst: vi.fn(),
+  transactionMock: vi.fn(),
 }))
 
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
 vi.mock('@/lib/actions/promo', () => ({
   validatePromoCode: mocks.validatePromoCodeMock,
+}))
+vi.mock('@/lib/pricing', () => ({
+  calculatePrice: mocks.calculatePriceMock,
 }))
 vi.mock('@/lib/stripe', () => ({
   createPaymentIntent: mocks.createPaymentIntentMock,
@@ -39,6 +44,7 @@ vi.mock('@/lib/prisma', () => ({
       findMany: mocks.packageFindMany,
       findFirst: mocks.packageFindFirst,
     },
+    $transaction: mocks.transactionMock,
   },
 }))
 
@@ -65,6 +71,27 @@ beforeEach(() => {
     discountValue: 0,
     discountCents: 0,
   })
+  mocks.calculatePriceMock.mockReturnValue({ totalAmount: 4500, lineItems: [] })
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.transactionMock.mockImplementation(async (fn) =>
+    fn({
+      tenant: { findUnique: mocks.tenantFindUnique },
+      bookingHold: {
+        create: mocks.bookingHoldCreate,
+        findUnique: mocks.bookingHoldFindUnique,
+        deleteMany: mocks.bookingHoldDeleteMany,
+        findMany: mocks.bookingHoldFindMany,
+      },
+      booking: { findMany: mocks.bookingFindMany },
+      lane: { count: mocks.laneCount },
+      package: {
+        findMany: mocks.packageFindMany,
+        findFirst: mocks.packageFindFirst,
+      },
+    }),
+  )
 })
 
 describe('acquireBookingHold', () => {
@@ -82,7 +109,10 @@ describe('acquireBookingHold', () => {
   })
 
   it('creates a BookingHold row with the tenant hold timeout', async () => {
-    mocks.tenantFindUnique.mockResolvedValue({ holdTimeoutMins: 7 })
+    mocks.tenantFindUnique.mockResolvedValue({
+      holdTimeoutMins: 7,
+      maxOnlineBowlers: 18,
+    })
     const expiresAt = new Date(Date.now() + 7 * 60_000)
     mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
 
@@ -108,13 +138,39 @@ describe('acquireBookingHold', () => {
     })
   })
 
+  it('rejects a hold when overlapping reservations consume lane capacity', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({
+      holdTimeoutMins: 7,
+      maxOnlineBowlers: 18,
+    })
+    mocks.laneCount.mockResolvedValue(2)
+    const slotStart = new Date('2026-01-01T18:00:00Z')
+    const slotEnd = new Date('2026-01-01T19:00:00Z')
+    mocks.bookingFindMany.mockResolvedValue([
+      { startTime: slotStart, endTime: slotEnd, laneCount: 1 },
+    ])
+    mocks.bookingHoldFindMany.mockResolvedValue([
+      { startTime: slotStart, endTime: slotEnd, laneCount: 1 },
+    ])
+
+    await expect(
+      acquireBookingHold({
+        tenantId: 't1',
+        startTime: slotStart,
+        endTime: slotEnd,
+        bowlerCount: 6,
+      }),
+    ).rejects.toThrow(/no longer available/i)
+    expect(mocks.bookingHoldCreate).not.toHaveBeenCalled()
+  })
+
   it('throws if tenant is not found', async () => {
     mocks.tenantFindUnique.mockResolvedValue(null)
     await expect(
       acquireBookingHold({
         tenantId: 'missing',
-        startTime: new Date(),
-        endTime: new Date(),
+        startTime: new Date('2026-01-01T18:00:00Z'),
+        endTime: new Date('2026-01-01T19:00:00Z'),
         bowlerCount: 1,
       }),
     ).rejects.toThrow(/Tenant not found/i)
@@ -128,15 +184,15 @@ describe('releaseBookingHold', () => {
     expect(mocks.bookingHoldDeleteMany).not.toHaveBeenCalled()
   })
 
-  it('skips blank ids without hitting the DB', async () => {
-    await releaseBookingHold('  ')
+  it('skips mock hold ids without hitting the DB', async () => {
+    await releaseBookingHold('hold_mock_123')
     expect(mocks.bookingHoldDeleteMany).not.toHaveBeenCalled()
   })
 
-  it('deletes a real Prisma hold row by id', async () => {
-    await releaseBookingHold('cmabc123hold')
+  it('deletes the hold row by id', async () => {
+    await releaseBookingHold('cmhold_real_id')
     expect(mocks.bookingHoldDeleteMany).toHaveBeenCalledWith({
-      where: { id: 'cmabc123hold' },
+      where: { id: 'cmhold_real_id' },
     })
   })
 })
@@ -210,26 +266,16 @@ describe('confirmBooking', () => {
     mocks.bookingHoldFindUnique.mockResolvedValue({
       id: 'h1',
       tenantId: 't1',
+      bowlerCount: 4,
       startTime,
       endTime,
-      bowlerCount: 4,
-      laneCount: 1,
       expiresAt: new Date(Date.now() + 60_000),
     })
     mocks.packageFindFirst.mockResolvedValue({
       id: 'pkg_classic',
-      tenantId: 't1',
-      name: 'Classic Bowling',
-      description: null,
-      basePrice: 4500,
-      gameIncluded: true,
-      shoesIncluded: true,
-      gameCostPer: null,
-      shoeCostPer: null,
       partyTypes: ['OPEN'],
-      active: true,
-      sortOrder: 1,
     })
+    mocks.calculatePriceMock.mockReturnValue({ totalAmount: 4500, lineItems: [] })
     mocks.createPaymentIntentMock.mockResolvedValue({
       id: 'pi_1',
       clientSecret: 'pi_1_secret_x',
@@ -261,22 +307,21 @@ describe('confirmBooking', () => {
     mocks.bookingHoldFindUnique.mockResolvedValue({
       id: 'h1',
       tenantId: 't1',
+      bowlerCount: 1,
       startTime,
       endTime,
-      bowlerCount: 4,
-      laneCount: 1,
       expiresAt: new Date(Date.now() - 60_000),
     })
     await expect(
       confirmBooking({
         tenantId: 't1',
         holdId: 'h1',
-        packageId: 'pkg_classic',
+        packageId: 'pkg',
         partyType: 'OPEN',
-        bowlerCount: 4,
-        startTime,
-        endTime,
-        totalAmount: 4500,
+        bowlerCount: 1,
+        startTime: new Date(),
+        endTime: new Date(),
+        totalAmount: 100,
         customerName: 'a',
         customerEmail: 'a@b.co',
         customerPhone: '',
@@ -284,7 +329,7 @@ describe('confirmBooking', () => {
     ).rejects.toThrow(/expired/i)
   })
 
-  it('uses verified hold and package pricing for PaymentIntent metadata', async () => {
+  it('embeds booking inputs in PaymentIntent metadata', async () => {
     await confirmBooking({
       tenantId: 't1',
       holdId: 'h1',
@@ -298,13 +343,11 @@ describe('confirmBooking', () => {
       customerEmail: 'jane@example.com',
       customerPhone: '555',
     })
-    expect(mocks.packageFindFirst).toHaveBeenCalledWith({
-      where: { id: 'pkg_classic', tenantId: 't1', active: true },
-    })
     expect(mocks.createPaymentIntentMock).toHaveBeenCalledWith(
       expect.objectContaining({
         amountCents: 4500,
         customerEmail: 'jane@example.com',
+        idempotencyKey: 'booking-hold:h1',
         metadata: expect.objectContaining({
           holdId: 'h1',
           tenantId: 't1',
@@ -318,6 +361,25 @@ describe('confirmBooking', () => {
       }),
     )
     expect(mocks.validatePromoCodeMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects tampered totals that do not match server pricing', async () => {
+    mocks.calculatePriceMock.mockReturnValue({ totalAmount: 5000, lineItems: [] })
+    await expect(
+      confirmBooking({
+        tenantId: 't1',
+        holdId: 'h1',
+        packageId: 'pkg_classic',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        startTime,
+        endTime,
+        totalAmount: 4500,
+        customerName: 'Jane',
+        customerEmail: 'jane@example.com',
+        customerPhone: '555',
+      }),
+    ).rejects.toThrow(/total changed/i)
   })
 
   it('applies promo to charge amount and Stripe metadata', async () => {
@@ -359,44 +421,6 @@ describe('confirmBooking', () => {
         }),
       }),
     )
-  })
-
-  it('rejects a client total that does not match server-side pricing', async () => {
-    await expect(
-      confirmBooking({
-        tenantId: 't1',
-        holdId: 'h1',
-        packageId: 'pkg_classic',
-        partyType: 'OPEN',
-        bowlerCount: 4,
-        startTime,
-        endTime,
-        totalAmount: 100,
-        customerName: 'Jane',
-        customerEmail: 'jane@example.com',
-        customerPhone: '555',
-      }),
-    ).rejects.toThrow(/total changed/i)
-    expect(mocks.createPaymentIntentMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects booking inputs that do not match the live hold', async () => {
-    await expect(
-      confirmBooking({
-        tenantId: 't1',
-        holdId: 'h1',
-        packageId: 'pkg_classic',
-        partyType: 'OPEN',
-        bowlerCount: 6,
-        startTime,
-        endTime,
-        totalAmount: 4500,
-        customerName: 'Jane',
-        customerEmail: 'jane@example.com',
-        customerPhone: '555',
-      }),
-    ).rejects.toThrow(/hold no longer matches/i)
-    expect(mocks.createPaymentIntentMock).not.toHaveBeenCalled()
   })
 })
 

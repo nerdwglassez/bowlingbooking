@@ -42,3 +42,20 @@ export function formatLaneRequirementLine(bowlerCount: number): string {
   const laneCount = getLaneCount(bowlerCount)
   return laneCount === 1 ? '1 lane required' : `${laneCount} lanes required`
 }
+
+export interface LaneReservationSlot {
+  startTime: Date
+  endTime: Date
+  laneCount: number
+}
+
+/** Sum laneCount for reservations overlapping [startTime, endTime). */
+export function sumOverlappingLaneCount(
+  reservations: LaneReservationSlot[],
+  startTime: Date,
+  endTime: Date,
+): number {
+  return reservations
+    .filter((r) => r.startTime < endTime && r.endTime > startTime)
+    .reduce((acc, r) => acc + r.laneCount, 0)
+}

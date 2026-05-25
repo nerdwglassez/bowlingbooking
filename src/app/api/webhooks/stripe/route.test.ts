@@ -2,32 +2,47 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const stripeEventCreate = vi.fn()
+  const stripeEventDeleteMany = vi.fn()
   const bookingCreate = vi.fn()
   const paymentCreate = vi.fn()
   const paymentFindUnique = vi.fn()
   const paymentUpdate = vi.fn()
   const bookingUpdate = vi.fn()
+  const bookingFindMany = vi.fn()
   const bookingHoldDeleteMany = vi.fn()
+  const bookingHoldFindUnique = vi.fn()
+  const bookingHoldFindMany = vi.fn()
+  const laneCount = vi.fn()
   const promoFindUnique = vi.fn()
   const promoUpdate = vi.fn()
   const auditCreate = vi.fn()
 
   const txStub = {
-    booking: { create: bookingCreate, update: bookingUpdate },
+    booking: { create: bookingCreate, update: bookingUpdate, findMany: bookingFindMany },
     payment: { create: paymentCreate, update: paymentUpdate },
-    bookingHold: { deleteMany: bookingHoldDeleteMany },
+    bookingHold: {
+      deleteMany: bookingHoldDeleteMany,
+      findUnique: bookingHoldFindUnique,
+      findMany: bookingHoldFindMany,
+    },
+    lane: { count: laneCount },
     promoCode: { findUnique: promoFindUnique, update: promoUpdate },
     auditLog: { create: auditCreate },
   }
 
   return {
     stripeEventCreate,
+    stripeEventDeleteMany,
     bookingCreate,
     paymentCreate,
     paymentFindUnique,
     paymentUpdate,
     bookingUpdate,
+    bookingFindMany,
     bookingHoldDeleteMany,
+    bookingHoldFindUnique,
+    bookingHoldFindMany,
+    laneCount,
     promoFindUnique,
     promoUpdate,
     auditCreate,
@@ -48,7 +63,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    stripeEvent: { create: mocks.stripeEventCreate },
+    stripeEvent: {
+      create: mocks.stripeEventCreate,
+      deleteMany: mocks.stripeEventDeleteMany,
+    },
     payment: { findUnique: mocks.paymentFindUnique },
     $transaction: mocks.transactionMock,
   },
@@ -114,9 +132,18 @@ beforeEach(() => {
   mocks.transactionMock.mockImplementation(
     async (fn) =>
       fn({
-        booking: { create: mocks.bookingCreate, update: mocks.bookingUpdate },
+        booking: {
+          create: mocks.bookingCreate,
+          update: mocks.bookingUpdate,
+          findMany: mocks.bookingFindMany,
+        },
         payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
-        bookingHold: { deleteMany: mocks.bookingHoldDeleteMany },
+        bookingHold: {
+          deleteMany: mocks.bookingHoldDeleteMany,
+          findUnique: mocks.bookingHoldFindUnique,
+          findMany: mocks.bookingHoldFindMany,
+        },
+        lane: { count: mocks.laneCount },
         promoCode: {
           findUnique: mocks.promoFindUnique,
           update: mocks.promoUpdate,
@@ -124,6 +151,11 @@ beforeEach(() => {
         auditLog: { create: mocks.auditCreate },
       } as Parameters<typeof fn>[0]),
   )
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindUnique.mockResolvedValue(null)
+  mocks.stripeEventDeleteMany.mockResolvedValue({ count: 1 })
   mocks.promoFindUnique.mockResolvedValue(null)
   mocks.bookingCreate.mockResolvedValue({
     id: 'bk_1',
@@ -252,6 +284,22 @@ describe('POST /api/webhooks/stripe', () => {
     const body = await res.json()
     expect(body).toEqual({ received: true, duplicate: true })
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('clears the event marker when payment-intent processing fails so Stripe can retry', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingCreate.mockRejectedValue(new Error('database unavailable'))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(500)
+    expect(mocks.stripeEventDeleteMany).toHaveBeenCalledWith({
+      where: { id: 'evt_1' },
+    })
+    err.mockRestore()
   })
 
   it('skips Booking creation when a Payment row already exists for the intent', async () => {

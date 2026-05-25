@@ -3,8 +3,8 @@
 // Responsibilities (in order):
 //   1. Verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET.
 //   2. Insert the event into the StripeEvent table for idempotency. A unique
-//      conflict on `id` means we've already processed this event — return
-//      200 without re-running side effects.
+//      conflict on `id` means we've already processed this event successfully —
+//      return 200 without re-running side effects.
 //   3. Switch on event type:
 //        - payment_intent.succeeded → create Booking from the intent's
 //          metadata, delete the matching BookingHold, send confirmation email.
@@ -22,10 +22,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import { sendBookingConfirmation } from '@/lib/email'
 import { isDevWithoutDb } from '@/lib/env'
-import { getLaneCount } from '@/lib/lane-logic'
+import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { prisma } from '@/lib/prisma'
 import { constructWebhookEvent, type Stripe } from '@/lib/stripe'
 import { getTenant } from '@/lib/tenant'
+import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -58,6 +59,17 @@ interface BookingMetadata {
 }
 
 const PARTY_TYPES = new Set(['OPEN', 'BIRTHDAY', 'CORPORATE', 'COSMIC'])
+const BOOKING_FINALIZE_MAX_RETRIES = 3
+const SLOT_UNAVAILABLE_MESSAGE = 'Paid booking no longer has lane capacity.'
+
+function isSerializableConflict(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2034'
+  )
+}
 
 function parseBookingMetadata(
   raw: Record<string, string> | null | undefined,
@@ -146,6 +158,17 @@ async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
   }
 }
 
+async function clearStripeEventForRetry(eventId: string): Promise<void> {
+  try {
+    await prisma.stripeEvent.deleteMany({ where: { id: eventId } })
+  } catch (err) {
+    console.error(
+      `[stripe-webhook] failed to clear event marker for retry: ${eventId}`,
+      err,
+    )
+  }
+}
+
 async function handlePaymentIntentSucceeded(
   intent: Stripe.PaymentIntent,
 ): Promise<void> {
@@ -173,86 +196,170 @@ async function handlePaymentIntentSucceeded(
     parsePromoFromIntentMetadata(rawMeta)
   const now = new Date()
 
-  const booking = await prisma.$transaction(async (tx) => {
-    let promoCodeId: string | null = null
-    let discountAmount = 0
-    if (metaPromoCode != null && metaDiscount > 0) {
-      discountAmount = metaDiscount
-      const promoRow = await tx.promoCode.findUnique({
-        where: {
-          tenantId_code: {
-            tenantId: metadata.tenantId,
-            code: metaPromoCode,
-          },
+  type FinalizedBooking = {
+    id: string
+    confirmationCode: string
+    startTime: Date
+    endTime: Date
+    laneCount: number
+    bowlerCount: number
+    totalAmount: number
+  }
+
+  let booking: FinalizedBooking | null = null
+
+  for (let attempt = 0; attempt < BOOKING_FINALIZE_MAX_RETRIES; attempt++) {
+    try {
+      booking = await prisma.$transaction(
+        async (tx) => {
+          await tx.bookingHold.deleteMany({
+            where: {
+              tenantId: metadata.tenantId,
+              expiresAt: { lt: now },
+            },
+          })
+
+          const liveHold = await tx.bookingHold.findUnique({
+            where: { id: metadata.holdId },
+          })
+          if (
+            liveHold &&
+            (liveHold.tenantId !== metadata.tenantId ||
+              liveHold.bowlerCount !== metadata.bowlerCount ||
+              liveHold.startTime.getTime() !== metadata.startTime.getTime() ||
+              liveHold.endTime.getTime() !== metadata.endTime.getTime())
+          ) {
+            throw new Error('Booking hold no longer matches paid intent.')
+          }
+
+          const totalLanes = await tx.lane.count({
+            where: { tenantId: metadata.tenantId, active: true },
+          })
+          const confirmed = await tx.booking.findMany({
+            where: {
+              tenantId: metadata.tenantId,
+              status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+              startTime: { lt: metadata.endTime },
+              endTime: { gt: metadata.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const held = await tx.bookingHold.findMany({
+            where: {
+              tenantId: metadata.tenantId,
+              id: { not: metadata.holdId },
+              expiresAt: { gt: now },
+              startTime: { lt: metadata.endTime },
+              endTime: { gt: metadata.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+
+          const reserved = sumOverlappingLaneCount(
+            [...confirmed, ...held],
+            metadata.startTime,
+            metadata.endTime,
+          )
+          if (totalLanes - reserved < laneCount) {
+            throw new Error(SLOT_UNAVAILABLE_MESSAGE)
+          }
+
+          let promoCodeId: string | null = null
+          let discountAmount = 0
+          if (metaPromoCode != null && metaDiscount > 0) {
+            discountAmount = metaDiscount
+            const promoRow = await tx.promoCode.findUnique({
+              where: {
+                tenantId_code: {
+                  tenantId: metadata.tenantId,
+                  code: metaPromoCode,
+                },
+              },
+            })
+            if (
+              promoRow != null &&
+              promoRowCanIncrement(promoRow, now)
+            ) {
+              promoCodeId = promoRow.id
+              await tx.promoCode.update({
+                where: { id: promoRow.id },
+                data: { usesCount: { increment: 1 } },
+              })
+            } else {
+              console.warn(
+                `[stripe-webhook] promo "${metaPromoCode}" not applicable at capture for intent ${intent.id} — recording discount from PaymentIntent metadata`,
+              )
+            }
+          }
+
+          const created = await tx.booking.create({
+            data: {
+              tenantId: metadata.tenantId,
+              confirmationCode,
+              partyType: metadata.partyType,
+              bowlerCount: metadata.bowlerCount,
+              laneCount,
+              startTime: metadata.startTime,
+              endTime: metadata.endTime,
+              packageId: metadata.packageId,
+              status: 'CONFIRMED',
+              source: 'ONLINE',
+              customerName: metadata.customerName,
+              customerEmail: metadata.customerEmail,
+              customerPhone: metadata.customerPhone || null,
+              totalAmount: intent.amount,
+              discountAmount,
+              promoCodeId,
+              isRefunded: false,
+            },
+          })
+
+          if (promoCodeId != null) {
+            await tx.auditLog.create({
+              data: {
+                bookingId: created.id,
+                userId: null,
+                action: 'BOOKING_PROMO_APPLIED',
+                entityType: 'Booking',
+                entityId: created.id,
+                details: {
+                  promoCode: metaPromoCode,
+                  discountCents: discountAmount,
+                },
+              },
+            })
+          }
+
+          await tx.payment.create({
+            data: {
+              bookingId: created.id,
+              stripePaymentIntentId: intent.id,
+              amount: intent.amount,
+              status: intent.status,
+            },
+          })
+
+          await tx.bookingHold.deleteMany({ where: { id: metadata.holdId } })
+
+          return created
         },
-      })
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+      break
+    } catch (err) {
       if (
-        promoRow != null &&
-        promoRowCanIncrement(promoRow, now)
+        isSerializableConflict(err) &&
+        attempt < BOOKING_FINALIZE_MAX_RETRIES - 1
       ) {
-        promoCodeId = promoRow.id
-        await tx.promoCode.update({
-          where: { id: promoRow.id },
-          data: { usesCount: { increment: 1 } },
-        })
-      } else {
-        console.warn(
-          `[stripe-webhook] promo "${metaPromoCode}" not applicable at capture for intent ${intent.id} — recording discount from PaymentIntent metadata`,
-        )
+        continue
       }
+      throw err
     }
+  }
 
-    const created = await tx.booking.create({
-      data: {
-        tenantId: metadata.tenantId,
-        confirmationCode,
-        partyType: metadata.partyType,
-        bowlerCount: metadata.bowlerCount,
-        laneCount,
-        startTime: metadata.startTime,
-        endTime: metadata.endTime,
-        packageId: metadata.packageId,
-        status: 'CONFIRMED',
-        source: 'ONLINE',
-        customerName: metadata.customerName,
-        customerEmail: metadata.customerEmail,
-        customerPhone: metadata.customerPhone || null,
-        totalAmount: intent.amount,
-        discountAmount,
-        promoCodeId,
-        isRefunded: false,
-      },
-    })
-
-    if (promoCodeId != null) {
-      await tx.auditLog.create({
-        data: {
-          bookingId: created.id,
-          userId: null,
-          action: 'BOOKING_PROMO_APPLIED',
-          entityType: 'Booking',
-          entityId: created.id,
-          details: {
-            promoCode: metaPromoCode,
-            discountCents: discountAmount,
-          },
-        },
-      })
-    }
-
-    await tx.payment.create({
-      data: {
-        bookingId: created.id,
-        stripePaymentIntentId: intent.id,
-        amount: intent.amount,
-        status: intent.status,
-      },
-    })
-
-    await tx.bookingHold.deleteMany({ where: { id: metadata.holdId } })
-
-    return created
-  })
+  if (!booking) {
+    throw new Error(SLOT_UNAVAILABLE_MESSAGE)
+  }
 
   if (metadata.customerEmail) {
     try {
@@ -369,6 +476,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error(`[stripe-webhook] handler error for ${event.type}:`, err)
+    await clearStripeEventForRetry(event.id)
     return NextResponse.json(
       { error: 'handler-error' },
       { status: 500 },

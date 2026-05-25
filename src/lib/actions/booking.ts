@@ -25,13 +25,16 @@
 
 import { validatePromoCode } from '@/lib/actions/promo'
 import { isDevWithoutDb } from '@/lib/env'
-import { prisma } from '@/lib/prisma'
-import { getLaneCount } from '@/lib/lane-logic'
+import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { calculatePrice } from '@/lib/pricing'
+import { prisma } from '@/lib/prisma'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
+import { Prisma } from '@prisma/client'
 import type { Package, TimeSlot } from '@/types'
 
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
+const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
+const RESERVING_BOOKING_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] as const
 
 // ── Date strip ────────────────────────────────────────────
 
@@ -214,37 +217,100 @@ export async function acquireBookingHold(
   input: AcquireHoldInput,
 ): Promise<AcquireHoldResult> {
   const laneCount = getLaneCount(input.bowlerCount)
-  let holdMins = HOLD_TIMEOUT_MINS_DEFAULT
+  if (laneCount < 1) {
+    throw new Error('Bowler count must be at least 1.')
+  }
+  if (
+    !(input.startTime instanceof Date) ||
+    !(input.endTime instanceof Date) ||
+    Number.isNaN(input.startTime.getTime()) ||
+    Number.isNaN(input.endTime.getTime()) ||
+    input.startTime >= input.endTime
+  ) {
+    throw new Error('Invalid booking time slot.')
+  }
 
   if (isDevWithoutDb()) {
-    const expiresAt = new Date(Date.now() + holdMins * 60_000)
+    const expiresAt = new Date(Date.now() + HOLD_TIMEOUT_MINS_DEFAULT * 60_000)
     return { holdId: `hold_mock_${Date.now()}`, expiresAt }
   }
 
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: input.tenantId },
-    select: { holdTimeoutMins: true },
-  })
-  if (!tenant) throw new Error('Tenant not found')
-  holdMins = tenant.holdTimeoutMins ?? HOLD_TIMEOUT_MINS_DEFAULT
+  const hold = await withSerializableRetry(() =>
+    prisma.$transaction(
+      async (tx) => {
+        const now = new Date()
+        const tenant = await tx.tenant.findUnique({
+          where: { id: input.tenantId },
+          select: { holdTimeoutMins: true, maxOnlineBowlers: true },
+        })
+        if (!tenant) throw new Error('Tenant not found')
+        if (input.bowlerCount > tenant.maxOnlineBowlers) {
+          throw new Error('Group size exceeds online booking limit.')
+        }
 
-  const expiresAt = new Date(Date.now() + holdMins * 60_000)
-  const hold = await prisma.bookingHold.create({
-    data: {
-      tenantId: input.tenantId,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      bowlerCount: input.bowlerCount,
-      laneCount,
-      expiresAt,
-    },
-    select: { id: true, expiresAt: true },
-  })
+        await tx.bookingHold.deleteMany({
+          where: { tenantId: input.tenantId, expiresAt: { lt: now } },
+        })
+
+        const totalLanes = await tx.lane.count({
+          where: { tenantId: input.tenantId, active: true },
+        })
+        const confirmedBookings = await tx.booking.findMany({
+          where: {
+            tenantId: input.tenantId,
+            status: { in: [...RESERVING_BOOKING_STATUSES] },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { startTime: true, endTime: true, laneCount: true },
+        })
+        const activeHolds = await tx.bookingHold.findMany({
+          where: {
+            tenantId: input.tenantId,
+            expiresAt: { gt: now },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { startTime: true, endTime: true, laneCount: true },
+        })
+
+        const reservedLanes = sumOverlappingLaneCount(
+          [...confirmedBookings, ...activeHolds],
+          input.startTime,
+          input.endTime,
+        )
+        if (totalLanes - reservedLanes < laneCount) {
+          throw new Error('Selected time slot is no longer available.')
+        }
+
+        const holdMins = tenant.holdTimeoutMins ?? HOLD_TIMEOUT_MINS_DEFAULT
+        const expiresAt = new Date(now.getTime() + holdMins * 60_000)
+        return tx.bookingHold.create({
+          data: {
+            tenantId: input.tenantId,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            bowlerCount: input.bowlerCount,
+            laneCount,
+            expiresAt,
+          },
+          select: { id: true, expiresAt: true },
+        })
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    ),
+  )
   return { holdId: hold.id, expiresAt: hold.expiresAt }
 }
 
 export async function releaseBookingHold(holdId: string): Promise<void> {
-  if (isDevWithoutDb() || holdId.trim().length === 0) return
+  if (
+    isDevWithoutDb() ||
+    holdId.trim().length === 0 ||
+    holdId.startsWith('hold_mock_')
+  ) {
+    return
+  }
   await prisma.bookingHold.deleteMany({ where: { id: holdId } })
 }
 
@@ -446,6 +512,7 @@ export async function confirmBooking(
     customerEmail: input.customerEmail,
     description: `Booking for ${bowlerCount} bowlers`,
     metadata,
+    idempotencyKey: `booking-hold:${input.holdId}`,
   })
 
   return {
@@ -524,4 +591,31 @@ function toISODate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+function isPrismaSerializationConflict(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2034'
+  )
+}
+
+async function withSerializableRetry<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  for (let attempt = 1; attempt <= HOLD_TRANSACTION_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await operation()
+    } catch (err) {
+      if (!isPrismaSerializationConflict(err)) {
+        throw err
+      }
+      if (attempt === HOLD_TRANSACTION_MAX_ATTEMPTS) {
+        throw new Error('Selected time slot is no longer available.')
+      }
+    }
+  }
+  throw new Error('Selected time slot is no longer available.')
 }

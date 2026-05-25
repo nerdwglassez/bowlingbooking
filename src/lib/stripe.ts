@@ -63,6 +63,7 @@ export interface CreatePaymentIntentInput {
   metadata: Record<string, string>
   customerEmail?: string
   description?: string
+  idempotencyKey?: string
 }
 
 export interface CreatePaymentIntentResult {
@@ -91,14 +92,19 @@ export async function createPaymentIntent(
       mocked: true,
     }
   }
-  const intent = await stripe.paymentIntents.create({
+  const intentParams = {
     amount: input.amountCents,
     currency: 'usd',
     automatic_payment_methods: { enabled: true },
     metadata: input.metadata,
     receipt_email: input.customerEmail,
     description: input.description,
-  })
+  }
+  const intent = input.idempotencyKey
+    ? await stripe.paymentIntents.create(intentParams, {
+        idempotencyKey: input.idempotencyKey,
+      })
+    : await stripe.paymentIntents.create(intentParams)
   return {
     id: intent.id,
     clientSecret: intent.client_secret ?? '',
@@ -171,6 +177,7 @@ export interface CreateRefundInput {
   amountCents?: number
   reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer'
   metadata?: Record<string, string>
+  idempotencyKey?: string
 }
 
 export interface CreateRefundResult {
@@ -197,12 +204,17 @@ export async function createRefund(
       mocked: true,
     }
   }
-  const refund = await stripe.refunds.create({
+  const refundInput = {
     payment_intent: input.paymentIntentId,
     amount: input.amountCents,
     reason: input.reason,
     metadata: input.metadata,
-  })
+  }
+  const refund = input.idempotencyKey
+    ? await stripe.refunds.create(refundInput, {
+        idempotencyKey: input.idempotencyKey,
+      })
+    : await stripe.refunds.create(refundInput)
   return {
     id: refund.id,
     status: refund.status ?? 'pending',

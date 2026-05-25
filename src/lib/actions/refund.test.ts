@@ -51,6 +51,7 @@ import { manualRefundBookingAction, refundBookingAction } from './refund'
 
 const baseBooking = {
   id: 'bk_1',
+  tenantId: 't1',
   isRefunded: false,
   payment: {
     id: 'pay_1',
@@ -62,6 +63,7 @@ const baseBooking = {
 
 const baseWalkInBooking = {
   id: 'bk_walk',
+  tenantId: 't1',
   isRefunded: false,
   status: 'CONFIRMED' as const,
   payment: {
@@ -77,7 +79,11 @@ describe('refundBookingAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     isDevWithoutDbMock.mockReturnValue(false)
-    requireRoleMock.mockResolvedValue({ id: 'user_admin', role: 'ADMIN' })
+    requireRoleMock.mockResolvedValue({
+      id: 'user_admin',
+      role: 'ADMIN',
+      tenantId: 't1',
+    })
     bookingFindUniqueMock.mockResolvedValue(baseBooking)
     createRefundMock.mockResolvedValue({
       id: 're_1',
@@ -112,12 +118,23 @@ describe('refundBookingAction', () => {
     )
   })
 
+  it('throws if booking belongs to another tenant', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseBooking,
+      tenantId: 'other',
+    })
+    await expect(refundBookingAction({ bookingId: 'bk_1' })).rejects.toThrow(
+      'Booking not found',
+    )
+  })
+
   it('issues a full refund when amount is omitted', async () => {
     await refundBookingAction({ bookingId: 'bk_1' })
     expect(createRefundMock).toHaveBeenCalledWith(
       expect.objectContaining({
         paymentIntentId: 'pi_1',
         amountCents: 5000,
+        idempotencyKey: 'booking-refund:bk_1:5000',
         metadata: expect.objectContaining({
           bookingId: 'bk_1',
           requestedBy: 'user_admin',
@@ -224,7 +241,11 @@ describe('manualRefundBookingAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     isDevWithoutDbMock.mockReturnValue(false)
-    requireRoleMock.mockResolvedValue({ id: 'user_mgr', role: 'MANAGER' })
+    requireRoleMock.mockResolvedValue({
+      id: 'user_mgr',
+      role: 'MANAGER',
+      tenantId: 't1',
+    })
     bookingFindUniqueMock.mockResolvedValue(baseWalkInBooking)
   })
 

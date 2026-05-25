@@ -79,6 +79,9 @@ export async function manualRefundBookingAction(
     include: { payment: true },
   })
   if (!booking) throw new Error('Booking not found')
+  if (!user.tenantId || booking.tenantId !== user.tenantId) {
+    throw new Error('Booking not found')
+  }
   if (booking.isRefunded) {
     throw new Error('Booking already fully refunded')
   }
@@ -179,6 +182,9 @@ export async function refundBookingAction(
     include: { payment: true },
   })
   if (!booking) throw new Error('Booking not found')
+  if (!user.tenantId || booking.tenantId !== user.tenantId) {
+    throw new Error('Booking not found')
+  }
   const payment = booking.payment
   if (!payment || !payment.stripePaymentIntentId) {
     throw new Error('No captured payment to refund for this booking')
@@ -206,6 +212,7 @@ export async function refundBookingAction(
     paymentIntentId: payment.stripePaymentIntentId,
     amountCents: amount,
     reason: input.reason,
+    idempotencyKey: `booking-refund:${booking.id}:${alreadyRefunded + amount}`,
     metadata: {
       bookingId: booking.id,
       requestedBy: user.id,
