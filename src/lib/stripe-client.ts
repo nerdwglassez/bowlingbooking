@@ -9,7 +9,14 @@
 // Returns null when `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is missing — the
 // step-4 page renders a "mock mode" branch instead.
 
-import { loadStripe, type Stripe } from '@stripe/stripe-js'
+import {
+  loadStripe,
+  type PaymentIntent,
+  type Stripe,
+  type StripeElements,
+} from '@stripe/stripe-js'
+
+export type { PaymentIntent, Stripe, StripeElements }
 
 let cached: Promise<Stripe | null> | null = null
 

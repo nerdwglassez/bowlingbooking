@@ -166,6 +166,7 @@ Use Stripe **test** mode keys on a staging hostname first if possible; same step
 2. Visit **`/signin?from=/admin`** (or open **`/admin`** first, then sign in). Sign in as the seeded admin → you should land on **`/admin`** with the admin shell.
 3. While signed in as that admin, open **`/staff`** — **`requireRole('STAFF','MANAGER','ADMIN')`** allows **`ADMIN`**; you should see the staff cockpit.
 4. Complete a **test booking** using card **`4242 4242 4242 4242`** (any future expiry, any CVC).
+4b. **3D Secure (M12-M2a):** Use Stripe test card **`4000 0027 6000 3184`** (3DS2, authentication required). Complete the bank modal when prompted; if you cancel verification, confirm `/book/success?redirect_status=failed` shows the failure screen with **Back to payment**. Staff can also issue a **payment resume link** from `/staff` for an abandoned `requires_payment_method` intent.
 5. **Promo code E2E:** In **`/admin/promos`**, create an active promo; run checkout again and apply the code on the confirm step; confirm Stripe charged the discounted amount and the booking row shows **`discount_amount`** (and **`promo_code_id`** when the code was still valid when the webhook ran).
 6. In Stripe Dashboard → **Developers → Events**, confirm **`payment_intent.succeeded`** delivered **200** to your endpoint; check app logs for `[stripe-webhook]` lines on failure.
 7. Confirm the **booking confirmation email** arrived (inbox or Resend dashboard).

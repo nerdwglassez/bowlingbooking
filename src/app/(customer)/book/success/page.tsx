@@ -34,6 +34,7 @@ function formatTimeLabel(start: Date, end: Date): string {
 
 export default function BookingSuccessPage() {
   const params = useSearchParams()
+  const redirectStatus = params.get('redirect_status')
   const paymentIntentId =
     params.get('payment_intent') ?? params.get('payment_intent_client_secret')
   const tenant = useTenant()
@@ -42,16 +43,20 @@ export default function BookingSuccessPage() {
   const [booking, setBooking] = useState<BookingSummary | null>(null)
   const [pollExhausted, setPollExhausted] = useState(false)
 
-  const status: 'pending' | 'ready' | 'timeout' = !paymentIntentId
-    ? 'timeout'
-    : booking
-      ? 'ready'
-      : pollExhausted
-        ? 'timeout'
-        : 'pending'
+  const authFailed = redirectStatus === 'failed'
+
+  const status: 'auth_failed' | 'pending' | 'ready' | 'timeout' = authFailed
+    ? 'auth_failed'
+    : !paymentIntentId
+      ? 'timeout'
+      : booking
+        ? 'ready'
+        : pollExhausted
+          ? 'timeout'
+          : 'pending'
 
   useEffect(() => {
-    if (!paymentIntentId) return
+    if (authFailed || !paymentIntentId) return
     let cancelled = false
     let attempts = 0
     async function poll() {
@@ -71,7 +76,7 @@ export default function BookingSuccessPage() {
     return () => {
       cancelled = true
     }
-  }, [paymentIntentId])
+  }, [authFailed, paymentIntentId])
 
   useEffect(() => {
     if (status === 'ready') resetSession()
@@ -87,6 +92,26 @@ export default function BookingSuccessPage() {
         }}
       />
       <StepIndicator currentStep={4} />
+
+      {status === 'auth_failed' ? (
+        <section className="flex flex-col gap-3 pt-8 text-center">
+          <h1 className="text-2xl">Bank verification didn&apos;t complete</h1>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Your card issuer didn&apos;t finish 3D Secure. No charge was
+            completed. Return to checkout and try again, or use another card.
+          </p>
+          <Button
+            size="lg"
+            fullWidth
+            onClick={() => router.push('/book/confirm')}
+          >
+            Back to payment
+          </Button>
+          <Button variant="ghost" size="lg" fullWidth onClick={() => router.push('/')}>
+            Back to home
+          </Button>
+        </section>
+      ) : null}
 
       {status === 'pending' ? (
         <section className="flex flex-col items-center gap-3 pt-8 text-center">

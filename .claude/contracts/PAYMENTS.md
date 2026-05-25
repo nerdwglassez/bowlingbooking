@@ -177,11 +177,12 @@ When adding new payment-adjacent code, copy one of these test files as a templat
 
 ## 9. Customer payment UX (Phase 12 M12-M2)
 
-### 3D Secure / `requires_action`
+### 3D Secure / `requires_action` (M12-M2a)
 
 - `PaymentForm` calls `stripe.confirmPayment({ redirect: 'if_required' })`.
-- On `authentication_required` or `payment_intent_authentication_failure`, show a user-safe retry message and keep the form submittable.
-- If `paymentIntent.status === 'requires_action'` after confirm, prompt the customer to complete bank verification and tap Pay again.
+- When confirm returns `requires_action` or `authentication_required`, it immediately calls `stripe.handleNextAction({ clientSecret })` so the bank modal opens without a dead-end error.
+- User-safe copy lives in `src/lib/payment-errors.ts` (`paymentErrorMessage`, `requiresActionMessage`).
+- After a **redirect** flow, `/book/success` reads `redirect_status=failed` and shows “Back to payment” (no booking poll).
 
 ### Staff payment resume link
 

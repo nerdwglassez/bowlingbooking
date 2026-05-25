@@ -7,10 +7,15 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js'
+import type { PaymentIntent, Stripe, StripeElements } from '@/lib/stripe-client'
 
 import { Button } from '@/components/ui/button'
 import { getStripeClient, isStripeClientMocked } from '@/lib/stripe-client'
 import { formatPrice } from '@/lib/pricing'
+import {
+  paymentErrorMessage,
+  requiresActionMessage,
+} from '@/lib/payment-errors'
 
 export interface PaymentFormProps {
   clientSecret: string
@@ -61,20 +66,111 @@ export function PaymentForm(props: PaymentFormProps) {
   )
 }
 
-function paymentErrorMessage(
-  code: string | undefined,
-  fallback: string | undefined,
+type ConfirmOutcome =
+  | { type: 'redirect' }
+  | { type: 'error'; message: string }
+
+function paymentIntentClientSecret(
+  pi: PaymentIntent | string | null | undefined,
+  fallback: string,
 ): string {
-  if (code === 'authentication_required') {
-    return 'Your bank needs extra verification. Complete the prompt, then tap Pay again.'
+  if (pi && typeof pi === 'object' && pi.client_secret) {
+    return pi.client_secret
   }
-  if (code === 'payment_intent_authentication_failure') {
-    return 'Bank verification failed. Try again or use a different card.'
-  }
-  return fallback ?? 'Payment failed. Try again or use another card.'
+  return fallback
 }
 
-function PaymentFormInner({ amountCents, returnUrl }: PaymentFormProps) {
+async function runHandleNextAction(
+  stripe: Stripe,
+  clientSecret: string,
+  returnUrl: string,
+): Promise<ConfirmOutcome> {
+  const { error, paymentIntent } = await stripe.handleNextAction({ clientSecret })
+  if (error) {
+    return {
+      type: 'error',
+      message: paymentErrorMessage(error.code, error.message),
+    }
+  }
+  const status = paymentIntent?.status
+  if (status === 'succeeded' || status === 'processing') {
+    window.location.href = returnUrl
+    return { type: 'redirect' }
+  }
+  if (status === 'requires_action') {
+    return { type: 'error', message: requiresActionMessage() }
+  }
+  return {
+    type: 'error',
+    message: status
+      ? `Payment could not be completed (status: ${status}).`
+      : 'Payment could not be completed. Try again.',
+  }
+}
+
+async function confirmStripePayment(
+  stripe: Stripe,
+  elements: StripeElements | null,
+  clientSecret: string,
+  returnUrl: string,
+): Promise<ConfirmOutcome> {
+  if (!elements) {
+    return { type: 'error', message: 'Payment form is still loading.' }
+  }
+
+  const result = await stripe.confirmPayment({
+    elements,
+    confirmParams: { return_url: returnUrl },
+    redirect: 'if_required',
+  })
+
+  if (result.error) {
+    const secret = paymentIntentClientSecret(
+      result.error.payment_intent,
+      clientSecret,
+    )
+    if (
+      result.error.code === 'authentication_required' ||
+      (typeof result.error.payment_intent === 'object' &&
+        result.error.payment_intent?.status === 'requires_action')
+    ) {
+      return runHandleNextAction(stripe, secret, returnUrl)
+    }
+    return {
+      type: 'error',
+      message: paymentErrorMessage(result.error.code, result.error.message),
+    }
+  }
+
+  const pi = result.paymentIntent
+  if (!pi) {
+    return { type: 'error', message: 'Payment did not return a status.' }
+  }
+
+  if (pi.status === 'requires_action') {
+    return runHandleNextAction(
+      stripe,
+      pi.client_secret ?? clientSecret,
+      returnUrl,
+    )
+  }
+
+  if (pi.status === 'succeeded' || pi.status === 'processing') {
+    window.location.href = returnUrl
+    return { type: 'redirect' }
+  }
+
+  return {
+    type: 'error',
+    message: `Payment could not be completed (status: ${pi.status}).`,
+  }
+}
+
+function PaymentFormInner({
+  clientSecret,
+  amountCents,
+  returnUrl,
+}: PaymentFormProps) {
   const stripe = useStripe()
   const elements = useElements()
   const [submitting, setSubmitting] = useState(false)
@@ -82,36 +178,20 @@ function PaymentFormInner({ amountCents, returnUrl }: PaymentFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!stripe || !elements) return
+    if (!stripe) return
     setSubmitting(true)
     setError(null)
-    const result = await stripe.confirmPayment({
+
+    const outcome = await confirmStripePayment(
+      stripe,
       elements,
-      confirmParams: { return_url: returnUrl },
-      redirect: 'if_required',
-    })
-    if (result.error) {
-      setError(
-        paymentErrorMessage(result.error.code, result.error.message),
-      )
+      clientSecret,
+      returnUrl,
+    )
+    if (outcome.type === 'error') {
+      setError(outcome.message)
       setSubmitting(false)
-      return
     }
-    if (result.paymentIntent?.status === 'requires_action') {
-      setError(
-        'Complete verification with your bank, then tap Pay again if needed.',
-      )
-      setSubmitting(false)
-      return
-    }
-    if (
-      result.paymentIntent?.status === 'succeeded' ||
-      result.paymentIntent?.status === 'processing'
-    ) {
-      window.location.href = returnUrl
-      return
-    }
-    setSubmitting(false)
   }
 
   return (

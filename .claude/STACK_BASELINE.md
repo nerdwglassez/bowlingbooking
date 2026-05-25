@@ -393,7 +393,7 @@ These were introduced after the customer booking flow landed. Every future agent
 
 ### 9.15 Payments polish (Phase 12 M12-M2)
 
-- **3DS retry** — `PaymentForm` uses `redirect: 'if_required'` and user-safe messages for authentication failures.
+- **3DS (M12-M2a)** — `PaymentForm`: `confirmPayment` + `handleNextAction` on `requires_action`; success page handles `redirect_status=failed`; copy in `src/lib/payment-errors.ts`.
 - **Payment resume links** — staff `createPaymentResumeLink` + customer `/book/resume-payment`; token signing in `src/lib/payment-resume-token.ts`.
 - **Stacked Stripe partial refunds** — `refundBookingAction` refunds against **remaining** balance; webhook cancels booking only when fully refunded.
 
@@ -411,8 +411,6 @@ These were introduced after the customer booking flow landed. Every future agent
 
 ## 10. Open questions deferred (post-v1)
 
-- **3D Secure / `requires_action` resubmit UX.** Stripe sometimes returns `requires_action`; the current step-4 flow has no resubmit affordance.
-- **Partial-refund staging.** v1 throws if a Stripe refund is already PENDING. Manual refunds already support cumulative partials. Once we add Stripe partial-refund UI, allow stacking.
 - **Background queue for email.** v1 sends inline with the webhook; consider moving to a queue (e.g. Inngest, QStash) if Resend latency starts causing Stripe retries.
 - **Booking modification / reschedule.** Customers can cancel but not reschedule. Deferred to Phase 12.
 - **Customer accounts (sign-up, magic link, `/account` dashboard).** Bookings have nullable `userId`; the lookup-by-code flow covers v1. Deferred to Phase 12.
