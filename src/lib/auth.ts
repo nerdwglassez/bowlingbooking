@@ -157,7 +157,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id ?? token.id
         token.role = user.role
-        token.tenantId = user.tenantId
+        token.tenantId = user.tenantId ?? null
       }
       return token
     },
@@ -189,14 +189,20 @@ export interface CurrentUser {
  * call from server components, server actions, and route handlers.
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const session = await auth()
-  if (!session?.user?.id) return null
-  return {
-    id: session.user.id,
-    email: session.user.email ?? null,
-    name: session.user.name ?? null,
-    role: session.user.role,
-    tenantId: session.user.tenantId,
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return null
+    if (!session.user.role) return null
+    return {
+      id: session.user.id,
+      email: session.user.email ?? null,
+      name: session.user.name ?? null,
+      role: session.user.role,
+      tenantId: session.user.tenantId,
+    }
+  } catch (err) {
+    console.error('[auth] session read failed', err)
+    return null
   }
 }
 

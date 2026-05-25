@@ -25,6 +25,25 @@ export function hasDatabaseUrl(): boolean {
   return !!url && REAL_DB_URL_PATTERN.test(url)
 }
 
+/** True when Auth.js can sign/verify JWTs (required in production). */
+export function hasAuthSecret(): boolean {
+  return Boolean(
+    process.env['AUTH_SECRET']?.trim() ||
+      process.env['NEXTAUTH_SECRET']?.trim(),
+  )
+}
+
+/** Hostname from AUTH_URL / NEXTAUTH_URL for deployment smoke checks (no secrets). */
+export function getAuthUrlHost(): string | null {
+  const raw = process.env['AUTH_URL']?.trim() ?? process.env['NEXTAUTH_URL']?.trim()
+  if (!raw) return null
+  try {
+    return new URL(raw).host
+  } catch {
+    return 'invalid-url'
+  }
+}
+
 export function isDevWithoutDb(): boolean {
   if (process.env.NODE_ENV === 'production') return false
   return !hasDatabaseUrl()

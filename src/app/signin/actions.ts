@@ -7,11 +7,14 @@
 // credentials are wrong. A successful sign-in throws the framework redirect
 // signal (NEXT_REDIRECT) — we re-throw it so Next can complete the navigation.
 
+import { unstable_rethrow } from 'next/navigation'
+
 import { AuthError, signIn, signOut } from '@/lib/auth'
+import { hasAuthSecret } from '@/lib/env'
 
 export interface SignInActionResult {
   ok: boolean
-  error?: 'invalid-credentials' | 'unknown'
+  error?: 'invalid-credentials' | 'misconfigured' | 'unknown'
 }
 
 const ALLOWED_FROM_PATH = /^\/[A-Za-z0-9/_-]*$/
@@ -35,14 +38,20 @@ export async function signInAction(
     return { ok: false, error: 'invalid-credentials' }
   }
 
+  if (process.env.NODE_ENV === 'production' && !hasAuthSecret()) {
+    return { ok: false, error: 'misconfigured' }
+  }
+
   try {
     await signIn('credentials', { email, password, redirectTo })
     return { ok: true }
   } catch (err) {
+    unstable_rethrow(err)
     if (err instanceof AuthError) {
       return { ok: false, error: 'invalid-credentials' }
     }
-    throw err
+    console.error('[signInAction]', err)
+    return { ok: false, error: 'unknown' }
   }
 }
 

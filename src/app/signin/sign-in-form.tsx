@@ -47,12 +47,30 @@ export function SignInForm({ from }: SignInFormProps) {
         />
       </label>
 
-      {errored ? (
+      {state.error === 'misconfigured' ? (
+        <p
+          role="alert"
+          className="text-sm text-[var(--status-error-text)]"
+        >
+          Sign-in is not configured on this deployment. Set{' '}
+          <strong>AUTH_SECRET</strong> and <strong>AUTH_URL</strong> in Vercel
+          (use your live site URL, not localhost), then redeploy.
+        </p>
+      ) : null}
+      {state.error === 'invalid-credentials' ? (
         <p
           role="alert"
           className="text-sm text-[var(--status-error-text)]"
         >
           Email or password is incorrect. Try again.
+        </p>
+      ) : null}
+      {state.error === 'unknown' ? (
+        <p
+          role="alert"
+          className="text-sm text-[var(--status-error-text)]"
+        >
+          Sign-in failed unexpectedly. Check Vercel env vars and redeploy.
         </p>
       ) : null}
 

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 
-import { hasDatabaseUrl, isDevWithoutDb } from '@/lib/env'
+import {
+  getAuthUrlHost,
+  hasAuthSecret,
+  hasDatabaseUrl,
+  isDevWithoutDb,
+} from '@/lib/env'
 import { getTenant } from '@/lib/tenant'
 
 export const runtime = 'nodejs'
@@ -36,6 +41,8 @@ export async function GET() {
       ok: true,
       tenantSlug: tenant.slug,
       tenantId: tenant.id,
+      authSecretConfigured: hasAuthSecret(),
+      authUrlHost: getAuthUrlHost(),
     })
   } catch (err) {
     const message =
