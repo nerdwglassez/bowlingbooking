@@ -32,7 +32,7 @@ import { headers } from 'next/headers'
 import { redirect, unauthorized } from 'next/navigation'
 import { compare, hash } from 'bcryptjs'
 
-import { warnOnce } from '@/lib/env'
+import { resolveAuthUrlForChecks, warnOnce } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Role } from '@/types'
 
@@ -126,6 +126,18 @@ export async function hashPassword(plaintext: string): Promise<string> {
 }
 
 export { AuthError }
+
+// On Vercel, infer AUTH_URL from VERCEL_URL when not set so session cookies
+// target the deployment host (not localhost from a copied .env.example).
+if (
+  !process.env.AUTH_URL?.trim() &&
+  !process.env.NEXTAUTH_URL?.trim()
+) {
+  const inferred = resolveAuthUrlForChecks()
+  if (inferred) {
+    process.env.AUTH_URL = inferred
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: resolveAuthSecret(),

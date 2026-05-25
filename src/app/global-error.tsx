@@ -1,26 +1,46 @@
-// global-error.tsx — App Router catch-all for unhandled client React errors.
-// Sentry captures the error before rendering the fallback. This file lives at
-// `app/global-error.tsx` (or `src/app/global-error.tsx`) per Next.js convention
-// and exists ONLY because Sentry's setup requires it; the rest of the app
-// renders its own segment-level `error.tsx` files where appropriate.
-
 'use client'
 
 import { useEffect } from 'react'
 
 import { captureException } from '@/lib/observability'
+import { isNextRouterDigest, redirectUrlFromDigest } from '@/lib/router-errors'
 
 export default function GlobalError({
   error,
 }: {
   error: Error & { digest?: string }
 }) {
+  const redirectTo = redirectUrlFromDigest(error.digest)
+
   useEffect(() => {
-    captureException(error, { action: 'global-error' })
-  }, [error])
+    if (redirectTo) {
+      window.location.replace(redirectTo)
+      return
+    }
+    if (!isNextRouterDigest(error.digest)) {
+      captureException(error, { action: 'global-error' })
+    }
+  }, [error, redirectTo])
+
+  if (redirectTo || isNextRouterDigest(error.digest)) {
+    return (
+      <html lang="en">
+        <body
+          style={{
+            fontFamily: 'system-ui, sans-serif',
+            padding: '2rem',
+            maxWidth: '32rem',
+            margin: '0 auto',
+          }}
+        >
+          <p>Redirecting…</p>
+        </body>
+      </html>
+    )
+  }
 
   return (
-    <html>
+    <html lang="en">
       <body
         style={{
           fontFamily: 'system-ui, sans-serif',
@@ -34,6 +54,11 @@ export default function GlobalError({
           We&apos;ve been notified. Try refreshing the page, or contact the
           venue if the problem continues.
         </p>
+        {error.digest ? (
+          <p style={{ fontSize: '12px', opacity: 0.7 }}>
+            Reference: {error.digest}
+          </p>
+        ) : null}
       </body>
     </html>
   )

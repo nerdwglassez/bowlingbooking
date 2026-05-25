@@ -35,13 +35,23 @@ export function hasAuthSecret(): boolean {
 
 /** Hostname from AUTH_URL / NEXTAUTH_URL for deployment smoke checks (no secrets). */
 export function getAuthUrlHost(): string | null {
-  const raw = process.env['AUTH_URL']?.trim() ?? process.env['NEXTAUTH_URL']?.trim()
+  const raw = resolveAuthUrlForChecks()
   if (!raw) return null
   try {
     return new URL(raw).host
   } catch {
     return 'invalid-url'
   }
+}
+
+/** Effective auth base URL (explicit env, else Vercel auto host in production). */
+export function resolveAuthUrlForChecks(): string | undefined {
+  const explicit =
+    process.env['AUTH_URL']?.trim() ?? process.env['NEXTAUTH_URL']?.trim()
+  if (explicit) return explicit
+  const vercel = process.env['VERCEL_URL']?.trim()
+  if (vercel) return `https://${vercel}`
+  return undefined
 }
 
 export function isDevWithoutDb(): boolean {

@@ -5,6 +5,7 @@ import {
   hasAuthSecret,
   hasDatabaseUrl,
   isDevWithoutDb,
+  resolveAuthUrlForChecks,
 } from '@/lib/env'
 import { getTenant } from '@/lib/tenant'
 
@@ -37,12 +38,25 @@ export async function GET() {
 
   try {
     const tenant = await getTenant()
+    const authUrlHost = getAuthUrlHost()
+    const warnings: string[] = []
+    if (!hasAuthSecret()) {
+      warnings.push('Set AUTH_SECRET on this deployment.')
+    }
+    if (authUrlHost === 'localhost' || authUrlHost?.startsWith('127.')) {
+      warnings.push(
+        'AUTH_URL points at localhost — set AUTH_URL to your Vercel domain or rely on VERCEL_URL inference after redeploy.',
+      )
+    }
+
     return NextResponse.json({
       ok: true,
       tenantSlug: tenant.slug,
       tenantId: tenant.id,
       authSecretConfigured: hasAuthSecret(),
-      authUrlHost: getAuthUrlHost(),
+      authUrlHost,
+      authUrlResolved: resolveAuthUrlForChecks() ?? null,
+      warnings: warnings.length ? warnings : undefined,
     })
   } catch (err) {
     const message =
