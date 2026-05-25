@@ -25,12 +25,42 @@
 
 import { isDevWithoutDb } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { getLaneCount } from '@/lib/lane-logic'
 import { calculatePrice } from '@/lib/pricing'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
 import type { Package, TimeSlot } from '@/types'
 
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
+const HOLD_ACQUIRE_MAX_RETRIES = 3
+const SLOT_UNAVAILABLE_MESSAGE = 'Selected time slot is no longer available.'
+
+interface LaneReservation {
+  startTime: Date
+  endTime: Date
+  laneCount: number
+}
+
+function reservedLaneCount(
+  reservations: LaneReservation[],
+  startTime: Date,
+  endTime: Date,
+): number {
+  return reservations
+    .filter((reservation) => {
+      return reservation.startTime < endTime && reservation.endTime > startTime
+    })
+    .reduce((acc, reservation) => acc + reservation.laneCount, 0)
+}
+
+function isSerializableConflict(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2034'
+  )
+}
 
 // ── Date strip ────────────────────────────────────────────
 
@@ -177,19 +207,73 @@ export async function acquireBookingHold(
   if (!tenant) throw new Error('Tenant not found')
   holdMins = tenant.holdTimeoutMins ?? HOLD_TIMEOUT_MINS_DEFAULT
 
-  const expiresAt = new Date(Date.now() + holdMins * 60_000)
-  const hold = await prisma.bookingHold.create({
-    data: {
-      tenantId: input.tenantId,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      bowlerCount: input.bowlerCount,
-      laneCount,
-      expiresAt,
-    },
-    select: { id: true, expiresAt: true },
-  })
-  return { holdId: hold.id, expiresAt: hold.expiresAt }
+  for (let attempt = 0; attempt < HOLD_ACQUIRE_MAX_RETRIES; attempt++) {
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + holdMins * 60_000)
+
+    try {
+      const hold = await prisma.$transaction(
+        async (tx) => {
+          await tx.bookingHold.deleteMany({
+            where: { tenantId: input.tenantId, expiresAt: { lt: now } },
+          })
+
+          const totalLanes = await tx.lane.count({
+            where: { tenantId: input.tenantId, active: true },
+          })
+          const confirmed = await tx.booking.findMany({
+            where: {
+              tenantId: input.tenantId,
+              status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const held = await tx.bookingHold.findMany({
+            where: {
+              tenantId: input.tenantId,
+              expiresAt: { gt: now },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+
+          const reserved = reservedLaneCount(
+            [...confirmed, ...held],
+            input.startTime,
+            input.endTime,
+          )
+          if (totalLanes - reserved < laneCount) {
+            throw new Error(SLOT_UNAVAILABLE_MESSAGE)
+          }
+
+          return tx.bookingHold.create({
+            data: {
+              tenantId: input.tenantId,
+              startTime: input.startTime,
+              endTime: input.endTime,
+              bowlerCount: input.bowlerCount,
+              laneCount,
+              expiresAt,
+            },
+            select: { id: true, expiresAt: true },
+          })
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+
+      return { holdId: hold.id, expiresAt: hold.expiresAt }
+    } catch (err) {
+      if (isSerializableConflict(err) && attempt < HOLD_ACQUIRE_MAX_RETRIES - 1) {
+        continue
+      }
+      throw err
+    }
+  }
+
+  throw new Error(SLOT_UNAVAILABLE_MESSAGE)
 }
 
 export async function releaseBookingHold(holdId: string): Promise<void> {

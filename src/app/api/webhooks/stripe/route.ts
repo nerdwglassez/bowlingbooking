@@ -26,6 +26,7 @@ import { getLaneCount } from '@/lib/lane-logic'
 import { prisma } from '@/lib/prisma'
 import { constructWebhookEvent, type Stripe } from '@/lib/stripe'
 import { getTenant } from '@/lib/tenant'
+import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,35 @@ interface BookingMetadata {
 }
 
 const PARTY_TYPES = new Set(['OPEN', 'BIRTHDAY', 'CORPORATE', 'COSMIC'])
+const BOOKING_FINALIZE_MAX_RETRIES = 3
+const SLOT_UNAVAILABLE_MESSAGE = 'Paid booking no longer has lane capacity.'
+
+interface LaneReservation {
+  startTime: Date
+  endTime: Date
+  laneCount: number
+}
+
+function reservedLaneCount(
+  reservations: LaneReservation[],
+  startTime: Date,
+  endTime: Date,
+): number {
+  return reservations
+    .filter((reservation) => {
+      return reservation.startTime < endTime && reservation.endTime > startTime
+    })
+    .reduce((acc, reservation) => acc + reservation.laneCount, 0)
+}
+
+function isSerializableConflict(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2034'
+  )
+}
 
 function parseBookingMetadata(
   raw: Record<string, string> | null | undefined,
@@ -129,40 +159,124 @@ async function handlePaymentIntentSucceeded(
   const confirmationCode = generateConfirmationCode()
   const laneCount = getLaneCount(metadata.bowlerCount)
 
-  const booking = await prisma.$transaction(async (tx) => {
-    const created = await tx.booking.create({
-      data: {
-        tenantId: metadata.tenantId,
-        confirmationCode,
-        partyType: metadata.partyType,
-        bowlerCount: metadata.bowlerCount,
-        laneCount,
-        startTime: metadata.startTime,
-        endTime: metadata.endTime,
-        packageId: metadata.packageId,
-        status: 'CONFIRMED',
-        source: 'ONLINE',
-        customerName: metadata.customerName,
-        customerEmail: metadata.customerEmail,
-        customerPhone: metadata.customerPhone || null,
-        totalAmount: intent.amount,
-        isRefunded: false,
-      },
-    })
+  let booking:
+    | {
+        confirmationCode: string
+        startTime: Date
+        endTime: Date
+        laneCount: number
+        bowlerCount: number
+        totalAmount: number
+      }
+    | null = null
 
-    await tx.payment.create({
-      data: {
-        bookingId: created.id,
-        stripePaymentIntentId: intent.id,
-        amount: intent.amount,
-        status: intent.status,
-      },
-    })
+  for (let attempt = 0; attempt < BOOKING_FINALIZE_MAX_RETRIES; attempt++) {
+    try {
+      booking = await prisma.$transaction(
+        async (tx) => {
+          const now = new Date()
+          await tx.bookingHold.deleteMany({
+            where: {
+              tenantId: metadata.tenantId,
+              expiresAt: { lt: now },
+            },
+          })
 
-    await tx.bookingHold.deleteMany({ where: { id: metadata.holdId } })
+          const liveHold = await tx.bookingHold.findUnique({
+            where: { id: metadata.holdId },
+          })
+          if (
+            liveHold &&
+            (liveHold.tenantId !== metadata.tenantId ||
+              liveHold.bowlerCount !== metadata.bowlerCount ||
+              liveHold.startTime.getTime() !== metadata.startTime.getTime() ||
+              liveHold.endTime.getTime() !== metadata.endTime.getTime())
+          ) {
+            throw new Error('Booking hold no longer matches paid intent.')
+          }
 
-    return created
-  })
+          const totalLanes = await tx.lane.count({
+            where: { tenantId: metadata.tenantId, active: true },
+          })
+          const confirmed = await tx.booking.findMany({
+            where: {
+              tenantId: metadata.tenantId,
+              status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+              startTime: { lt: metadata.endTime },
+              endTime: { gt: metadata.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const held = await tx.bookingHold.findMany({
+            where: {
+              tenantId: metadata.tenantId,
+              id: { not: metadata.holdId },
+              expiresAt: { gt: now },
+              startTime: { lt: metadata.endTime },
+              endTime: { gt: metadata.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+
+          const reserved = reservedLaneCount(
+            [...confirmed, ...held],
+            metadata.startTime,
+            metadata.endTime,
+          )
+          if (totalLanes - reserved < laneCount) {
+            throw new Error(SLOT_UNAVAILABLE_MESSAGE)
+          }
+
+          const created = await tx.booking.create({
+            data: {
+              tenantId: metadata.tenantId,
+              confirmationCode,
+              partyType: metadata.partyType,
+              bowlerCount: metadata.bowlerCount,
+              laneCount,
+              startTime: metadata.startTime,
+              endTime: metadata.endTime,
+              packageId: metadata.packageId,
+              status: 'CONFIRMED',
+              source: 'ONLINE',
+              customerName: metadata.customerName,
+              customerEmail: metadata.customerEmail,
+              customerPhone: metadata.customerPhone || null,
+              totalAmount: intent.amount,
+              isRefunded: false,
+            },
+          })
+
+          await tx.payment.create({
+            data: {
+              bookingId: created.id,
+              stripePaymentIntentId: intent.id,
+              amount: intent.amount,
+              status: intent.status,
+            },
+          })
+
+          await tx.bookingHold.deleteMany({ where: { id: metadata.holdId } })
+
+          return created
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+      break
+    } catch (err) {
+      if (
+        isSerializableConflict(err) &&
+        attempt < BOOKING_FINALIZE_MAX_RETRIES - 1
+      ) {
+        continue
+      }
+      throw err
+    }
+  }
+
+  if (!booking) {
+    throw new Error(SLOT_UNAVAILABLE_MESSAGE)
+  }
 
   if (metadata.customerEmail) {
     try {
@@ -264,6 +378,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error(`[stripe-webhook] handler error for ${event.type}:`, err)
+    try {
+      await prisma.stripeEvent.deleteMany({ where: { id: event.id } })
+    } catch (cleanupErr) {
+      console.error(
+        `[stripe-webhook] failed to clear event marker for ${event.id}:`,
+        cleanupErr,
+      )
+    }
     return NextResponse.json(
       { error: 'handler-error' },
       { status: 500 },
