@@ -9,6 +9,9 @@ import { getHomeRedirectPath } from '@/lib/env.home-entry'
  */
 const PAGE_HOME_ENTRY: HomeEntry | null = null
 
+/** Avoid serving a statically cached Phase 1 placeholder at `/` on Vercel. */
+export const dynamic = 'force-dynamic'
+
 export default function Home() {
   redirect(getHomeRedirectPath(PAGE_HOME_ENTRY))
 }

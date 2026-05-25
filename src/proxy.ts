@@ -11,6 +11,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 import { isRateLimitEnabled } from '@/lib/env'
+import { getHomeRedirectPath } from '@/lib/env.home-entry'
 import {
   checkRateLimit,
   getClientIdFromHeaderValues,
@@ -19,6 +20,13 @@ import {
 
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+
+  if (pathname === '/') {
+    const target = getHomeRedirectPath()
+    if (target !== '/') {
+      return NextResponse.redirect(new URL(target, request.url))
+    }
+  }
 
   if (isRateLimitEnabled()) {
     const bucket = rateLimitBucketForPathname(pathname)
