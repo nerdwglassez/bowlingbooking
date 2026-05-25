@@ -107,7 +107,7 @@ npx prisma db seed
 8. **Build and start**
 
 ```bash
-npm run build
+npm run build    # runs prisma generate, then next build
 npm run start
 ```
 
@@ -288,7 +288,7 @@ From `package.json`:
 
 ```bash
 npm run verify   # tsc --noEmit + eslint + drift-check + vitest
-npm run build    # next build --turbopack
+npm run build    # prisma generate + next build --turbopack
 npm run start    # next start
 ```
 
