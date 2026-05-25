@@ -183,6 +183,27 @@ Use Stripe **test** mode keys on a staging hostname first if possible; same step
 
 ## 7. Operational runbook (when something breaks)
 
+### Vercel shows “Something went wrong” on `/` or `/book`
+
+The app’s **root layout** calls `getTenant()` on every page. In **production**, missing or wrong database setup throws before any booking UI renders.
+
+1. Open **`https://<your-domain>/api/health`** — expect `{ "ok": true, "tenantSlug": "royalz" }`. A **503** body explains the failure (e.g. tenant not found, Prisma init error).
+2. In **Vercel → Project → Settings → Environment Variables** (Production), set at minimum:
+   - **`DATABASE_URL`** — Neon (or Postgres) connection string with `sslmode=require`
+   - **`DEFAULT_TENANT_SLUG`** — `royalz` (must match `prisma/seed.ts`)
+   - **`AUTH_SECRET`** — `npx auth secret`
+3. **Apply schema + seed** against that same database (from your laptop, not on Vercel):
+
+   ```bash
+   set -a && source .env.local && set +a   # or export DATABASE_URL=...
+   npx prisma migrate deploy
+   npx prisma db seed
+   ```
+
+4. **Redeploy** after env changes (Vercel rebuilds; migrations are not run automatically during `npm run build`).
+
+Common mistakes: `DATABASE_URL` points at an **old** database (wrong tables), migrations never deployed, or seed never run so slug **`royalz`** is missing.
+
 ### Stripe webhook is failing
 
 - **Signature mismatch:** Wrong **`STRIPE_WEBHOOK_SECRET`** (live vs test mixed, rotated secret not updated, or multiple endpoints). **Clock skew** is rare with Stripe but if TLS/time is wrong on the host, fix NTP.
