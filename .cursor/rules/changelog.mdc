@@ -1,0 +1,14 @@
+---
+description: Run the /changelog workflow — update CHANGELOG.md from git history (Keep a Changelog).
+alwaysApply: false
+---
+
+# /changelog
+
+When the user says **`/changelog`**, **update the changelog**, or **refresh CHANGELOG**:
+
+1. Read and follow **`.cursor/skills/changelog/SKILL.md`** (project skill `changelog`).
+2. Default: update **`[Unreleased]`** on `origin/main`; do not cut a release unless asked.
+3. Commit only `CHANGELOG.md` with message `docs: update CHANGELOG` when the user wants a commit.
+
+Do not dump raw `git log` into the file. Cluster by feature; use Added / Changed / Fixed / Security / Removed.

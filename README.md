@@ -2,6 +2,10 @@
 
 Lane reservation system for Royal Z Lanes. Built to be licensed to other bowling alleys.
 
+## Changelog
+
+Notable releases are recorded in [CHANGELOG.md](./CHANGELOG.md). In Cursor, run **`/changelog`** (or ask to update the changelog) to refresh the `[Unreleased]` section from `main`.
+
 ## Quick start
 
 ```bash
