@@ -12,6 +12,7 @@ import { PromoInput } from '@/components/patterns/promo-input'
 import { Input } from '@/components/ui/input'
 import { useBooking } from '@/context/BookingContext'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
+import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { confirmBooking } from '@/lib/actions/booking'
 import { calculatePrice } from '@/lib/pricing'
 import { useWallClockNow } from '@/lib/use-wall-clock'
@@ -161,7 +162,7 @@ function ConfirmBookingContent() {
         venueName={tenant.name}
         address={tenant.address}
         onSignIn={() => {
-          router.push('/signin')
+          router.push(STAFF_SIGN_IN_PATH)
         }}
       />
       <StepIndicator currentStep={4} />

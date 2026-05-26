@@ -29,7 +29,14 @@ const ADMIN_NAV = [
   { href: '/admin/team', label: 'Team', icon: Users },
   { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { href: '/admin/audit', label: 'Audit log', icon: ScrollText },
-]
+] as const
+
+const ADMIN_ONLY_HREFS = new Set<string>(['/admin/reports', '/admin/audit'])
+
+function adminNavForRole(role: string) {
+  if (role === 'ADMIN') return [...ADMIN_NAV]
+  return ADMIN_NAV.filter((item) => !ADMIN_ONLY_HREFS.has(item.href))
+}
 
 export default async function AdminLayout({
   children,
@@ -46,7 +53,7 @@ export default async function AdminLayout({
       currentPath={currentPath}
       user={{ email: user.email, name: user.name, role: user.role }}
       tenant={{ name: tenant.name }}
-      navItems={ADMIN_NAV}
+      navItems={adminNavForRole(user.role)}
       eyebrowLabel="Admin"
       secondaryFooter={
         <Button asChild variant="ghost" size="sm" fullWidth>

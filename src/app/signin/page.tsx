@@ -4,16 +4,14 @@ export const dynamic = 'force-dynamic'
 
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { getCurrentUser } from '@/lib/auth'
+import { getPostSignInPath } from '@/lib/post-sign-in'
+import { sanitizeSignInFrom } from '@/lib/auth-paths'
 import { getTenant } from '@/lib/tenant'
 import { SignInForm } from './sign-in-form'
 
-const ALLOWED_FROM_PATH = /^\/[A-Za-z0-9/_-]*$/
-
-function safeFrom(raw: string | string[] | undefined): string {
+function fromSearchParam(raw: string | string[] | undefined): string {
   if (typeof raw !== 'string') return '/'
-  if (!ALLOWED_FROM_PATH.test(raw)) return '/'
-  if (raw === '/signin') return '/'
-  return raw
+  return sanitizeSignInFrom(raw)
 }
 
 interface SignInPageProps {
@@ -22,10 +20,10 @@ interface SignInPageProps {
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams
-  const from = safeFrom(params.from)
+  const from = fromSearchParam(params.from)
 
   const user = await getCurrentUser()
-  if (user) redirect(from)
+  if (user) redirect(await getPostSignInPath(from, user))
 
   const tenant = await getTenant()
 

@@ -20,9 +20,14 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { generateConfirmationCode } from '@/lib/booking-codes'
 import { sendBookingConfirmation } from '@/lib/email'
 import { isDevWithoutDb } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
+import {
+  isSerializableConflict,
+  isUniqueConstraintOnField,
+} from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 import { constructWebhookEvent, type Stripe } from '@/lib/stripe'
 import { getTenant } from '@/lib/tenant'
@@ -61,15 +66,6 @@ interface BookingMetadata {
 const PARTY_TYPES = new Set(['OPEN', 'BIRTHDAY', 'CORPORATE', 'COSMIC'])
 const BOOKING_FINALIZE_MAX_RETRIES = 3
 const SLOT_UNAVAILABLE_MESSAGE = 'Paid booking no longer has lane capacity.'
-
-function isSerializableConflict(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code?: string }).code === 'P2034'
-  )
-}
 
 function parseBookingMetadata(
   raw: Record<string, string> | null | undefined,
@@ -123,15 +119,6 @@ function promoRowCanIncrement(
   if (row.expiresAt != null && row.expiresAt <= now) return false
   if (row.maxUses != null && row.usesCount >= row.maxUses) return false
   return true
-}
-
-function generateConfirmationCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let out = ''
-  for (let i = 0; i < 6; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return out
 }
 
 async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
@@ -189,7 +176,6 @@ async function handlePaymentIntentSucceeded(
     return
   }
 
-  const confirmationCode = generateConfirmationCode()
   const laneCount = getLaneCount(metadata.bowlerCount)
   const rawMeta = intent.metadata as Record<string, string> | null
   const { promoCode: metaPromoCode, discountCents: metaDiscount } =
@@ -209,6 +195,7 @@ async function handlePaymentIntentSucceeded(
   let booking: FinalizedBooking | null = null
 
   for (let attempt = 0; attempt < BOOKING_FINALIZE_MAX_RETRIES; attempt++) {
+    const confirmationCode = generateConfirmationCode()
     try {
       booking = await prisma.$transaction(
         async (tx) => {
@@ -347,10 +334,11 @@ async function handlePaymentIntentSucceeded(
       )
       break
     } catch (err) {
-      if (
-        isSerializableConflict(err) &&
-        attempt < BOOKING_FINALIZE_MAX_RETRIES - 1
-      ) {
+      const retryable =
+        attempt < BOOKING_FINALIZE_MAX_RETRIES - 1 &&
+        (isSerializableConflict(err) ||
+          isUniqueConstraintOnField(err, ['confirmation_code']))
+      if (retryable) {
         continue
       }
       throw err

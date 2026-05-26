@@ -13,6 +13,7 @@ import { PackageCard } from '@/components/patterns/package-card'
 import { PackageDetailSheet } from '@/components/patterns/package-detail-sheet'
 import { PriceFooter } from '@/components/patterns/price-footer'
 import { useBooking } from '@/context/BookingContext'
+import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { getPackagesForTenant } from '@/lib/actions/booking'
 import { formatPackageStepSubtitle } from '@/lib/booking-display'
 import { calculatePrice } from '@/lib/pricing'
@@ -105,7 +106,7 @@ export default function PackagePage() {
         venueName={tenant.name}
         address={tenant.address}
         onSignIn={() => {
-          router.push('/signin')
+          router.push(STAFF_SIGN_IN_PATH)
         }}
       />
       <StepIndicator currentStep={2} />

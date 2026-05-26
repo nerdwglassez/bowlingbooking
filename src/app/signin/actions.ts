@@ -9,21 +9,14 @@
 
 import { unstable_rethrow } from 'next/navigation'
 
-import { AuthError, signIn, signOut } from '@/lib/auth'
+import { AuthError, signIn, signOut, verifyCredentials } from '@/lib/auth'
+import { sanitizeSignInFrom } from '@/lib/auth-paths'
+import { getPostSignInPath } from '@/lib/post-sign-in'
 import { hasAuthSecret } from '@/lib/env'
 
 export interface SignInActionResult {
   ok: boolean
   error?: 'invalid-credentials' | 'misconfigured' | 'unknown'
-}
-
-const ALLOWED_FROM_PATH = /^\/[A-Za-z0-9/_-]*$/
-
-function safeRedirectTarget(from: FormDataEntryValue | null): string {
-  if (typeof from !== 'string') return '/'
-  if (!ALLOWED_FROM_PATH.test(from)) return '/'
-  if (from === '/signin') return '/'
-  return from
 }
 
 export async function signInAction(
@@ -32,7 +25,10 @@ export async function signInAction(
 ): Promise<SignInActionResult> {
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
-  const redirectTo = safeRedirectTarget(formData.get('from'))
+  const fromRaw = formData.get('from')
+  const from = sanitizeSignInFrom(
+    typeof fromRaw === 'string' ? fromRaw : undefined,
+  )
 
   if (!email || !password) {
     return { ok: false, error: 'invalid-credentials' }
@@ -41,6 +37,13 @@ export async function signInAction(
   if (process.env.NODE_ENV === 'production' && !hasAuthSecret()) {
     return { ok: false, error: 'misconfigured' }
   }
+
+  const verified = await verifyCredentials(email, password)
+  if (!verified) {
+    return { ok: false, error: 'invalid-credentials' }
+  }
+
+  const redirectTo = await getPostSignInPath(from, verified)
 
   try {
     await signIn('credentials', { email, password, redirectTo })

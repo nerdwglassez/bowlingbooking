@@ -9,6 +9,7 @@ import { BookingSummaryCard } from '@/components/patterns/booking-summary-card'
 import { Button } from '@/components/ui/button'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import { useBooking } from '@/context/BookingContext'
+import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import {
   getBookingByPaymentIntentId,
   type BookingSummary,
@@ -88,7 +89,7 @@ export default function BookingSuccessPage() {
         venueName={tenant.name}
         address={tenant.address}
         onSignIn={() => {
-          router.push('/signin')
+          router.push(STAFF_SIGN_IN_PATH)
         }}
       />
       <StepIndicator currentStep={4} />

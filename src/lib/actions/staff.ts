@@ -13,9 +13,13 @@
 import { revalidatePath } from 'next/cache'
 
 import { requireRole } from '@/lib/auth'
+import { generateConfirmationCode } from '@/lib/booking-codes'
 import { isDevWithoutDb } from '@/lib/env'
 import { getLaneCount } from '@/lib/lane-logic'
+import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
+
+const WALK_IN_CODE_MAX_RETRIES = 5
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -223,58 +227,77 @@ export async function createWalkInBooking(
     }
   }
 
-  const confirmationCode = generateConfirmationCode()
   const laneCount = getLaneCount(input.bowlerCount)
 
-  const booking = await prisma.$transaction(async (tx) => {
-    const created = await tx.booking.create({
-      data: {
-        tenantId: input.tenantId,
-        userId: user.id,
-        confirmationCode,
-        partyType: input.partyType,
-        bowlerCount: input.bowlerCount,
-        laneCount,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        packageId: input.packageId,
-        status: 'CONFIRMED',
-        source: 'WALK_IN',
-        customerName: input.customerName,
-        customerEmail: input.customerEmail,
-        customerPhone: input.customerPhone ?? null,
-        totalAmount: input.totalAmount,
-        notes: input.notes ?? null,
-        isRefunded: false,
-      },
-    })
+  let booking: Awaited<ReturnType<typeof prisma.booking.create>> | null = null
 
-    if (input.totalAmount > 0) {
-      await tx.payment.create({
-        data: {
-          bookingId: created.id,
-          amount: input.totalAmount,
-          status: input.paymentMethod,
-        },
+  for (let attempt = 0; attempt < WALK_IN_CODE_MAX_RETRIES; attempt++) {
+    const confirmationCode = generateConfirmationCode()
+    try {
+      booking = await prisma.$transaction(async (tx) => {
+        const created = await tx.booking.create({
+          data: {
+            tenantId: input.tenantId,
+            userId: user.id,
+            confirmationCode,
+            partyType: input.partyType,
+            bowlerCount: input.bowlerCount,
+            laneCount,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            packageId: input.packageId,
+            status: 'CONFIRMED',
+            source: 'WALK_IN',
+            customerName: input.customerName,
+            customerEmail: input.customerEmail,
+            customerPhone: input.customerPhone ?? null,
+            totalAmount: input.totalAmount,
+            notes: input.notes ?? null,
+            isRefunded: false,
+          },
+        })
+
+        if (input.totalAmount > 0) {
+          await tx.payment.create({
+            data: {
+              bookingId: created.id,
+              amount: input.totalAmount,
+              status: input.paymentMethod,
+            },
+          })
+        }
+
+        await tx.auditLog.create({
+          data: {
+            bookingId: created.id,
+            userId: user.id,
+            action: 'BOOKING_WALK_IN_CREATED',
+            entityType: 'Booking',
+            entityId: created.id,
+            details: {
+              paymentMethod: input.paymentMethod,
+              source: 'WALK_IN',
+            },
+          },
+        })
+
+        return created
       })
+      break
+    } catch (err) {
+      const retryable =
+        attempt < WALK_IN_CODE_MAX_RETRIES - 1 &&
+        isUniqueConstraintOnField(err, ['confirmation_code'])
+      if (retryable) {
+        continue
+      }
+      throw err
     }
+  }
 
-    await tx.auditLog.create({
-      data: {
-        bookingId: created.id,
-        userId: user.id,
-        action: 'BOOKING_WALK_IN_CREATED',
-        entityType: 'Booking',
-        entityId: created.id,
-        details: {
-          paymentMethod: input.paymentMethod,
-          source: 'WALK_IN',
-        },
-      },
-    })
-
-    return created
-  })
+  if (!booking) {
+    throw new Error('createWalkInBooking: failed to allocate confirmation code')
+  }
 
   revalidatePath('/staff')
   revalidatePath('/staff/schedule')
@@ -361,15 +384,6 @@ export async function unblockLanes(blockId: string): Promise<void> {
 function startOfDay(d: Date): Date {
   const out = new Date(d)
   out.setHours(0, 0, 0, 0)
-  return out
-}
-
-function generateConfirmationCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let out = ''
-  for (let i = 0; i < 6; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)]
-  }
   return out
 }
 

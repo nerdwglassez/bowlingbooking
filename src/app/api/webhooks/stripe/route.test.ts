@@ -286,6 +286,32 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
   })
 
+  it('retries finalize when confirmation_code collides (P2002)', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingCreate
+      .mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['confirmation_code'] },
+      })
+      .mockResolvedValueOnce({
+        id: 'bk_1',
+        confirmationCode: 'XYZ789',
+        startTime: new Date('2025-06-01T18:00:00Z'),
+        endTime: new Date('2025-06-01T19:00:00Z'),
+        bowlerCount: 6,
+        laneCount: 1,
+        customerEmail: 'jane@example.com',
+        totalAmount: 4500,
+      })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.transactionMock).toHaveBeenCalledTimes(2)
+    expect(mocks.bookingCreate).toHaveBeenCalledTimes(2)
+  })
+
   it('clears the event marker when payment-intent processing fails so Stripe can retry', async () => {
     mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
     mocks.stripeEventCreate.mockResolvedValue({})

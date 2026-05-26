@@ -22,6 +22,7 @@ import { VenueHeader } from '@/components/patterns/venue-header'
 import {
   formatBowlersLanesDateSummary,
 } from '@/lib/booking-display'
+import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 import type { PricingResult, TimeSlot } from '@/types'
 
@@ -143,7 +144,7 @@ export default function BookStepOnePage() {
         venueName={tenant.name}
         address={tenant.address}
         onSignIn={() => {
-          router.push('/signin')
+          router.push(STAFF_SIGN_IN_PATH)
         }}
       />
       <StepIndicator currentStep={1} />

@@ -27,7 +27,7 @@ The auth module (`src/lib/auth.ts`) is the **only** place that touches `next-aut
 1. **Never `import` from `next-auth`, `next-auth/providers/*`, `next-auth/jwt`, or `bcryptjs`** outside `src/lib/auth.ts`. Drift sentinel fails the build.
 2. **Pages NEVER call `prisma.user.*` directly.** Use `getCurrentUser()` / `requireUser()` / `requireRole()`.
 3. **Role checks are server-side only.** Never gate UI on a client-known role and treat that as security. Client-side conditionals on role are an enhancement, not a guard.
-4. **The Credentials provider's `authorize` is the ONLY entry point** for password verification from a sign-in form. The form posts to a server action that calls `signIn('credentials', ...)` — it never calls `verifyCredentials()` directly to set its own cookie.
+4. **Password verification for sessions goes through `signIn('credentials', …)` → `authorize` → `verifyCredentials`.** The `/signin` server action may call `verifyCredentials` **once before** `signIn` solely to resolve a role-aware `redirectTo` (`resolvePostSignInPath`). It must not set cookies or skip `signIn`; `authorize` remains the session source of truth (and performs the bcrypt check again).
 5. **Don't trust `email` casing.** `verifyCredentials` lowercases the input. User records store the lowercase email.
 6. **Don't catch `redirect()` / `unauthorized()`.** They throw a Next.js framework signal; catching turns the redirect into a 500. Let them propagate.
 7. **No password reset, magic link, or OAuth in v1.** Adding any of these requires updating this contract first, then adding the provider in `src/lib/auth.ts` only.
