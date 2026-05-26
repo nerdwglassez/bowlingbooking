@@ -55,6 +55,12 @@ const mocks = vi.hoisted(() => {
       phone: '555-0100',
     })),
     sendEmailMock: vi.fn(async () => ({ id: 'email_1' })),
+    createRefundMock: vi.fn(async () => ({
+      id: 're_1',
+      status: 'pending',
+      amount: 4500,
+      mocked: true,
+    })),
     transactionMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
@@ -73,6 +79,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 vi.mock('@/lib/stripe', () => ({
   constructWebhookEvent: mocks.constructWebhookEventMock,
+  createRefund: mocks.createRefundMock,
 }))
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
 vi.mock('@/lib/tenant', () => ({ getTenant: mocks.getTenantMock }))
@@ -168,6 +175,12 @@ beforeEach(() => {
     totalAmount: 4500,
   })
   mocks.sendEmailMock.mockResolvedValue({ id: 'email_1' })
+  mocks.createRefundMock.mockResolvedValue({
+    id: 're_1',
+    status: 'pending',
+    amount: 4500,
+    mocked: true,
+  })
 })
 
 describe('POST /api/webhooks/stripe', () => {
@@ -226,6 +239,38 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'jane@example.com' }),
     )
+  })
+
+  it('refunds captured payment instead of retrying forever when capacity is gone', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.laneCount.mockResolvedValue(1)
+    mocks.bookingHoldFindMany.mockResolvedValue([
+      {
+        startTime: new Date(validMetadata.startTime),
+        endTime: new Date(validMetadata.endTime),
+        laneCount: 1,
+      },
+    ])
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+    expect(mocks.paymentCreate).not.toHaveBeenCalled()
+    expect(mocks.stripeEventDeleteMany).not.toHaveBeenCalled()
+    expect(mocks.createRefundMock).toHaveBeenCalledWith({
+      paymentIntentId: 'pi_1',
+      amountCents: 4500,
+      reason: 'requested_by_customer',
+      idempotencyKey: 'booking-finalize-unavailable:pi_1',
+      metadata: {
+        source: 'booking_finalize_unavailable',
+        holdId: 'hold_1',
+      },
+    })
+    err.mockRestore()
   })
 
   it('links valid promo, increments uses, and writes BOOKING_PROMO_APPLIED audit', async () => {
@@ -397,6 +442,42 @@ describe('POST /api/webhooks/stripe', () => {
         refundAmount: 2000,
         refundStatus: 'SUCCEEDED',
       }),
+    })
+  })
+
+  it('marks refund failed and restores refundable amount on refund.updated failure', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_failed',
+      type: 'refund.updated',
+      data: {
+        object: {
+          id: 're_failed',
+          payment_intent: 'pi_1',
+          amount: 2500,
+          status: 'failed',
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      refundAmount: 4500,
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
+      data: {
+        refundAmount: 2000,
+        refundStatus: 'FAILED',
+        refundedAt: null,
+      },
     })
   })
 

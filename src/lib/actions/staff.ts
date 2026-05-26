@@ -14,8 +14,9 @@ import { revalidatePath } from 'next/cache'
 
 import { requireRole } from '@/lib/auth'
 import { isDevWithoutDb } from '@/lib/env'
-import { getLaneCount } from '@/lib/lane-logic'
+import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -50,6 +51,9 @@ export interface StaffBookingDetail extends StaffBookingRow {
   } | null
   createdAt: Date
 }
+
+const RESERVING_BOOKING_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] as const
+const WALK_IN_TRANSACTION_MAX_ATTEMPTS = 3
 
 export interface BlockedSlotRow {
   id: string
@@ -211,6 +215,9 @@ export async function createWalkInBooking(
   if (input.bowlerCount < 1) {
     throw new Error('createWalkInBooking: bowlerCount must be >= 1')
   }
+  if (input.endTime <= input.startTime) {
+    throw new Error('createWalkInBooking: endTime must be after startTime')
+  }
 
   if (isDevWithoutDb()) {
     console.log(
@@ -226,55 +233,94 @@ export async function createWalkInBooking(
   const confirmationCode = generateConfirmationCode()
   const laneCount = getLaneCount(input.bowlerCount)
 
-  const booking = await prisma.$transaction(async (tx) => {
-    const created = await tx.booking.create({
-      data: {
-        tenantId: input.tenantId,
-        userId: user.id,
-        confirmationCode,
-        partyType: input.partyType,
-        bowlerCount: input.bowlerCount,
-        laneCount,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        packageId: input.packageId,
-        status: 'CONFIRMED',
-        source: 'WALK_IN',
-        customerName: input.customerName,
-        customerEmail: input.customerEmail,
-        customerPhone: input.customerPhone ?? null,
-        totalAmount: input.totalAmount,
-        notes: input.notes ?? null,
-        isRefunded: false,
+  const booking = await withWalkInSerializableRetry(() =>
+    prisma.$transaction(
+      async (tx) => {
+        const now = new Date()
+        const totalLanes = await tx.lane.count({
+          where: { tenantId: input.tenantId, active: true },
+        })
+        const [confirmedBookings, activeHolds] = await Promise.all([
+          tx.booking.findMany({
+            where: {
+              tenantId: input.tenantId,
+              status: { in: [...RESERVING_BOOKING_STATUSES] },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          }),
+          tx.bookingHold.findMany({
+            where: {
+              tenantId: input.tenantId,
+              expiresAt: { gt: now },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          }),
+        ])
+
+        const reservedLanes = sumOverlappingLaneCount(
+          [...confirmedBookings, ...activeHolds],
+          input.startTime,
+          input.endTime,
+        )
+        if (totalLanes - reservedLanes < laneCount) {
+          throw new Error('Selected time slot is no longer available.')
+        }
+
+        const created = await tx.booking.create({
+          data: {
+            tenantId: input.tenantId,
+            userId: user.id,
+            confirmationCode,
+            partyType: input.partyType,
+            bowlerCount: input.bowlerCount,
+            laneCount,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            packageId: input.packageId,
+            status: 'CONFIRMED',
+            source: 'WALK_IN',
+            customerName: input.customerName,
+            customerEmail: input.customerEmail,
+            customerPhone: input.customerPhone ?? null,
+            totalAmount: input.totalAmount,
+            notes: input.notes ?? null,
+            isRefunded: false,
+          },
+        })
+
+        if (input.totalAmount > 0) {
+          await tx.payment.create({
+            data: {
+              bookingId: created.id,
+              amount: input.totalAmount,
+              status: input.paymentMethod,
+            },
+          })
+        }
+
+        await tx.auditLog.create({
+          data: {
+            bookingId: created.id,
+            userId: user.id,
+            action: 'BOOKING_WALK_IN_CREATED',
+            entityType: 'Booking',
+            entityId: created.id,
+            details: {
+              paymentMethod: input.paymentMethod,
+              source: 'WALK_IN',
+            },
+          },
+        })
+
+        return created
       },
-    })
-
-    if (input.totalAmount > 0) {
-      await tx.payment.create({
-        data: {
-          bookingId: created.id,
-          amount: input.totalAmount,
-          status: input.paymentMethod,
-        },
-      })
-    }
-
-    await tx.auditLog.create({
-      data: {
-        bookingId: created.id,
-        userId: user.id,
-        action: 'BOOKING_WALK_IN_CREATED',
-        entityType: 'Booking',
-        entityId: created.id,
-        details: {
-          paymentMethod: input.paymentMethod,
-          source: 'WALK_IN',
-        },
-      },
-    })
-
-    return created
-  })
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    ),
+  )
 
   revalidatePath('/staff')
   revalidatePath('/staff/schedule')
@@ -371,6 +417,33 @@ function generateConfirmationCode(): string {
     out += chars[Math.floor(Math.random() * chars.length)]
   }
   return out
+}
+
+function isPrismaSerializationConflict(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2034'
+  )
+}
+
+async function withWalkInSerializableRetry<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  for (let attempt = 1; attempt <= WALK_IN_TRANSACTION_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await operation()
+    } catch (err) {
+      if (!isPrismaSerializationConflict(err)) {
+        throw err
+      }
+      if (attempt === WALK_IN_TRANSACTION_MAX_ATTEMPTS) {
+        throw new Error('Selected time slot is no longer available.')
+      }
+    }
+  }
+  throw new Error('Selected time slot is no longer available.')
 }
 
 interface BookingRow {
