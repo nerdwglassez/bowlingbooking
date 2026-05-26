@@ -24,7 +24,7 @@ import { sendBookingConfirmation } from '@/lib/email'
 import { isDevWithoutDb } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { prisma } from '@/lib/prisma'
-import { constructWebhookEvent, type Stripe } from '@/lib/stripe'
+import { constructWebhookEvent, createRefund, type Stripe } from '@/lib/stripe'
 import { getTenant } from '@/lib/tenant'
 import { Prisma } from '@prisma/client'
 
@@ -69,6 +69,10 @@ function isSerializableConflict(err: unknown): boolean {
     'code' in err &&
     (err as { code?: string }).code === 'P2034'
   )
+}
+
+function isSlotUnavailableError(err: unknown): boolean {
+  return err instanceof Error && err.message === SLOT_UNAVAILABLE_MESSAGE
 }
 
 function parseBookingMetadata(
@@ -353,6 +357,22 @@ async function handlePaymentIntentSucceeded(
       ) {
         continue
       }
+      if (isSlotUnavailableError(err)) {
+        await createRefund({
+          paymentIntentId: intent.id,
+          amountCents: intent.amount,
+          reason: 'requested_by_customer',
+          idempotencyKey: `booking-finalize-unavailable:${intent.id}`,
+          metadata: {
+            source: 'booking_finalize_unavailable',
+            holdId: metadata.holdId,
+          },
+        })
+        console.error(
+          `[stripe-webhook] refunded paid intent with no lane capacity: ${intent.id}`,
+        )
+        return
+      }
       throw err
     }
   }
@@ -432,6 +452,80 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   })
 }
 
+function getPaymentIntentIdFromRefund(refund: Stripe.Refund): string | null {
+  const paymentIntent = (
+    refund as Stripe.Refund & {
+      payment_intent?: string | { id?: string } | null
+    }
+  ).payment_intent
+  if (typeof paymentIntent === 'string') return paymentIntent
+  return paymentIntent?.id ?? null
+}
+
+async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
+  const intentId = getPaymentIntentIdFromRefund(refund)
+  if (!intentId) return
+
+  const payment = await prisma.payment.findUnique({
+    where: { stripePaymentIntentId: intentId },
+    include: { booking: { select: { status: true } } },
+  })
+  if (!payment) return
+
+  const refundAmount = refund.amount ?? 0
+  const status = String(refund.status ?? 'pending')
+
+  if (status === 'failed' || status === 'canceled') {
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          refundAmount: Math.max(0, (payment.refundAmount ?? 0) - refundAmount),
+          refundStatus: 'FAILED',
+          refundedAt: null,
+        },
+      })
+    })
+    return
+  }
+
+  if (status !== 'succeeded') {
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: { refundStatus: 'PENDING' },
+      })
+    })
+    return
+  }
+
+  const settledRefundAmount = Math.max(payment.refundAmount ?? 0, refundAmount)
+  const fullyRefunded = settledRefundAmount >= payment.amount
+
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.update({
+      where: { id: payment.id },
+      data: {
+        stripeRefundId: refund.id,
+        refundAmount: settledRefundAmount,
+        refundStatus: 'SUCCEEDED',
+        refundedAt: new Date(),
+      },
+    })
+    if (fullyRefunded) {
+      await tx.booking.update({
+        where: { id: payment.bookingId },
+        data: {
+          isRefunded: true,
+          ...(payment.booking.status !== 'CANCELLED'
+            ? { status: 'CANCELLED' }
+            : {}),
+        },
+      })
+    }
+  })
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const rawBody = await request.text()
   const signature = request.headers.get('stripe-signature')
@@ -470,6 +564,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         break
       case 'charge.refunded':
         await handleChargeRefunded(event.data.object as Stripe.Charge)
+        break
+      case 'refund.updated':
+        await handleRefundUpdated(event.data.object as Stripe.Refund)
         break
       default:
         console.log(`[stripe-webhook] ignored event type: ${event.type}`)

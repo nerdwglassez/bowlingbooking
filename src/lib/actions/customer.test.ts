@@ -268,7 +268,7 @@ describe('cancelBookingAction', () => {
     })
     expect(mocks.bookingUpdate).toHaveBeenCalledWith({
       where: { id: 'bk_1' },
-      data: { status: 'CANCELLED', isRefunded: true },
+      data: { status: 'CANCELLED', isRefunded: false },
     })
     expect(mocks.paymentUpdate).toHaveBeenCalledWith({
       where: { id: 'pay_1' },
@@ -288,6 +288,29 @@ describe('cancelBookingAction', () => {
     expect(mocks.sendCancellationMock).toHaveBeenCalled()
     expect(result.refundAmountCents).toBe(4500)
     expect(result.refundPending).toBe(true)
+  })
+
+  it('does not cancel when Stripe refund creation fails', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      status: 'succeeded',
+    })
+    mocks.createRefundMock.mockRejectedValue(new Error('stripe down'))
+
+    await expect(
+      cancelBookingAction({
+        email: 'jane@example.com',
+        confirmationCode: 'ABC123',
+      }),
+    ).rejects.toThrow(/stripe down/i)
+
+    expect(mocks.txMock).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
   })
 
   it('skips Stripe refund + payment update when refund amount is 0', async () => {

@@ -130,14 +130,25 @@ export async function cancelBookingAction(
   const shouldRefund =
     refundAmount > 0 && payment?.stripePaymentIntentId != null
 
-  // Update the booking + payment + audit in a transaction. The webhook will
-  // flip refundStatus to SUCCEEDED if a Stripe refund is created below.
+  let refundPending = false
+  if (shouldRefund && payment?.stripePaymentIntentId) {
+    await createRefund({
+      paymentIntentId: payment.stripePaymentIntentId,
+      amountCents: refundAmount,
+      reason: 'requested_by_customer',
+      metadata: { source: 'customer_self_service' },
+    })
+    refundPending = true
+  }
+
+  // Update the booking + payment + audit in a transaction. The webhook is the
+  // sole writer of Booking.isRefunded=true for Stripe payments.
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: booking.id },
       data: {
         status: 'CANCELLED',
-        isRefunded: refundAmount > 0,
+        isRefunded: false,
       },
     })
     if (shouldRefund && payment) {
@@ -165,19 +176,6 @@ export async function cancelBookingAction(
       },
     })
   })
-
-  // Trigger the Stripe refund AFTER the DB transaction commits. The webhook
-  // (charge.refunded) is the sole writer of refundStatus = SUCCEEDED.
-  let refundPending = false
-  if (shouldRefund && payment?.stripePaymentIntentId) {
-    await createRefund({
-      paymentIntentId: payment.stripePaymentIntentId,
-      amountCents: refundAmount,
-      reason: 'requested_by_customer',
-      metadata: { source: 'customer_self_service' },
-    })
-    refundPending = true
-  }
 
   // Send the cancellation email (best-effort; logs in dev mode).
   await sendBookingCancellation({
