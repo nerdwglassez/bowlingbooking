@@ -146,8 +146,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, fullWidth }), className)}
         {...props}
       >
-        {loading ? <ButtonSpinner /> : null}
-        {children}
+        {useSlot ? children : (
+          <>
+            {loading ? <ButtonSpinner /> : null}
+            {children}
+          </>
+        )}
       </Comp>
     )
   },
