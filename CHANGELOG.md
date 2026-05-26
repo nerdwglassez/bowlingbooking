@@ -9,13 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-### Changed
+- Project changelog (`CHANGELOG.md`), `/changelog` Cursor skill, and Cursor rule for Keep a Changelog updates.
 
 ### Fixed
 
-### Security
-
-### Removed
+- `Button` with `asChild` passes a single child to Radix `Slot`, fixing a runtime crash on the admin “← Staff cockpit” link and other link-styled buttons.
 
 ## [0.2.0] - 2026-05-26
 
