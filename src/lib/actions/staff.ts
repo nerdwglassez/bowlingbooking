@@ -371,9 +371,10 @@ export async function unblockLanes(blockId: string): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb() || !blockId.startsWith('block_')) return
   if (!user.tenantId) throw new Error('Block not found')
+  const tenantId = user.tenantId
   await prisma.$transaction(async (tx) => {
     const deleted = await tx.blockedSlot.deleteMany({
-      where: { id: blockId, tenantId: user.tenantId },
+      where: { id: blockId, tenantId },
     })
     if (deleted.count === 0) throw new Error('Block not found')
     await tx.auditLog.create({
