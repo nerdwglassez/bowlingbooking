@@ -10,6 +10,8 @@ import {
 describe('post-sign-in paths', () => {
   it('sanitizes invalid from values to /', () => {
     expect(sanitizeSignInFrom('https://evil.com')).toBe('/')
+    expect(sanitizeSignInFrom('//evil.com')).toBe('/')
+    expect(sanitizeSignInFrom('/%2F%2Fevil.com')).toBe('/')
     expect(sanitizeSignInFrom('/signin')).toBe('/')
   })
 

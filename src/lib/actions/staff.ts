@@ -12,7 +12,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { requireRole } from '@/lib/auth'
+import { requireRole, type CurrentUser } from '@/lib/auth'
 import { generateConfirmationCode } from '@/lib/booking-codes'
 import { isDevWithoutDb } from '@/lib/env'
 import { getLaneCount } from '@/lib/lane-logic'
@@ -69,7 +69,8 @@ export interface BlockedSlotRow {
 export async function getTodayBookings(
   tenantId: string,
 ): Promise<StaffBookingRow[]> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, tenantId)
   const today = startOfDay(new Date())
   const tomorrow = new Date(today.getTime() + 86_400_000)
 
@@ -100,7 +101,8 @@ export async function getScheduleForDate(
   tenantId: string,
   dateISO: string,
 ): Promise<ScheduleDay> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, tenantId)
   const dayStart = startOfDay(new Date(`${dateISO}T00:00:00`))
   const dayEnd = new Date(dayStart.getTime() + 86_400_000)
 
@@ -148,7 +150,7 @@ export async function getScheduleForDate(
 export async function getBookingDetail(
   bookingId: string,
 ): Promise<StaffBookingDetail | null> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) {
     return mockBookingDetail(bookingId)
   }
@@ -160,6 +162,7 @@ export async function getBookingDetail(
     },
   })
   if (!booking) return null
+  if (!user.tenantId || booking.tenantId !== user.tenantId) return null
   return {
     ...toBookingRow(booking),
     partyType: booking.partyType,
@@ -208,6 +211,7 @@ export async function createWalkInBooking(
   input: CreateWalkInInput,
 ): Promise<CreateWalkInResult> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, input.tenantId)
 
   if (input.totalAmount < 0) {
     throw new Error('createWalkInBooking: totalAmount must be non-negative')
@@ -329,6 +333,7 @@ export async function blockLanes(
   input: BlockLanesInput,
 ): Promise<BlockLanesResult> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, input.tenantId)
   if (input.endTime <= input.startTime) {
     throw new Error('blockLanes: endTime must be after startTime')
   }
@@ -365,8 +370,13 @@ export async function blockLanes(
 export async function unblockLanes(blockId: string): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb() || !blockId.startsWith('block_')) return
+  if (!user.tenantId) throw new Error('Block not found')
+  const tenantId = user.tenantId
   await prisma.$transaction(async (tx) => {
-    await tx.blockedSlot.deleteMany({ where: { id: blockId } })
+    const deleted = await tx.blockedSlot.deleteMany({
+      where: { id: blockId, tenantId },
+    })
+    if (deleted.count === 0) throw new Error('Block not found')
     await tx.auditLog.create({
       data: {
         userId: user.id,
@@ -380,6 +390,12 @@ export async function unblockLanes(blockId: string): Promise<void> {
 }
 
 // ── Helpers ───────────────────────────────────────────────
+
+function assertTenantAccess(user: CurrentUser, tenantId: string): void {
+  if (!user.tenantId || tenantId !== user.tenantId) {
+    throw new Error('Tenant not found')
+  }
+}
 
 function startOfDay(d: Date): Date {
   const out = new Date(d)

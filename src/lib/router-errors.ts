@@ -8,7 +8,7 @@ export function redirectUrlFromDigest(digest: string | undefined): string | null
   const parts = digest.split(';')
   // NEXT_REDIRECT;replace;/signin?from=/admin;307;
   const url = parts[2]
-  return url && url.startsWith('/') ? url : null
+  return url && url.startsWith('/') && !url.startsWith('//') ? url : null
 }
 
 export function isNextRouterDigest(digest: string | undefined): boolean {

@@ -12,4 +12,10 @@ describe('redirectUrlFromDigest', () => {
   it('returns null for unrelated digests', () => {
     expect(redirectUrlFromDigest('abc123')).toBeNull()
   })
+
+  it('rejects protocol-relative redirect digests', () => {
+    expect(
+      redirectUrlFromDigest('NEXT_REDIRECT;replace;//evil.com;307;'),
+    ).toBeNull()
+  })
 })
