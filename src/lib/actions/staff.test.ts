@@ -64,7 +64,9 @@ beforeEach(() => {
     id: 'user_staff',
     email: 'staff@royalz.local',
     role: 'STAFF',
+    tenantId: 't1',
   })
+  mocks.blockDeleteMany.mockResolvedValue({ count: 1 })
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
@@ -128,6 +130,11 @@ describe('staff actions: role gating', () => {
       'ADMIN',
     )
   })
+
+  it('rejects reads for another tenant', async () => {
+    await expect(getTodayBookings('t2')).rejects.toThrow(/tenant/i)
+    expect(mocks.bookingFindMany).not.toHaveBeenCalled()
+  })
 })
 
 describe('getTodayBookings', () => {
@@ -169,6 +176,14 @@ describe('getScheduleForDate', () => {
     expect(mocks.bookingFindMany).toHaveBeenCalledOnce()
     expect(mocks.blockFindMany).toHaveBeenCalledOnce()
   })
+
+  it('rejects schedule reads for another tenant', async () => {
+    await expect(getScheduleForDate('t2', '2026-01-01')).rejects.toThrow(
+      /tenant/i,
+    )
+    expect(mocks.bookingFindMany).not.toHaveBeenCalled()
+    expect(mocks.blockFindMany).not.toHaveBeenCalled()
+  })
 })
 
 describe('getBookingDetail', () => {
@@ -183,6 +198,31 @@ describe('getBookingDetail', () => {
     mocks.bookingFindUnique.mockResolvedValue(null)
     const out = await getBookingDetail('missing')
     expect(out).toBeNull()
+  })
+
+  it('returns null for bookings owned by another tenant', async () => {
+    mocks.bookingFindUnique.mockResolvedValue({
+      id: 'bk_foreign',
+      tenantId: 't2',
+      confirmationCode: 'ABC123',
+      startTime: new Date(),
+      endTime: new Date(),
+      bowlerCount: 2,
+      laneCount: 1,
+      customerName: 'Foreign',
+      customerEmail: 'foreign@example.com',
+      customerPhone: null,
+      status: 'CONFIRMED',
+      source: 'ONLINE',
+      totalAmount: 5000,
+      isRefunded: false,
+      partyType: 'OPEN',
+      notes: null,
+      createdAt: new Date(),
+      package: { name: 'Classic Bowling' },
+      payment: null,
+    })
+    await expect(getBookingDetail('bk_foreign')).resolves.toBeNull()
   })
 })
 
@@ -219,6 +259,24 @@ describe('createWalkInBooking', () => {
         paymentMethod: 'cash',
       }),
     ).rejects.toThrow(/bowlerCount/i)
+  })
+
+  it('rejects walk-ins for another tenant', async () => {
+    await expect(
+      createWalkInBooking({
+        tenantId: 't2',
+        packageId: 'pkg',
+        partyType: 'OPEN',
+        bowlerCount: 1,
+        startTime: new Date(),
+        endTime: new Date(),
+        totalAmount: 4500,
+        customerName: 'a',
+        customerEmail: 'a@b.co',
+        paymentMethod: 'cash',
+      }),
+    ).rejects.toThrow(/tenant/i)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
   })
 
   it('returns mocked result in dev-without-db', async () => {
@@ -321,6 +379,18 @@ describe('blockLanes', () => {
     ).rejects.toThrow(/endTime/i)
   })
 
+  it('rejects blocks for another tenant', async () => {
+    await expect(
+      blockLanes({
+        tenantId: 't2',
+        startTime: new Date(),
+        endTime: new Date(Date.now() + 3600_000),
+        lanes: [1],
+      }),
+    ).rejects.toThrow(/tenant/i)
+    expect(mocks.blockCreate).not.toHaveBeenCalled()
+  })
+
   it('creates a BlockedSlot + AuditLog and returns the id', async () => {
     mocks.blockCreate.mockResolvedValue({ id: 'block_1' })
     const result = await blockLanes({
@@ -363,7 +433,7 @@ describe('unblockLanes', () => {
   it('deletes the block and writes an AuditLog', async () => {
     await unblockLanes('block_xyz')
     expect(mocks.blockDeleteMany).toHaveBeenCalledWith({
-      where: { id: 'block_xyz' },
+      where: { id: 'block_xyz', tenantId: 't1' },
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -371,5 +441,11 @@ describe('unblockLanes', () => {
         entityId: 'block_xyz',
       }),
     })
+  })
+
+  it('does not audit when no block is deleted for this tenant', async () => {
+    mocks.blockDeleteMany.mockResolvedValue({ count: 0 })
+    await expect(unblockLanes('block_foreign')).rejects.toThrow(/block/i)
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
   })
 })
