@@ -114,6 +114,15 @@ describe('requireUser', () => {
     await expect(requireUser()).rejects.toThrow('__redirect:/signin')
   })
 
+  it('drops protocol-relative from paths from x-pathname', async () => {
+    withSession(null)
+    headersGet.mockImplementation((name) =>
+      name === 'x-pathname' ? '//evil.com' : null,
+    )
+    await expect(requireUser()).rejects.toThrow('__redirect:/signin')
+    expect(redirectMock).toHaveBeenCalledWith('/signin')
+  })
+
   it('returns the user when authenticated', async () => {
     withSession('ADMIN')
     const user = await requireUser()

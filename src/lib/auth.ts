@@ -34,15 +34,16 @@ import { compare, hash } from 'bcryptjs'
 
 import { resolveAuthUrlForChecks, warnOnce } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
+import { sanitizeSignInFrom } from '@/lib/auth-paths'
 import type { Role } from '@/types'
 
 export {
   defaultAppPathForRole,
   isGenericSignInFrom,
   resolvePostSignInPath,
-  sanitizeSignInFrom,
   STAFF_SIGN_IN_PATH,
 } from '@/lib/auth-paths'
+export { sanitizeSignInFrom }
 export { getPostSignInPath, type PostSignInUser } from '@/lib/post-sign-in'
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24
@@ -291,7 +292,8 @@ async function buildSignInUrl(): Promise<string> {
     // headers() can throw in non-request contexts (e.g. unit tests without
     // a Next.js request scope). Fall back to '/' rather than blow up.
   }
-  if (!from || from === '/' || from === '/signin') return '/signin'
-  const params = new URLSearchParams({ from })
+  const safeFrom = sanitizeSignInFrom(from)
+  if (safeFrom === '/' || safeFrom === '/signin') return '/signin'
+  const params = new URLSearchParams({ from: safeFrom })
   return `/signin?${params.toString()}`
 }
