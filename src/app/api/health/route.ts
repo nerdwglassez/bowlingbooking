@@ -17,15 +17,7 @@ export const dynamic = 'force-dynamic'
  * Returns 503 with a short message when the DB or tenant row is misconfigured.
  */
 export async function GET() {
-  if (isDevWithoutDb()) {
-    return NextResponse.json({
-      ok: true,
-      mode: 'mock',
-      message: 'DATABASE_URL unset — dev mock tenant only',
-    })
-  }
-
-  if (!hasDatabaseUrl()) {
+  if (!hasDatabaseUrl() && !isDevWithoutDb()) {
     return NextResponse.json(
       {
         ok: false,
@@ -48,11 +40,17 @@ export async function GET() {
         'AUTH_URL points at localhost — set AUTH_URL to your Vercel domain or rely on VERCEL_URL inference after redeploy.',
       )
     }
+    if (isDevWithoutDb()) {
+      warnings.push(
+        'DATABASE_URL unset — tenant is a dev mock; set DATABASE_URL and seed for a real DB check.',
+      )
+    }
 
     return NextResponse.json({
       ok: true,
       tenantSlug: tenant.slug,
       tenantId: tenant.id,
+      ...(isDevWithoutDb() ? { mode: 'mock' as const } : {}),
       authSecretConfigured: hasAuthSecret(),
       authUrlHost,
       authUrlResolved: resolveAuthUrlForChecks() ?? null,
