@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { packageInclusionLines, packageSummaryTags } from './package-detail'
+import {
+  getPackageCardPrice,
+  packageInclusionItems,
+  packageInclusionLines,
+  packageSummaryTags,
+} from './package-detail'
 import type { Package } from '@/types'
 
 function basePkg(over: Partial<Package> = {}): Package {
@@ -20,6 +25,27 @@ function basePkg(over: Partial<Package> = {}): Package {
     ...over,
   }
 }
+
+describe('getPackageCardPrice', () => {
+  it('uses flat clarifier for bundled packages', () => {
+    const price = getPackageCardPrice(
+      basePkg({
+        basePrice: 18500,
+        gameIncluded: true,
+        shoesIncluded: true,
+        gameCostPer: null,
+      }),
+    )
+    expect(price).toEqual({ amountCents: 18500, clarifier: 'flat' })
+  })
+
+  it('uses per-hour clarifier for rate-based packages', () => {
+    const price = getPackageCardPrice(
+      basePkg({ basePrice: 1200, gameIncluded: false }),
+    )
+    expect(price).toEqual({ amountCents: 1200, clarifier: '/ person / hr' })
+  })
+})
 
 describe('packageSummaryTags', () => {
   it('includes shoes and games when flagged', () => {
@@ -42,5 +68,14 @@ describe('packageInclusionLines', () => {
       }),
     )
     expect(lines.length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('packageInclusionItems', () => {
+  it('assigns shoe icon for shoe rental lines', () => {
+    const items = packageInclusionItems(
+      basePkg({ shoesIncluded: true, gameIncluded: true }),
+    )
+    expect(items.some((item) => item.icon === 'shoes')).toBe(true)
   })
 })

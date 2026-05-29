@@ -16,6 +16,15 @@ const TIME_SHORT = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
 })
 
+const MONTH_TITLE = new Intl.DateTimeFormat('en-US', {
+  month: 'long',
+  year: 'numeric',
+})
+
+export function formatCalendarMonthTitle(year: number, month: number): string {
+  return MONTH_TITLE.format(new Date(year, month, 1))
+}
+
 /** Wireframe 1b `step-sub` on the time step (`booking-step1-2-branded.html`). */
 export function formatBowlersLanesDateSummary(
   bowlerCount: number,

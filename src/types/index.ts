@@ -119,6 +119,13 @@ export interface PromoValidationResult {
   discountCents: number
 }
 
+export interface ShoeSelection {
+  bowlerId: string
+  size: string
+  /** Integer cents for this bowler's shoes (0 for own shoes). */
+  cost: number
+}
+
 export interface BookingSession {
   // Step 1
   partyType: PartyType | null
@@ -150,6 +157,12 @@ export interface BookingSession {
   stripePaymentIntentId: string | null
   /** Applied promo preview; null until validated via applyPromoCode. */
   promoCode: PromoValidationResult | null
+
+  // Step 3 — shoe sizing
+  shoeSelections: ShoeSelection[]
+
+  /** Step 2 — optional package add-on ids (pre-Migration 3 catalog). */
+  selectedOptionalAddonIds: string[]
 }
 
 // ── Availability ───────────────────────────────────────────
@@ -172,7 +185,7 @@ export interface LineItem {
   label: string
   /** Integer cents (e.g. 4500 = $45.00). */
   amount: number
-  type: 'base' | 'game' | 'shoe' | 'discount' | 'fee'
+  type: 'base' | 'game' | 'shoe' | 'discount' | 'fee' | 'addon'
 }
 
 export interface PricingResult {

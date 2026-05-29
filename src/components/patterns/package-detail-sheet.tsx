@@ -1,11 +1,33 @@
 'use client'
 
 import { useEffect } from 'react'
+import {
+  Armchair,
+  Beer,
+  Check,
+  Footprints,
+  Gamepad2,
+  UtensilsCrossed,
+  type LucideIcon,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { packageInclusionLines } from '@/lib/package-detail'
+import {
+  getPackageCardPrice,
+  packageInclusionItems,
+} from '@/lib/package-detail'
+import type { PackageInclusionIcon } from '@/lib/package-addons'
 import { formatPrice } from '@/lib/pricing'
 import type { Package } from '@/types'
+
+const INCLUSION_ICONS: Record<PackageInclusionIcon, LucideIcon> = {
+  lanes: Gamepad2,
+  shoes: Footprints,
+  food: UtensilsCrossed,
+  drink: Beer,
+  seating: Armchair,
+  default: Check,
+}
 
 function cn(
   ...inputs: Array<string | undefined | null | false>
@@ -22,8 +44,8 @@ export type PackageDetailSheetProps = {
 }
 
 /**
- * Wireframe `booking-step2-refined.html` variant **2c** — bottom sheet with full
- * description, "What's included" list, and primary **Select this package**.
+ * Wireframe `booking-step2-refined.html` variant **2c** — slides up from the
+ * bottom on mobile with dimmed backdrop, full description, and icon inclusion rows.
  */
 export function PackageDetailSheet({
   pkg,
@@ -32,6 +54,15 @@ export function PackageDetailSheet({
   onSelectThisPackage,
   className,
 }: PackageDetailSheetProps) {
+  useEffect(() => {
+    if (!open || pkg == null) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open, pkg])
+
   useEffect(() => {
     if (!open) return
     function onKeyDown(e: KeyboardEvent) {
@@ -45,18 +76,18 @@ export function PackageDetailSheet({
     return null
   }
 
-  const lines = packageInclusionLines(pkg)
+  const { amountCents, clarifier } = getPackageCardPrice(pkg)
+  const inclusions = packageInclusionItems(pkg)
 
   return (
     <div
-      className={cn(
-        'fixed inset-0 z-50 flex flex-col justify-end p-0 sm:p-4',
-        className,
-      )}
+      className={cn('fixed inset-0 z-50 flex flex-col justify-end', className)}
     >
       <button
         type="button"
-        className="absolute inset-0 bg-[var(--surface-overlay)]"
+        className={cn(
+          'absolute inset-0 bg-[var(--surface-overlay)] sheet-backdrop-in',
+        )}
         aria-label="Close package details"
         onClick={onClose}
       />
@@ -64,58 +95,82 @@ export function PackageDetailSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby="package-detail-title"
-        className="relative mx-auto w-full max-w-md rounded-t-[var(--radius-xl)] border border-[var(--color-border)] border-b-0 bg-[var(--surface-card)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 shadow-[var(--shadow-xl)] sm:rounded-[var(--radius-xl)] sm:border-b"
+        className={cn(
+          'relative mx-auto flex max-h-[min(88dvh,720px)] w-full max-w-md flex-col',
+          'border-t border-[var(--color-border)] bg-[var(--surface-raised)]',
+          'px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-xl)]',
+          'sheet-slide-up',
+        )}
       >
         <div
-          className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-[var(--color-border-strong)]"
+          className="mx-auto mb-3.5 h-[3px] w-8 shrink-0 rounded-full bg-[var(--color-border-strong)]"
           aria-hidden
         />
-        <h2
-          id="package-detail-title"
-          className="text-xl font-semibold text-[var(--color-text-primary)]"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          {pkg.name}
-        </h2>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          <span className="text-xs text-[var(--color-text-muted)]">From </span>
-          <span className="text-lg font-semibold text-[var(--color-text-primary)]">
-            {formatPrice(pkg.basePrice)}
-          </span>
-        </p>
-        {pkg.description ? (
-          <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-            {pkg.description}
-          </p>
-        ) : null}
-        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          What&apos;s included
-        </p>
-        <ul className="mt-2 space-y-2">
-          {lines.map((line, i) => (
-            <li
-              key={`${pkg.id}-inc-${i}`}
-              className="flex gap-2 text-sm text-[var(--color-text-secondary)]"
-            >
-              <span className="shrink-0 text-[var(--color-text-muted)]" aria-hidden>
-                ·
-              </span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-6 flex flex-col gap-2">
-          <Button
-            variant="primary"
-            fullWidth
-            onClick={() => onSelectThisPackage(pkg)}
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <h2
+            id="package-detail-title"
+            className="text-[20px] font-semibold leading-tight text-[var(--color-text-primary)]"
+            style={{ fontFamily: 'var(--font-display)' }}
           >
-            Select this package
-          </Button>
-          <Button variant="secondary" fullWidth onClick={onClose}>
-            Close
-          </Button>
+            {pkg.name}
+          </h2>
+
+          <p className="mt-1 mb-3">
+            <span
+              className="text-lg font-semibold text-[var(--color-text-primary)]"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {formatPrice(amountCents)}
+            </span>{' '}
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {clarifier}
+            </span>
+          </p>
+
+          {pkg.description ? (
+            <p className="mb-3.5 text-[13px] leading-[1.6] text-[var(--color-text-secondary)]">
+              {pkg.description}
+            </p>
+          ) : null}
+
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
+            What&apos;s included
+          </p>
+
+          <ul className="mb-3.5">
+            {inclusions.map((item, i) => {
+              const Icon = INCLUSION_ICONS[item.icon]
+              return (
+                <li
+                  key={`${pkg.id}-inc-${i}`}
+                  className={cn(
+                    'flex items-center gap-2 py-2 text-xs text-[var(--color-text-primary)]',
+                    i < inclusions.length - 1 &&
+                      'border-b border-[var(--color-border-subtle)]',
+                  )}
+                >
+                  <span
+                    className="flex size-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--surface-sunken)] text-[var(--color-text-secondary)]"
+                    aria-hidden
+                  >
+                    <Icon className="size-3.5" strokeWidth={2} />
+                  </span>
+                  <span>{item.text}</span>
+                </li>
+              )
+            })}
+          </ul>
         </div>
+
+        <Button
+          variant="primary"
+          fullWidth
+          className="shrink-0"
+          onClick={() => onSelectThisPackage(pkg)}
+        >
+          Select this package
+        </Button>
       </div>
     </div>
   )

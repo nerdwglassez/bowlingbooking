@@ -9,8 +9,6 @@
 import { useEffect, useRef } from 'react'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 
-const WARNING_MS = 120_000
-
 function formatMmSs(remainingMs: number): string {
   const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000))
   const mm = Math.floor(totalSeconds / 60)
@@ -22,9 +20,19 @@ export type HoldTimerProps = {
   expiresAt: Date | null
   onExpire?: () => void
   className?: string
+  /** When false, render nothing until a hold exists (Step 1 after slot select). */
+  showWhenIdle?: boolean
 }
 
-export function HoldTimer({ expiresAt, onExpire, className }: HoldTimerProps) {
+/**
+ * Amber hold countdown per BOOKING_INTERACTIONS.md — never green (confirmed).
+ */
+export function HoldTimer({
+  expiresAt,
+  onExpire,
+  className,
+  showWhenIdle = true,
+}: HoldTimerProps) {
   const now = useWallClockNow()
   const expireFiredRef = useRef(false)
 
@@ -41,37 +49,31 @@ export function HoldTimer({ expiresAt, onExpire, className }: HoldTimerProps) {
     onExpire()
   }, [expiresAt, isExpired, onExpire])
 
-  let pillClass: string
-  let dotClass: string
-  let label: string
+  if (!showWhenIdle && expiresAt == null) {
+    return null
+  }
 
+  let label: string
   if (expiresAt == null) {
-    pillClass =
-      'inline-flex items-center gap-2 rounded-full bg-[var(--surface-sunken)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)]'
-    dotClass = 'size-1.5 shrink-0 rounded-full bg-current opacity-70'
     label = 'Select a time to hold your lanes'
   } else if (isExpired) {
-    pillClass =
-      'inline-flex items-center gap-2 rounded-full border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3 py-1 text-xs font-medium text-[var(--status-error-text)]'
-    dotClass = 'size-1.5 shrink-0 rounded-full bg-current opacity-70'
     label = 'Hold expired — pick a new time'
   } else {
     const remainingMs = expiresAt.getTime() - now
-    const mmSs = formatMmSs(remainingMs)
-    label = `Lanes held · ${mmSs} remaining`
-    const isWarning = remainingMs <= WARNING_MS
-    if (isWarning) {
-      pillClass =
-        'inline-flex items-center gap-2 rounded-full border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] px-3 py-1 text-xs font-medium text-[var(--status-warning-text)]'
-      dotClass =
-        'size-1.5 shrink-0 animate-pulse rounded-full bg-[var(--status-warning-text)]'
-    } else {
-      pillClass =
-        'inline-flex items-center gap-2 rounded-full border border-[var(--status-ok-border)] bg-[var(--status-ok-bg)] px-3 py-1 text-xs font-medium text-[var(--status-ok-text)]'
-      dotClass =
-        'size-1.5 shrink-0 rounded-full bg-[var(--status-ok-text)]'
-    }
+    label = `Hold expires in ${formatMmSs(remainingMs)}`
   }
+
+  const pillClass =
+    expiresAt != null && !isExpired
+      ? 'inline-flex items-center gap-2 rounded-full border border-[var(--color-action)] bg-[var(--color-action-subtle)] px-3 py-1 text-xs font-medium text-[var(--color-action-text)]'
+      : isExpired
+        ? 'inline-flex items-center gap-2 rounded-full border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3 py-1 text-xs font-medium text-[var(--status-error-text)]'
+        : 'inline-flex items-center gap-2 rounded-full bg-[var(--surface-sunken)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)]'
+
+  const dotClass =
+    expiresAt != null && !isExpired
+      ? 'size-1.5 shrink-0 rounded-full bg-[var(--color-action)] motion-safe:animate-pulse'
+      : 'size-1.5 shrink-0 rounded-full bg-current opacity-70'
 
   return (
     <div

@@ -1,11 +1,6 @@
 'use client'
 
 // BookingContext.tsx — Multi-step booking form state.
-//
-// Lives at app/(customer)/book/layout.tsx. Pages read via useBooking().
-// All setters use cascading invalidation: changing an upstream field wipes
-// dependent downstream selections so the user can't end up with a stale hold
-// or mismatched package.
 
 import {
   createContext,
@@ -15,11 +10,20 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { BookingSession, Package, TimeSlot } from '@/types'
+import type { BookingSession, Package, ShoeSelection, TimeSlot } from '@/types'
 import { validatePromoCode } from '@/lib/actions/promo'
 import { getLaneCount } from '@/lib/lane-logic'
+import { calculatePackageStepTotal } from '@/lib/pricing'
 
-const DEFAULT_BOWLER_COUNT = 1
+const DEFAULT_BOWLER_COUNT = 2
+
+function emptyShoeSelections(count: number): ShoeSelection[] {
+  return Array.from({ length: count }, (_, i) => ({
+    bowlerId: `bowler-${i + 1}`,
+    size: '',
+    cost: 0,
+  }))
+}
 
 const defaultSession: BookingSession = {
   partyType: null,
@@ -40,6 +44,8 @@ const defaultSession: BookingSession = {
   stripeClientSecret: null,
   stripePaymentIntentId: null,
   promoCode: null,
+  shoeSelections: emptyShoeSelections(DEFAULT_BOWLER_COUNT),
+  selectedOptionalAddonIds: [],
 }
 
 export interface CustomerInfoUpdate {
@@ -57,6 +63,12 @@ interface BookingContextValue {
     hold: { id: string; expiresAt: Date } | null,
   ) => void
   setPackage: (pkg: Package, totalAmount: number) => void
+  clearPackage: () => void
+  toggleOptionalAddon: (addonId: string) => void
+  setShoeSelection: (bowlerIndex: number, size: string, cost: number) => void
+  removeBowler: (index: number) => void
+  syncShoeRows: () => void
+  setBookingTotal: (totalAmount: number) => void
   setCustomerInfo: (update: CustomerInfoUpdate) => void
   setPaymentIntent: (clientSecret: string, paymentIntentId: string) => void
   applyPromoCode: (code: string) => Promise<void>
@@ -65,6 +77,20 @@ interface BookingContextValue {
 }
 
 const BookingContext = createContext<BookingContextValue | null>(null)
+
+function downstreamClearFields() {
+  return {
+    packageId: null as string | null,
+    selectedPackage: null as Package | null,
+    partyType: null as BookingSession['partyType'],
+    totalAmount: null as number | null,
+    stripeClientSecret: null as string | null,
+    stripePaymentIntentId: null as string | null,
+    promoCode: null as BookingSession['promoCode'],
+    shoeSelections: [] as ShoeSelection[],
+    selectedOptionalAddonIds: [] as string[],
+  }
+}
 
 export function BookingProvider({
   children,
@@ -89,13 +115,8 @@ export function BookingProvider({
       endTime: null,
       holdId: null,
       holdExpiresAt: null,
-      packageId: null,
-      selectedPackage: null,
-      partyType: null,
-      totalAmount: null,
-      stripeClientSecret: null,
-      stripePaymentIntentId: null,
-      promoCode: null,
+      ...downstreamClearFields(),
+      shoeSelections: emptyShoeSelections(n),
     }))
   }
 
@@ -108,13 +129,8 @@ export function BookingProvider({
       endTime: null,
       holdId: null,
       holdExpiresAt: null,
-      packageId: null,
-      selectedPackage: null,
-      partyType: null,
-      totalAmount: null,
-      stripeClientSecret: null,
-      stripePaymentIntentId: null,
-      promoCode: null,
+      ...downstreamClearFields(),
+      shoeSelections: emptyShoeSelections(prev.bowlerCount ?? DEFAULT_BOWLER_COUNT),
     }))
   }
 
@@ -129,13 +145,8 @@ export function BookingProvider({
       endTime: slot?.endTime ?? null,
       holdId: hold?.id ?? null,
       holdExpiresAt: hold?.expiresAt ?? null,
-      packageId: null,
-      selectedPackage: null,
-      partyType: null,
-      totalAmount: null,
-      stripeClientSecret: null,
-      stripePaymentIntentId: null,
-      promoCode: null,
+      ...downstreamClearFields(),
+      shoeSelections: emptyShoeSelections(prev.bowlerCount ?? DEFAULT_BOWLER_COUNT),
     }))
   }
 
@@ -145,6 +156,103 @@ export function BookingProvider({
       packageId: pkg.id,
       selectedPackage: pkg,
       partyType: pkg.partyTypes[0] ?? null,
+      totalAmount,
+      stripeClientSecret: null,
+      stripePaymentIntentId: null,
+      promoCode: null,
+      shoeSelections: emptyShoeSelections(prev.bowlerCount ?? DEFAULT_BOWLER_COUNT),
+      selectedOptionalAddonIds: [],
+    }))
+  }
+
+  function clearPackage() {
+    setSession((prev) => ({
+      ...prev,
+      packageId: null,
+      selectedPackage: null,
+      partyType: null,
+      totalAmount: null,
+      stripeClientSecret: null,
+      stripePaymentIntentId: null,
+      promoCode: null,
+      shoeSelections: emptyShoeSelections(prev.bowlerCount ?? DEFAULT_BOWLER_COUNT),
+      selectedOptionalAddonIds: [],
+    }))
+  }
+
+  function toggleOptionalAddon(addonId: string) {
+    setSession((prev) => {
+      if (prev.selectedPackage == null || prev.bowlerCount == null) {
+        return prev
+      }
+      const selectedOptionalAddonIds = prev.selectedOptionalAddonIds.includes(
+        addonId,
+      )
+        ? prev.selectedOptionalAddonIds.filter((id) => id !== addonId)
+        : [...prev.selectedOptionalAddonIds, addonId]
+
+      const pricing = calculatePackageStepTotal({
+        package: prev.selectedPackage,
+        bowlerCount: prev.bowlerCount,
+        selectedOptionalAddonIds,
+      })
+
+      return {
+        ...prev,
+        selectedOptionalAddonIds,
+        totalAmount: pricing.totalAmount,
+        stripeClientSecret: null,
+        stripePaymentIntentId: null,
+        promoCode: null,
+      }
+    })
+  }
+
+  function setShoeSelection(bowlerIndex: number, size: string, cost: number) {
+    setSession((prev) => {
+      const next = [...prev.shoeSelections]
+      const row = next[bowlerIndex]
+      if (row == null) return prev
+      next[bowlerIndex] = { ...row, size, cost }
+      return { ...prev, shoeSelections: next }
+    })
+  }
+
+  function removeBowler(index: number) {
+    setSession((prev) => {
+      const count = prev.bowlerCount ?? 1
+      if (count <= 1) return prev
+      const nextCount = count - 1
+      const nextSelections = prev.shoeSelections.filter((_, i) => i !== index)
+      return {
+        ...prev,
+        bowlerCount: nextCount,
+        laneCount: getLaneCount(nextCount),
+        shoeSelections: nextSelections.map((row, i) => ({
+          ...row,
+          bowlerId: `bowler-${i + 1}`,
+        })),
+        stripeClientSecret: null,
+        stripePaymentIntentId: null,
+        promoCode: null,
+      }
+    })
+  }
+
+  function syncShoeRows() {
+    setSession((prev) => {
+      const count = prev.bowlerCount ?? DEFAULT_BOWLER_COUNT
+      if (prev.shoeSelections.length === count) return prev
+      return {
+        ...prev,
+        shoeSelections: emptyShoeSelections(count),
+      }
+    })
+  }
+
+  function setBookingTotal(totalAmount: number) {
+    setSession((prev) => ({
+      ...prev,
       totalAmount,
       stripeClientSecret: null,
       stripePaymentIntentId: null,
@@ -171,8 +279,8 @@ export function BookingProvider({
 
   async function applyPromoCode(code: string) {
     const subtotal = sessionRef.current.totalAmount
-    if (subtotal == null) {
-      throw new Error('Select a package first')
+    if (subtotal == null || subtotal <= 0) {
+      throw new Error('Add items to your booking before applying a promo code')
     }
     const result = await validatePromoCode(tenantId, code, subtotal)
     setSession((prev) => ({ ...prev, promoCode: result }))
@@ -199,6 +307,12 @@ export function BookingProvider({
         setDate,
         setTimeSlot,
         setPackage,
+        clearPackage,
+        toggleOptionalAddon,
+        setShoeSelection,
+        removeBowler,
+        syncShoeRows,
+        setBookingTotal,
         setCustomerInfo,
         setPaymentIntent,
         applyPromoCode,

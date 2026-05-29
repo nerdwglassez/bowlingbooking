@@ -46,12 +46,14 @@ const ELEMENTS_APPEARANCE = {
  * button instead — the booking flow stays clickable in design review.
  */
 export function PaymentForm(props: PaymentFormProps) {
-  const mocked = isStripeClientMocked()
-  const [stripePromise] = useState(() => getStripeClient())
-
-  if (mocked) {
+  if (isStripeClientMocked()) {
     return <MockPaymentForm {...props} />
   }
+  return <StripePaymentFormRoot {...props} />
+}
+
+function StripePaymentFormRoot(props: PaymentFormProps) {
+  const [stripePromise] = useState(() => getStripeClient())
 
   return (
     <Elements

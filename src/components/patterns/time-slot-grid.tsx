@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatTimeSlotAvailabilityCaption } from '@/lib/booking-display'
 
 import type { TimeSlot } from '@/types'
@@ -28,6 +29,7 @@ export type TimeSlotGridProps = {
   slots: TimeSlot[]
   selectedSlotId: string | null
   onSelect: (slot: TimeSlot) => void
+  loading?: boolean
   className?: string
 }
 
@@ -35,8 +37,28 @@ export function TimeSlotGrid({
   slots,
   selectedSlotId,
   onSelect,
+  loading = false,
   className,
 }: TimeSlotGridProps) {
+  if (loading) {
+    return (
+      <div
+        className={[
+          'grid grid-cols-3 sm:grid-cols-4 gap-2',
+          className,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        aria-busy
+        aria-label="Loading available times"
+      >
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} className="min-h-[4.25rem] w-full" />
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div
       role="radiogroup"

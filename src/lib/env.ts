@@ -59,6 +59,31 @@ export function isDevWithoutDb(): boolean {
   return !hasDatabaseUrl()
 }
 
+/**
+ * True when Prisma failed to reach Postgres (cold start, network blip, missing
+ * env at runtime). Used by dev-only mock fallbacks — never treat production
+ * errors as connectivity issues.
+ */
+export function isPrismaConnectivityError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  if (
+    err.message.includes('Environment variable not found: DATABASE_URL') ||
+    err.message.includes("Can't reach database server")
+  ) {
+    return true
+  }
+  if (err.name === 'PrismaClientInitializationError') return true
+  const code = (err as { code?: string }).code
+  return code === 'P1001' || code === 'P1017'
+}
+
+/** Dev/test only: mock data when there is no DB or Prisma cannot connect. */
+export function shouldUseDevDbFallback(err?: unknown): boolean {
+  if (process.env.NODE_ENV === 'production') return false
+  if (isDevWithoutDb()) return true
+  return err !== undefined && isPrismaConnectivityError(err)
+}
+
 const warnedOnce = new Set<string>()
 
 /**

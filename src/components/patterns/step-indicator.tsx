@@ -7,7 +7,7 @@ function cn(
 }
 
 export type StepIndicatorProps = {
-  currentStep: 1 | 2 | 3 | 4
+  currentStep: 1 | 2 | 3 | 4 | 5
   totalSteps?: number
   className?: string
 }
@@ -16,7 +16,7 @@ export const StepIndicator = React.forwardRef<
   HTMLOListElement,
   StepIndicatorProps
 >(function StepIndicator(
-  { currentStep, totalSteps = 4, className },
+  { currentStep, totalSteps = 5, className },
   ref,
 ) {
   const count = Math.max(1, totalSteps)
@@ -25,7 +25,10 @@ export const StepIndicator = React.forwardRef<
     <ol
       ref={ref}
       aria-label="Booking progress"
-      className={cn('flex list-none items-center gap-2', className)}
+      className={cn(
+        'flex w-full list-none items-center justify-center gap-2',
+        className,
+      )}
     >
       {Array.from({ length: count }, (_, i) => {
         const step = i + 1

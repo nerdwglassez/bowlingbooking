@@ -26,11 +26,12 @@
 import { validatePromoCode } from '@/lib/actions/promo'
 import { isDevWithoutDb } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
-import { calculatePrice } from '@/lib/pricing'
+import { calculateBookingTotal } from '@/lib/pricing'
 import { prisma } from '@/lib/prisma'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
 import { Prisma } from '@prisma/client'
-import type { Package, TimeSlot } from '@/types'
+import QRCode from 'qrcode'
+import type { Package, ShoeSelection, TimeSlot } from '@/types'
 
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
 const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
@@ -50,8 +51,9 @@ const DATE_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
 })
 
 export async function getAvailableDates(
-  _tenantId: string,
+  tenantId: string,
   days: number = 7,
+  bowlerCount: number,
 ): Promise<AvailableDate[]> {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -60,13 +62,55 @@ export async function getAvailableDates(
   for (let i = 0; i < days; i++) {
     const d = new Date(today)
     d.setDate(today.getDate() + i)
+    const dateISO = toISODate(d)
+    const slots = await getAvailableTimeSlots(tenantId, dateISO, bowlerCount)
+    const hasSlots = slots.some((slot) => slot.available)
     out.push({
-      date: toISODate(d),
+      date: dateISO,
       weekday: DATE_WEEKDAY_FORMATTER.format(d),
       day: d.getDate(),
-      available: true,
+      available: hasSlots,
     })
   }
+  return out
+}
+
+/** One server call per visible month — never loop from the client. */
+export async function getAvailableDatesForMonth(
+  tenantId: string,
+  year: number,
+  month: number,
+  bowlerCount: number,
+): Promise<AvailableDate[]> {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const out: AvailableDate[] = []
+
+  for (let day = 1; day <= lastDay; day++) {
+    const d = new Date(year, month, day)
+    const dateISO = toISODate(d)
+    const isPast = d.getTime() < today.getTime()
+
+    let available = false
+    if (!isPast) {
+      const slots = await getAvailableTimeSlots(
+        tenantId,
+        dateISO,
+        bowlerCount,
+      )
+      available = slots.some((slot) => slot.available)
+    }
+
+    out.push({
+      date: dateISO,
+      weekday: DATE_WEEKDAY_FORMATTER.format(d),
+      day,
+      available: !isPast && available,
+    })
+  }
+
   return out
 }
 
@@ -363,8 +407,9 @@ function mockPackages(tenantId: string): Package[] {
       id: 'pkg-birthday',
       tenantId,
       name: 'Birthday Party',
-      description: 'Two hours of bowling, pizza, and soda for the group.',
-      basePrice: 12000,
+      description:
+        'Everything you need for a great birthday. Includes shoes, food, reserved table, and a pitcher of your choice.',
+      basePrice: 18500,
       gameIncluded: true,
       shoesIncluded: true,
       gameCostPer: null,
@@ -381,18 +426,21 @@ function mockPackages(tenantId: string): Package[] {
 export interface ConfirmBookingInput {
   tenantId: string
   holdId: string
-  packageId: string
+  packageId?: string | null
   partyType: 'OPEN' | 'BIRTHDAY' | 'CORPORATE' | 'COSMIC'
   bowlerCount: number
+  laneCount: number
   startTime: Date
   endTime: Date
-  /** Package subtotal in cents (before promo). */
+  /** Booking subtotal in cents (before promo). */
   totalAmount: number
-  /** Optional promo code string; re-validated server-side. */
   promoCode?: string | null
   customerName: string
   customerEmail: string
   customerPhone: string
+  shoeSelections?: ShoeSelection[]
+  shoeRentalPriceCents?: number
+  laneReservationCentsPerLane?: number
 }
 
 export interface ConfirmBookingResult {
@@ -420,12 +468,18 @@ export async function confirmBooking(
   }
 
   let tenantId = input.tenantId
-  let packageId = input.packageId
+  let packageId = input.packageId ?? null
   let partyType = input.partyType
   let bowlerCount = input.bowlerCount
+  let laneCount = input.laneCount
   let startTime = input.startTime
   let endTime = input.endTime
   let subtotalCents = input.totalAmount
+  let selectedPackage: Package | null = null
+
+  const shoeRentalPriceCents = input.shoeRentalPriceCents ?? 400
+  const laneReservationCentsPerLane = input.laneReservationCentsPerLane ?? 1200
+  const shoeSelections = input.shoeSelections ?? []
 
   if (!isDevWithoutDb()) {
     const hold = await prisma.bookingHold.findUnique({
@@ -445,30 +499,62 @@ export async function confirmBooking(
       throw new Error('Booking hold no longer matches selected slot.')
     }
 
-    const pkg = await prisma.package.findFirst({
-      where: { id: input.packageId, tenantId: hold.tenantId, active: true },
-    })
-    if (!pkg) {
-      throw new Error('Selected package is no longer available.')
-    }
-    if (!pkg.partyTypes.includes(input.partyType)) {
-      throw new Error('Selected package is not available for this party type.')
-    }
-
     tenantId = hold.tenantId
-    packageId = pkg.id
-    partyType = input.partyType
     bowlerCount = hold.bowlerCount
+    laneCount = hold.laneCount
     startTime = hold.startTime
     endTime = hold.endTime
-    subtotalCents = calculatePrice({
-      package: pkg as unknown as Package,
+
+    if (packageId != null) {
+      const pkgRow = await prisma.package.findFirst({
+        where: { id: packageId, tenantId: hold.tenantId, active: true },
+      })
+      if (!pkgRow) {
+        throw new Error('Selected package is no longer available.')
+      }
+      selectedPackage = pkgRow as unknown as Package
+      if (!selectedPackage.partyTypes.includes(input.partyType)) {
+        throw new Error('Selected package is not available for this party type.')
+      }
+      partyType = input.partyType
+    } else {
+      const fallback = await prisma.package.findFirst({
+        where: { tenantId: hold.tenantId, active: true },
+        orderBy: { sortOrder: 'asc' },
+      })
+      if (!fallback) {
+        throw new Error('Venue has no packages configured for booking.')
+      }
+      packageId = fallback.id
+      partyType = fallback.partyTypes[0] ?? 'OPEN'
+      selectedPackage = null
+    }
+
+    subtotalCents = calculateBookingTotal({
+      package: selectedPackage,
       bowlerCount,
+      laneCount,
+      shoeSelections,
+      shoeRentalPriceCents,
+      laneReservationCents: selectedPackage
+        ? 0
+        : laneReservationCentsPerLane * laneCount,
     }).totalAmount
 
     if (input.totalAmount !== subtotalCents) {
-      throw new Error('Booking total changed — review your package pricing.')
+      throw new Error('Booking total changed — review your booking.')
     }
+  } else if (packageId == null) {
+    packageId = 'pkg-classic'
+    partyType = 'OPEN'
+    subtotalCents = calculateBookingTotal({
+      package: null,
+      bowlerCount,
+      laneCount,
+      shoeSelections,
+      shoeRentalPriceCents,
+      laneReservationCents: laneReservationCentsPerLane * laneCount,
+    }).totalAmount
   }
 
   let discountCents = 0
@@ -582,6 +668,15 @@ export async function getBookingByPaymentIntentId(
     customerEmail: booking.customerEmail,
     packageName: booking.package?.name ?? '',
   }
+}
+
+export async function getConfirmationQrDataUri(
+  confirmationCode: string,
+): Promise<string> {
+  return QRCode.toDataURL(confirmationCode, {
+    width: 200,
+    margin: 1,
+  })
 }
 
 // ── Helpers ───────────────────────────────────────────────

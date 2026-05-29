@@ -1,20 +1,22 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { redirect, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
-import { VenueHeader } from '@/components/patterns/venue-header'
+import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { HoldTimer } from '@/components/patterns/hold-timer'
 import { BookingSummaryCard } from '@/components/patterns/booking-summary-card'
 import { PriceFooter } from '@/components/patterns/price-footer'
 import { PromoInput } from '@/components/patterns/promo-input'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/app/(customer)/book/toast-provider'
 import { useBooking } from '@/context/BookingContext'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { confirmBooking } from '@/lib/actions/booking'
-import { calculatePrice } from '@/lib/pricing'
+import { calculateBookingTotal } from '@/lib/pricing'
+import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 
 import { PaymentForm } from './payment-form'
@@ -34,42 +36,72 @@ function formatTimeLabel(start: Date, end: Date): string {
   return `${TIME_FORMATTER.format(start).toLowerCase().replace(' ', '')} – ${TIME_FORMATTER.format(end).toLowerCase().replace(' ', '')}`
 }
 
-export default function ConfirmBookingPage() {
-  const { session } = useBooking()
-  if (
-    session.packageId == null ||
-    session.selectedPackage == null ||
-    session.bowlerCount == null ||
-    session.startTime == null ||
-    session.endTime == null ||
-    session.totalAmount == null ||
-    session.holdId == null
-  ) {
-    redirect('/book/package')
-  }
-  return <ConfirmBookingContent />
+function shoesComplete(
+  bowlerCount: number,
+  selections: { size: string }[],
+): boolean {
+  return (
+    selections.length === bowlerCount &&
+    selections.every((row) => row.size.length > 0)
+  )
 }
 
-function ConfirmBookingContent() {
-  const { session, setCustomerInfo, setPaymentIntent, applyPromoCode, clearPromoCode } =
-    useBooking()
+export default function ConfirmBookingPage() {
+  const {
+    session,
+    setCustomerInfo,
+    setPaymentIntent,
+    applyPromoCode,
+    clearPromoCode,
+    setTimeSlot,
+  } = useBooking()
   const tenant = useTenant()
   const router = useRouter()
+  const { showToast } = useToast()
   const [emailTouched, setEmailTouched] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [paymentError, setPaymentError] = useState<string | null>(null)
   const [promoDraft, setPromoDraft] = useState('')
   const [promoError, setPromoError] = useState<string | null>(null)
   const [promoLoading, setPromoLoading] = useState(false)
   const nowMs = useWallClockNow()
 
+  const canRender =
+    session.bowlerCount != null &&
+    session.startTime != null &&
+    session.endTime != null &&
+    session.totalAmount != null &&
+    session.holdId != null &&
+    shoesComplete(session.bowlerCount, session.shoeSelections)
+
+  useEffect(() => {
+    if (!canRender) router.replace('/book/details')
+  }, [canRender, router])
+
+  const laneReservationCents =
+    (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane
+
   const pricing = useMemo(
     () =>
-      calculatePrice({
-        package: session.selectedPackage!,
+      calculateBookingTotal({
+        package: session.selectedPackage,
         bowlerCount: session.bowlerCount!,
+        laneCount: session.laneCount ?? 1,
+        shoeSelections: session.shoeSelections,
+        shoeRentalPriceCents: tenant.shoeRentalPriceCents,
+        laneReservationCents: session.selectedPackage
+          ? 0
+          : laneReservationCents,
+        selectedOptionalAddonIds: session.selectedOptionalAddonIds,
       }),
-    [session.selectedPackage, session.bowlerCount],
+    [
+      session.selectedPackage,
+      session.bowlerCount,
+      session.laneCount,
+      session.shoeSelections,
+      session.selectedOptionalAddonIds,
+      tenant.shoeRentalPriceCents,
+      laneReservationCents,
+    ],
   )
 
   const discountCents = session.promoCode?.discountCents ?? 0
@@ -94,12 +126,16 @@ function ConfirmBookingContent() {
 
   const dateLabel = DATE_FORMATTER.format(session.startTime!)
   const timeLabel = formatTimeLabel(session.startTime!, session.endTime!)
+  const packageLabel =
+    session.selectedPackage?.name ?? 'No package selected'
 
   const hasPaymentIntent = session.stripeClientSecret != null
 
-  function handleHoldExpired() {
-    router.push('/book')
-  }
+  const clearHold = useCallback(() => {
+    setTimeSlot(null, null)
+  }, [setTimeSlot])
+
+  const handleHoldExpired = useHoldExpiry(clearHold)
 
   async function handleApplyPromo() {
     setPromoError(null)
@@ -119,14 +155,14 @@ function ConfirmBookingContent() {
   async function handleContinue() {
     if (!detailsValid || !holdValid) return
     setSubmitting(true)
-    setPaymentError(null)
     try {
       const result = await confirmBooking({
         tenantId: tenant.id,
         holdId: session.holdId!,
-        packageId: session.packageId!,
+        packageId: session.packageId,
         partyType: session.partyType ?? 'OPEN',
         bowlerCount: session.bowlerCount!,
+        laneCount: session.laneCount ?? 1,
         startTime: session.startTime!,
         endTime: session.endTime!,
         totalAmount: session.totalAmount!,
@@ -134,12 +170,20 @@ function ConfirmBookingContent() {
         customerName: session.customerName,
         customerEmail: session.customerEmail,
         customerPhone: session.customerPhone,
+        shoeSelections: session.shoeSelections,
+        shoeRentalPriceCents: tenant.shoeRentalPriceCents,
+        laneReservationCentsPerLane: tenant.laneReservationCentsPerLane,
       })
       setPaymentIntent(result.clientSecret, result.paymentIntentId)
     } catch (err) {
-      setPaymentError(
-        err instanceof Error ? err.message : 'Could not start payment',
-      )
+      const message =
+        err instanceof Error ? err.message : 'Could not start payment'
+      showToast({
+        message,
+        variant: 'error',
+        durationMs: 5000,
+        dismissible: true,
+      })
     } finally {
       setSubmitting(false)
     }
@@ -156,9 +200,14 @@ function ConfirmBookingContent() {
       ? ''
       : `${window.location.origin}/book/success`
 
+  if (!canRender) {
+    return null
+  }
+
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-32 pt-6">
-      <VenueHeader
+      <BookingFlowHeader
+        step={4}
         venueName={tenant.name}
         address={tenant.address}
         onSignIn={() => {
@@ -171,7 +220,7 @@ function ConfirmBookingContent() {
         onExpire={handleHoldExpired}
       />
 
-      <h1 className="text-2xl">
+      <h1 className="text-2xl" style={{ fontFamily: 'var(--font-display)' }}>
         {hasPaymentIntent ? 'Pay to confirm' : 'Confirm your booking'}
       </h1>
 
@@ -180,8 +229,9 @@ function ConfirmBookingContent() {
         timeLabel={timeLabel}
         bowlerCount={session.bowlerCount!}
         laneCount={session.laneCount!}
-        packageName={session.selectedPackage!.name}
+        packageName={packageLabel}
         totalAmount={finalTotalCents}
+        lineItems={pricing.lineItems}
       />
 
       {hasPaymentIntent ? (
@@ -232,11 +282,6 @@ function ConfirmBookingContent() {
               placeholder="(555) 555-1234"
             />
           </label>
-          {paymentError ? (
-            <p className="text-sm text-[var(--status-error-text)]">
-              {paymentError}
-            </p>
-          ) : null}
         </section>
       )}
 
@@ -255,6 +300,7 @@ function ConfirmBookingContent() {
           error={promoError}
           loading={promoLoading}
           disabled={!holdValid}
+          placeholder="Have a promo code?"
         />
       ) : null}
 
@@ -262,7 +308,7 @@ function ConfirmBookingContent() {
         <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
           <PriceFooter
             pricing={pricing}
-            ctaLabel="Continue to payment"
+            ctaLabel={submitting ? 'Processing…' : 'Place booking'}
             onCta={handleContinue}
             ctaDisabled={!detailsValid || !holdValid}
             ctaLoading={submitting}
