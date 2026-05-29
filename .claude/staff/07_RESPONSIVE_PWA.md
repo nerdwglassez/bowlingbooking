@@ -1,15 +1,11 @@
-# Implementation status:
-# Target design — describes the intended UX when fully built.
-# Current implementation: AppShell + NavRail (sidebar md+, bottom tab < md).
-# Staff: /staff (cockpit), /staff/schedule, /staff/walkin
-# Admin: /admin (settings root and sub-pages)
-# Booking detail: stub at /staff/bookings/[id] — needs full build
-# Read .claude/STAFF_INTERACTIONS.md for architecture context first.
+# staff/07_RESPONSIVE_PWA.md
+# Section 7 — Desktop responsive layout and PWA manifests
 #
-
-# Staff Interactions — Section 7: Desktop Responsive & PWA
-# Source: all wireframes + admin-pricing-team-pwa.html
-# Status: COMPLETE — ready to merge into STAFF_INTERACTIONS.md
+# Prerequisite: STAFF_INTERACTIONS.md (global architecture)
+# Domain:       DESIGN_SYSTEM.md (breakpoints, tokens)
+# Code contract: contracts/STAFF.md (NavRail breakpoints)
+# Wireframes:    docs/wireframes/admin/admin-pricing-team-pwa.html
+# Build status:  Reference — NavRail responsive behavior is built; PWA TBD
 
 ---
 

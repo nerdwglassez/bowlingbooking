@@ -1,18 +1,15 @@
-# Implementation status:
-# Target design — describes the intended UX when fully built.
-# Current implementation: AppShell + NavRail (sidebar md+, bottom tab < md).
-# Staff: /staff (cockpit), /staff/schedule, /staff/walkin
-# Admin: /admin (settings root and sub-pages)
-# Booking detail: stub at /staff/bookings/[id] — needs full build
-# Read .claude/STAFF_INTERACTIONS.md for architecture context first.
+# staff/06_SETTINGS.md
+# Section 6 — Admin settings tab and all /admin/* sub-pages
 #
-
-# Staff Interactions — Section 6: Settings Tab & All Sub-pages
-# Source: settings-venue-details.html, admin-settings-refined.html,
-#         admin-pricing-team-pwa.html, settings-integrations.html,
-#         settings-booking-policies.html, settings-packages-unified.html,
-#         settings-packages.html
-# Status: COMPLETE — ready to merge into STAFF_INTERACTIONS.md
+# Prerequisite: STAFF_INTERACTIONS.md (global architecture)
+# Domain:       BOOKING_DOMAIN.md (Tenant, Package, promo — Part 1 + Part 2)
+# Code contract: contracts/ADMIN.md
+# Wireframes:    docs/wireframes/admin/settings-venue-details.html,
+#                docs/wireframes/admin/settings-booking-policies.html,
+#                docs/wireframes/admin/settings-packages-unified.html,
+#                docs/wireframes/admin/settings-integrations.html,
+#                docs/wireframes/admin/admin-settings-refined.html
+# Build status:  Built (admin settings suite)
 
 ---
 

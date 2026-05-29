@@ -11,6 +11,14 @@
 #
 # This file extends the existing .claude/contracts/PAYMENTS.md — read both.
 # PAYMENTS.md owns the Stripe lifecycle. This file owns business rules.
+#
+# Related docs (Part 1):
+#   BOOKING_INTERACTIONS.md — customer step UX (hold timer, footer, sheets)
+#   PAYMENTS.md — Stripe PaymentIntent + webhook lifecycle
+#   contracts/PROMO_CODES_DEPRECATED.md — current PromoCode contract (deprecated)
+#   SCHEMA_MIGRATIONS.md — gates Part 2 schema work
+#   STAFF_INTERACTIONS.md + staff/0N_*.md — staff/admin surfaces
+#   CUSTOMER_DASHBOARD.md — post-booking dashboard (not yet built)
 
 ---
 
@@ -32,70 +40,61 @@ Same discipline extends to policy fields — see Part 2 §Policy Snapshot.
 
 ---
 
-## Booking flow — 4 steps (current implementation)
+## Booking flow — 4 active steps (Step 3 not built; 5 screens total)
+
+UX detail for each step: `BOOKING_INTERACTIONS.md`.
 
 ### Step 1 — Bowlers + Date/Time  (`/book`)
-Fields captured: bowlerCount, date, timeSlot
-- Customer sets bowlerCount (default 1, min 1, max 18)
-- laneCount = Math.ceil(bowlerCount / 6) — computed, never user-entered
-- bowlerCount > 18: show "Call us for large groups" — no online booking
-- Customer selects a date, then a time slot
-- Selecting a time slot calls acquireBookingHold() immediately
-- Hold uses BookingHold table (see §BookingHold below)
-- Hold timer renders in UI — neutral amber, NOT green (not confirmed)
-
-Note: partyType is currently collected here and used to filter packages
-in Step 2. This is a PLANNED removal — see Part 2 §partyType Removal.
+Fields: bowlerCount, partyType, date, timeSlot, holdId
+- bowlerCount default 1, min 1, max 18; laneCount via getLaneCount()
+- partyType filters Step 2 packages (planned removal — Part 2 §partyType Removal)
+- Selecting a time slot → acquireBookingHold() (BookingHold table)
+- Availability via getAvailableDates() / getAvailableTimeSlots()
 
 ### Step 2 — Package selection  (`/book/package`)
-Fields captured: packageId, selectedPackage, totalAmount
-- Packages currently filtered by partyType from Step 1
-- Each package has: gameIncluded (bool), shoesIncluded (bool)
-- Price footer shows: basePrice ± shoe rental ± games based on flags
-- Package detail opens as a bottom sheet (PackageDetailSheet)
-- Pricing computed via calculatePrice() — never hardcoded in UI
-- Promo code field available — applies PromoCode discount to totalAmount
+Fields: packageId, selectedPackage, totalAmount (preview)
+- Packages filtered by partyType from Step 1 (planned removal — Part 2)
+- Pricing via calculatePrice(); package optional
 
-### Step 3 — MISSING: Bowler/shoe details  (`/book/details`)
-This step does not exist yet. The flow currently jumps from
-/book/package directly to /book/confirm, skipping shoe sizing entirely.
-See Part 2 §Booking Step 3 for the planned design.
+### Step 3 — MISSING  (`/book/details`)
+Flow skips to /book/confirm. See Part 2 §Booking Step 3.
 
 ### Step 4 — Review + payment  (`/book/confirm`)
-Fields captured: customerName, customerEmail, customerPhone, payment
-- Summary card: date, time, lanes, bowlers, package, itemized total
-- Stripe PaymentIntent created server-side via confirmBooking()
-- Client confirms payment via Stripe.js
-- On webhook success: Booking row created, CONFIRMED, email sent
+Fields: customerName, customerEmail, customerPhone, promoCode, payment
+- Promo: validatePromoCode() → confirmBooking() re-validates (PROMO_CODES_DEPRECATED.md)
+- confirmBooking() → Stripe PaymentIntent; webhook creates CONFIRMED Booking
 
 ### Step 5 — Confirmation  (`/book/success`)
-- Confirmation code displayed prominently
-- QR code rendered for future staff scanning
-- Account creation prompt shown (see Part 2 §Customer Dashboard)
-- Confirmation email sent via Resend with QR code and booking details
+Lookup via getBookingByPaymentIntentId(). Account prompt: Part 2 §Customer Dashboard.
 
 ---
 
 ## Booking status machine
 
+Online bookings are created as **CONFIRMED** by the Stripe webhook — they
+never pass through `BookingStatus.HOLD`. The `HOLD` enum value is legacy;
+availability locking uses the **BookingHold** table instead (see below).
+
 ```
-HOLD        → CONFIRMED | (expires — deleted by lazy cleanup)
-CONFIRMED   → CANCELLED | COMPLETED | NO_SHOW
-CANCELLED   → (terminal)
-COMPLETED   → (terminal)
-NO_SHOW     → (terminal)
+BookingHold   → (expires — deleted by lazy cleanup) | deleted on payment success
+CONFIRMED     → CANCELLED | COMPLETED | NO_SHOW
+CANCELLED     → (terminal)
+COMPLETED     → (terminal)
+NO_SHOW       → (terminal)
 ```
 
-**HOLD**
+**BookingHold** (not a Booking status — see §BookingHold)
 - Created when customer selects a time slot at /book
-- Stored in BookingHold table (NOT a Booking row — see §BookingHold)
+- Stored in BookingHold table only — no Booking row exists yet
 - Expires after Tenant.holdTimeoutMins (default 10)
 - Expired holds deleted lazily in getAvailableTimeSlots() — no cron
+- On successful payment: webhook deletes hold + creates CONFIRMED Booking atomically
 
 **CONFIRMED**
-- Created by Stripe webhook on payment_intent.succeeded
+- Created by Stripe webhook on payment_intent.succeeded (online flow)
+- Also set immediately on walk-in/phone bookings (no Stripe)
 - totalAmount locked at this moment forever
-- Confirmation email triggered
+- Confirmation email triggered (online flow)
 
 **CANCELLED**
 - Set by customer self-serve (within cancellationWindowHours window)
@@ -159,6 +158,19 @@ BookingSource: ONLINE | WALK_IN | PHONE
 Source affects refund eligibility — WALK_IN and PHONE have no Stripe
 payment so Stripe refunds are unavailable for those bookings.
 
+### Staff surfaces (UX vs domain)
+
+| Concern | Owner doc |
+|---------|-----------|
+| Global chrome, sheets/panels, NavRail, toasts | `STAFF_INTERACTIONS.md` |
+| Per-surface interaction specs | `staff/01`–`07` (see index table there) |
+| Walk-in, blocking, schedule server actions | This file §Staff server actions |
+| Refunds, status machine, lane logic | This file Part 1 |
+| Code paths, layout auth, pattern rules | `contracts/STAFF.md` |
+
+Walk-in bookings: `createWalkInBooking()` → CONFIRMED immediately, no Stripe.
+UX spec: `staff/02_LANES_WALKIN.md`.
+
 ---
 
 ## Lane availability rule
@@ -190,6 +202,9 @@ Never inline Math.ceil(bowlerCount / 6) in a component or page.
 
 ## Database schema (current — all money is integer cents)
 
+Snippets below are abbreviated for reading. **Canonical source:** `prisma/schema.prisma`
+(includes `@map` column names, indexes, and all relations).
+
 ### Tenant
 ```prisma
 model Tenant {
@@ -203,11 +218,31 @@ model Tenant {
   holdTimeoutMins  Int     @default(10)
   maxOnlineBowlers Int     @default(18)
   config           Json    @default("{}")
+  // Relations: bookings, bookingHolds, packages, lanes, users,
+  //            operatingHours, blockedSlots, promoCodes
   // config JSON currently stores:
   //   cancellationWindowHours (Int, default 24)
   //   cancellationRefundPercent (Int 0-100, default 100)
   // These will move to typed columns — see Part 2 §Policy Snapshot
 }
+```
+
+### User
+```prisma
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String?  // null = customer (no venue affiliation)
+  email        String   @unique
+  name         String?
+  phone        String?
+  role         Role     @default(CUSTOMER)
+  passwordHash String?  // bcrypt; null only for future OAuth users
+  createdAt    DateTime @default(now())
+  bookings     Booking[]
+  tenant       Tenant?  @relation(...)
+}
+
+enum Role { CUSTOMER STAFF MANAGER ADMIN }
 ```
 
 ### Booking
@@ -223,7 +258,7 @@ model Booking {
   startTime        DateTime
   endTime          DateTime
   packageId        String
-  status           BookingStatus @default(HOLD)
+  status           BookingStatus @default(HOLD)  // online bookings written CONFIRMED
   source           BookingSource @default(ONLINE)
   customerName     String
   customerEmail    String
@@ -238,6 +273,7 @@ model Booking {
 }
 
 enum BookingStatus { HOLD CONFIRMED CANCELLED COMPLETED NO_SHOW }
+// HOLD is legacy — see schema.prisma comment; new online bookings skip HOLD.
 enum BookingSource { ONLINE WALK_IN PHONE }
 enum PartyType     { OPEN BIRTHDAY CORPORATE COSMIC }
 ```
@@ -273,6 +309,9 @@ model PromoCode {
   usesCount     Int               @default(0)
   expiresAt     DateTime?
   active        Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  @@unique([tenantId, code])
 }
 ```
 
@@ -290,6 +329,8 @@ model Payment {
   refundReason          String?
   refundedAt            DateTime?
   refundedBy            String?      // userId of staff who issued refund
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 }
 
 enum RefundStatus { NONE PENDING SUCCEEDED FAILED }
@@ -370,54 +411,110 @@ Walk-in / phone bookings (source = WALK_IN | PHONE):
 - No Stripe payment — cancel only, no Stripe refund toggle
 - MANAGER+ can use manualRefundBookingAction for cash refunds
 
-Refund endpoint: POST /api/staff/bookings/[id]/refund — MANAGER+ only
+Refunds are **server actions** in `src/lib/actions/refund.ts` — not REST routes:
+- `refundBookingAction()` — Stripe refund (MANAGER+ only)
+- `manualRefundBookingAction()` — walk-in/phone cash refund (MANAGER+ only)
+
 All refund operations create an AuditLog entry.
-See .claude/contracts/PAYMENTS.md for the full refund lifecycle.
+See `.claude/contracts/PAYMENTS.md` for the full refund lifecycle.
 
 ---
 
-## Availability API
+## Availability and booking operations
 
-GET /api/bookings/availability?tenantId=&date=&laneCount=
-Returns array of available TimeSlot objects.
+Booking domain logic runs as **Next.js server actions**, not `/api/bookings/*`
+REST routes. Customer pages call these directly from the client.
+
+### Customer booking — `src/lib/actions/booking.ts`
+
+| Action | Auth | Purpose |
+|--------|------|---------|
+| `getAvailableDates(tenantId, daysAhead)` | Public | Dates with at least one open slot |
+| `getAvailableTimeSlots(tenantId, date, laneCount)` | Public | Time slots for a date; lazy-deletes expired holds first |
+| `acquireBookingHold(input)` | Public | Create BookingHold; returns holdId + expiresAt |
+| `releaseBookingHold(holdId)` | Public | Release hold early (e.g. slot change) |
+| `getPackagesForTenant(tenantId, partyType?)` | Public | Active packages for Step 2 |
+| `confirmBooking(input)` | Public | Re-validates price + promo; creates Stripe PaymentIntent |
+| `getBookingByPaymentIntentId(piId)` | Public | Success page lookup after payment |
 
 A slot is UNAVAILABLE if:
-- Any confirmed Booking or non-expired BookingHold overlaps it
+- Any CONFIRMED Booking or non-expired BookingHold overlaps it
 - A BlockedSlot covers that time for those lanes
 - Falls outside OperatingHours for that day/venue
 
+### Promo — `src/lib/actions/promo.ts`
+
+| Action | Auth | Purpose |
+|--------|------|---------|
+| `validatePromoCode(tenantId, code, subtotalCents)` | Public | Preview discount; does NOT increment usesCount |
+
+Full promo lifecycle: `contracts/PROMO_CODES_DEPRECATED.md`.
+
+### Customer self-serve — `src/lib/actions/customer.ts`
+
+| Action | Auth | Purpose |
+|--------|------|---------|
+| `getBookingByLookup(email, code)` | Public | Find booking by email + confirmation code |
+| `cancelBookingAction(input)` | Public | Self-serve cancel within policy window |
+
+Pages: `/find-my-booking`, `/find-my-booking/[code]` (not API routes).
+
+### Staff — `src/lib/actions/staff.ts`
+
+| Action | Auth | Purpose |
+|--------|------|---------|
+| `getTodayBookings(tenantId)` | STAFF+ | Cockpit today's list |
+| `getScheduleForDate(tenantId, date)` | STAFF+ | Schedule grid |
+| `getBookingDetail(bookingId)` | STAFF+ | Booking detail panel |
+| `createWalkInBooking(input)` | STAFF+ | Walk-in/phone booking (CONFIRMED, no Stripe) |
+| `blockLanes(input)` / `unblockLanes(id)` | STAFF+ | Schedule lane blocking |
+
+Check-in flow: **not yet implemented** (no server action exists).
+
+### Refunds — `src/lib/actions/refund.ts`
+
+| Action | Auth | Purpose |
+|--------|------|---------|
+| `refundBookingAction(input)` | MANAGER+ | Stripe refund |
+| `manualRefundBookingAction(input)` | MANAGER+ | Walk-in/phone manual refund |
+
+### Payment resume — `src/lib/actions/payment-resume.ts`
+
+| Action | Auth | Purpose |
+|--------|------|---------|
+| `createPaymentResumeLink(bookingId)` | STAFF+ | Link for abandoned checkout |
+| `getResumePaymentClientSecret(token)` | Public | Resume Stripe payment |
+
+### Admin — `src/lib/actions/admin.ts`
+
+Tenant, operating hours, packages, promos, team, audit log, and reports —
+all MANAGER+ or ADMIN+ per action. See `contracts/ADMIN.md`.
+
 ---
 
-## API routes (current)
+## HTTP route handlers (not server actions)
 
 ```
-/api/bookings/availability        GET  — public, returns open slots
-/api/bookings/hold                POST — acquire BookingHold
-/api/bookings/hold/[id]/release   DELETE — release BookingHold early
-/api/bookings/confirm             POST — create PaymentIntent
-/api/bookings/[code]/ics          GET  — calendar download (.ics)
-/find-my-booking                  GET  — customer self-serve lookup
-/api/staff/bookings               GET  — list (role: STAFF+)
-/api/staff/bookings/[id]          GET  — booking detail
-/api/staff/bookings/[id]/refund   POST — Stripe refund (MANAGER+)
-/api/staff/bookings/[id]/checkin  POST — mark checked in
-/api/admin/packages               GET POST PATCH DELETE (ADMIN)
-/api/admin/settings               GET PATCH (ADMIN)
-/api/webhooks/stripe              POST — Stripe webhook handler
+GET  /api/bookings/[code]/ics     — calendar download (.ics); rate-limited
+POST /api/webhooks/stripe         — Stripe webhook (signature verified in prod)
+GET/POST /api/auth/[...nextauth]  — Auth.js handlers
+GET  /api/health                  — deployment smoke check (DB, tenant, auth config)
 ```
 
 ---
 
 ## Key rules for Cursor (current)
 
-- Never call calculatePrice() on the client — server-side only
+- PaymentIntent amounts come from `confirmBooking()` — never trust client-supplied totals
+- `calculatePrice()` may run on the client for display preview; server always re-runs at confirm
 - Never hardcode venue name, address, or phone — use getTenant()
 - Never hardcode 6 for lane count — use getLaneCount(bowlerCount)
 - STAFF cannot refund — MANAGER or ADMIN only, server-side
 - Walk-in bookings cannot be Stripe-refunded — use manualRefundBookingAction
 - Booking.totalAmount is integer cents — never Decimal, never float
 - All money in and out of calculatePrice() is integer cents
-- BookingHold is a separate table — HOLD is a deprecated status
+- Availability locks use BookingHold table — not BookingStatus.HOLD
+- Promo UI is at `/book/confirm` only — see PROMO_CODES_DEPRECATED.md
 - Never import stripe directly — only through src/lib/stripe.ts
 - Never import resend directly — only through src/lib/email.ts
 
@@ -431,10 +528,28 @@ These sections document decisions made during the product
 redesign wireframe session. They are NOT yet implemented.
 
 Before building anything in Part 2:
-1. Read .claude/SCHEMA_MIGRATIONS.md for migration order
+1. Read `.claude/SCHEMA_MIGRATIONS.md` for migration order
 2. Confirm the migration has been run against the DB
 3. Do not assume any Part 2 field exists until you verify
-   it in the live schema (npx prisma db pull)
+   it in the live schema (`npx prisma db pull`)
+
+### Part 2 section → migration map
+
+| Part 2 section | Migration | Schema change? |
+|----------------|-----------|----------------|
+| partyType Removal | — | No (UI + inference only) |
+| Booking Step 3 (shoe sizing) | — | No (UI + calculatePrice input) |
+| Policy Snapshot | **1** | Tenant columns + Booking snapshot fields |
+| bowlersPerLane (Tenant column + snapshot) | **1** | Part of Migration 1 |
+| bowlersPerLane (getLaneCount + call sites) | **6** | No — code only; requires Migration 1 |
+| Consent Fields | **2** | Booking columns |
+| Inclusions System | **3** | Package.inclusions JSON |
+| Unified Package / CODE_REQUIRED | **4** | Package fields + PENDING_PAYMENT enum |
+| Pricing Periods | **5** | PricingPeriod table |
+| Customer Dashboard | **1 + 7** | Migration 1 snapshots; Migration 7 ClaimToken |
+
+Run migrations in numeric order. Migration 6 requires Migration 1 complete.
+Migration 4 requires Migration 3. Customer dashboard requires 1 and 7.
 
 ---
 
@@ -459,34 +574,26 @@ No schema migration needed (partyType column stays).
 
 ---
 
-## Booking Step 3 — Bowler/Shoe Details  [PLANNED]
+## Booking Step 3 — Bowler/Shoe Details  [PLANNED — no migration]
 
 Decision: add a dedicated step between package selection
 and payment for per-bowler shoe size collection.
 
 Route: /book/details (does not exist yet)
 
-Design (from docs/wireframes/customer/booking-step3-dropdown.html):
-- One row per bowler with a shoe size dropdown
-- Dropdown first option: "Own shoes" (sets cost to $0)
-- Grouped sizes: Youth (girls/boys 1–6), Adult Women (5–13),
-  Adult Men (6–15)
-- "Own shoes" warning banner if any bowler selects it
-- Price footer updates live per selection
-- All shoe sizes required before Continue is enabled
+UX spec: `BOOKING_INTERACTIONS.md` §Step 3.
+Wireframe: `docs/wireframes/customer/booking-step3-dropdown.html`.
 
 Booking flow becomes: /book → /book/package → /book/details
 → /book/confirm → /book/success
 
-Requires:
-- New page: src/app/(customer)/book/details/page.tsx
+Requires (no schema migration):
+- New page: `src/app/(customer)/book/details/page.tsx`
 - New BookingSession fields: shoeSelections[] per bowler
 - calculatePrice() update to accept shoeSelections input
 - BookingContext: add setShoeSelections()
 
-Default bowler count: wireframe decisions specified default 2,
-minimum 1. Current BookingContext has DEFAULT_BOWLER_COUNT = 1.
-This should be updated to 2 when step 3 is built.
+Default bowler count: wireframe target is 2 (code is still 1 until this ships).
 
 ---
 
@@ -521,22 +628,33 @@ it to a proper typed column.
 
 See SCHEMA_MIGRATIONS.md Migration 1.
 
+Note: Migration 1 adds the `bowlersPerLane` Tenant column and
+`bowlersPerLaneSnapshot` on Booking. **Code changes** to
+`getLaneCount()` and all call sites are **Migration 6** — do not
+bundle them into Migration 1.
+
 ---
 
-## bowlersPerLane as Tenant Configuration  [PLANNED — Migration 1]
+## bowlersPerLane — code changes  [PLANNED — Migration 6]
 
 Decision: bowlersPerLane is tenant-configurable, not hardcoded.
 Default is 6. Royal Z uses 6, another venue might use 4 or 8.
 
-When Migration 1 runs:
-- Add bowlersPerLane Int to Tenant (default 6)
-- Update getLaneCount() to accept bowlersPerLane parameter
-- BookingContext must pass tenant.bowlersPerLane
-- laneCount on Booking is ceil(bowlerCount / tenant.bowlersPerLane)
-- Snapshot bowlersPerLane onto Booking at CONFIRMED time
+**Prerequisite:** Migration 1 complete (`Tenant.bowlersPerLane` column exists).
 
-Until migration: Math.ceil(bowlerCount / 6) remains correct.
-Do not change lane-logic.ts before Migration 1 is complete.
+When Migration 6 runs:
+- Update `getLaneCount(bowlerCount, bowlersPerLane = 6)` in lane-logic.ts
+- Every call site passes `tenant.bowlersPerLane`
+- BookingContext loads tenant.bowlersPerLane for live lane count display
+- laneCount on Booking uses ceil(bowlerCount / tenant.bowlersPerLane)
+- Snapshot already handled by Migration 1 webhook changes
+
+Until Migration 6: `getLaneCount(bowlerCount)` with hardcoded 6 remains correct.
+Do not change lane-logic.ts until Migration 1 is confirmed complete.
+
+See SCHEMA_MIGRATIONS.md Migration 6.
+Update `.cursorrules` lane-count rule after Migration 6:
+`getLaneCount(bowlerCount, tenant.bowlersPerLane)`.
 
 ---
 
@@ -616,7 +734,7 @@ CODE_REQUIRED package behavior:
 
 PromoCode model: do not delete until all PromoCode data has been
 migrated to CODE_REQUIRED packages and admin UI is updated.
-.claude/contracts/PROMO_CODES.md documents the OLD model.
+.claude/contracts/PROMO_CODES_DEPRECATED.md documents the OLD model.
 
 Admin UI target: Packages list with PUBLIC / Code-gated filter tabs,
 replacing the separate Promos nav item.
@@ -667,35 +785,18 @@ See SCHEMA_MIGRATIONS.md Migration 5.
 
 ---
 
-## Customer Dashboard  [PLANNED — requires Migration 1 + ClaimToken]
+## Customer Dashboard  [PLANNED — requires Migration 1 + 7]
 
-Decision: /dashboard for authenticated customers showing
-upcoming bookings with self-serve cancel/reschedule.
+`/dashboard` does not exist. Guest self-serve remains at `/find-my-booking`.
 
-Does not exist yet. Current self-serve path: /find-my-booking
-(guest, no account required — this path stays as fallback).
+**Dependencies:** Migration 1 (policy snapshot on Booking), Migration 7 (ClaimToken
+for account linking). ClaimToken table is not in schema yet.
 
-Planned dashboard features:
-- Featured booking card (dark --surface-dark bg) for next upcoming
-- Secondary upcoming booking cards
-- Cancel/reschedule as bottom sheets (stay on dashboard, no navigation)
-- Self-serve eligibility reads from booking snapshot fields
-  (cancellationWindowHoursSnapshot, rescheduleWindowHoursSnapshot)
-  NOT from current tenant settings
-- Preferences sheet: SMS reminder toggle, marketing toggle
-  (marketing default OFF)
-- Past bookings section (read-only in v1)
+**Domain decisions:** self-serve cancel/reschedule reads booking snapshot fields,
+not current tenant settings; `/find-my-booking` stays as guest fallback.
 
-Account creation (ClaimToken flow):
-- Customer sees "Create account" prompt on /book/success
-- Email pre-filled from booking contact info
-- After account creation: booking.userId backfilled
-- ClaimToken: single-use, expires 24h after booking confirmation
-
-Dependencies: Migration 1 (policy snapshot fields),
-ClaimToken table (not yet in schema).
-
-See .claude/CUSTOMER_DASHBOARD.md for full interaction spec.
+Full UX spec: `.claude/CUSTOMER_DASHBOARD.md`.
+Wireframes: `docs/wireframes/customer/`.
 
 ---
 
@@ -707,7 +808,10 @@ See .claude/CUSTOMER_DASHBOARD.md for full interaction spec.
   package → partyType inference logic is in place
 - Do not delete PromoCode model until CODE_REQUIRED migration
   is complete and all data migrated
-- Do not change getLaneCount() signature until Migration 1 runs
+- Do not change getLaneCount() signature until **Migration 6**
+  (requires Migration 1 column to exist first)
+- Do not implement Part 2 UI that reads snapshot fields until
+  Migration 1 has been run and verified in schema
 - Always check SCHEMA_MIGRATIONS.md before touching schema.prisma
 - Part 2 sections are target design — confirm schema exists before
   writing code that references those fields

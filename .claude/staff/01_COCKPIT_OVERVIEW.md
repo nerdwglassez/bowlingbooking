@@ -1,15 +1,13 @@
-# Implementation status:
-# Target design — describes the intended UX when fully built.
-# Current implementation: AppShell + NavRail (sidebar md+, bottom tab < md).
-# Staff: /staff (cockpit), /staff/schedule, /staff/walkin
-# Admin: /admin (settings root and sub-pages)
-# Booking detail: stub at /staff/bookings/[id] — needs full build
-# Read .claude/STAFF_INTERACTIONS.md for architecture context first.
+# staff/01_COCKPIT_OVERVIEW.md
+# Section 1 — Cockpit Overview: stat cards, upcoming list, booking detail, check-in
 #
-
-# Staff Interactions — Section 1: Cockpit Overview Sub-view
-# Source: staff-app-cockpit.html, staff-app-v2.html, staff-stat-hierarchy.html
-# Status: COMPLETE — ready to merge into STAFF_INTERACTIONS.md
+# Prerequisite: STAFF_INTERACTIONS.md (global architecture)
+# Domain:       BOOKING_DOMAIN.md Part 1
+# Code contract: contracts/STAFF.md
+# Wireframes:    docs/wireframes/staff/staff-app-cockpit.html,
+#                docs/wireframes/staff/staff-app-v2.html,
+#                docs/wireframes/staff/staff-stat-hierarchy.html
+# Build status:  Partial — cockpit built; booking detail sheet + check-in not built
 
 ---
 

@@ -10,6 +10,7 @@
 #   - Migration 7 (ClaimToken table for account creation)
 #   - /book/success account creation prompt
 #
+# Domain summary: BOOKING_DOMAIN.md Part 2 §Customer Dashboard
 # Guest fallback (/find-my-booking) remains after dashboard is built.
 
 ---

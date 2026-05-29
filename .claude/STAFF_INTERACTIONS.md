@@ -1,15 +1,21 @@
 # Royal Z Lanes — Staff Interactions Index
 # .claude/STAFF_INTERACTIONS.md
 #
-# Global rules and architecture for all staff surfaces.
-# Always load this file + the relevant section file for any staff session.
+# Global rules and architecture for all staff/admin surfaces.
 #
-# Implementation status notes:
-#   BUILT: AppShell, NavRail, /staff cockpit, /staff/schedule,
-#          /staff/walkin, /admin settings suite
-#   STUB:  /staff/bookings/[id] (booking detail — 1 line placeholder)
-#   NOT BUILT: booking detail sheet, check-in flow, modification flow,
-#              lane timeline, reports, contact detail
+# How to use (every staff/admin session):
+#   1. Read this file — architecture, NavRail, sheets vs panels, roles
+#   2. Load the section file for the surface you are building (see table below)
+#   3. Open the wireframe HTML listed for that section
+#   4. BOOKING_DOMAIN.md — booking status, walk-in source, refund rules
+#   5. contracts/STAFF.md — file locations, auth gating, server action rules
+#
+# Implementation status (summary):
+#   BUILT:     AppShell, NavRail, /staff cockpit, /staff/schedule,
+#              /staff/walkin, /admin settings suite, refund panel (partial)
+#   STUB:      /staff/bookings/[id] (placeholder page; refund-panel exists)
+#   NOT BUILT: booking detail sheet/panel, check-in, modification flow,
+#              lane timeline, reports UI, contact detail
 
 ---
 
@@ -161,21 +167,26 @@ If role is insufficient:
 
 ---
 
-## Section File Reference
+## Section file index
 
-Load this index + the relevant section file for every staff session:
+Load this index + **one** section file per session. Do not merge section
+files into this index — they stay separate for focused loading.
 
-| Building...                                        | Load section file              |
-|----------------------------------------------------|-------------------------------|
-| Cockpit Overview, stat cards, upcoming list,       |                               |
-| booking detail sheet, check-in flow                | staff/01_COCKPIT_OVERVIEW.md  |
-| Cockpit Lanes sub-view, lane timeline,             |                               |
-| walk-in booking flow                               | staff/02_LANES_WALKIN.md      |
-| Booking modification, field editors, cancel flow   | staff/03_MODIFICATION.md      |
-| Schedule tab, calendar, lane blocking              | staff/04_SCHEDULE.md          |
-| Reports, analytics, contacts                       | staff/05_REPORTS.md           |
-| Admin settings sub-pages (/admin/*)                | staff/06_SETTINGS.md          |
-| Desktop responsive, PWA manifests                  | staff/07_RESPONSIVE_PWA.md    |
+| Section | File | Build status | Wireframes (`docs/wireframes/`) |
+|---------|------|--------------|----------------------------------|
+| 1 — Cockpit overview, booking detail, check-in | `staff/01_COCKPIT_OVERVIEW.md` | Partial (cockpit built; detail sheet not) | `staff/staff-app-cockpit.html`, `staff/staff-app-v2.html` |
+| 2 — Lanes sub-view, walk-in FAB | `staff/02_LANES_WALKIN.md` | Partial (walk-in built; lane timeline not) | `staff/walkin-booking-flow.html`, `staff/staff-app-cockpit.html` |
+| 3 — Booking modification, cancel | `staff/03_MODIFICATION.md` | Not built | `staff/booking-modification-flow.html` |
+| 4 — Schedule, lane blocking | `staff/04_SCHEDULE.md` | Built | `staff/schedule-calendar-blocking.html` |
+| 5 — Reports, analytics, contacts | `staff/05_REPORTS.md` | Not built | `staff/reports-analytics-contacts.html` |
+| 6 — Admin settings sub-pages | `staff/06_SETTINGS.md` | Built | `admin/settings-*.html` (see section file) |
+| 7 — Desktop responsive, PWA | `staff/07_RESPONSIVE_PWA.md` | Reference | `admin/admin-pricing-team-pwa.html` |
+
+**Domain rules** (walk-in → CONFIRMED, refunds, status machine):
+`BOOKING_DOMAIN.md` Part 1 — §Booking source, §Refund rules, §Staff server actions.
+
+**Code contract** (layouts, actions, pattern file paths):
+`contracts/STAFF.md`.
 
 ---
 

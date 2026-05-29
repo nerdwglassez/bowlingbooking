@@ -1,15 +1,11 @@
-# Implementation status:
-# Target design — describes the intended UX when fully built.
-# Current implementation: AppShell + NavRail (sidebar md+, bottom tab < md).
-# Staff: /staff (cockpit), /staff/schedule, /staff/walkin
-# Admin: /admin (settings root and sub-pages)
-# Booking detail: stub at /staff/bookings/[id] — needs full build
-# Read .claude/STAFF_INTERACTIONS.md for architecture context first.
+# staff/03_MODIFICATION.md
+# Section 3 — Booking modification and cancel flow (5-state drill-in)
 #
-
-# Staff Interactions — Section 3: Booking Modification & Cancel Flow
-# Source: booking-modification-flow.html, BOOKING_DOMAIN_refund_additions.md
-# Status: COMPLETE — ready to merge into STAFF_INTERACTIONS.md
+# Prerequisite: STAFF_INTERACTIONS.md (global architecture)
+# Domain:       BOOKING_DOMAIN.md Part 1 (§Refund rules, status machine)
+# Code contract: contracts/STAFF.md, contracts/PAYMENTS.md
+# Wireframes:    docs/wireframes/staff/booking-modification-flow.html
+# Build status:  Not built
 
 ---
 

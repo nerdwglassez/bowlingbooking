@@ -1,15 +1,11 @@
-# Implementation status:
-# Target design — describes the intended UX when fully built.
-# Current implementation: AppShell + NavRail (sidebar md+, bottom tab < md).
-# Staff: /staff (cockpit), /staff/schedule, /staff/walkin
-# Admin: /admin (settings root and sub-pages)
-# Booking detail: stub at /staff/bookings/[id] — needs full build
-# Read .claude/STAFF_INTERACTIONS.md for architecture context first.
+# staff/04_SCHEDULE.md
+# Section 4 — Schedule tab, calendar, lane blocking
 #
-
-# Staff Interactions — Section 4: Schedule Tab
-# Source: schedule-calendar-blocking.html
-# Status: COMPLETE — ready to merge into STAFF_INTERACTIONS.md
+# Prerequisite: STAFF_INTERACTIONS.md (global architecture)
+# Domain:       BOOKING_DOMAIN.md Part 1 (§Lane availability, BlockedSlot)
+# Code contract: contracts/STAFF.md
+# Wireframes:    docs/wireframes/staff/schedule-calendar-blocking.html
+# Build status:  Built (/staff/schedule, blockLanes / unblockLanes)
 
 ---
 

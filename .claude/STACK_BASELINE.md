@@ -407,7 +407,7 @@ These were introduced after the customer booking flow landed. Every future agent
 
 - **Public validation** — `validatePromoCode` in `src/lib/actions/promo.ts` has no session; it only reads `PromoCode` and returns resolved cents. Brute force is bounded by the same edge/WAF posture as other public lookups (`docs/RUNBOOK.md`).
 - **Triple validation** — Customer preview (`BookingContext.applyPromoCode`), `confirmBooking` (PaymentIntent amount), and webhook (increment + link). Metadata carries `promoCode` + `discountCents`; webhook honors paid amount even if the code was deactivated between intent creation and capture (warn + still record `discountAmount`).
-- **Contract** — `.claude/contracts/PROMO_CODES.md` is the source of truth for schema, audit actions, and invariants (`usesCount` only in webhook, soft delete only).
+- **Contract** — `.claude/contracts/PROMO_CODES_DEPRECATED.md` is the source of truth for the current PromoCode model (deprecated — replaced by CODE_REQUIRED packages in Migration 4). Covers schema, audit actions, and invariants (`usesCount` only in webhook, soft delete only).
 
 ## 10. Open questions deferred (post-v1)
 

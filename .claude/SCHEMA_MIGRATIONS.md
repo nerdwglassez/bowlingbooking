@@ -7,16 +7,36 @@
 # the relevant migration here has been reviewed, approved, and run.
 #
 # Status: all migrations are PLANNED — none have been run yet.
+#
+# Cross-reference: BOOKING_DOMAIN.md Part 2 sections map to migrations
+# in the table below. UX-only Part 2 items (partyType removal, Step 3
+# shoes) require no migration.
 
 ---
 
 ## How to use this file
 
 Before any schema change:
-1. Find the relevant migration below
+1. Find the relevant migration below (or the Part 2 → migration map in
+   BOOKING_DOMAIN.md Part 2)
 2. Check its "Depends on" field — run dependencies first
 3. Get review before running: schema changes affect all existing data
 4. After running: update Status to COMPLETE with date
+
+### BOOKING_DOMAIN Part 2 → migration quick reference
+
+| Part 2 section | Migration |
+|----------------|-----------|
+| partyType Removal | — (no migration) |
+| Booking Step 3 | — (no migration) |
+| Policy Snapshot | 1 |
+| bowlersPerLane column + snapshot | 1 |
+| bowlersPerLane getLaneCount() code | 6 (after 1) |
+| Consent Fields | 2 |
+| Inclusions System | 3 |
+| CODE_REQUIRED / PENDING_PAYMENT | 4 (after 3) |
+| Pricing Periods | 5 |
+| Customer Dashboard | 1 + 7 |
 
 ---
 
@@ -62,7 +82,9 @@ bowlersPerLaneSnapshot           Int
 - getLaneCount() update: see Migration 6
 
 Depends on: nothing
-Blocks: Migration 6, customer dashboard feature
+Blocks: Migration 6, customer dashboard (with Migration 7)
+
+Note: Part 2 §partyType Removal and §Booking Step 3 require no migration.
 
 ---
 
@@ -190,10 +212,10 @@ PENDING_PAYMENT
 5. Mark PromoCode model deprecated in schema comment
 6. Remove PromoCode in a follow-up cleanup migration (v3)
 
-### contracts/PROMO_CODES.md
-This contract documents the OLD PromoCode model.
-After this migration is complete, update it with a deprecation notice
-and point to the CODE_REQUIRED section of BOOKING_DOMAIN.md.
+### contracts/PROMO_CODES_DEPRECATED.md
+Documents the OLD PromoCode model — already marked DEPRECATED.
+After Migration 4 is complete, update the header to ARCHIVED
+and point to the CODE_REQUIRED section of BOOKING_DOMAIN.md Part 1.
 
 Depends on: Migration 3
 Blocks: nothing, but PromoCode cleanup should follow
@@ -321,5 +343,5 @@ model ClaimToken {
    but booking not auto-linked (customer contacts venue)
 
 Depends on: nothing
-Blocks: customer dashboard (/dashboard route)
+Blocks: customer dashboard (/dashboard route; also requires Migration 1)
 

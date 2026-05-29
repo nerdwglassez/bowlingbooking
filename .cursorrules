@@ -61,11 +61,13 @@ migration has been planned, reviewed, and run.
 When files conflict, later entries override earlier:
 1. STACK_BASELINE.md — framework and infrastructure decisions
 2. BOOKING_DOMAIN.md — business logic and data model
-3. DESIGN_SYSTEM.md — visual system
-4. contracts/*.md — surface-specific contracts
-5. staff/0N_*.md — staff interaction specs (target design)
-6. BOOKING_INTERACTIONS.md — customer booking behavior
-7. CUSTOMER_DASHBOARD.md — customer post-booking experience
+3. SCHEMA_MIGRATIONS.md — planned schema changes (gates Part 2 of BOOKING_DOMAIN)
+4. DESIGN_SYSTEM.md — visual system
+5. contracts/*.md — surface-specific contracts
+6. STAFF_INTERACTIONS.md — staff/admin global rules and architecture
+7. staff/0N_*.md — staff surface-specific interaction specs
+8. BOOKING_INTERACTIONS.md — customer booking behavior
+9. CUSTOMER_DASHBOARD.md — customer post-booking experience
 
 These .claude/ files override any other docs in the project.
 

@@ -2,7 +2,9 @@
 # .claude/BOOKING_INTERACTIONS.md
 #
 # Interaction behavior, animation, and UX rules for the customer
-# booking flow. Read alongside BOOKING_DOMAIN.md and BOOKING_FLOW.md.
+# booking flow. Read alongside:
+#   BOOKING_DOMAIN.md — business rules, server actions, schema
+#   DESIGN_SYSTEM.md — tokens and component layers
 # Paste into Cursor when building any customer booking step.
 
 ---
@@ -27,8 +29,9 @@ Changing an upstream field cascades and clears downstream selections.
 ## Step 1 — Bowler Count + Date/Time  (/book)
 
 ### Bowler count
-- Default: 2 bowlers on first load
-  (BookingContext DEFAULT_BOWLER_COUNT is currently 1 — update to 2)
+- **Current:** default 1 bowler on first load (`DEFAULT_BOWLER_COUNT = 1`)
+- **Wireframe target:** default 2 — update when Step 3 is built (see Part 2
+  §Booking Step 3 in BOOKING_DOMAIN.md)
 - Minimum: 1 bowler
 - Maximum: 18 bowlers (online booking cap)
 - Control: stepper — [−] count [+]
@@ -57,11 +60,11 @@ Do not remove until the inference logic is in place.
 - Changing date: clears selected time slot (cascading invalidation)
 - Month navigation: ‹ chevron · "May 2026" · › chevron
 
-### Availability API
-GET /api/bookings/availability?tenantId=&date=&laneCount=
-Called when a date is selected.
+### Availability (server action)
+`getAvailableTimeSlots(tenantId, date, laneCount)` — called when a date is selected.
+See BOOKING_DOMAIN.md §Availability and booking operations.
 Slots are returned as TimeSlot objects with startTime, endTime, id.
-Expired holds are cleaned lazily by this endpoint before computing.
+Expired holds are cleaned lazily before computing slots.
 Never call per-day availability in a loop — one call per date tap.
 
 ### Time slot selection
@@ -97,16 +100,6 @@ Never call per-day availability in a loop — one call per date tap.
 - Full package info: name, description, inclusions, pricing
 - "Add this package" button at bottom of sheet
 - Dismiss: swipe down or tap outside
-
-### Promo code field
-- Below package list, above price footer
-- Placeholder: "Have a promo code?"
-- On submit: calls validatePromoCode() from BookingContext
-- Valid code: discount shown in price footer
-- Invalid code: inline error below field
-- Note: promo codes currently use the PromoCode entity.
-  When Migration 4 completes, this field validates
-  CODE_REQUIRED packages instead.
 
 ### Price footer
 - Sticky at bottom of page
@@ -183,6 +176,17 @@ Not alarming — info color, not error color
 - SMS reminder consent checkbox [PLANNED — Migration 2]
   "Text me a reminder before my booking"
   Default: UNCHECKED
+
+### Promo code field (current — PromoCode entity)
+- Below customer info fields, above Stripe payment form
+- Component: `PromoInput` on `/book/confirm`
+- Placeholder: "Have a promo code?"
+- On submit: `BookingContext.applyPromoCode()` → `validatePromoCode()`
+- Valid code: discount shown in summary / price breakdown
+- Invalid code: inline error below field — NOT a toast
+- Server re-validates in `confirmBooking()` — see PROMO_CODES_DEPRECATED.md
+- When Migration 4 completes: this field unlocks CODE_REQUIRED packages
+  (may merge with the CODE_REQUIRED field below)
 
 ### CODE_REQUIRED package field [PLANNED — Migration 4]
 - "Have a special code?" text link below customer info
@@ -284,8 +288,8 @@ If motion is reduced: skip transitions, show final state immediately.
 
 - Navigate away from the page when PackageDetailSheet opens
 - Use a modal for package detail — always a bottom sheet
-- Calculate price in a component — always use calculatePrice()
-- Pass integer cents to Stripe without division (Stripe wants cents as-is)
+- Hardcode prices in UI — use calculatePrice() for display; server re-runs at confirm
+- Pass integer cents to Stripe incorrectly (Stripe PaymentIntent uses cents as-is)
 - Show the hold timer in green — amber only
 - Make the marketing consent checkbox default CHECKED
 - Show an account creation prompt to already-signed-in users
