@@ -1,3 +1,14 @@
+# PROMO_CODES_DEPRECATED.md
+#
+# Status: DEPRECATED — documents the current PromoCode entity.
+# Wireframe decision: PromoCode replaced by CODE_REQUIRED packages.
+# See Migration 4 in .claude/SCHEMA_MIGRATIONS.md.
+#
+# Until Migration 4 completes: use this contract for PromoCode work.
+# After Migration 4 completes: update this header to ARCHIVED.
+#
+---
+
 # Promo codes contract (Phase 11 M5)
 
 ## Schema
