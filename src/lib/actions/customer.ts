@@ -146,23 +146,44 @@ export async function cancelBookingAction(
     where: { bookingId: booking.id },
   })
 
-  const refundAmount = booking.refundIfCancelled
-  const shouldRefund =
-    refundAmount > 0 && payment?.stripePaymentIntentId != null
+  if (payment?.refundStatus === 'PENDING') {
+    throw new Error('Refund already in progress for this booking.')
+  }
 
-  let stripeRefund: Awaited<ReturnType<typeof createRefund>> | null = null
+  const alreadyRefunded = payment?.refundAmount ?? 0
+  const refundableBalance = payment
+    ? Math.max(payment.amount - alreadyRefunded, 0)
+    : 0
+  if (
+    booking.refundIfCancelled > 0 &&
+    payment?.stripePaymentIntentId &&
+    refundableBalance <= 0
+  ) {
+    throw new Error('This booking is already fully refunded.')
+  }
+
+  const refundAmount =
+    booking.refundIfCancelled > 0 && payment?.stripePaymentIntentId
+      ? Math.min(booking.refundIfCancelled, refundableBalance)
+      : 0
+  const totalRefundAmount = alreadyRefunded + refundAmount
+  const shouldRefund = refundAmount > 0 && payment?.stripePaymentIntentId != null
+
+  let refundPending = false
+  let stripeRefundId: string | null = null
   if (shouldRefund && payment?.stripePaymentIntentId) {
-    const alreadyRefunded = payment.refundAmount ?? 0
-    stripeRefund = await createRefund({
+    const refund = await createRefund({
       paymentIntentId: payment.stripePaymentIntentId,
       amountCents: refundAmount,
       reason: 'requested_by_customer',
-      idempotencyKey: `customer-cancel:${booking.id}:${alreadyRefunded + refundAmount}`,
+      idempotencyKey: `customer-cancel-refund:${booking.id}:${totalRefundAmount}`,
       metadata: {
         bookingId: booking.id,
         source: 'customer_self_service',
       },
     })
+    stripeRefundId = refund.id
+    refundPending = true
   }
 
   // Persist cancellation only after Stripe accepts the refund request.
@@ -177,13 +198,13 @@ export async function cancelBookingAction(
         cancellationReason: 'CUSTOMER_REQUEST',
       },
     })
-    if (shouldRefund && payment && stripeRefund) {
+    if (shouldRefund && payment && stripeRefundId) {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
-          stripeRefundId: stripeRefund.id,
+          stripeRefundId,
           refundStatus: 'PENDING',
-          refundAmount,
+          refundAmount: totalRefundAmount,
         },
       })
     }
@@ -196,7 +217,8 @@ export async function cancelBookingAction(
         entityId: booking.id,
         details: {
           refundAmount,
-          stripeRefundId: stripeRefund?.id ?? null,
+          stripeRefundId,
+          cumulativeRefundAmount: totalRefundAmount,
           policyWindowHours: booking.policyWindowHours,
           policyRefundPercent: booking.policyRefundPercent,
           sourceEmail: input.email.trim(),
@@ -204,8 +226,6 @@ export async function cancelBookingAction(
       },
     })
   })
-
-  const refundPending = stripeRefund != null
 
   // Send the cancellation email (best-effort; logs in dev mode).
   await sendBookingCancellation({
