@@ -1,13 +1,14 @@
 # Royal Z Lanes — Cursor Rules
 
-You are working on a bowling alley lane reservation system built with Next.js 14, TypeScript, Tailwind CSS, Prisma, and Stripe.
+You are working on a bowling alley lane reservation system built with Next.js 16, TypeScript, Tailwind CSS v4, Prisma, and Stripe Connect.
 
 ## Before writing any code
 
 1. Read .claude/DESIGN_SYSTEM.md — all visual decisions come from the token system
-2. Check docs/wireframes/ for the screen you are building
-3. Read .claude/CURSOR_RULES.md for full coding standards
-4. Read .claude/BOOKING_DOMAIN.md for business logic and data model
+2. Read .claude/STACK_BASELINE.md — frozen stack decisions, Next.js 16 API notes
+3. Check docs/wireframes/ for the screen you are building
+4. Read .claude/BOOKING_DOMAIN.md — business logic and data model
+5. Read the relevant .claude/contracts/*.md for the surface you are touching
 
 ## Non-negotiable rules
 
@@ -29,22 +30,66 @@ Never use `dark:` prefix — data-theme attribute handles both modes.
 
 **Fonts**: var(--font-display) for Fraunces, var(--font-body) for DM Sans. Never hardcode.
 
-**Lane count**: Math.ceil(bowlerCount / 6) — always. Never any other formula.
+**Lane count**: getLaneCount(bowlerCount) from src/lib/lane-logic.ts — always.
+Never inline Math.ceil(bowlerCount / 6) in a component or page.
 
 **Max online booking**: 18 bowlers. Groups larger than 18 → prompt to call.
 
-**Tenant**: Never hardcode venue name, address, or colors. Always read from getTenant().
+**Tenant**: Never hardcode venue name, address, phone, or colors.
+Always read from getTenant(). Drift sentinel greps for literal venue strings.
 
 **Refunds**: Server-side only. MANAGER or ADMIN role required. STAFF cannot refund.
+Walk-in/phone bookings have no Stripe payment — use manualRefundBookingAction.
 
 **Staff app**: data-theme="dark" in layout. Customer app: data-theme="light".
+Both use the same --color-* and --surface-* token namespace.
+The theme system handles light/dark — never add separate --staff-* tokens.
+
+**Money**: All monetary values are integer cents. Never Decimal, never float.
+calculatePrice() returns integer cents. formatPrice() divides by 100 at display.
+
+**Stripe**: Never import stripe directly. Only through src/lib/stripe.ts.
+**Email**: Never import resend directly. Only through src/lib/email.ts.
+**Auth**: Never import next-auth directly. Only through src/lib/auth.ts.
+
+**Schema changes**: Read .claude/SCHEMA_MIGRATIONS.md before touching schema.prisma.
+Never add columns from Part 2 of BOOKING_DOMAIN.md without confirming the
+migration has been planned, reviewed, and run.
+
+## .claude/ file hierarchy (source of truth order)
+
+When files conflict, later entries override earlier:
+1. STACK_BASELINE.md — framework and infrastructure decisions
+2. BOOKING_DOMAIN.md — business logic and data model
+3. DESIGN_SYSTEM.md — visual system
+4. contracts/*.md — surface-specific contracts
+5. staff/0N_*.md — staff interaction specs (target design)
+6. BOOKING_INTERACTIONS.md — customer booking behavior
+7. CUSTOMER_DASHBOARD.md — customer post-booking experience
+
+These .claude/ files override any other docs in the project.
 
 ## File locations
-- Tokens:        src/styles/tokens.css
-- Primitives:    src/components/ui/
-- Patterns:      src/components/patterns/
-- Business logic: src/lib/
-- Customer pages: app/(customer)/
-- Staff pages:   app/(staff)/
-- Admin pages:   app/(admin)/
-- Wireframes:    docs/wireframes/
+- Tokens:          src/styles/tokens.css
+- Primitives:      src/components/ui/
+- Patterns:        src/components/patterns/
+- Chrome:          src/components/chrome/
+- Business logic:  src/lib/
+- Customer pages:  src/app/(customer)/
+- Staff pages:     src/app/(staff)/
+- Admin pages:     src/app/(admin)/
+- Wireframes:      docs/wireframes/
+
+## Current booking flow routes
+- /book              — bowler count + date/time (Step 1)
+- /book/package      — package selection (Step 2)
+- /book/details      — shoe sizing per bowler (Step 3 — NOT YET BUILT)
+- /book/confirm      — review + payment (Step 4)
+- /book/success      — confirmation page (Step 5)
+
+## Staff/Admin architecture
+- /staff             — staff cockpit (STAFF+ role)
+- /admin             — admin settings (MANAGER+ role)
+- Both share AppShell + NavRail chrome
+- Two route groups for auth gating, one visual experience
+- Never merge into a single route group
