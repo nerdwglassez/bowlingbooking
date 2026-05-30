@@ -8,10 +8,11 @@ import {
   Footprints,
   Gamepad2,
   UtensilsCrossed,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   getPackageCardPrice,
   packageInclusionItems,
@@ -81,7 +82,10 @@ export function PackageDetailSheet({
 
   return (
     <div
-      className={cn('fixed inset-0 z-50 flex flex-col justify-end', className)}
+      className={cn(
+        'fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center md:p-4',
+        className,
+      )}
     >
       <button
         type="button"
@@ -97,17 +101,29 @@ export function PackageDetailSheet({
         aria-labelledby="package-detail-title"
         className={cn(
           'relative mx-auto flex max-h-[min(88dvh,720px)] w-full max-w-md flex-col',
-          'border-t border-[var(--color-border)] bg-[var(--surface-raised)]',
+          'border-[var(--color-border)] bg-[var(--surface-raised)]',
           'px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-xl)]',
-          'sheet-slide-up',
+          'max-md:sheet-slide-up border-t md:max-w-lg md:rounded-[var(--radius-xl)] md:border',
         )}
       >
+        <button
+          type="button"
+          className={cn(
+            buttonVariants({ variant: 'ghost', size: 'sm' }),
+            'absolute right-2 top-2 z-10 size-9 p-0',
+          )}
+          onClick={onClose}
+          aria-label="Close package details"
+        >
+          <X className="size-5 shrink-0" aria-hidden />
+        </button>
+
         <div
-          className="mx-auto mb-3.5 h-[3px] w-8 shrink-0 rounded-full bg-[var(--color-border-strong)]"
+          className="mx-auto mb-3.5 h-[3px] w-8 shrink-0 rounded-full bg-[var(--color-border-strong)] md:hidden"
           aria-hidden
         />
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-6">
           <h2
             id="package-detail-title"
             className="text-[20px] font-semibold leading-tight text-[var(--color-text-primary)]"

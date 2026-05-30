@@ -48,7 +48,7 @@ function buildCtaLabel(
     return `Select size for Guest ${pending + 1}`
   }
   if (!contactComplete) {
-    return 'Complete contact information'
+    return 'Add contact details'
   }
   return 'Continue to payment →'
 }
