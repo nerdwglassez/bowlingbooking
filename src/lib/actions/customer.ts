@@ -126,9 +126,45 @@ export async function cancelBookingAction(
     where: { bookingId: booking.id },
   })
 
-  const refundAmount = booking.refundIfCancelled
-  const shouldRefund =
-    refundAmount > 0 && payment?.stripePaymentIntentId != null
+  if (payment?.refundStatus === 'PENDING') {
+    throw new Error('Refund already in progress for this booking.')
+  }
+
+  const alreadyRefunded = payment?.refundAmount ?? 0
+  const refundableBalance = payment
+    ? Math.max(payment.amount - alreadyRefunded, 0)
+    : 0
+  if (
+    booking.refundIfCancelled > 0 &&
+    payment?.stripePaymentIntentId &&
+    refundableBalance <= 0
+  ) {
+    throw new Error('This booking is already fully refunded.')
+  }
+
+  const refundAmount =
+    booking.refundIfCancelled > 0 && payment?.stripePaymentIntentId
+      ? Math.min(booking.refundIfCancelled, refundableBalance)
+      : 0
+  const totalRefundAmount = alreadyRefunded + refundAmount
+  const shouldRefund = refundAmount > 0 && payment?.stripePaymentIntentId != null
+
+  let refundPending = false
+  let stripeRefundId: string | null = null
+  if (shouldRefund && payment?.stripePaymentIntentId) {
+    const refund = await createRefund({
+      paymentIntentId: payment.stripePaymentIntentId,
+      amountCents: refundAmount,
+      reason: 'requested_by_customer',
+      idempotencyKey: `customer-cancel-refund:${booking.id}:${totalRefundAmount}`,
+      metadata: {
+        bookingId: booking.id,
+        source: 'customer_self_service',
+      },
+    })
+    stripeRefundId = refund.id
+    refundPending = true
+  }
 
   // Update the booking + payment + audit in a transaction. The webhook will
   // flip refundStatus to SUCCEEDED if a Stripe refund is created below.
@@ -137,15 +173,16 @@ export async function cancelBookingAction(
       where: { id: booking.id },
       data: {
         status: 'CANCELLED',
-        isRefunded: refundAmount > 0,
+        isRefunded: false,
       },
     })
     if (shouldRefund && payment) {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
+          stripeRefundId,
           refundStatus: 'PENDING',
-          refundAmount,
+          refundAmount: totalRefundAmount,
         },
       })
     }
@@ -158,6 +195,7 @@ export async function cancelBookingAction(
         entityId: booking.id,
         details: {
           refundAmount,
+          cumulativeRefundAmount: totalRefundAmount,
           policyWindowHours: booking.policyWindowHours,
           policyRefundPercent: booking.policyRefundPercent,
           sourceEmail: input.email.trim(),
@@ -165,19 +203,6 @@ export async function cancelBookingAction(
       },
     })
   })
-
-  // Trigger the Stripe refund AFTER the DB transaction commits. The webhook
-  // (charge.refunded) is the sole writer of refundStatus = SUCCEEDED.
-  let refundPending = false
-  if (shouldRefund && payment?.stripePaymentIntentId) {
-    await createRefund({
-      paymentIntentId: payment.stripePaymentIntentId,
-      amountCents: refundAmount,
-      reason: 'requested_by_customer',
-      metadata: { source: 'customer_self_service' },
-    })
-    refundPending = true
-  }
 
   // Send the cancellation email (best-effort; logs in dev mode).
   await sendBookingCancellation({
