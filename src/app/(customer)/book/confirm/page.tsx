@@ -160,6 +160,7 @@ export default function ConfirmBookingPage() {
         customerEmail: session.customerEmail,
         customerPhone: session.customerPhone,
         shoeSelections: session.shoeSelections,
+        selectedOptionalAddonIds: session.selectedOptionalAddonIds,
         shoeRentalPriceCents: tenant.shoeRentalPriceCents,
         laneReservationCentsPerLane: tenant.laneReservationCentsPerLane,
       })
@@ -194,6 +195,7 @@ export default function ConfirmBookingPage() {
     session.customerEmail,
     session.customerPhone,
     session.shoeSelections,
+    session.selectedOptionalAddonIds,
     setPaymentIntent,
     showToast,
   ])

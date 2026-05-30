@@ -260,6 +260,8 @@ describe('cancelBookingAction', () => {
       bookingId: 'bk_1',
       stripePaymentIntentId: 'pi_abc',
       amount: 4500,
+      refundAmount: null,
+      refundStatus: 'NONE',
       status: 'succeeded',
     })
     const result = await cancelBookingAction({
@@ -268,17 +270,26 @@ describe('cancelBookingAction', () => {
     })
     expect(mocks.bookingUpdate).toHaveBeenCalledWith({
       where: { id: 'bk_1' },
-      data: { status: 'CANCELLED', isRefunded: true },
+      data: { status: 'CANCELLED', isRefunded: false },
     })
     expect(mocks.paymentUpdate).toHaveBeenCalledWith({
       where: { id: 'pay_1' },
-      data: { refundStatus: 'PENDING', refundAmount: 4500 },
+      data: {
+        stripeRefundId: 're_1',
+        refundStatus: 'PENDING',
+        refundAmount: 4500,
+        refundReason: 'requested_by_customer',
+      },
     })
     expect(mocks.createRefundMock).toHaveBeenCalledWith({
       paymentIntentId: 'pi_abc',
       amountCents: 4500,
       reason: 'requested_by_customer',
-      metadata: { source: 'customer_self_service' },
+      idempotencyKey: 'customer-cancel:bk_1:4500',
+      metadata: {
+        bookingId: 'bk_1',
+        source: 'customer_self_service',
+      },
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -290,6 +301,54 @@ describe('cancelBookingAction', () => {
     expect(result.refundPending).toBe(true)
   })
 
+  it('does not cancel the booking if Stripe rejects the refund', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      refundAmount: null,
+      refundStatus: 'NONE',
+      status: 'succeeded',
+    })
+    mocks.createRefundMock.mockRejectedValue(new Error('stripe unavailable'))
+
+    await expect(
+      cancelBookingAction({
+        email: 'jane@example.com',
+        confirmationCode: 'ABC123',
+      }),
+    ).rejects.toThrow(/stripe unavailable/i)
+
+    expect(mocks.txMock).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects when a refund is already pending', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      refundAmount: null,
+      refundStatus: 'PENDING',
+      status: 'succeeded',
+    })
+
+    await expect(
+      cancelBookingAction({
+        email: 'jane@example.com',
+        confirmationCode: 'ABC123',
+      }),
+    ).rejects.toThrow(/refund already in progress/i)
+
+    expect(mocks.createRefundMock).not.toHaveBeenCalled()
+    expect(mocks.txMock).not.toHaveBeenCalled()
+  })
+
   it('skips Stripe refund + payment update when refund amount is 0', async () => {
     mocks.bookingFindFirst.mockResolvedValue(
       bookingFixture({ startHoursFromNow: 2 }), // inside the 24h window
@@ -299,6 +358,8 @@ describe('cancelBookingAction', () => {
       bookingId: 'bk_1',
       stripePaymentIntentId: 'pi_abc',
       amount: 4500,
+      refundAmount: null,
+      refundStatus: 'NONE',
       status: 'succeeded',
     })
     await cancelBookingAction({

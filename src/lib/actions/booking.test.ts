@@ -276,7 +276,17 @@ describe('confirmBooking', () => {
     })
     mocks.packageFindFirst.mockResolvedValue({
       id: 'pkg_classic',
+      tenantId: 't1',
+      name: 'Classic',
+      description: null,
+      basePrice: 4500,
+      gameIncluded: true,
+      shoesIncluded: true,
+      gameCostPer: null,
+      shoeCostPer: null,
       partyTypes: ['OPEN'],
+      active: true,
+      sortOrder: 1,
     })
     mocks.calculateBookingTotalMock.mockReturnValue({
       totalAmount: 4500,
@@ -442,6 +452,102 @@ describe('confirmBooking', () => {
         }),
       }),
     )
+  })
+
+  it('includes selected optional add-ons in server pricing and fulfillment notes', async () => {
+    mocks.packageFindFirst.mockResolvedValue({
+      id: 'pkg_party',
+      tenantId: 't1',
+      name: 'Birthday Party',
+      description: null,
+      basePrice: 18500,
+      gameIncluded: true,
+      shoesIncluded: true,
+      gameCostPer: null,
+      shoeCostPer: null,
+      partyTypes: ['BIRTHDAY'],
+      active: true,
+      sortOrder: 1,
+    })
+    mocks.calculateBookingTotalMock.mockReturnValue({
+      totalAmount: 20700,
+      lineItems: [],
+      baseAmount: 18500,
+      gameAmount: 0,
+      shoeAmount: 0,
+    })
+    mocks.createPaymentIntentMock.mockResolvedValue({
+      id: 'pi_party',
+      clientSecret: 'pi_party_secret',
+      amount: 20700,
+      status: 'requires_payment_method',
+      mocked: false,
+    })
+
+    await confirmBooking({
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_party',
+      partyType: 'BIRTHDAY',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 20700,
+      selectedOptionalAddonIds: ['extra-pitcher'],
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+    })
+
+    expect(mocks.calculateBookingTotalMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedOptionalAddonIds: ['extra-pitcher'],
+      }),
+    )
+    expect(mocks.createPaymentIntentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          optionalAddons: 'Extra pitcher (2200 cents)',
+        }),
+      }),
+    )
+  })
+
+  it('rejects incomplete shoe selections before creating a PaymentIntent', async () => {
+    mocks.packageFindFirst.mockResolvedValue({
+      id: 'pkg_classic',
+      tenantId: 't1',
+      name: 'Classic',
+      description: null,
+      basePrice: 1200,
+      gameIncluded: false,
+      shoesIncluded: false,
+      gameCostPer: 800,
+      shoeCostPer: 400,
+      partyTypes: ['OPEN'],
+      active: true,
+      sortOrder: 1,
+    })
+
+    await expect(
+      confirmBooking({
+        tenantId: 't1',
+        holdId: 'h1',
+        packageId: 'pkg_classic',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        laneCount: 1,
+        startTime,
+        endTime,
+        totalAmount: 4500,
+        shoeSelections: [{ bowlerId: 'bowler-1', size: 'M10', cost: 0 }],
+        customerName: 'Jane',
+        customerEmail: 'jane@example.com',
+        customerPhone: '555',
+      }),
+    ).rejects.toThrow(/shoe selections changed/i)
+    expect(mocks.createPaymentIntentMock).not.toHaveBeenCalled()
   })
 })
 

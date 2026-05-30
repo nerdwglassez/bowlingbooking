@@ -61,6 +61,7 @@ interface BookingMetadata {
   customerName: string
   customerEmail: string
   customerPhone: string
+  optionalAddons: string | null
 }
 
 const PARTY_TYPES = new Set(['OPEN', 'BIRTHDAY', 'CORPORATE', 'COSMIC'])
@@ -92,6 +93,7 @@ function parseBookingMetadata(
     customerName: raw.customerName ?? '',
     customerEmail: raw.customerEmail ?? '',
     customerPhone: raw.customerPhone ?? '',
+    optionalAddons: raw.optionalAddons?.trim() || null,
   }
 }
 
@@ -294,6 +296,10 @@ async function handlePaymentIntentSucceeded(
               customerName: metadata.customerName,
               customerEmail: metadata.customerEmail,
               customerPhone: metadata.customerPhone || null,
+              notes:
+                metadata.optionalAddons == null
+                  ? null
+                  : `Add-ons: ${metadata.optionalAddons}`,
               totalAmount: intent.amount,
               discountAmount,
               promoCodeId,
