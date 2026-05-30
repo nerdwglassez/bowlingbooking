@@ -6,12 +6,28 @@
 // Always call calculatePrice() and render the result.
 // ============================================================
 
-import type { Package, PricingResult, LineItem } from '@/types'
+import type { Package, PricingResult, LineItem, ShoeSelection } from '@/types'
+
+import {
+  getPackageOptionalAddons,
+  optionalAddonLineAmount,
+} from '@/lib/package-addons'
 
 interface PricingInput {
   package: Package
   bowlerCount: number
-  gamesPerBowler?: number  // default: 2 (can be set in venue config)
+  gamesPerBowler?: number
+}
+
+export interface BookingTotalInput {
+  package: Package | null
+  bowlerCount: number
+  laneCount: number
+  shoeSelections?: ShoeSelection[]
+  shoeRentalPriceCents: number
+  laneReservationCents?: number
+  gamesPerBowler?: number
+  selectedOptionalAddonIds?: string[]
 }
 
 /**
@@ -23,14 +39,12 @@ export function calculatePrice(input: PricingInput): PricingResult {
   const { package: pkg, bowlerCount, gamesPerBowler = 2 } = input
   const lineItems: LineItem[] = []
 
-  // Base package price
   lineItems.push({
     label: pkg.name,
     amount: pkg.basePrice,
     type: 'base',
   })
 
-  // Game cost — only if NOT included in package
   let gameAmount = 0
   if (!pkg.gameIncluded && pkg.gameCostPer != null) {
     gameAmount = pkg.gameCostPer * bowlerCount * gamesPerBowler
@@ -41,7 +55,6 @@ export function calculatePrice(input: PricingInput): PricingResult {
     })
   }
 
-  // Shoe rental — only if NOT included in package
   let shoeAmount = 0
   if (!pkg.shoesIncluded && pkg.shoeCostPer != null) {
     shoeAmount = pkg.shoeCostPer * bowlerCount
@@ -57,6 +70,142 @@ export function calculatePrice(input: PricingInput): PricingResult {
   return {
     baseAmount: pkg.basePrice,
     gameAmount,
+    shoeAmount,
+    totalAmount,
+    lineItems,
+  }
+}
+
+export interface PackageStepTotalInput {
+  package: Package
+  bowlerCount: number
+  selectedOptionalAddonIds?: string[]
+  gamesPerBowler?: number
+}
+
+/**
+ * Step 2 total: package base + selected optional add-ons (wireframe 2d footer).
+ */
+export function calculatePackageStepTotal(
+  input: PackageStepTotalInput,
+): PricingResult {
+  const {
+    package: pkg,
+    bowlerCount,
+    selectedOptionalAddonIds = [],
+    gamesPerBowler = 2,
+  } = input
+
+  const base = calculatePrice({ package: pkg, bowlerCount, gamesPerBowler })
+  const catalog = getPackageOptionalAddons(pkg)
+  const selected = catalog.filter((addon) =>
+    selectedOptionalAddonIds.includes(addon.id),
+  )
+
+  if (selected.length === 0) {
+    return base
+  }
+
+  const lineItems: LineItem[] = [...base.lineItems]
+  let addonTotal = 0
+
+  for (const addon of selected) {
+    const amount = optionalAddonLineAmount(addon, bowlerCount)
+    lineItems.push({
+      label: addon.name,
+      amount,
+      type: 'addon',
+    })
+    addonTotal += amount
+  }
+
+  return {
+    baseAmount: base.baseAmount,
+    gameAmount: base.gameAmount,
+    shoeAmount: base.shoeAmount,
+    totalAmount: base.totalAmount + addonTotal,
+    lineItems,
+  }
+}
+
+/**
+ * Booking-flow total: optional package + per-bowler shoe selections from Step 3.
+ */
+export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
+  const {
+    package: pkg,
+    bowlerCount,
+    laneCount,
+    shoeSelections = [],
+    laneReservationCents = 0,
+    gamesPerBowler = 2,
+  } = input
+
+  if (pkg != null) {
+    const base = calculatePackageStepTotal({
+      package: pkg,
+      bowlerCount,
+      selectedOptionalAddonIds: input.selectedOptionalAddonIds ?? [],
+      gamesPerBowler,
+    })
+    if (pkg.shoesIncluded || shoeSelections.length === 0) {
+      return base
+    }
+
+    const lineItems = base.lineItems.filter((item) => item.type !== 'shoe')
+    let shoeAmount = 0
+    shoeSelections.forEach((sel, index) => {
+      lineItems.push({
+        label:
+          sel.size === 'OWN'
+            ? `Bowler ${index + 1} · Own shoes`
+            : `Bowler ${index + 1} · Shoes`,
+        amount: sel.cost,
+        type: 'shoe',
+      })
+      shoeAmount += sel.cost
+    })
+
+    const totalAmount =
+      base.baseAmount + base.gameAmount + shoeAmount
+
+    return {
+      baseAmount: base.baseAmount,
+      gameAmount: base.gameAmount,
+      shoeAmount,
+      totalAmount,
+      lineItems,
+    }
+  }
+
+  const lineItems: LineItem[] = []
+  if (laneReservationCents > 0) {
+    lineItems.push({
+      label: laneCount === 1 ? 'Lane reservation' : `${laneCount} lanes`,
+      amount: laneReservationCents,
+      type: 'base',
+    })
+  }
+
+  let shoeAmount = 0
+  shoeSelections.forEach((sel, index) => {
+    lineItems.push({
+      label:
+        sel.size === 'OWN'
+          ? `Bowler ${index + 1} · Own shoes`
+          : `Bowler ${index + 1} · Shoes`,
+      amount: sel.cost,
+      type: 'shoe',
+    })
+    shoeAmount += sel.cost
+  })
+
+  const baseAmount = laneReservationCents
+  const totalAmount = baseAmount + shoeAmount
+
+  return {
+    baseAmount,
+    gameAmount: 0,
     shoeAmount,
     totalAmount,
     lineItems,

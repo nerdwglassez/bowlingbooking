@@ -18,6 +18,16 @@
 @import '../styles/themes/midnight.css';
 @import '../styles/themes/sunset.css';
 
+@keyframes hold-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 html,
 body {
   height: 100%;
@@ -53,4 +63,33 @@ h6 {
   outline: 2px solid var(--color-action);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+/* Bottom sheet enter — booking PackageDetailSheet (wireframe 2c) */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes sheet-slide-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes sheet-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .sheet-slide-up {
+    animation: sheet-slide-up 280ms ease-out both;
+  }
+
+  .sheet-backdrop-in {
+    animation: sheet-backdrop-in 280ms ease-out both;
+  }
 }

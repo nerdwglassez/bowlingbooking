@@ -25,7 +25,10 @@ export const StepIndicator = React.forwardRef<
     <ol
       ref={ref}
       aria-label="Booking progress"
-      className={cn('flex list-none items-center gap-2', className)}
+      className={cn(
+        'flex w-full list-none items-center justify-center gap-2',
+        className,
+      )}
     >
       {Array.from({ length: count }, (_, i) => {
         const step = i + 1

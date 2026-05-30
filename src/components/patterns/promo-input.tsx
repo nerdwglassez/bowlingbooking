@@ -16,6 +16,7 @@ export interface PromoInputProps {
   error: string | null
   loading?: boolean
   disabled?: boolean
+  placeholder?: string
 }
 
 export function PromoInput({
@@ -28,6 +29,7 @@ export function PromoInput({
   error,
   loading,
   disabled,
+  placeholder = 'Have a promo code?',
 }: PromoInputProps) {
   const applied = appliedCode != null && discountCents != null && discountCents > 0
 
@@ -63,7 +65,7 @@ export function PromoInput({
             type="text"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Enter code"
+            placeholder={placeholder}
             disabled={disabled || loading}
             className="sm:flex-1"
           />

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { isDevWithoutDb } from './env'
+import {
+  isDevWithoutDb,
+  isPrismaConnectivityError,
+  shouldUseDevDbFallback,
+} from './env'
 
 describe('isDevWithoutDb', () => {
   beforeEach(() => {
@@ -51,5 +55,61 @@ describe('isDevWithoutDb', () => {
     expect(isDevWithoutDb()).toBe(true)
     vi.stubEnv('DATABASE_URL', 'postgresql://localhost/test')
     expect(isDevWithoutDb()).toBe(false)
+  })
+})
+
+describe('isPrismaConnectivityError', () => {
+  it('detects P1001 and unreachable-server messages', () => {
+    const p1001 = Object.assign(new Error('Can\'t reach database server'), {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P1001',
+    })
+    expect(isPrismaConnectivityError(p1001)).toBe(true)
+
+    const init = Object.assign(new Error('Invalid connection string'), {
+      name: 'PrismaClientInitializationError',
+    })
+    expect(isPrismaConnectivityError(init)).toBe(true)
+
+    expect(
+      isPrismaConnectivityError(
+        new Error("Can't reach database server at `host:5432`"),
+      ),
+    ).toBe(true)
+  })
+
+  it('ignores unrelated errors', () => {
+    expect(isPrismaConnectivityError(new Error('Tenant not found'))).toBe(false)
+    expect(isPrismaConnectivityError('string')).toBe(false)
+  })
+})
+
+describe('shouldUseDevDbFallback', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('returns true in dev when DATABASE_URL is missing', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('DATABASE_URL', '')
+    expect(shouldUseDevDbFallback()).toBe(true)
+  })
+
+  it('returns true in dev on connectivity errors when DATABASE_URL is set', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@host/db')
+    const err = Object.assign(new Error('Can\'t reach database server'), {
+      code: 'P1001',
+    })
+    expect(shouldUseDevDbFallback(err)).toBe(true)
+  })
+
+  it('returns false in production even for P1001', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@host/db')
+    const err = Object.assign(new Error('Can\'t reach database server'), {
+      code: 'P1001',
+    })
+    expect(shouldUseDevDbFallback(err)).toBe(false)
   })
 })

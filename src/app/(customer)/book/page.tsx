@@ -7,63 +7,112 @@ import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import {
   acquireBookingHold,
   getAvailableDates,
+  getAvailableDatesForMonth,
   getAvailableTimeSlots,
   releaseBookingHold,
   type AvailableDate,
 } from '@/lib/actions/booking'
+import { BookingCalendar } from '@/components/patterns/booking-calendar'
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
+import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
 import { BowlerCounter } from '@/components/patterns/bowler-counter'
 import { DateStrip } from '@/components/patterns/date-strip'
+import { GroupSizeBanner } from '@/components/patterns/group-size-banner'
 import { HoldTimer } from '@/components/patterns/hold-timer'
-import { PriceFooter } from '@/components/patterns/price-footer'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { TimeSlotGrid } from '@/components/patterns/time-slot-grid'
-import { VenueHeader } from '@/components/patterns/venue-header'
-import {
-  formatBowlersLanesDateSummary,
-} from '@/lib/booking-display'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { formatBowlersLanesDateSummary } from '@/lib/booking-display'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
-import type { PricingResult, TimeSlot } from '@/types'
+import type { TimeSlot } from '@/types'
 
-const EMPTY_PRICING: PricingResult = {
-  baseAmount: 0,
-  gameAmount: 0,
-  shoeAmount: 0,
-  totalAmount: 0,
-  lineItems: [],
+const MAX_ONLINE_BOWLERS = 18
+const WEEK_STRIP_DAYS = 7
+
+function initialCalendarMonth(): { year: number; month: number } {
+  const now = new Date()
+  return { year: now.getFullYear(), month: now.getMonth() }
 }
 
-// Server actions preserve Date instances over React Flight — see time page notes.
+function calendarMonthForDate(dateIso: string | null): {
+  year: number
+  month: number
+} {
+  if (dateIso == null) return initialCalendarMonth()
+  const d = new Date(`${dateIso}T12:00:00`)
+  return { year: d.getFullYear(), month: d.getMonth() }
+}
+
+function WeekStripSkeleton() {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-2" aria-busy aria-hidden>
+      {Array.from({ length: WEEK_STRIP_DAYS + 1 }, (_, i) => (
+        <Skeleton key={i} className="h-[3.75rem] w-14 shrink-0" />
+      ))}
+    </div>
+  )
+}
 
 export default function BookStepOnePage() {
   const router = useRouter()
   const tenant = useTenant()
   const { session, setBowlerCount, setDate, setTimeSlot } = useBooking()
-  const [dates, setDates] = useState<AvailableDate[]>([])
-  const [datesPending, setDatesPending] = useState(true)
+  const [{ year, month }, setCalendarMonth] = useState(initialCalendarMonth)
+  const [weekDates, setWeekDates] = useState<AvailableDate[]>([])
+  const [weekPending, setWeekPending] = useState(true)
+  const [monthDates, setMonthDates] = useState<AvailableDate[]>([])
+  const [monthPending, setMonthPending] = useState(true)
+  const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false)
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [slotsPending, setSlotsPending] = useState(false)
+
+  const bowlerCount = session.bowlerCount ?? 1
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
-        const next = await getAvailableDates(tenant.id, 7)
-        if (!cancelled) setDates(next)
+        const next = await getAvailableDates(
+          tenant.id,
+          WEEK_STRIP_DAYS,
+          bowlerCount,
+        )
+        if (!cancelled) setWeekDates(next)
       } finally {
-        if (!cancelled) setDatesPending(false)
+        if (!cancelled) setWeekPending(false)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [tenant.id])
+  }, [tenant.id, bowlerCount])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const next = await getAvailableDatesForMonth(
+          tenant.id,
+          year,
+          month,
+          bowlerCount,
+        )
+        if (!cancelled) setMonthDates(next)
+      } finally {
+        if (!cancelled) setMonthPending(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tenant.id, year, month, bowlerCount])
 
   useEffect(() => {
     const date = session.date
-    const bowlerCount = session.bowlerCount
-    if (date == null || bowlerCount == null) {
+    if (date == null || session.bowlerCount == null) {
       const clearId = window.setTimeout(() => {
         setSlots([])
         setSlotsPending(false)
@@ -82,7 +131,7 @@ export default function BookStepOnePage() {
         const next = await getAvailableTimeSlots(
           tenant.id,
           date,
-          bowlerCount,
+          session.bowlerCount!,
         )
         if (!cancelled) setSlots(next)
       } finally {
@@ -119,6 +168,12 @@ export default function BookStepOnePage() {
 
   const wallNow = useWallClockNow()
 
+  const clearHold = useCallback(() => {
+    setTimeSlot(null, null)
+  }, [setTimeSlot])
+
+  const handleHoldExpired = useHoldExpiry(clearHold)
+
   const leadSubtitle =
     session.bowlerCount != null && session.date != null
       ? formatBowlersLanesDateSummary(session.bowlerCount, session.date)
@@ -133,14 +188,25 @@ export default function BookStepOnePage() {
     ? 'Continue to packages →'
     : 'Select a date and time to continue'
 
+  function handleOpenMobileCalendar() {
+    setCalendarMonth(calendarMonthForDate(session.date))
+    setMobileCalendarOpen(true)
+  }
+
+  function handleDateSelect(date: string) {
+    setDate(date)
+    const picked = calendarMonthForDate(date)
+    setCalendarMonth(picked)
+  }
+
   function handleNext() {
     if (!canProceedToPackages) return
     router.push('/book/package')
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-48 pt-6">
-      <VenueHeader
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
+      <BookingFlowHeader
         venueName={tenant.name}
         address={tenant.address}
         onSignIn={() => {
@@ -150,70 +216,113 @@ export default function BookStepOnePage() {
       <StepIndicator currentStep={1} />
       <HoldTimer
         expiresAt={session.holdExpiresAt}
-        onExpire={() => setTimeSlot(null, null)}
+        onExpire={handleHoldExpired}
       />
       <BookingFlowLead
         title="Let's get you bowling"
         subtitle={leadSubtitle}
       />
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
           Bowlers in your group
         </h2>
         <BowlerCounter
-          value={session.bowlerCount ?? 1}
+          value={bowlerCount}
+          max={MAX_ONLINE_BOWLERS}
           onChange={setBowlerCount}
         />
+        {bowlerCount >= MAX_ONLINE_BOWLERS ? (
+          <GroupSizeBanner phone={tenant.phone} />
+        ) : null}
       </section>
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
           Pick a date
         </h2>
-        {datesPending ? (
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Loading dates…
-          </p>
-        ) : (
-          <DateStrip
-            dates={dates}
+
+        {/* Mobile: week strip, optional expand to full calendar */}
+        <div className="md:hidden">
+          {!mobileCalendarOpen ? (
+            weekPending ? (
+              <WeekStripSkeleton />
+            ) : (
+              <DateStrip
+                dates={weekDates}
+                selectedDate={session.date}
+                onSelect={handleDateSelect}
+                onOpenCalendar={handleOpenMobileCalendar}
+              />
+            )
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-fit px-2"
+                onClick={() => setMobileCalendarOpen(false)}
+              >
+                ← This week
+              </Button>
+              <BookingCalendar
+                year={year}
+                month={month}
+                dates={monthDates}
+                selectedDate={session.date}
+                loading={monthPending}
+                onSelect={handleDateSelect}
+                onMonthChange={(y, m) => setCalendarMonth({ year: y, month: m })}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* md+: full calendar */}
+        <div className="hidden md:block">
+          <BookingCalendar
+            year={year}
+            month={month}
+            dates={monthDates}
             selectedDate={session.date}
-            onSelect={setDate}
+            loading={monthPending}
+            onSelect={handleDateSelect}
+            onMonthChange={(y, m) => setCalendarMonth({ year: y, month: m })}
           />
-        )}
+        </div>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-sunken)] p-3">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section
+        className={[
+          'flex flex-col gap-2',
+          session.date == null ? 'pointer-events-none opacity-35' : '',
+        ].join(' ')}
+      >
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
           Choose a time
         </h2>
         {session.date == null ? (
-          <p
-            className="py-4 text-center text-xs text-[var(--color-text-muted)]"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
+          <p className="py-4 text-center text-[11px] text-[var(--color-text-muted)]">
             Select a date to see available times
-          </p>
-        ) : slotsPending ? (
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Loading times…
           </p>
         ) : (
           <TimeSlotGrid
             slots={slots}
             selectedSlotId={session.timeSlotId}
+            loading={slotsPending}
             onSelect={handleSlotSelect}
           />
         )}
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
-        <PriceFooter
-          pricing={EMPTY_PRICING}
-          ctaLabel={ctaLabel}
-          onCta={handleNext}
-          ctaDisabled={!canProceedToPackages}
-        />
-      </div>
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
+        onClick={handleNext}
+        disabled={!canProceedToPackages}
+      >
+        {ctaLabel}
+      </Button>
     </main>
   )
 }

@@ -2,18 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Check } from 'lucide-react'
 
-import { VenueHeader } from '@/components/patterns/venue-header'
-import { StepIndicator } from '@/components/patterns/step-indicator'
 import { BookingSummaryCard } from '@/components/patterns/booking-summary-card'
+import { VenueHeader } from '@/components/patterns/venue-header'
 import { Button } from '@/components/ui/button'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import { useBooking } from '@/context/BookingContext'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import {
   getBookingByPaymentIntentId,
+  getConfirmationQrDataUri,
   type BookingSummary,
 } from '@/lib/actions/booking'
+import { formatPrice } from '@/lib/pricing'
 
 const POLL_INTERVAL_MS = 800
 const POLL_MAX_ATTEMPTS = 12
@@ -43,6 +45,8 @@ export default function BookingSuccessPage() {
   const { resetSession } = useBooking()
   const [booking, setBooking] = useState<BookingSummary | null>(null)
   const [pollExhausted, setPollExhausted] = useState(false)
+  const [qrDataUri, setQrDataUri] = useState<string | null>(null)
+  const [showAccountPrompt, setShowAccountPrompt] = useState(true)
 
   const authFailed = redirectStatus === 'failed'
 
@@ -80,8 +84,21 @@ export default function BookingSuccessPage() {
   }, [authFailed, paymentIntentId])
 
   useEffect(() => {
+    if (booking == null) return
+    let cancelled = false
+    void getConfirmationQrDataUri(booking.confirmationCode).then((uri) => {
+      if (!cancelled) setQrDataUri(uri)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [booking])
+
+  useEffect(() => {
     if (status === 'ready') resetSession()
   }, [status, resetSession])
+
+  const telHref = `tel:${tenant.phone.replace(/\D/g, '')}`
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-12 pt-6">
@@ -92,7 +109,6 @@ export default function BookingSuccessPage() {
           router.push(STAFF_SIGN_IN_PATH)
         }}
       />
-      <StepIndicator currentStep={4} />
 
       {status === 'auth_failed' ? (
         <section className="flex flex-col gap-3 pt-8 text-center">
@@ -126,18 +142,53 @@ export default function BookingSuccessPage() {
 
       {status === 'ready' && booking ? (
         <section className="flex flex-col gap-4">
-          <h1 className="text-2xl">You&apos;re booked.</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Confirmation code{' '}
-            <strong className="text-[var(--color-text-primary)]">
+          <div className="flex flex-col items-center gap-2 pt-4 text-center">
+            <span
+              className="flex size-14 items-center justify-center rounded-full bg-[var(--color-action-subtle)] text-[var(--color-action)]"
+              aria-hidden
+            >
+              <Check className="size-8" strokeWidth={2.5} />
+            </span>
+            <h1
+              className="text-2xl font-semibold"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              Booking confirmed!
+            </h1>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              We&apos;ve sent the details to{' '}
+              <strong className="text-[var(--color-text-primary)]">
+                {booking.customerEmail}
+              </strong>
+            </p>
+          </div>
+
+          <div className="rounded-[var(--radius-lg)] border-2 border-[var(--color-action)] bg-[var(--surface-card)] px-4 py-5 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+              Confirmation code
+            </p>
+            <p
+              className="mt-1 text-3xl font-bold tracking-wide text-[var(--color-text-primary)]"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
               {booking.confirmationCode}
-            </strong>{' '}
-            — we&apos;ve sent the details to{' '}
-            <strong className="text-[var(--color-text-primary)]">
-              {booking.customerEmail}
-            </strong>
-            .
-          </p>
+            </p>
+            <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+              Show this at the front desk or quote it when calling
+            </p>
+          </div>
+
+          {qrDataUri ? (
+            <div className="flex justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element -- QR data URI from server action */}
+              <img
+                src={qrDataUri}
+                alt={`QR code for booking ${booking.confirmationCode}`}
+                className="size-[200px] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-raised)] p-2"
+              />
+            </div>
+          ) : null}
+
           <BookingSummaryCard
             dateLabel={DATE_FORMATTER.format(booking.startTime)}
             timeLabel={formatTimeLabel(booking.startTime, booking.endTime)}
@@ -146,6 +197,49 @@ export default function BookingSuccessPage() {
             packageName={booking.packageName}
             totalAmount={booking.totalAmount}
           />
+
+          <p className="text-center text-sm text-[var(--color-text-secondary)]">
+            Total paid{' '}
+            <strong className="text-[var(--color-text-primary)]">
+              {formatPrice(booking.totalAmount)}
+            </strong>
+          </p>
+
+          {showAccountPrompt ? (
+            <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-sunken)] px-4 py-3 text-sm">
+              <p className="text-[var(--color-text-secondary)]">
+                Want to cancel or reschedule without calling? Create a free
+                account — takes 30 seconds.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => router.push('/signin?from=/book/success')}
+                >
+                  Create account
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAccountPrompt(false)}
+                >
+                  Maybe later
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          <p className="text-center text-sm text-[var(--color-text-secondary)]">
+            Need to make changes? Call us at{' '}
+            <a
+              href={telHref}
+              className="font-semibold text-[var(--color-action)] underline underline-offset-2"
+            >
+              {tenant.phone}
+            </a>
+          </p>
+
           <Button size="lg" fullWidth onClick={() => router.push('/')}>
             Done
           </Button>
@@ -166,7 +260,11 @@ export default function BookingSuccessPage() {
           <p className="text-sm text-[var(--color-text-secondary)]">
             Your payment may still be processing. We&apos;ll send a
             confirmation email as soon as it&apos;s done. If you don&apos;t
-            see it within five minutes, call {tenant.phone}.
+            see it within five minutes, call{' '}
+            <a href={telHref} className="font-semibold underline">
+              {tenant.phone}
+            </a>
+            .
           </p>
           <Button size="lg" fullWidth onClick={() => router.push('/')}>
             Back to home

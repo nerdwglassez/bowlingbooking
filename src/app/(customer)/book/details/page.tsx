@@ -1,0 +1,205 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+import { useTenant } from '@/app/(customer)/book/tenant-provider'
+import { BookingDetailsFooter } from '@/components/patterns/booking-details-footer'
+import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
+import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
+import { ContactInfoSection } from '@/components/patterns/contact-info-section'
+import { HoldTimer } from '@/components/patterns/hold-timer'
+import {
+  ShoeRentalSectionHeader,
+  ShoeRentalTable,
+} from '@/components/patterns/shoe-rental-table'
+import { ShoesIncludedNotice } from '@/components/patterns/shoes-included-notice'
+import { StepIndicator } from '@/components/patterns/step-indicator'
+import { useBooking } from '@/context/BookingContext'
+import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
+import { formatDetailsStepSubtitle } from '@/lib/booking-display'
+import { isContactComplete } from '@/lib/customer-name'
+import { calculateBookingTotal } from '@/lib/pricing'
+import { useHoldExpiry } from '@/lib/use-hold-expiry'
+import { useWallClockNow } from '@/lib/use-wall-clock'
+
+export default function BookDetailsPage() {
+  const router = useRouter()
+  const tenant = useTenant()
+  const {
+    session,
+    setTimeSlot,
+    setShoeSelection,
+    syncShoeRows,
+    setBookingTotal,
+    setCustomerInfo,
+  } = useBooking()
+  const now = useWallClockNow()
+  const [emailTouched, setEmailTouched] = useState(false)
+  const [editingContact, setEditingContact] = useState(false)
+
+  useEffect(() => {
+    syncShoeRows()
+  }, [session.bowlerCount, syncShoeRows])
+
+  const clearHold = useCallback(() => {
+    setTimeSlot(null, null)
+  }, [setTimeSlot])
+
+  const handleHoldExpired = useHoldExpiry(clearHold)
+
+  const shoesIncluded = session.selectedPackage?.shoesIncluded ?? false
+  const shoesRequired = !shoesIncluded
+
+  const laneReservationCents =
+    (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane
+
+  const pricing = useMemo(
+    () =>
+      calculateBookingTotal({
+        package: session.selectedPackage,
+        bowlerCount: session.bowlerCount ?? 1,
+        laneCount: session.laneCount ?? 1,
+        shoeSelections: session.shoeSelections,
+        shoeRentalPriceCents: tenant.shoeRentalPriceCents,
+        laneReservationCents: session.selectedPackage
+          ? 0
+          : laneReservationCents,
+        selectedOptionalAddonIds: session.selectedOptionalAddonIds,
+      }),
+    [
+      session.selectedPackage,
+      session.bowlerCount,
+      session.laneCount,
+      session.shoeSelections,
+      session.selectedOptionalAddonIds,
+      tenant.shoeRentalPriceCents,
+      laneReservationCents,
+    ],
+  )
+
+  const packageLineItems = useMemo(
+    () => pricing.lineItems.filter((item) => item.type !== 'shoe'),
+    [pricing.lineItems],
+  )
+
+  useEffect(() => {
+    setBookingTotal(pricing.totalAmount)
+  }, [pricing.totalAmount, setBookingTotal])
+
+  const allShoesSelected = session.shoeSelections.every(
+    (row) => row.size.length > 0,
+  )
+
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    session.customerEmail,
+  )
+  const contactComplete = isContactComplete(
+    session.customerName,
+    session.customerEmail,
+  )
+
+  const holdValid =
+    session.holdExpiresAt != null &&
+    session.holdExpiresAt.getTime() > now
+
+  const subtitle =
+    session.bowlerCount != null &&
+    session.date != null &&
+    session.startTime != null
+      ? formatDetailsStepSubtitle(
+          session.bowlerCount,
+          session.selectedPackage?.name ?? null,
+          session.date,
+          session.startTime,
+        )
+      : ''
+
+  const needsHold = session.timeSlotId == null
+
+  useEffect(() => {
+    if (needsHold) router.replace('/book')
+  }, [needsHold, router])
+
+  if (needsHold) {
+    return null
+  }
+
+  function handleNext() {
+    if (!holdValid || !contactComplete) return
+    if (shoesRequired && !allShoesSelected) return
+    router.push('/book/confirm')
+  }
+
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
+      <BookingFlowHeader
+        venueName={tenant.name}
+        address={tenant.address}
+        onSignIn={() => router.push(STAFF_SIGN_IN_PATH)}
+      />
+      <StepIndicator currentStep={3} />
+      <HoldTimer
+        expiresAt={session.holdExpiresAt}
+        onExpire={handleHoldExpired}
+      />
+
+      <BookingFlowLead title="Your details" subtitle={subtitle} />
+
+      <ContactInfoSection
+        customerName={session.customerName}
+        customerEmail={session.customerEmail}
+        customerPhone={session.customerPhone}
+        editing={editingContact}
+        onEditingChange={setEditingContact}
+        compact={
+          contactComplete && (shoesIncluded || allShoesSelected)
+        }
+        onChange={setCustomerInfo}
+        emailInvalid={emailTouched && !isEmailValid}
+        onEmailBlur={() => setEmailTouched(true)}
+      />
+
+      <section className="flex flex-col gap-2">
+        {shoesIncluded ? (
+          <>
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
+              Shoe rental
+            </h2>
+            <ShoesIncludedNotice
+              packageName={session.selectedPackage!.name}
+            />
+          </>
+        ) : (
+          <>
+            <ShoeRentalSectionHeader
+              shoeRentalPriceCents={tenant.shoeRentalPriceCents}
+            />
+            <ShoeRentalTable
+              selections={session.shoeSelections}
+              shoeRentalPriceCents={tenant.shoeRentalPriceCents}
+              onSizeChange={(index, size, cost) =>
+                setShoeSelection(index, size, cost)
+              }
+              allComplete={allShoesSelected}
+            />
+          </>
+        )}
+      </section>
+
+      <BookingDetailsFooter
+        className="mt-auto"
+        packageLineItems={packageLineItems}
+        shoeSelections={session.shoeSelections}
+        shoesRequired={shoesRequired}
+        totalAmountCents={pricing.totalAmount}
+        contactComplete={contactComplete}
+        holdValid={holdValid}
+        onContinue={handleNext}
+        backHref={BOOKING_BACK_BY_STEP[3].href}
+        backLabel={BOOKING_BACK_BY_STEP[3].label}
+      />
+    </main>
+  )
+}

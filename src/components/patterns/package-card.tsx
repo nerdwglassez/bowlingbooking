@@ -1,11 +1,11 @@
 'use client'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardFooter, CardHeader } from '@/components/ui/card'
-import { packageSummaryTags } from '@/lib/package-detail'
+import { packageCardTags } from '@/lib/package-addons'
+import { getPackageCardPrice } from '@/lib/package-detail'
 import { formatPrice } from '@/lib/pricing'
-import type { Package, PartyType } from '@/types'
+import type { Package } from '@/types'
+
+import { PackageCardTag } from '@/components/patterns/package-addon-section'
 
 function cn(
   ...inputs: Array<string | undefined | null | false>
@@ -13,19 +13,18 @@ function cn(
   return inputs.filter(Boolean).join(' ')
 }
 
-function titleCase(name: PartyType): string {
-  return name.charAt(0) + name.slice(1).toLowerCase()
-}
-
 export type PackageCardProps = {
   pkg: Package
   selected: boolean
   onSelect: (pkg: Package) => void
-  /** Opens detail sheet (`booking-step2-refined.html` 2a / 2c). */
   onOpenDetails: (pkg: Package) => void
   className?: string
 }
 
+/**
+ * Wireframe `booking-step2-refined.html` — tappable card, radio ring, 2-line
+ * description, **What's included →** opens the detail sheet.
+ */
 export function PackageCard({
   pkg,
   selected,
@@ -33,64 +32,93 @@ export function PackageCard({
   onOpenDetails,
   className,
 }: PackageCardProps) {
-  const tags = packageSummaryTags(pkg)
+  const { amountCents, clarifier } = getPackageCardPrice(pkg)
+  const { neutral, locked } = packageCardTags(pkg)
+  const showTags = neutral.length > 0 || (selected && locked.length > 0)
 
   return (
-    <Card
-      variant={selected ? 'elevated' : 'default'}
-      className={cn(selected && 'border-[var(--color-action)]', className)}
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onClick={() => onSelect(pkg)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect(pkg)
+        }
+      }}
+      className={cn(
+        'cursor-pointer rounded-[var(--radius-lg)] border-[1.5px] border-[var(--color-border)]',
+        'bg-[var(--surface-card)] p-[14px] transition-[border-color,background-color,box-shadow]',
+        selected &&
+          'border-[var(--color-action)] bg-[var(--color-action-subtle)] shadow-[0_0_0_3px_var(--color-action-tint)]',
+        className,
+      )}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">
-            {pkg.name}
-          </h3>
-          {pkg.partyTypes.length > 0 ? (
-            <Badge variant="default">{titleCase(pkg.partyTypes[0]!)}</Badge>
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <h3
+          className="flex-1 text-[15px] font-semibold leading-snug text-[var(--color-text-primary)]"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          {pkg.name}
+        </h3>
+        <span
+          className={cn(
+            'mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+            selected
+              ? 'border-[var(--color-action)] bg-[var(--color-action)]'
+              : 'border-[var(--color-border-strong)] bg-transparent',
+          )}
+          aria-hidden
+        >
+          {selected ? (
+            <span className="size-2 rounded-full bg-[var(--color-text-on-action)]" />
           ) : null}
-        </div>
-        <div className="mt-1">
-          <span className="text-xs text-[var(--color-text-muted)]">From </span>
-          <span className="text-2xl font-semibold text-[var(--color-text-primary)]">
-            {formatPrice(pkg.basePrice)}
-          </span>
-        </div>
-        {pkg.description ? (
-          <p className="mt-2 line-clamp-3 text-sm text-[var(--color-text-secondary)]">
-            {pkg.description}
-          </p>
-        ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mt-2 h-auto justify-start p-0 text-left text-[11px] font-semibold text-[var(--color-action)] hover:bg-transparent hover:text-[var(--color-action-hover)]"
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenDetails(pkg)
-          }}
+        </span>
+      </div>
+
+      <p className="mb-1.5">
+        <span
+          className="text-base font-semibold text-[var(--color-text-primary)]"
+          style={{ fontFamily: 'var(--font-display)' }}
         >
-          What&apos;s included →
-        </Button>
-        {tags.length > 0 ? (
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {tags.map((t) => (
-              <Badge key={t} variant="default" className="h-auto min-h-6 py-0.5">
-                {t}
-              </Badge>
-            ))}
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardFooter className="flex items-center justify-end border-t border-[var(--color-border)] pt-4">
-        <Button
-          variant={selected ? 'secondary' : 'primary'}
-          onClick={() => onSelect(pkg)}
-          aria-pressed={selected}
-        >
-          {selected ? 'Selected' : 'Select'}
-        </Button>
-      </CardFooter>
-    </Card>
+          {formatPrice(amountCents)}
+        </span>{' '}
+        <span className="text-[11px] font-normal text-[var(--color-text-muted)]">
+          {clarifier}
+        </span>
+      </p>
+
+      {pkg.description ? (
+        <p className="mb-2 line-clamp-2 text-[11px] leading-[1.55] text-[var(--color-text-secondary)]">
+          {pkg.description}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        className="block border-0 bg-transparent p-0 text-[11px] font-semibold text-[var(--color-action)]"
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpenDetails(pkg)
+        }}
+      >
+        What&apos;s included →
+      </button>
+
+      {showTags ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {neutral.map((tag) => (
+            <PackageCardTag key={tag} label={tag} />
+          ))}
+          {selected
+            ? locked.map((tag) => (
+                <PackageCardTag key={tag} label={tag} locked />
+              ))
+            : null}
+        </div>
+      ) : null}
+    </div>
   )
 }

@@ -12,6 +12,8 @@ export interface TenantChrome {
   name: string
   address: string
   phone: string
+  shoeRentalPriceCents: number
+  laneReservationCentsPerLane: number
 }
 
 const TenantContext = createContext<TenantChrome | null>(null)

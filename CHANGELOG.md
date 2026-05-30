@@ -58,6 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release (Phases 0–7): Next.js App Router app, design token system, UI primitives and patterns, Prisma schema and seed, core booking domain (`lane-logic`, `pricing`, `tenant`), and customer booking flow foundation.
 - Multi-tenant-ready `getTenant()` with `DEFAULT_TENANT_SLUG`; drift sentinel and project contracts under `.claude/`.
 
-[Unreleased]: https://github.com/nerdwglassez/bowlingbooking/compare/ce9454b...HEAD
+[Unreleased]: https://github.com/nerdwglassez/bowlingbooking/compare/ce9454b...ac7f683
 [0.2.0]: https://github.com/nerdwglassez/bowlingbooking/compare/f52eb59...ce9454b
 [0.1.0]: https://github.com/nerdwglassez/bowlingbooking/commit/f52eb59

@@ -24,19 +24,26 @@ read again whenever you are uncertain about a pattern.
 Visual token system, component layers, dark mode rules, Tailwind v4 policy,
 typography, radius, shadows. Read this before touching any component or style.
 
-@.claude/INTERACTION_SPEC.md
-Sheet vs modal breakpoints, animation specs, hold timer states, booking flow
-transitions, staff modification flow (5 states), touch targets, reduced motion.
-Read this before building any interactive element.
+@.claude/BOOKING_INTERACTIONS.md
+Customer booking flow UX: hold timer, step transitions, price footer,
+sheet behavior, promo field placement, toasts, loading states.
+Read before building any customer booking step.
+
+@.claude/STAFF_INTERACTIONS.md
+Staff/admin global rules: AppShell + NavRail, sheets vs panels, dark theme,
+route group architecture. Read before building any staff or admin surface.
+Also load the relevant .claude/staff/0N_*.md for the surface at hand.
 
 ---
 
 ## WHEN WORKING ON: Booking flow (any step)
 
-@.claude/BOOKING_FLOW.md
-6-screen flow map, progressive disclosure principle, header spec, price pill,
-per-screen: what customer sees, what they do, API behavior, state carried
-forward, error states, component location.
+@.claude/BOOKING_DOMAIN.md
+Part 1 — current schema, business rules, status machine, pricing, refunds.
+Part 2 — planned wireframe decisions (check SCHEMA_MIGRATIONS before building).
+
+@.claude/BOOKING_INTERACTIONS.md
+Per-step interaction behavior, animation, hold timer, price footer, error states.
 
 ---
 
@@ -45,13 +52,31 @@ forward, error states, component location.
 @.claude/BOOKING_DOMAIN.md
 Prisma schema, all models and enums, lane assignment rule (ceil(n/6)),
 pricing logic (package flags), refund rules, availability logic,
-API route structure, role permissions.
+server actions, role permissions.
+
+@.claude/SCHEMA_MIGRATIONS.md
+Planned Prisma migrations in dependency order. Read before touching
+schema.prisma or implementing any Part 2 feature from BOOKING_DOMAIN.md.
 
 ---
 
 ## WHEN WORKING ON: Staff cockpit, schedule, walk-in, check-in
 
-@.claude/INTERACTION_SPEC.md (staff modification flow section)
+@.claude/STAFF_INTERACTIONS.md
+Global staff/admin architecture, section index, NavRail, sheets vs panels.
+
+@.claude/BOOKING_DOMAIN.md
+Walk-in source, booking status, refund rules, staff server actions.
+
+@.claude/contracts/STAFF.md
+File locations, layout auth gating, pattern vs chrome rules.
+
+Load **one** section file for the surface at hand:
+@.claude/staff/01_COCKPIT_OVERVIEW.md — cockpit, booking detail, check-in
+@.claude/staff/02_LANES_WALKIN.md — lanes sub-view, walk-in
+@.claude/staff/03_MODIFICATION.md — modification, cancel
+@.claude/staff/04_SCHEDULE.md — schedule, lane blocking
+
 @docs/wireframes/staff/staff-app-cockpit.html
 @docs/wireframes/staff/walkin-booking-flow.html
 @docs/wireframes/staff/schedule-calendar-blocking.html
@@ -60,11 +85,27 @@ API route structure, role permissions.
 
 ## WHEN WORKING ON: Admin settings
 
+@.claude/STAFF_INTERACTIONS.md
+Global admin chrome (same shell as staff).
+
+@.claude/staff/06_SETTINGS.md
+@.claude/contracts/ADMIN.md
 @docs/wireframes/admin/settings-packages-unified.html
 @docs/wireframes/admin/settings-booking-policies.html
 @docs/wireframes/admin/settings-venue-details.html
 @docs/wireframes/admin/settings-integrations.html
 @docs/wireframes/admin/settings-promo-codes.html
+
+---
+
+## WHEN WORKING ON: Customer dashboard, cancel/reschedule
+
+@.claude/CUSTOMER_DASHBOARD.md
+Dashboard layout, featured booking card, cancel/reschedule sheets,
+preferences, account creation flow. NOT YET BUILT — target design.
+
+@.claude/BOOKING_DOMAIN.md
+Part 2 §Customer Dashboard — dependencies (Migration 1 + 7).
 
 ---
 
@@ -108,10 +149,15 @@ Run `npm run verify` before committing (TypeScript + lint + drift + tests).
 
 ## ALL SPEC FILES
 
-  AGENTS.md                     Next.js version warning — read before any framework code
-  .cursorrules                  Coding standards — auto-loaded by Cursor
-  .claude/DESIGN_SYSTEM.md      Visual tokens, component layers, dark mode
-  .claude/INTERACTION_SPEC.md   Animations, breakpoints, sheet/modal behavior
-  .claude/BOOKING_FLOW.md       6-screen booking flow, state, error handling
-  .claude/BOOKING_DOMAIN.md     Schema, business logic, API routes, roles
-  docs/wireframes/              HTML wireframes organized by experience
+  AGENTS.md                              Next.js version warning — read before any framework code
+  .cursorrules                           Coding standards — auto-loaded by Cursor
+  .claude/STACK_BASELINE.md              Frozen stack decisions, Next.js 16 API notes
+  .claude/DESIGN_SYSTEM.md               Visual tokens, component layers, dark mode
+  .claude/BOOKING_DOMAIN.md              Schema, business logic, server actions, roles
+  .claude/BOOKING_INTERACTIONS.md        Customer booking flow UX and interaction rules
+  .claude/STAFF_INTERACTIONS.md          Staff/admin global architecture and UX rules
+  .claude/staff/0N_*.md                  Staff surface-specific interaction specs
+  .claude/CUSTOMER_DASHBOARD.md          Customer post-booking dashboard (target design)
+  .claude/SCHEMA_MIGRATIONS.md           Planned Prisma migrations — gates Part 2 features
+  .claude/contracts/*.md                 Surface-specific contracts (PAYMENTS, STAFF, etc.)
+  docs/wireframes/                       HTML wireframes organized by experience

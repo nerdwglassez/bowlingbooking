@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   isStripeMockedMock: vi.fn(() => false),
   validatePromoCodeMock: vi.fn(),
   calculatePriceMock: vi.fn(),
+  calculateBookingTotalMock: vi.fn(),
   tenantFindUnique: vi.fn(),
   bookingHoldCreate: vi.fn(),
   bookingHoldFindUnique: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@/lib/actions/promo', () => ({
 }))
 vi.mock('@/lib/pricing', () => ({
   calculatePrice: mocks.calculatePriceMock,
+  calculateBookingTotal: mocks.calculateBookingTotalMock,
 }))
 vi.mock('@/lib/stripe', () => ({
   createPaymentIntent: mocks.createPaymentIntentMock,
@@ -267,6 +269,7 @@ describe('confirmBooking', () => {
       id: 'h1',
       tenantId: 't1',
       bowlerCount: 4,
+      laneCount: 1,
       startTime,
       endTime,
       expiresAt: new Date(Date.now() + 60_000),
@@ -275,7 +278,13 @@ describe('confirmBooking', () => {
       id: 'pkg_classic',
       partyTypes: ['OPEN'],
     })
-    mocks.calculatePriceMock.mockReturnValue({ totalAmount: 4500, lineItems: [] })
+    mocks.calculateBookingTotalMock.mockReturnValue({
+      totalAmount: 4500,
+      lineItems: [],
+      baseAmount: 4500,
+      gameAmount: 0,
+      shoeAmount: 0,
+    })
     mocks.createPaymentIntentMock.mockResolvedValue({
       id: 'pi_1',
       clientSecret: 'pi_1_secret_x',
@@ -293,6 +302,7 @@ describe('confirmBooking', () => {
         packageId: 'pkg',
         partyType: 'OPEN',
         bowlerCount: 1,
+        laneCount: 1,
         startTime: new Date(),
         endTime: new Date(),
         totalAmount: 0,
@@ -308,6 +318,7 @@ describe('confirmBooking', () => {
       id: 'h1',
       tenantId: 't1',
       bowlerCount: 1,
+      laneCount: 1,
       startTime,
       endTime,
       expiresAt: new Date(Date.now() - 60_000),
@@ -319,6 +330,7 @@ describe('confirmBooking', () => {
         packageId: 'pkg',
         partyType: 'OPEN',
         bowlerCount: 1,
+        laneCount: 1,
         startTime: new Date(),
         endTime: new Date(),
         totalAmount: 100,
@@ -336,6 +348,7 @@ describe('confirmBooking', () => {
       packageId: 'pkg_classic',
       partyType: 'OPEN',
       bowlerCount: 4,
+      laneCount: 1,
       startTime,
       endTime,
       totalAmount: 4500,
@@ -364,7 +377,13 @@ describe('confirmBooking', () => {
   })
 
   it('rejects tampered totals that do not match server pricing', async () => {
-    mocks.calculatePriceMock.mockReturnValue({ totalAmount: 5000, lineItems: [] })
+    mocks.calculateBookingTotalMock.mockReturnValue({
+      totalAmount: 5000,
+      lineItems: [],
+      baseAmount: 5000,
+      gameAmount: 0,
+      shoeAmount: 0,
+    })
     await expect(
       confirmBooking({
         tenantId: 't1',
@@ -372,6 +391,7 @@ describe('confirmBooking', () => {
         packageId: 'pkg_classic',
         partyType: 'OPEN',
         bowlerCount: 4,
+        laneCount: 1,
         startTime,
         endTime,
         totalAmount: 4500,
@@ -398,6 +418,7 @@ describe('confirmBooking', () => {
       packageId: 'pkg_classic',
       partyType: 'OPEN',
       bowlerCount: 4,
+      laneCount: 1,
       startTime,
       endTime,
       totalAmount: 4500,

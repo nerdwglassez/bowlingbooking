@@ -13,7 +13,7 @@
 
 import { cache } from 'react'
 
-import { isDevWithoutDb, warnOnce } from '@/lib/env'
+import { shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Tenant } from '@/types'
 
@@ -111,10 +111,23 @@ export function getCancellationPolicy(tenant: Tenant): CancellationPolicy {
   return { windowHours, refundPercent }
 }
 
+/** Per-bowler shoe rental in cents — from tenant config, default $4.00. */
+export function getShoeRentalPriceCents(tenant: Tenant): number {
+  const raw = tenant.config['shoeRentalPriceCents']
+  return typeof raw === 'number' && raw >= 0 ? raw : 400
+}
+
+/** Lane-only reservation base in cents when no package is selected. */
+export function getLaneReservationCents(tenant: Tenant, laneCount: number): number {
+  const perLane = tenant.config['laneReservationCentsPerLane']
+  const rate = typeof perLane === 'number' && perLane >= 0 ? perLane : 1200
+  return rate * laneCount
+}
+
 export const getTenant = cache(async function getTenant(): Promise<Tenant> {
   const slug = resolveTenantSlug()
 
-  if (isDevWithoutDb()) {
+  if (shouldUseDevDbFallback()) {
     warnOnce(
       'tenant-db',
       `DATABASE_URL not set — returning mock tenant "${slug}" for dev. ` +
@@ -132,16 +145,11 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
     }
     return mapTenant(row)
   } catch (err) {
-    if (
-      process.env.NODE_ENV !== 'production' &&
-      err instanceof Error &&
-      (err.message.includes('Environment variable not found: DATABASE_URL') ||
-        err.name === 'PrismaClientInitializationError')
-    ) {
+    if (shouldUseDevDbFallback(err)) {
       warnOnce(
         'tenant-db',
-        `DATABASE_URL not available to Prisma — returning mock tenant "${slug}" for dev. ` +
-          `Ensure .env.local exists at the repo root and restart \`npm run dev\`.`,
+        `Database unreachable — returning mock tenant "${slug}" for dev. ` +
+          `Wake your Neon project or restart \`npm run dev\` after fixing DATABASE_URL.`,
       )
       return mockTenant(slug)
     }
