@@ -145,6 +145,7 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
     bowlerCount,
     laneCount,
     shoeSelections = [],
+    shoeRentalPriceCents,
     laneReservationCents = 0,
     gamesPerBowler = 2,
   } = input
