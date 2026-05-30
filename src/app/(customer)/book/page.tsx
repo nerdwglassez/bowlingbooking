@@ -19,7 +19,6 @@ import { BowlerCounter } from '@/components/patterns/bowler-counter'
 import { DateStrip } from '@/components/patterns/date-strip'
 import { GroupSizeBanner } from '@/components/patterns/group-size-banner'
 import { HoldTimer } from '@/components/patterns/hold-timer'
-import { PriceFooter } from '@/components/patterns/price-footer'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { TimeSlotGrid } from '@/components/patterns/time-slot-grid'
 import { Button } from '@/components/ui/button'
@@ -28,15 +27,7 @@ import { formatBowlersLanesDateSummary } from '@/lib/booking-display'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
-import type { PricingResult, TimeSlot } from '@/types'
-
-const EMPTY_PRICING: PricingResult = {
-  baseAmount: 0,
-  gameAmount: 0,
-  shoeAmount: 0,
-  totalAmount: 0,
-  lineItems: [],
-}
+import type { TimeSlot } from '@/types'
 
 const MAX_ONLINE_BOWLERS = 18
 const WEEK_STRIP_DAYS = 7
@@ -214,9 +205,8 @@ export default function BookStepOnePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-48 pt-6">
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
       <BookingFlowHeader
-        step={1}
         venueName={tenant.name}
         address={tenant.address}
         onSignIn={() => {
@@ -328,14 +318,15 @@ export default function BookStepOnePage() {
         )}
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
-        <PriceFooter
-          pricing={EMPTY_PRICING}
-          ctaLabel={ctaLabel}
-          onCta={handleNext}
-          ctaDisabled={!canProceedToPackages}
-        />
-      </div>
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
+        onClick={handleNext}
+        disabled={!canProceedToPackages}
+      >
+        {ctaLabel}
+      </Button>
     </main>
   )
 }

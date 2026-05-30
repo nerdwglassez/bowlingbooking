@@ -9,13 +9,16 @@ import {
 } from '@stripe/react-stripe-js'
 import type { PaymentIntent, Stripe, StripeElements } from '@/lib/stripe-client'
 
-import { Button } from '@/components/ui/button'
 import { getStripeClient, isStripeClientMocked } from '@/lib/stripe-client'
 import { formatPrice } from '@/lib/pricing'
 import {
   paymentErrorMessage,
   requiresActionMessage,
 } from '@/lib/payment-errors'
+
+import { StripePaymentShell } from '@/components/patterns/payment-checkout-chrome'
+
+export const BOOKING_PAYMENT_FORM_ID = 'booking-payment-form'
 
 export interface PaymentFormProps {
   clientSecret: string
@@ -27,6 +30,9 @@ export interface PaymentFormProps {
    * page should navigate to the success screen with a mock PaymentIntent id.
    */
   onMockConfirm: () => void
+  onSubmittingChange?: (submitting: boolean) => void
+  onError?: (message: string | null) => void
+  errored?: boolean
 }
 
 const ELEMENTS_APPEARANCE = {
@@ -34,16 +40,15 @@ const ELEMENTS_APPEARANCE = {
   variables: {
     colorPrimary: 'var(--color-action)',
     colorText: 'var(--color-text-primary)',
-    colorBackground: 'var(--surface-elevated)',
+    colorBackground: 'var(--surface-ground)',
     fontFamily: 'var(--font-body)',
     borderRadius: 'var(--radius-md)',
   },
 }
 
 /**
- * Wraps Stripe's <Elements> provider so the inner form can call useStripe()
- * and useElements(). In mock mode (no publishable key) renders a simulate
- * button instead — the booking flow stays clickable in design review.
+ * Stripe card fields for step 4. Submit is triggered by an external footer
+ * button via `form={BOOKING_PAYMENT_FORM_ID}` (wireframe 4a).
  */
 export function PaymentForm(props: PaymentFormProps) {
   if (isStripeClientMocked()) {
@@ -170,19 +175,19 @@ async function confirmStripePayment(
 
 function PaymentFormInner({
   clientSecret,
-  amountCents,
   returnUrl,
+  onSubmittingChange,
+  onError,
+  errored = false,
 }: PaymentFormProps) {
   const stripe = useStripe()
   const elements = useElements()
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!stripe) return
-    setSubmitting(true)
-    setError(null)
+    onSubmittingChange?.(true)
+    onError?.(null)
 
     const outcome = await confirmStripePayment(
       stripe,
@@ -191,61 +196,58 @@ function PaymentFormInner({
       returnUrl,
     )
     if (outcome.type === 'error') {
-      setError(outcome.message)
-      setSubmitting(false)
+      onError?.(outcome.message)
+      onSubmittingChange?.(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <PaymentElement />
-      {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
-      ) : null}
-      <Button
-        type="submit"
-        size="lg"
-        fullWidth
-        loading={submitting}
-        disabled={!stripe || !elements}
+    <StripePaymentShell errored={errored}>
+      <form
+        id={BOOKING_PAYMENT_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-3"
       >
-        Pay {formatPrice(amountCents)}
-      </Button>
-    </form>
+        <PaymentElement />
+      </form>
+    </StripePaymentShell>
   )
 }
 
-function MockPaymentForm({ amountCents, onMockConfirm }: PaymentFormProps) {
-  const [submitting, setSubmitting] = useState(false)
-
+function MockPaymentForm({
+  amountCents,
+  onMockConfirm,
+  onSubmittingChange,
+  errored = false,
+}: PaymentFormProps) {
   useEffect(() => {
     console.log(
       '[payment-form] running in mock mode — NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is unset.',
     )
   }, [])
 
-  function handleSimulate() {
-    setSubmitting(true)
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    onSubmittingChange?.(true)
     setTimeout(onMockConfirm, 600)
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div
-        className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-[var(--surface-sunken)] p-4 text-sm text-[var(--color-text-secondary)]"
-        role="status"
+    <StripePaymentShell errored={errored}>
+      <form
+        id={BOOKING_PAYMENT_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-3"
       >
-        Stripe publishable key isn&apos;t set. The card form is replaced
-        with a simulate button so design review still works end-to-end.
-      </div>
-      <Button
-        size="lg"
-        fullWidth
-        loading={submitting}
-        onClick={handleSimulate}
-      >
-        Simulate payment of {formatPrice(amountCents)}
-      </Button>
-    </div>
+        <div
+          className="rounded-[var(--radius-md)] border-[1.5px] border-[var(--color-border)] bg-[var(--surface-ground)] px-3.5 py-3"
+          role="status"
+        >
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Mock checkout — simulate {formatPrice(amountCents)}
+          </p>
+        </div>
+      </form>
+    </StripePaymentShell>
   )
 }

@@ -7,7 +7,7 @@ function cn(
 }
 
 export type StepIndicatorProps = {
-  currentStep: 1 | 2 | 3 | 4 | 5
+  currentStep: 1 | 2 | 3 | 4
   totalSteps?: number
   className?: string
 }
@@ -16,7 +16,7 @@ export const StepIndicator = React.forwardRef<
   HTMLOListElement,
   StepIndicatorProps
 >(function StepIndicator(
-  { currentStep, totalSteps = 5, className },
+  { currentStep, totalSteps = 4, className },
   ref,
 ) {
   const count = Math.max(1, totalSteps)

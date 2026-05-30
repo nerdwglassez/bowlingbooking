@@ -4,6 +4,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -71,6 +72,7 @@ interface BookingContextValue {
   setBookingTotal: (totalAmount: number) => void
   setCustomerInfo: (update: CustomerInfoUpdate) => void
   setPaymentIntent: (clientSecret: string, paymentIntentId: string) => void
+  clearPaymentIntent: () => void
   applyPromoCode: (code: string) => Promise<void>
   clearPromoCode: () => void
   resetSession: () => void
@@ -239,7 +241,7 @@ export function BookingProvider({
     })
   }
 
-  function syncShoeRows() {
+  const syncShoeRows = useCallback(() => {
     setSession((prev) => {
       const count = prev.bowlerCount ?? DEFAULT_BOWLER_COUNT
       if (prev.shoeSelections.length === count) return prev
@@ -248,17 +250,26 @@ export function BookingProvider({
         shoeSelections: emptyShoeSelections(count),
       }
     })
-  }
+  }, [])
 
-  function setBookingTotal(totalAmount: number) {
-    setSession((prev) => ({
-      ...prev,
-      totalAmount,
-      stripeClientSecret: null,
-      stripePaymentIntentId: null,
-      promoCode: null,
-    }))
-  }
+  const setBookingTotal = useCallback((totalAmount: number) => {
+    setSession((prev) => {
+      if (
+        prev.totalAmount === totalAmount &&
+        prev.stripeClientSecret == null &&
+        prev.stripePaymentIntentId == null
+      ) {
+        return prev
+      }
+      return {
+        ...prev,
+        totalAmount,
+        stripeClientSecret: null,
+        stripePaymentIntentId: null,
+        promoCode: null,
+      }
+    })
+  }, [])
 
   function setCustomerInfo(update: CustomerInfoUpdate) {
     setSession((prev) => ({
@@ -274,6 +285,14 @@ export function BookingProvider({
       ...prev,
       stripeClientSecret: clientSecret,
       stripePaymentIntentId: paymentIntentId,
+    }))
+  }
+
+  function clearPaymentIntent() {
+    setSession((prev) => ({
+      ...prev,
+      stripeClientSecret: null,
+      stripePaymentIntentId: null,
     }))
   }
 
@@ -315,6 +334,7 @@ export function BookingProvider({
         setBookingTotal,
         setCustomerInfo,
         setPaymentIntent,
+        clearPaymentIntent,
         applyPromoCode,
         clearPromoCode,
         resetSession,

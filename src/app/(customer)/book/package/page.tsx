@@ -10,9 +10,10 @@ import { PackageListToolbar } from '@/components/patterns/package-list-toolbar'
 import { PackageAddonSection } from '@/components/patterns/package-addon-section'
 import { PackageCard } from '@/components/patterns/package-card'
 import { PackageDetailSheet } from '@/components/patterns/package-detail-sheet'
-import { PriceFooter } from '@/components/patterns/price-footer'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BookingStepActions } from '@/components/patterns/booking-step-actions'
+import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import { useBooking } from '@/context/BookingContext'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { getPackagesForTenant } from '@/lib/actions/booking'
@@ -157,9 +158,8 @@ export default function PackagePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-32 pt-6">
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
       <BookingFlowHeader
-        step={2}
         venueName={tenant.name}
         address={tenant.address}
         onSignIn={() => {
@@ -211,14 +211,13 @@ export default function PackagePage() {
         }}
       />
 
-      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md p-4">
-        <PriceFooter
-          pricing={pricing}
-          ctaLabel={packageCtaLabel}
-          onCta={handleNext}
-          ctaDisabled={!holdValid}
-        />
-      </div>
+      <BookingStepActions
+        backHref={BOOKING_BACK_BY_STEP[2].href}
+        backLabel={BOOKING_BACK_BY_STEP[2].label}
+        primaryLabel={packageCtaLabel}
+        onPrimary={handleNext}
+        primaryDisabled={!holdValid}
+      />
     </main>
   )
 }
