@@ -214,12 +214,16 @@ export default function BookStepOnePage() {
         }}
       />
       <StepIndicator currentStep={1} />
+      <HoldTimer
+        expiresAt={session.holdExpiresAt}
+        onExpire={handleHoldExpired}
+      />
       <BookingFlowLead
         title="Let's get you bowling"
         subtitle={leadSubtitle}
       />
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
           Bowlers in your group
         </h2>
         <BowlerCounter
@@ -232,7 +236,7 @@ export default function BookStepOnePage() {
         ) : null}
       </section>
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
           Pick a date
         </h2>
 
@@ -287,34 +291,26 @@ export default function BookStepOnePage() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-sunken)] p-3">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section
+        className={[
+          'flex flex-col gap-2',
+          session.date == null ? 'pointer-events-none opacity-35' : '',
+        ].join(' ')}
+      >
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
           Choose a time
         </h2>
         {session.date == null ? (
-          <p
-            className="py-4 text-center text-xs text-[var(--color-text-muted)]"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
+          <p className="py-4 text-center text-[11px] text-[var(--color-text-muted)]">
             Select a date to see available times
           </p>
         ) : (
-          <>
-            <TimeSlotGrid
-              slots={slots}
-              selectedSlotId={session.timeSlotId}
-              loading={slotsPending}
-              onSelect={handleSlotSelect}
-            />
-            {session.timeSlotId != null ? (
-              <HoldTimer
-                expiresAt={session.holdExpiresAt}
-                onExpire={handleHoldExpired}
-                showWhenIdle={false}
-                className="mt-2"
-              />
-            ) : null}
-          </>
+          <TimeSlotGrid
+            slots={slots}
+            selectedSlotId={session.timeSlotId}
+            loading={slotsPending}
+            onSelect={handleSlotSelect}
+          />
         )}
       </section>
 

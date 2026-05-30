@@ -25,7 +25,7 @@ export type HoldTimerProps = {
 }
 
 /**
- * Amber hold countdown per BOOKING_INTERACTIONS.md — never green (confirmed).
+ * Hold countdown bar (`booking-step1-2-branded.html` hold-bar).
  */
 export function HoldTimer({
   expiresAt,
@@ -60,29 +60,37 @@ export function HoldTimer({
     label = 'Hold expired — pick a new time'
   } else {
     const remainingMs = expiresAt.getTime() - now
-    label = `Hold expires in ${formatMmSs(remainingMs)}`
+    label = `Lanes held · ${formatMmSs(remainingMs)} remaining`
   }
 
-  const pillClass =
-    expiresAt != null && !isExpired
-      ? 'inline-flex items-center gap-2 rounded-full border border-[var(--color-action)] bg-[var(--color-action-subtle)] px-3 py-1 text-xs font-medium text-[var(--color-action-text)]'
-      : isExpired
-        ? 'inline-flex items-center gap-2 rounded-full border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3 py-1 text-xs font-medium text-[var(--status-error-text)]'
-        : 'inline-flex items-center gap-2 rounded-full bg-[var(--surface-sunken)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)]'
+  const active = expiresAt != null && !isExpired
 
-  const dotClass =
-    expiresAt != null && !isExpired
-      ? 'size-1.5 shrink-0 rounded-full bg-[var(--color-action)] motion-safe:animate-pulse'
-      : 'size-1.5 shrink-0 rounded-full bg-current opacity-70'
+  const barClass = isExpired
+    ? 'border-[var(--status-error-border)] bg-[var(--status-error-bg)] text-[var(--status-error-text)]'
+    : active
+      ? 'border-[var(--status-ok-border)] bg-[var(--status-ok-bg)] text-[var(--status-ok-text)]'
+      : 'border-[var(--color-border)] bg-[var(--surface-card)] text-[var(--color-text-muted)]'
+
+  const dotClass = isExpired
+    ? 'size-[7px] shrink-0 rounded-full bg-current opacity-70'
+    : active
+      ? 'size-[7px] shrink-0 animate-[hold-blink_2s_ease-in-out_infinite] rounded-full bg-[var(--status-ok-text)]'
+      : 'size-[7px] shrink-0 rounded-full bg-[var(--color-text-muted)]'
 
   return (
     <div
-      className={[pillClass, className].filter(Boolean).join(' ')}
+      className={[
+        'mb-4 flex items-center gap-2 rounded-[var(--radius-md)] border px-[13px] py-[9px]',
+        barClass,
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       role="status"
       aria-live="polite"
     >
       <span className={dotClass} aria-hidden />
-      <span>{label}</span>
+      <span className="text-xs font-medium">{label}</span>
     </div>
   )
 }

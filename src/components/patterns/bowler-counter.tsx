@@ -1,13 +1,14 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { formatLaneRequirementLine } from '@/lib/lane-logic'
+import { formatLaneRequirementLine, getLaneCount } from '@/lib/lane-logic'
 
 export type BowlerCounterProps = {
   value: number
   onChange: (next: number) => void
   min?: number
   max?: number
+  /** Amber warning row styling (wireframe 1c — large groups). */
+  warn?: boolean
   className?: string
 }
 
@@ -16,41 +17,74 @@ export function BowlerCounter({
   onChange,
   min = 1,
   max = 18,
+  warn = false,
   className,
 }: BowlerCounterProps) {
-  const summary = formatLaneRequirementLine(value)
-  const caption =
-    value === max ? `${summary} · max ${max} online` : summary
+  const laneCount = getLaneCount(value)
+  const metaLine = warn
+    ? `Large group · ${laneCount} ${laneCount === 1 ? 'lane' : 'lanes'} required`
+    : formatLaneRequirementLine(value)
 
   return (
-    <div
-      className={['flex flex-col items-center', className]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      <div className="flex items-center justify-center gap-6">
-        <Button
-          variant="ghost"
-          size="sm"
+    <div className={className}>
+      <div
+        className={[
+          'flex items-center overflow-hidden rounded-[var(--radius-lg)] border-[1.5px]',
+          'bg-[var(--surface-card)]',
+          warn
+            ? 'border-[var(--status-warning-border)]'
+            : 'border-[var(--color-border)]',
+        ].join(' ')}
+      >
+        <button
+          type="button"
+          className={[
+            'flex size-[52px] shrink-0 items-center justify-center',
+            'border-none bg-transparent text-[22px] font-light',
+            'text-[var(--color-action)] transition-opacity',
+            'disabled:cursor-not-allowed disabled:opacity-35',
+          ].join(' ')}
           aria-label="Decrease bowler count"
           disabled={value <= min}
           onClick={() => onChange(value - 1)}
         >
           −
-        </Button>
-        <h2 className="text-5xl">{value}</h2>
-        <Button
-          variant="ghost"
-          size="sm"
+        </button>
+        <div
+          className={[
+            'flex-1 text-center text-[28px] text-[var(--color-text-primary)]',
+            warn ? 'text-[var(--color-action-dark)]' : '',
+          ].join(' ')}
+          style={{ fontFamily: 'var(--font-display)' }}
+          aria-live="polite"
+          aria-atomic
+        >
+          {value}
+        </div>
+        <button
+          type="button"
+          className={[
+            'flex size-[52px] shrink-0 items-center justify-center',
+            'border-none bg-transparent text-[22px] font-light',
+            'text-[var(--color-action)] transition-opacity',
+            'disabled:cursor-not-allowed disabled:opacity-35',
+          ].join(' ')}
           aria-label="Increase bowler count"
           disabled={value >= max}
           onClick={() => onChange(value + 1)}
         >
           +
-        </Button>
+        </button>
       </div>
-      <p className="mt-1.5 text-[var(--color-text-secondary)] text-sm text-center">
-        {caption}
+      <p
+        className={[
+          'mt-[5px] text-center text-[11px]',
+          warn
+            ? 'text-[var(--color-action-dark)]'
+            : 'text-[var(--color-text-muted)]',
+        ].join(' ')}
+      >
+        {metaLine}
       </p>
     </div>
   )

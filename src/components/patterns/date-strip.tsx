@@ -1,8 +1,5 @@
 'use client'
 
-import { CalendarDays } from 'lucide-react'
-
-import { Button } from '@/components/ui/button'
 import type { AvailableDate } from '@/lib/actions/booking'
 
 export type DateStripProps = {
@@ -25,26 +22,56 @@ export function DateStrip({
     <div
       role="listbox"
       aria-label="Choose a date"
-      className={['flex gap-2 overflow-x-auto pb-2', className]
+      className={[
+        'flex gap-[7px] overflow-x-auto pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        className,
+      ]
         .filter(Boolean)
         .join(' ')}
     >
       {dates.map((d) => {
         const selected = selectedDate === d.date
+        const unavailable = !d.available
         return (
-          <Button
+          <button
             key={d.date}
+            type="button"
             role="option"
             aria-selected={selected}
-            disabled={!d.available}
-            variant={selected ? 'primary' : 'secondary'}
-            size="md"
+            disabled={unavailable}
             onClick={() => onSelect(d.date)}
-            className="h-auto w-14 shrink-0 flex-col px-3 py-2"
+            className={[
+              'flex min-w-[50px] shrink-0 flex-col items-center rounded-[var(--radius-md)]',
+              'border-[1.5px] px-3 py-[9px] transition-all',
+              unavailable
+                ? 'cursor-not-allowed border-[var(--color-border)] bg-[var(--surface-card)] opacity-30'
+                : selected
+                  ? 'border-[var(--color-action)] bg-[var(--color-action)]'
+                  : 'cursor-pointer border-[var(--color-border)] bg-[var(--surface-card)]',
+            ].join(' ')}
           >
-            <span className="text-xs uppercase tracking-wide">{d.weekday}</span>
-            <span className="text-lg font-semibold">{d.day}</span>
-          </Button>
+            <span
+              className={[
+                'text-[9px] font-semibold uppercase tracking-[0.05em]',
+                selected
+                  ? 'text-[var(--color-text-on-action)] opacity-75'
+                  : 'text-[var(--color-text-muted)]',
+              ].join(' ')}
+            >
+              {d.weekday}
+            </span>
+            <span
+              className={[
+                'mt-px text-[17px] leading-none',
+                selected
+                  ? 'text-[var(--color-text-on-action)]'
+                  : 'text-[var(--color-text-primary)]',
+              ].join(' ')}
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {d.day}
+            </span>
+          </button>
         )
       })}
       {onOpenCalendar ? (
@@ -52,15 +79,14 @@ export function DateStrip({
           type="button"
           onClick={onOpenCalendar}
           className={[
-            'flex min-w-[5rem] shrink-0 flex-col items-center justify-center gap-0.5',
-            'rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)]',
-            'bg-[var(--color-action-subtle)] px-3 py-2 text-[11px] font-medium',
-            'text-[var(--color-action)] transition-colors',
-            'hover:border-[var(--color-action)] hover:bg-[var(--color-action-tint)]',
+            'flex min-w-[80px] shrink-0 items-center justify-center',
+            'rounded-[var(--radius-md)] border-[1.5px] border-dashed border-[var(--color-border-strong)]',
+            'bg-[var(--color-action-subtle)] px-3 py-[9px]',
+            'text-[11px] font-medium whitespace-nowrap text-[var(--color-action)]',
+            'transition-colors hover:border-[var(--color-action)] hover:bg-[var(--color-action-tint)]',
           ].join(' ')}
         >
-          <CalendarDays className="size-4 shrink-0" aria-hidden />
-          <span>More dates</span>
+          More dates →
         </button>
       ) : null}
     </div>
