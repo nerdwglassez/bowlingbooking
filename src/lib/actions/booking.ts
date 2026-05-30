@@ -26,8 +26,13 @@
 import { validatePromoCode } from '@/lib/actions/promo'
 import { isDevWithoutDb } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
+import {
+  getPackageOptionalAddons,
+  optionalAddonLineAmount,
+} from '@/lib/package-addons'
 import { calculateBookingTotal } from '@/lib/pricing'
 import { prisma } from '@/lib/prisma'
+import { shoeSizeOptionGroups } from '@/lib/shoe-sizes'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
 import { Prisma } from '@prisma/client'
 import QRCode from 'qrcode'
@@ -36,6 +41,11 @@ import type { Package, ShoeSelection, TimeSlot } from '@/types'
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
 const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
 const RESERVING_BOOKING_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] as const
+const VALID_SHOE_SIZE_VALUES = new Set(
+  shoeSizeOptionGroups().flatMap((group) =>
+    group.options.map((option) => option.value),
+  ),
+)
 
 // ── Date strip ────────────────────────────────────────────
 
@@ -439,6 +449,7 @@ export interface ConfirmBookingInput {
   customerEmail: string
   customerPhone: string
   shoeSelections?: ShoeSelection[]
+  selectedOptionalAddonIds?: string[]
   shoeRentalPriceCents?: number
   laneReservationCentsPerLane?: number
 }
@@ -447,6 +458,44 @@ export interface ConfirmBookingResult {
   clientSecret: string
   paymentIntentId: string
   mocked: boolean
+}
+
+function assertShoeSelectionsComplete(
+  selectedPackage: Package | null,
+  bowlerCount: number,
+  shoeSelections: ShoeSelection[],
+): void {
+  if (selectedPackage?.shoesIncluded) return
+  if (shoeSelections.length !== bowlerCount) {
+    throw new Error('Shoe selections changed — review your booking.')
+  }
+  for (const selection of shoeSelections) {
+    if (!VALID_SHOE_SIZE_VALUES.has(selection.size)) {
+      throw new Error('Shoe selections changed — review your booking.')
+    }
+  }
+}
+
+function formatSelectedOptionalAddons(
+  selectedPackage: Package,
+  selectedOptionalAddonIds: string[],
+  bowlerCount: number,
+): string | null {
+  if (selectedOptionalAddonIds.length === 0) return null
+
+  const selectedIds = new Set(selectedOptionalAddonIds)
+  const selectedAddons = getPackageOptionalAddons(selectedPackage).filter(
+    (addon) => selectedIds.has(addon.id),
+  )
+  if (selectedAddons.length === 0) return null
+
+  return selectedAddons
+    .map((addon) => {
+      const amount = optionalAddonLineAmount(addon, bowlerCount)
+      return `${addon.name} (${amount} cents)`
+    })
+    .join('; ')
+    .slice(0, 500)
 }
 
 /**
@@ -480,6 +529,7 @@ export async function confirmBooking(
   const shoeRentalPriceCents = input.shoeRentalPriceCents ?? 400
   const laneReservationCentsPerLane = input.laneReservationCentsPerLane ?? 1200
   const shoeSelections = input.shoeSelections ?? []
+  const selectedOptionalAddonIds = input.selectedOptionalAddonIds ?? []
 
   if (!isDevWithoutDb()) {
     const hold = await prisma.bookingHold.findUnique({
@@ -530,6 +580,8 @@ export async function confirmBooking(
       selectedPackage = null
     }
 
+    assertShoeSelectionsComplete(selectedPackage, bowlerCount, shoeSelections)
+
     subtotalCents = calculateBookingTotal({
       package: selectedPackage,
       bowlerCount,
@@ -539,6 +591,9 @@ export async function confirmBooking(
       laneReservationCents: selectedPackage
         ? 0
         : laneReservationCentsPerLane * laneCount,
+      selectedOptionalAddonIds: selectedPackage
+        ? selectedOptionalAddonIds
+        : [],
     }).totalAmount
 
     if (input.totalAmount !== subtotalCents) {
@@ -556,6 +611,15 @@ export async function confirmBooking(
       laneReservationCents: laneReservationCentsPerLane * laneCount,
     }).totalAmount
   }
+
+  const optionalAddonSummary =
+    selectedPackage == null
+      ? null
+      : formatSelectedOptionalAddons(
+          selectedPackage,
+          selectedOptionalAddonIds,
+          bowlerCount,
+        )
 
   let discountCents = 0
   let promoCodeNormalized: string | null = null
@@ -591,6 +655,9 @@ export async function confirmBooking(
   if (promoCodeNormalized != null && discountCents > 0) {
     metadata.promoCode = promoCodeNormalized
     metadata.discountCents = String(discountCents)
+  }
+  if (optionalAddonSummary != null) {
+    metadata.optionalAddons = optionalAddonSummary
   }
 
   const intent = await createPaymentIntent({

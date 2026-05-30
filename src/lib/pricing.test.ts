@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Package } from '@/types'
-import { calculatePrice, formatPrice } from './pricing'
+import { calculateBookingTotal, calculatePrice, formatPrice } from './pricing'
 
 function makePackage(overrides: Partial<Package> = {}): Package {
   return {
@@ -151,6 +151,54 @@ describe('calculatePrice', () => {
     ]) {
       expect(Number.isInteger(value)).toBe(true)
     }
+  })
+})
+
+describe('calculateBookingTotal', () => {
+  it('charges selected optional add-ons for flat-bundle packages', () => {
+    const result = calculateBookingTotal({
+      package: makePackage({
+        basePrice: 18500,
+        gameIncluded: true,
+        shoesIncluded: true,
+        gameCostPer: null,
+        shoeCostPer: null,
+        partyTypes: ['BIRTHDAY'],
+      }),
+      bowlerCount: 8,
+      laneCount: 2,
+      shoeRentalPriceCents: 400,
+      selectedOptionalAddonIds: ['extra-pitcher', 'arcade-credits'],
+    })
+
+    expect(result.totalAmount).toBe(18500 + 2200 + 8 * 1000)
+    expect(result.lineItems.filter((item) => item.type === 'addon')).toEqual([
+      expect.objectContaining({ label: 'Extra pitcher', amount: 2200 }),
+      expect.objectContaining({ label: 'Arcade Credits', amount: 8000 }),
+    ])
+  })
+
+  it('derives shoe charges from selected sizes instead of caller-supplied costs', () => {
+    const result = calculateBookingTotal({
+      package: makePackage({
+        basePrice: 1200,
+        gameIncluded: false,
+        shoesIncluded: false,
+        gameCostPer: 800,
+        shoeCostPer: 500,
+      }),
+      bowlerCount: 3,
+      laneCount: 1,
+      shoeRentalPriceCents: 400,
+      shoeSelections: [
+        { bowlerId: 'bowler-1', size: 'M10', cost: 0 },
+        { bowlerId: 'bowler-2', size: 'OWN', cost: 9999 },
+        { bowlerId: 'bowler-3', size: 'W8', cost: 1 },
+      ],
+    })
+
+    expect(result.shoeAmount).toBe(800)
+    expect(result.totalAmount).toBe(1200 + 800 * 3 * 2 + 800)
   })
 })
 
