@@ -148,6 +148,7 @@ import {
   getOperatingHours,
   getPromoForAdmin,
   getReportsSummary,
+  getSettingsHubMeta,
   getTenantForAdmin,
   listAuditLogs,
   listPackagesForAdmin,
@@ -167,6 +168,7 @@ function adminUser() {
     email: 'admin@royalz.local',
     name: 'Admin',
     role: 'ADMIN',
+    tenantId: 't1',
   }
 }
 function managerUser() {
@@ -175,6 +177,7 @@ function managerUser() {
     email: 'mgr@royalz.local',
     name: 'Manager',
     role: 'MANAGER',
+    tenantId: 't1',
   }
 }
 
@@ -184,6 +187,7 @@ function staffUser() {
     email: 'staff@royalz.local',
     name: 'Staff',
     role: 'STAFF',
+    tenantId: 't1',
   }
 }
 
@@ -253,6 +257,18 @@ describe('admin actions: role gating', () => {
     for (const call of mocks.requireRoleMock.mock.calls.slice(2)) {
       expect(call).toEqual(['MANAGER', 'ADMIN'])
     }
+  })
+})
+
+describe('getSettingsHubMeta', () => {
+  it('rejects cross-tenant metadata reads', async () => {
+    mocks.requireRoleMock.mockResolvedValue(staffUser())
+
+    await expect(getSettingsHubMeta('other_tenant')).rejects.toThrow(
+      /not authorized/i,
+    )
+    expect(mocks.packageCount).not.toHaveBeenCalled()
+    expect(mocks.userCount).not.toHaveBeenCalled()
   })
 })
 

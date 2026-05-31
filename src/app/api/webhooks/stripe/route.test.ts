@@ -67,6 +67,7 @@ const mocks = vi.hoisted(() => {
     promoUpdate,
     auditCreate,
     constructWebhookEventMock: vi.fn(),
+    createRefundMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
     getTenantMock: vi.fn(async () => ({
       id: 't1',
@@ -94,6 +95,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 vi.mock('@/lib/stripe', () => ({
   constructWebhookEvent: mocks.constructWebhookEventMock,
+  createRefund: mocks.createRefundMock,
 }))
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
 vi.mock('@/lib/tenant', () => ({ getTenant: mocks.getTenantMock }))
@@ -210,6 +212,12 @@ beforeEach(() => {
     totalAmount: 4500,
   })
   mocks.sendEmailMock.mockResolvedValue({ id: 'email_1' })
+  mocks.createRefundMock.mockResolvedValue({
+    id: 're_1',
+    status: 'succeeded',
+    amount: 4500,
+    mocked: false,
+  })
 })
 
 describe('POST /api/webhooks/stripe', () => {
@@ -268,6 +276,42 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'jane@example.com' }),
     )
+  })
+
+  it('refunds the PaymentIntent when paid booking capacity is gone', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.laneCount.mockResolvedValue(1)
+    mocks.bookingFindMany.mockResolvedValue([
+      {
+        startTime: new Date(validMetadata.startTime),
+        endTime: new Date(validMetadata.endTime),
+        laneCount: 1,
+      },
+    ])
+
+    const res = await POST(makeRequest('{}') as never)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body).toMatchObject({
+      received: true,
+      refunded: true,
+      reason: 'capacity-unavailable',
+    })
+    expect(mocks.createRefundMock).toHaveBeenCalledWith({
+      paymentIntentId: 'pi_1',
+      amountCents: 4500,
+      reason: 'requested_by_customer',
+      metadata: {
+        reason: 'booking_capacity_unavailable',
+        paymentIntentId: 'pi_1',
+      },
+      idempotencyKey: 'booking-capacity-unavailable:pi_1',
+    })
+    expect(mocks.paymentCreate).not.toHaveBeenCalled()
+    expect(mocks.stripeEventDeleteMany).not.toHaveBeenCalled()
   })
 
   it('links valid promo, increments uses, and writes BOOKING_PROMO_APPLIED audit', async () => {

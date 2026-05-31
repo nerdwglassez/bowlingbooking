@@ -12,6 +12,7 @@ import {
   getPackageOptionalAddons,
   optionalAddonLineAmount,
 } from '@/lib/package-addons'
+import { OWN_SHOES_VALUE } from '@/lib/shoe-sizes'
 
 interface PricingInput {
   package: Package
@@ -137,6 +138,7 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
     bowlerCount,
     laneCount,
     shoeSelections = [],
+    shoeRentalPriceCents,
     laneReservationCents = 0,
     gamesPerBowler = 2,
   } = input
@@ -155,15 +157,19 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
     const lineItems = base.lineItems.filter((item) => item.type !== 'shoe')
     let shoeAmount = 0
     shoeSelections.forEach((sel, index) => {
+      const amount =
+        sel.size.length > 0 && sel.size !== OWN_SHOES_VALUE
+          ? shoeRentalPriceCents
+          : 0
       lineItems.push({
         label:
-          sel.size === 'OWN'
+          sel.size === OWN_SHOES_VALUE
             ? `Bowler ${index + 1} · Own shoes`
             : `Bowler ${index + 1} · Shoes`,
-        amount: sel.cost,
+        amount,
         type: 'shoe',
       })
-      shoeAmount += sel.cost
+      shoeAmount += amount
     })
 
     const totalAmount =
@@ -189,15 +195,19 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
 
   let shoeAmount = 0
   shoeSelections.forEach((sel, index) => {
+    const amount =
+      sel.size.length > 0 && sel.size !== OWN_SHOES_VALUE
+        ? shoeRentalPriceCents
+        : 0
     lineItems.push({
       label:
-        sel.size === 'OWN'
+        sel.size === OWN_SHOES_VALUE
           ? `Bowler ${index + 1} · Own shoes`
           : `Bowler ${index + 1} · Shoes`,
-      amount: sel.cost,
+      amount,
       type: 'shoe',
     })
-    shoeAmount += sel.cost
+    shoeAmount += amount
   })
 
   const baseAmount = laneReservationCents

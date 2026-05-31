@@ -103,6 +103,11 @@ beforeEach(() => {
     discountCents: 0,
   })
   mocks.calculatePriceMock.mockReturnValue({ totalAmount: 4500, lineItems: [] })
+  mocks.tenantFindUnique.mockResolvedValue({
+    holdTimeoutMins: 7,
+    maxOnlineBowlers: 18,
+    bowlersPerLane: 6,
+  })
   mocks.laneCount.mockResolvedValue(8)
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
@@ -143,6 +148,7 @@ describe('acquireBookingHold', () => {
     mocks.tenantFindUnique.mockResolvedValue({
       holdTimeoutMins: 7,
       maxOnlineBowlers: 18,
+      bowlersPerLane: 6,
     })
     const expiresAt = new Date(Date.now() + 7 * 60_000)
     mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
@@ -169,10 +175,36 @@ describe('acquireBookingHold', () => {
     })
   })
 
+  it('uses tenant bowlersPerLane when reserving hold capacity', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({
+      holdTimeoutMins: 7,
+      maxOnlineBowlers: 18,
+      bowlersPerLane: 4,
+    })
+    const expiresAt = new Date(Date.now() + 7 * 60_000)
+    mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
+
+    await acquireBookingHold({
+      tenantId: 't1',
+      startTime: new Date('2026-01-01T18:00:00Z'),
+      endTime: new Date('2026-01-01T19:00:00Z'),
+      bowlerCount: 5,
+    })
+
+    expect(mocks.bookingHoldCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bowlerCount: 5,
+        laneCount: 2,
+      }),
+      select: { id: true, expiresAt: true },
+    })
+  })
+
   it('rejects a hold when overlapping reservations consume lane capacity', async () => {
     mocks.tenantFindUnique.mockResolvedValue({
       holdTimeoutMins: 7,
       maxOnlineBowlers: 18,
+      bowlersPerLane: 6,
     })
     mocks.laneCount.mockResolvedValue(2)
     const slotStart = new Date('2026-01-01T18:00:00Z')
@@ -287,6 +319,17 @@ describe('getAvailableTimeSlots', () => {
     expect(free?.lanesFree).toBe(2)
     expect(free?.spotsRemaining).toBe(2)
   })
+
+  it('uses tenant bowlersPerLane when computing required lanes for availability', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({ bowlersPerLane: 4 })
+    mocks.laneCount.mockResolvedValue(1)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+
+    const slots = await getAvailableTimeSlots('t1', '2026-01-01', 5)
+
+    expect(slots.every((slot) => slot.available === false)).toBe(true)
+  })
 })
 
 describe('confirmBooking', () => {
@@ -306,6 +349,7 @@ describe('confirmBooking', () => {
     mocks.packageFindFirst.mockResolvedValue({
       id: 'pkg_classic',
       partyTypes: ['OPEN'],
+      shoesIncluded: true,
     })
     mocks.calculateBookingTotalMock.mockReturnValue({
       totalAmount: 4500,
@@ -429,6 +473,33 @@ describe('confirmBooking', () => {
         customerPhone: '555',
       }),
     ).rejects.toThrow(/total changed/i)
+  })
+
+  it('rejects incomplete required shoe selections before creating a PaymentIntent', async () => {
+    mocks.packageFindFirst.mockResolvedValue({
+      id: 'pkg_pay_per_game',
+      partyTypes: ['OPEN'],
+      shoesIncluded: false,
+    })
+
+    await expect(
+      confirmBooking({
+        tenantId: 't1',
+        holdId: 'h1',
+        packageId: 'pkg_pay_per_game',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        laneCount: 1,
+        startTime,
+        endTime,
+        totalAmount: 4500,
+        customerName: 'Jane',
+        customerEmail: 'jane@example.com',
+        customerPhone: '555',
+        shoeSelections: [{ bowlerId: '1', size: 'M10', cost: 0 }],
+      }),
+    ).rejects.toThrow(/shoe size for each bowler/i)
+    expect(mocks.createPaymentIntentMock).not.toHaveBeenCalled()
   })
 
   it('applies promo to charge amount and Stripe metadata', async () => {

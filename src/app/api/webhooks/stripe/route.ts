@@ -35,7 +35,7 @@ import {
   isUniqueConstraintOnField,
 } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
-import { constructWebhookEvent, type Stripe } from '@/lib/stripe'
+import { constructWebhookEvent, createRefund, type Stripe } from '@/lib/stripe'
 import { getTenant } from '@/lib/tenant'
 import { Prisma } from '@prisma/client'
 
@@ -485,6 +485,21 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   })
 }
 
+async function refundUnavailablePaymentIntent(
+  intent: Stripe.PaymentIntent,
+): Promise<void> {
+  await createRefund({
+    paymentIntentId: intent.id,
+    amountCents: intent.amount,
+    reason: 'requested_by_customer',
+    metadata: {
+      reason: 'booking_capacity_unavailable',
+      paymentIntentId: intent.id,
+    },
+    idempotencyKey: `booking-capacity-unavailable:${intent.id}`,
+  })
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const rawBody = await request.text()
   const signature = request.headers.get('stripe-signature')
@@ -529,6 +544,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error(`[stripe-webhook] handler error for ${event.type}:`, err)
+    if (
+      event.type === 'payment_intent.succeeded' &&
+      err instanceof Error &&
+      err.message === SLOT_UNAVAILABLE_MESSAGE
+    ) {
+      try {
+        await refundUnavailablePaymentIntent(
+          event.data.object as Stripe.PaymentIntent,
+        )
+        return NextResponse.json({
+          received: true,
+          refunded: true,
+          reason: 'capacity-unavailable',
+        })
+      } catch (refundErr) {
+        console.error(
+          '[stripe-webhook] failed to refund unavailable booking payment:',
+          refundErr,
+        )
+      }
+    }
     await clearStripeEventForRetry(event.id)
     return NextResponse.json(
       { error: 'handler-error' },

@@ -39,6 +39,18 @@ const HOLD_TIMEOUT_MINS_DEFAULT = 10
 const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
 const RESERVING_BOOKING_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] as const
 
+function assertCompleteShoeSelections(
+  bowlerCount: number,
+  shoeSelections: ShoeSelection[],
+): void {
+  if (
+    shoeSelections.length !== bowlerCount ||
+    shoeSelections.some((selection) => selection.size.trim().length === 0)
+  ) {
+    throw new Error('Select shoe size for each bowler.')
+  }
+}
+
 // ── Date strip ────────────────────────────────────────────
 
 export interface AvailableDate {
@@ -165,7 +177,7 @@ export async function getAvailableTimeSlots(
   if (!isDevWithoutDb()) {
     await cleanupExpiredHolds(tenantId)
   }
-  const laneCount = getLaneCount(bowlerCount)
+  let laneCount = getLaneCount(bowlerCount)
   const slots = buildMockSlotsFor(dateISO)
 
   if (isDevWithoutDb()) {
@@ -181,9 +193,16 @@ export async function getAvailableTimeSlots(
     })
   }
 
-  const totalLanes = await prisma.lane.count({
-    where: { tenantId, active: true },
-  })
+  const [totalLanes, tenant] = await Promise.all([
+    prisma.lane.count({
+      where: { tenantId, active: true },
+    }),
+    prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { bowlersPerLane: true },
+    }),
+  ])
+  laneCount = getLaneCount(bowlerCount, tenant?.bowlersPerLane ?? 6)
   const dayStart = slots[0]?.startTime
   const dayEnd = slots[slots.length - 1]?.endTime
   if (dayStart == null || dayEnd == null) return slots
@@ -262,8 +281,7 @@ export interface AcquireHoldResult {
 export async function acquireBookingHold(
   input: AcquireHoldInput,
 ): Promise<AcquireHoldResult> {
-  const laneCount = getLaneCount(input.bowlerCount)
-  if (laneCount < 1) {
+  if (input.bowlerCount < 1) {
     throw new Error('Bowler count must be at least 1.')
   }
   if (
@@ -287,11 +305,19 @@ export async function acquireBookingHold(
         const now = new Date()
         const tenant = await tx.tenant.findUnique({
           where: { id: input.tenantId },
-          select: { holdTimeoutMins: true, maxOnlineBowlers: true },
+          select: {
+            holdTimeoutMins: true,
+            maxOnlineBowlers: true,
+            bowlersPerLane: true,
+          },
         })
         if (!tenant) throw new Error('Tenant not found')
         if (input.bowlerCount > tenant.maxOnlineBowlers) {
           throw new Error('Group size exceeds online booking limit.')
+        }
+        const laneCount = getLaneCount(input.bowlerCount, tenant.bowlersPerLane)
+        if (laneCount < 1) {
+          throw new Error('Bowler count must be at least 1.')
         }
 
         await tx.bookingHold.deleteMany({
@@ -492,6 +518,7 @@ export async function confirmBooking(
   let endTime = input.endTime
   let subtotalCents = input.totalAmount
   let selectedPackage: Package | null = null
+  let bowlersPerLane = 6
 
   const shoeRentalPriceCents = input.shoeRentalPriceCents ?? 400
   const laneReservationCentsPerLane = input.laneReservationCentsPerLane ?? 1200
@@ -522,6 +549,15 @@ export async function confirmBooking(
     startTime = hold.startTime
     endTime = hold.endTime
 
+    const tenantRow = await prisma.tenant.findUnique({
+      where: { id: hold.tenantId },
+      select: { bowlersPerLane: true },
+    })
+    if (!tenantRow) {
+      throw new Error('Tenant not found')
+    }
+    bowlersPerLane = tenantRow.bowlersPerLane
+
     if (packageId != null) {
       const pkgRow = await prisma.package.findFirst({
         where: { id: packageId, tenantId: hold.tenantId, active: true },
@@ -547,6 +583,10 @@ export async function confirmBooking(
       selectedPackage = null
     }
 
+    if (selectedPackage?.shoesIncluded !== true) {
+      assertCompleteShoeSelections(bowlerCount, shoeSelections)
+    }
+
     subtotalCents = calculateBookingTotal({
       package: selectedPackage,
       bowlerCount,
@@ -565,6 +605,7 @@ export async function confirmBooking(
   } else if (packageId == null) {
     packageId = 'pkg-classic'
     partyType = 'OPEN'
+    assertCompleteShoeSelections(bowlerCount, shoeSelections)
     subtotalCents = calculateBookingTotal({
       package: null,
       bowlerCount,
@@ -594,8 +635,10 @@ export async function confirmBooking(
     throw new Error('Booking total after discount must be greater than zero.')
   }
 
-  const tenantRow = await getTenant()
-  const bowlersPerLane = tenantRow.bowlersPerLane
+  if (isDevWithoutDb()) {
+    const tenantRow = await getTenant()
+    bowlersPerLane = tenantRow.bowlersPerLane
+  }
 
   const metadata: Record<string, string> = {
     holdId: input.holdId,

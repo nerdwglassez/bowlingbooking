@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const bookingCreate = vi.fn()
+  const bookingUpdate = vi.fn()
+  const bookingUpdateMany = vi.fn()
+  const bookingFindMany = vi.fn()
+  const bookingFindUnique = vi.fn()
   const paymentCreate = vi.fn()
   const auditCreate = vi.fn()
   const blockCreate = vi.fn()
@@ -9,7 +13,12 @@ const mocks = vi.hoisted(() => {
   const tenantFindUniqueOrThrow = vi.fn()
   const packageFindFirst = vi.fn()
   const txStub = {
-    booking: { create: bookingCreate },
+    booking: {
+      create: bookingCreate,
+      findUnique: bookingFindUnique,
+      update: bookingUpdate,
+      updateMany: bookingUpdateMany,
+    },
     payment: { create: paymentCreate },
     auditLog: { create: auditCreate },
     blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany },
@@ -19,12 +28,14 @@ const mocks = vi.hoisted(() => {
     requireRoleMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
     revalidatePathMock: vi.fn(),
-    bookingFindMany: vi.fn(),
-    bookingFindUnique: vi.fn(),
+    bookingFindMany,
+    bookingFindUnique,
     blockFindMany: vi.fn(),
     laneCount: vi.fn(),
     laneFindMany: vi.fn(),
     bookingCreate,
+    bookingUpdate,
+    bookingUpdateMany,
     paymentCreate,
     auditCreate,
     blockCreate,
@@ -65,12 +76,15 @@ vi.mock('@/lib/prisma', () => ({
 
 import {
   blockLanes,
+  checkInBookingAction,
   createWalkInBooking,
   getBookingDetail,
   getCockpitSnapshot,
   getScheduleForDate,
   getScheduleForMonth,
   getTodayBookings,
+  markBookingCompletedAction,
+  markBookingNoShowAction,
   unblockLanes,
 } from './staff'
 
@@ -85,11 +99,17 @@ beforeEach(() => {
     id: 'user_staff',
     email: 'staff@royalz.local',
     role: 'STAFF',
+    tenantId: 't1',
   })
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
-        booking: { create: mocks.bookingCreate },
+        booking: {
+          create: mocks.bookingCreate,
+          findUnique: mocks.bookingFindUnique,
+          update: mocks.bookingUpdate,
+          updateMany: mocks.bookingUpdateMany,
+        },
         payment: { create: mocks.paymentCreate },
         auditLog: { create: mocks.auditCreate },
         blockedSlot: {
@@ -367,6 +387,35 @@ describe('createWalkInBooking', () => {
     })
   })
 
+  it('keeps pending walk-in tabs out of captured payment status', async () => {
+    mocks.bookingCreate.mockResolvedValue({
+      id: 'bk_pending',
+      confirmationCode: 'PENDING',
+    })
+
+    await createWalkInBooking({
+      tenantId: 't1',
+      packageId: 'pkg_classic',
+      partyType: 'OPEN',
+      bowlerCount: 2,
+      startTime: new Date('2026-06-01T18:00:00Z'),
+      endTime: new Date('2026-06-01T19:00:00Z'),
+      totalAmount: 2500,
+      customerName: 'Invoice Guest',
+      customerEmail: '',
+      paymentMethod: 'pending',
+    })
+
+    expect(mocks.paymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bookingId: 'bk_pending',
+        amount: 2500,
+        status: 'pending',
+        paymentMethod: 'pending',
+      }),
+    })
+  })
+
   it('skips Payment row creation when totalAmount is 0', async () => {
     mocks.bookingCreate.mockResolvedValue({
       id: 'bk_2',
@@ -385,6 +434,52 @@ describe('createWalkInBooking', () => {
       paymentMethod: 'pending',
     })
     expect(mocks.paymentCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('booking lifecycle actions', () => {
+  it('checks in only a confirmed booking in the staff member tenant', async () => {
+    mocks.bookingFindUnique.mockResolvedValue({
+      tenantId: 't1',
+      status: 'CONFIRMED',
+    })
+
+    await checkInBookingAction('bk_1')
+
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: { checkedInAt: expect.any(Date) },
+    })
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bookingId: 'bk_1',
+        action: 'BOOKING_CHECKED_IN',
+      }),
+    })
+  })
+
+  it('rejects lifecycle updates for bookings in another tenant', async () => {
+    mocks.bookingFindUnique.mockResolvedValue({
+      tenantId: 'other_tenant',
+      status: 'CONFIRMED',
+    })
+
+    await expect(markBookingCompletedAction('bk_2')).rejects.toThrow(
+      /not authorized/i,
+    )
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects no-show transitions for cancelled bookings', async () => {
+    mocks.bookingFindUnique.mockResolvedValue({
+      tenantId: 't1',
+      status: 'CANCELLED',
+    })
+
+    await expect(markBookingNoShowAction('bk_3')).rejects.toThrow(
+      /confirmed bookings/i,
+    )
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
   })
 })
 

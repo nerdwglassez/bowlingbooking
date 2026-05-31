@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Package } from '@/types'
-import { calculatePrice, formatPrice } from './pricing'
+import { calculateBookingTotal, calculatePrice, formatPrice } from './pricing'
 
 function makePackage(overrides: Partial<Package> = {}): Package {
   return {
@@ -151,6 +151,53 @@ describe('calculatePrice', () => {
     ]) {
       expect(Number.isInteger(value)).toBe(true)
     }
+  })
+})
+
+describe('calculateBookingTotal', () => {
+  it('derives rented-shoe cost from tenant pricing instead of client cost', () => {
+    const result = calculateBookingTotal({
+      package: makePackage({
+        basePrice: 1200,
+        gameIncluded: true,
+        shoesIncluded: false,
+        shoeCostPer: 500,
+      }),
+      bowlerCount: 3,
+      laneCount: 1,
+      shoeRentalPriceCents: 500,
+      shoeSelections: [
+        { bowlerId: '1', size: 'M10', cost: 0 },
+        { bowlerId: '2', size: 'OWN', cost: 0 },
+        { bowlerId: '3', size: 'W8', cost: 1 },
+      ],
+    })
+
+    expect(result.shoeAmount).toBe(1000)
+    expect(result.totalAmount).toBe(2200)
+    expect(result.lineItems.filter((item) => item.type === 'shoe')).toEqual([
+      expect.objectContaining({ amount: 500 }),
+      expect.objectContaining({ amount: 0 }),
+      expect.objectContaining({ amount: 500 }),
+    ])
+  })
+
+  it('uses tenant shoe pricing for lane-only bookings too', () => {
+    const result = calculateBookingTotal({
+      package: null,
+      bowlerCount: 2,
+      laneCount: 1,
+      laneReservationCents: 1200,
+      shoeRentalPriceCents: 400,
+      shoeSelections: [
+        { bowlerId: '1', size: 'Y4', cost: 0 },
+        { bowlerId: '2', size: 'OWN', cost: 999 },
+      ],
+    })
+
+    expect(result.baseAmount).toBe(1200)
+    expect(result.shoeAmount).toBe(400)
+    expect(result.totalAmount).toBe(1600)
   })
 })
 

@@ -113,11 +113,11 @@ ALTER TABLE "Payment" ADD CONSTRAINT "Payment_refunded_by_fkey" FOREIGN KEY ("re
 UPDATE "Tenant"
 SET
   "cancellation_window_hours" = COALESCE(
-    NULLIF(("config"->>'cancellationWindowHours')::INTEGER, 0),
+    ("config"->>'cancellationWindowHours')::INTEGER,
     "cancellation_window_hours"
   ),
   "cancellation_refund_percent" = COALESCE(
-    NULLIF(("config"->>'cancellationRefundPercent')::INTEGER, 0),
+    ("config"->>'cancellationRefundPercent')::INTEGER,
     "cancellation_refund_percent"
   )
 WHERE "config" IS NOT NULL AND "config"::text != '{}';

@@ -12,7 +12,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { requireRole } from '@/lib/auth'
+import { requireRole, type CurrentUser } from '@/lib/auth'
 import { generateConfirmationCode } from '@/lib/booking-codes'
 import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import {
@@ -27,6 +27,12 @@ import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 
 const WALK_IN_CODE_MAX_RETRIES = 5
+
+function assertTenantAccess(user: CurrentUser, tenantId: string): void {
+  if (!user.tenantId || user.tenantId !== tenantId) {
+    throw new Error('Not authorized for this venue.')
+  }
+}
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -121,7 +127,8 @@ export interface CockpitSnapshot {
 export async function getTodayBookings(
   tenantId: string,
 ): Promise<StaffBookingRow[]> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, tenantId)
   const today = startOfDay(new Date())
   const tomorrow = new Date(today.getTime() + 86_400_000)
 
@@ -144,7 +151,8 @@ export async function getTodayBookings(
 export async function getCockpitSnapshot(
   tenantId: string,
 ): Promise<CockpitSnapshot> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, tenantId)
   const now = new Date()
   const today = startOfDay(now)
   const tomorrow = new Date(today.getTime() + 86_400_000)
@@ -286,7 +294,8 @@ export async function getScheduleForMonth(
   year: number,
   month: number,
 ): Promise<ScheduleMonthSummary> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, tenantId)
   const monthStart = startOfDay(new Date(year, month, 1))
   const monthEnd = startOfDay(new Date(year, month + 1, 1))
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -358,7 +367,8 @@ export async function getScheduleForDate(
   tenantId: string,
   dateISO: string,
 ): Promise<ScheduleDay> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, tenantId)
   const dayStart = startOfDay(new Date(`${dateISO}T00:00:00`))
   const dayEnd = new Date(dayStart.getTime() + 86_400_000)
 
@@ -406,7 +416,7 @@ export async function getScheduleForDate(
 export async function getBookingDetail(
   bookingId: string,
 ): Promise<StaffBookingDetail | null> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) {
     return mockBookingDetail(bookingId)
   }
@@ -419,6 +429,7 @@ export async function getBookingDetail(
     },
   })
   if (!booking) return null
+  assertTenantAccess(user, booking.tenantId)
   return {
     ...toBookingRow(booking),
     partyType: booking.partyType,
@@ -475,6 +486,7 @@ export async function createWalkInBooking(
   input: CreateWalkInInput,
 ): Promise<CreateWalkInResult> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, input.tenantId)
 
   if (input.totalAmount < 0) {
     throw new Error('createWalkInBooking: totalAmount must be non-negative')
@@ -569,7 +581,8 @@ export async function createWalkInBooking(
             data: {
               bookingId: created.id,
               amount: input.totalAmount,
-              status: 'succeeded',
+              status:
+                input.paymentMethod === 'pending' ? 'pending' : 'succeeded',
               paymentMethod: input.paymentMethod,
             },
           })
@@ -638,6 +651,7 @@ export async function blockLanes(
   input: BlockLanesInput,
 ): Promise<BlockLanesResult> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, input.tenantId)
   if (input.endTime <= input.startTime) {
     throw new Error('blockLanes: endTime must be after startTime')
   }
@@ -677,6 +691,15 @@ export async function checkInBookingAction(bookingId: string): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
   await prisma.$transaction(async (tx) => {
+    const booking = await tx.booking.findUnique({
+      where: { id: bookingId },
+      select: { tenantId: true, status: true },
+    })
+    if (!booking) throw new Error('Booking not found.')
+    assertTenantAccess(user, booking.tenantId)
+    if (booking.status !== 'CONFIRMED') {
+      throw new Error('Only confirmed bookings can be checked in.')
+    }
     await tx.booking.update({
       where: { id: bookingId },
       data: { checkedInAt: new Date() },
@@ -701,6 +724,15 @@ export async function markBookingNoShowAction(
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
   await prisma.$transaction(async (tx) => {
+    const booking = await tx.booking.findUnique({
+      where: { id: bookingId },
+      select: { tenantId: true, status: true },
+    })
+    if (!booking) throw new Error('Booking not found.')
+    assertTenantAccess(user, booking.tenantId)
+    if (booking.status !== 'CONFIRMED') {
+      throw new Error('Only confirmed bookings can be marked no-show.')
+    }
     await tx.booking.update({
       where: { id: bookingId },
       data: { status: 'NO_SHOW', cancellationReason: 'NO_SHOW' },
@@ -725,6 +757,15 @@ export async function markBookingCompletedAction(
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
   await prisma.$transaction(async (tx) => {
+    const booking = await tx.booking.findUnique({
+      where: { id: bookingId },
+      select: { tenantId: true, status: true },
+    })
+    if (!booking) throw new Error('Booking not found.')
+    assertTenantAccess(user, booking.tenantId)
+    if (booking.status !== 'CONFIRMED') {
+      throw new Error('Only confirmed bookings can be completed.')
+    }
     await tx.booking.update({
       where: { id: bookingId },
       data: { status: 'COMPLETED' },
@@ -746,16 +787,31 @@ export async function markBookingCompletedAction(
 export async function autoCompletePastBookingsAction(
   tenantId: string,
 ): Promise<number> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertTenantAccess(user, tenantId)
   if (isDevWithoutDb()) return 0
   const now = new Date()
-  const result = await prisma.booking.updateMany({
-    where: {
-      tenantId,
-      status: 'CONFIRMED',
-      endTime: { lt: now },
-    },
-    data: { status: 'COMPLETED' },
+  const result = await prisma.$transaction(async (tx) => {
+    const updateResult = await tx.booking.updateMany({
+      where: {
+        tenantId,
+        status: 'CONFIRMED',
+        endTime: { lt: now },
+      },
+      data: { status: 'COMPLETED' },
+    })
+    if (updateResult.count > 0) {
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'BOOKINGS_AUTO_COMPLETED',
+          entityType: 'Tenant',
+          entityId: tenantId,
+          details: { count: updateResult.count },
+        },
+      })
+    }
+    return updateResult
   })
   if (result.count > 0) {
     revalidatePath('/staff')

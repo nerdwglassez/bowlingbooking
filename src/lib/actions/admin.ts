@@ -191,7 +191,10 @@ export interface SettingsHubMeta {
 export async function getSettingsHubMeta(
   tenantId: string,
 ): Promise<SettingsHubMeta> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (!user.tenantId || user.tenantId !== tenantId) {
+    throw new Error('Not authorized for this venue.')
+  }
 
   if (isDevWithoutDb()) {
     return {
