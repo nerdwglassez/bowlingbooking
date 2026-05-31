@@ -31,11 +31,16 @@ export function LargeGroupWarning({ className }: LargeGroupWarningProps) {
 
 export type GroupSizeBannerProps = {
   phone: string
+  maxBowlers: number
   className?: string
 }
 
 /** Shown at max online bowler count when phone booking is required. */
-export function GroupSizeBanner({ phone, className }: GroupSizeBannerProps) {
+export function GroupSizeBanner({
+  phone,
+  maxBowlers,
+  className,
+}: GroupSizeBannerProps) {
   const telHref = `tel:${phone.replace(/\D/g, '')}`
 
   return (
@@ -53,7 +58,7 @@ export function GroupSizeBanner({ phone, className }: GroupSizeBannerProps) {
         Maximum online group size
       </p>
       <p className="mt-1 text-[11px] leading-snug text-[var(--color-action-dark)]">
-        Online booking supports up to 18 bowlers. For larger groups, call us at{' '}
+        Online booking supports up to {maxBowlers} bowlers. For larger groups, call us at{' '}
         <a
           href={telHref}
           className="font-semibold underline underline-offset-2"

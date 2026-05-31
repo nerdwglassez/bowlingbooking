@@ -78,7 +78,12 @@ function bookingFixture(overrides: Partial<{
     customerEmail: overrides.customerEmail ?? 'jane@example.com',
     status: overrides.status ?? 'CONFIRMED',
     isRefunded: overrides.isRefunded ?? false,
+    cancellationWindowHoursSnapshot: 24,
+    rescheduleWindowHoursSnapshot: 24,
+    bowlersPerLaneSnapshot: 6,
+    cancellationRefundPercentSnapshot: 100,
     package: { name: 'Classic Bowling' },
+    bowlers: [],
   }
 }
 
@@ -100,11 +105,12 @@ beforeEach(() => {
     themeSlug: 'default',
     holdTimeoutMins: 10,
     maxOnlineBowlers: 18,
+    cancellationWindowHours: 24,
+    rescheduleWindowHours: 24,
+    checkInWindowMinutes: 60,
+    bowlersPerLane: 6,
+    cancellationRefundPercent: 100,
     config: {},
-  })
-  mocks.getCancellationPolicyMock.mockReturnValue({
-    windowHours: 24,
-    refundPercent: 100,
   })
   mocks.sendCancellationMock.mockResolvedValue({ id: null })
   mocks.createRefundMock.mockResolvedValue({ id: 're_1', status: 'pending' })
@@ -190,13 +196,10 @@ describe('getBookingByLookup', () => {
   })
 
   it('computes partial refund based on policy percent', async () => {
-    mocks.getCancellationPolicyMock.mockReturnValue({
-      windowHours: 24,
-      refundPercent: 50,
+    mocks.bookingFindFirst.mockResolvedValue({
+      ...bookingFixture({ startHoursFromNow: 48, totalAmount: 5000 }),
+      cancellationRefundPercentSnapshot: 50,
     })
-    mocks.bookingFindFirst.mockResolvedValue(
-      bookingFixture({ startHoursFromNow: 48, totalAmount: 5000 }),
-    )
     const result = await getBookingByLookup({
       email: 'jane@example.com',
       confirmationCode: 'ABC123',
@@ -268,7 +271,11 @@ describe('cancelBookingAction', () => {
     })
     expect(mocks.bookingUpdate).toHaveBeenCalledWith({
       where: { id: 'bk_1' },
-      data: { status: 'CANCELLED', isRefunded: true },
+      data: {
+        status: 'CANCELLED',
+        isRefunded: false,
+        cancellationReason: 'CUSTOMER_REQUEST',
+      },
     })
     expect(mocks.paymentUpdate).toHaveBeenCalledWith({
       where: { id: 'pay_1' },
@@ -307,7 +314,11 @@ describe('cancelBookingAction', () => {
     })
     expect(mocks.bookingUpdate).toHaveBeenCalledWith({
       where: { id: 'bk_1' },
-      data: { status: 'CANCELLED', isRefunded: false },
+      data: {
+        status: 'CANCELLED',
+        isRefunded: false,
+        cancellationReason: 'CUSTOMER_REQUEST',
+      },
     })
     expect(mocks.createRefundMock).not.toHaveBeenCalled()
     expect(mocks.paymentUpdate).not.toHaveBeenCalled()

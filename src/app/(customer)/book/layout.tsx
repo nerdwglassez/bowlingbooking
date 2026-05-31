@@ -22,6 +22,8 @@ export default async function BookingLayout({
         phone: tenant.phone,
         shoeRentalPriceCents: getShoeRentalPriceCents(tenant),
         laneReservationCentsPerLane,
+        maxOnlineBowlers: tenant.maxOnlineBowlers,
+        bowlersPerLane: tenant.bowlersPerLane,
       }}
     >
       <BookingProviders>

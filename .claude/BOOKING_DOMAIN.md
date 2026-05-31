@@ -40,7 +40,18 @@ Same discipline extends to policy fields — see Part 2 §Policy Snapshot.
 
 ---
 
-## Booking flow — 4 active steps (Step 3 not built; 5 screens total)
+## Booking flow — 5 steps (implemented)
+
+| Step | Route | Purpose |
+|------|-------|---------|
+| 1 | `/book` | Bowler count + date/time |
+| 2 | `/book/package` | Package selection |
+| 3 | `/book/details` | Contact info + shoe sizing |
+| 4 | `/book/confirm` | Review + payment |
+| 5 | `/book/success` | Confirmation |
+
+### Step 3 — `/book/details`
+Collects contact info and per-bowler shoe sizes. Sizes persist via `BookingBowler` on payment capture.
 
 UX detail for each step: `BOOKING_INTERACTIONS.md`.
 
@@ -56,8 +67,9 @@ Fields: packageId, selectedPackage, totalAmount (preview)
 - Packages filtered by partyType from Step 1 (planned removal — Part 2)
 - Pricing via calculatePrice(); package optional
 
-### Step 3 — MISSING  (`/book/details`)
-Flow skips to /book/confirm. See Part 2 §Booking Step 3.
+### Step 3 — Contact + shoes  (`/book/details`)
+Fields: customerName, customerEmail, customerPhone, shoeSelections
+- Shoe sizes persisted on payment via `BookingBowler` rows
 
 ### Step 4 — Review + payment  (`/book/confirm`)
 Fields: customerName, customerEmail, customerPhone, promoCode, payment

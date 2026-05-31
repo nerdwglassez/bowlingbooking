@@ -16,18 +16,32 @@ const mocks = vi.hoisted(() => {
   const promoFindUnique = vi.fn()
   const promoUpdate = vi.fn()
   const auditCreate = vi.fn()
+  const tenantFindUniqueOrThrow = vi.fn()
+  const claimTokenCreate = vi.fn()
+  const bookingBowlerCreateMany = vi.fn()
+  const laneFindMany = vi.fn()
+  const bookingLaneCreate = vi.fn()
+  const packageFindFirst = vi.fn()
 
   const txStub = {
-    booking: { create: bookingCreate, update: bookingUpdate, findMany: bookingFindMany },
+    booking: {
+      create: bookingCreate,
+      update: bookingUpdate,
+      findMany: bookingFindMany,
+    },
     payment: { create: paymentCreate, update: paymentUpdate },
     bookingHold: {
       deleteMany: bookingHoldDeleteMany,
       findUnique: bookingHoldFindUnique,
       findMany: bookingHoldFindMany,
     },
-    lane: { count: laneCount },
+    lane: { count: laneCount, findMany: laneFindMany },
     promoCode: { findUnique: promoFindUnique, update: promoUpdate },
     auditLog: { create: auditCreate },
+    tenant: { findUniqueOrThrow: tenantFindUniqueOrThrow },
+    claimToken: { create: claimTokenCreate },
+    bookingBowler: { createMany: bookingBowlerCreateMany },
+    bookingLane: { create: bookingLaneCreate },
   }
 
   return {
@@ -43,6 +57,12 @@ const mocks = vi.hoisted(() => {
     bookingHoldFindUnique,
     bookingHoldFindMany,
     laneCount,
+    laneFindMany,
+    bookingLaneCreate,
+    tenantFindUniqueOrThrow,
+    claimTokenCreate,
+    bookingBowlerCreateMany,
+    packageFindFirst,
     promoFindUnique,
     promoUpdate,
     auditCreate,
@@ -68,6 +88,7 @@ vi.mock('@/lib/prisma', () => ({
       deleteMany: mocks.stripeEventDeleteMany,
     },
     payment: { findUnique: mocks.paymentFindUnique },
+    package: { findFirst: mocks.packageFindFirst },
     $transaction: mocks.transactionMock,
   },
 }))
@@ -143,15 +164,36 @@ beforeEach(() => {
           findUnique: mocks.bookingHoldFindUnique,
           findMany: mocks.bookingHoldFindMany,
         },
-        lane: { count: mocks.laneCount },
+        lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
         promoCode: {
           findUnique: mocks.promoFindUnique,
           update: mocks.promoUpdate,
         },
         auditLog: { create: mocks.auditCreate },
+        tenant: { findUniqueOrThrow: mocks.tenantFindUniqueOrThrow },
+        claimToken: { create: mocks.claimTokenCreate },
+        bookingBowler: { createMany: mocks.bookingBowlerCreateMany },
+        bookingLane: { create: mocks.bookingLaneCreate },
       } as Parameters<typeof fn>[0]),
   )
   mocks.laneCount.mockResolvedValue(8)
+  mocks.laneFindMany.mockResolvedValue([
+    { id: 'lane_1', number: 1 },
+    { id: 'lane_2', number: 2 },
+    { id: 'lane_3', number: 3 },
+  ])
+  mocks.tenantFindUniqueOrThrow.mockResolvedValue({
+    id: 't1',
+    cancellationWindowHours: 24,
+    rescheduleWindowHours: 24,
+    bowlersPerLane: 6,
+    cancellationRefundPercent: 100,
+    config: {},
+  })
+  mocks.claimTokenCreate.mockResolvedValue({ id: 'claim_1' })
+  mocks.bookingBowlerCreateMany.mockResolvedValue({ count: 0 })
+  mocks.bookingLaneCreate.mockResolvedValue({})
+  mocks.packageFindFirst.mockResolvedValue({ name: 'Classic Bowling' })
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
   mocks.bookingHoldFindUnique.mockResolvedValue(null)

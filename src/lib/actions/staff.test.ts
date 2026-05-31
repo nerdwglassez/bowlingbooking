@@ -6,11 +6,14 @@ const mocks = vi.hoisted(() => {
   const auditCreate = vi.fn()
   const blockCreate = vi.fn()
   const blockDeleteMany = vi.fn()
+  const tenantFindUniqueOrThrow = vi.fn()
+  const packageFindFirst = vi.fn()
   const txStub = {
     booking: { create: bookingCreate },
     payment: { create: paymentCreate },
     auditLog: { create: auditCreate },
     blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany },
+    tenant: { findUniqueOrThrow: tenantFindUniqueOrThrow },
   }
   return {
     requireRoleMock: vi.fn(),
@@ -26,6 +29,8 @@ const mocks = vi.hoisted(() => {
     auditCreate,
     blockCreate,
     blockDeleteMany,
+    tenantFindUniqueOrThrow,
+    packageFindFirst,
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
@@ -53,6 +58,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     blockedSlot: { findMany: mocks.blockFindMany },
     lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
+    package: { findFirst: mocks.packageFindFirst },
     $transaction: mocks.txMock,
   },
 }))
@@ -90,8 +96,18 @@ beforeEach(() => {
           create: mocks.blockCreate,
           deleteMany: mocks.blockDeleteMany,
         },
+        tenant: { findUniqueOrThrow: mocks.tenantFindUniqueOrThrow },
       } as Parameters<typeof fn>[0]),
   )
+  mocks.tenantFindUniqueOrThrow.mockResolvedValue({
+    id: 't1',
+    cancellationWindowHours: 24,
+    rescheduleWindowHours: 24,
+    bowlersPerLane: 6,
+    cancellationRefundPercent: 100,
+    config: {},
+  })
+  mocks.packageFindFirst.mockResolvedValue({ id: 'pkg_1' })
 })
 
 describe('staff actions: role gating', () => {
@@ -338,7 +354,8 @@ describe('createWalkInBooking', () => {
       data: expect.objectContaining({
         bookingId: 'bk_1',
         amount: 12000,
-        status: 'card_at_counter',
+        status: 'succeeded',
+        paymentMethod: 'card_at_counter',
       }),
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({

@@ -21,8 +21,14 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 import { generateConfirmationCode } from '@/lib/booking-codes'
+import {
+  parseOptionalAddonIds,
+  parseShoeSelections,
+} from '@/lib/booking-metadata'
+import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { sendBookingConfirmation } from '@/lib/email'
 import { isDevWithoutDb } from '@/lib/env'
+import { assignBookingLanes } from '@/lib/lane-assignment'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import {
   isSerializableConflict,
@@ -56,6 +62,7 @@ interface BookingMetadata {
   packageId: string
   partyType: 'OPEN' | 'BIRTHDAY' | 'CORPORATE' | 'COSMIC'
   bowlerCount: number
+  bowlersPerLane: number
   startTime: Date
   endTime: Date
   customerName: string
@@ -81,12 +88,17 @@ function parseBookingMetadata(
     return null
   }
   if (!raw.tenantId || !raw.packageId || !raw.holdId) return null
+  const bowlersPerLane = Number.parseInt(raw.bowlersPerLane ?? '6', 10)
   return {
     holdId: raw.holdId,
     tenantId: raw.tenantId,
     packageId: raw.packageId,
     partyType: partyType as BookingMetadata['partyType'],
     bowlerCount,
+    bowlersPerLane:
+      Number.isFinite(bowlersPerLane) && bowlersPerLane >= 1
+        ? bowlersPerLane
+        : 6,
     startTime,
     endTime,
     customerName: raw.customerName ?? '',
@@ -176,10 +188,14 @@ async function handlePaymentIntentSucceeded(
     return
   }
 
-  const laneCount = getLaneCount(metadata.bowlerCount)
+  const laneCount = getLaneCount(metadata.bowlerCount, metadata.bowlersPerLane)
   const rawMeta = intent.metadata as Record<string, string> | null
   const { promoCode: metaPromoCode, discountCents: metaDiscount } =
     parsePromoFromIntentMetadata(rawMeta)
+  const shoeSelections = parseShoeSelections(rawMeta?.shoeSelections)
+  const selectedAddonIds = parseOptionalAddonIds(rawMeta?.optionalAddonIds)
+  const smsReminderConsent = rawMeta?.smsReminderConsent === 'true'
+  const marketingConsent = rawMeta?.marketingConsent === 'true'
   const now = new Date()
 
   type FinalizedBooking = {
@@ -251,6 +267,11 @@ async function handlePaymentIntentSucceeded(
             throw new Error(SLOT_UNAVAILABLE_MESSAGE)
           }
 
+          const tenantRow = await tx.tenant.findUniqueOrThrow({
+            where: { id: metadata.tenantId },
+          })
+          const policySnapshot = policySnapshotFromTenantRow(tenantRow)
+
           let promoCodeId: string | null = null
           let discountAmount = 0
           if (metaPromoCode != null && metaDiscount > 0) {
@@ -298,6 +319,44 @@ async function handlePaymentIntentSucceeded(
               discountAmount,
               promoCodeId,
               isRefunded: false,
+              cancellationWindowHoursSnapshot:
+                policySnapshot.cancellationWindowHours,
+              rescheduleWindowHoursSnapshot:
+                policySnapshot.rescheduleWindowHours,
+              bowlersPerLaneSnapshot: policySnapshot.bowlersPerLane,
+              cancellationRefundPercentSnapshot:
+                policySnapshot.cancellationRefundPercent,
+              smsReminderConsent,
+              marketingConsent,
+              selectedAddonIds,
+            },
+          })
+
+          if (shoeSelections.length > 0) {
+            await tx.bookingBowler.createMany({
+              data: shoeSelections.map((row, index) => ({
+                bookingId: created.id,
+                index,
+                shoeSize: row.size.length > 0 ? row.size : null,
+              })),
+            })
+          }
+
+          await assignBookingLanes(tx, {
+            tenantId: metadata.tenantId,
+            bookingId: created.id,
+            laneCount,
+            startTime: metadata.startTime,
+            endTime: metadata.endTime,
+          })
+
+          const claimExpiresAt = new Date(now.getTime() + 24 * 3_600_000)
+          await tx.claimToken.create({
+            data: {
+              bookingId: created.id,
+              tenantId: metadata.tenantId,
+              email: metadata.customerEmail.toLowerCase(),
+              expiresAt: claimExpiresAt,
             },
           })
 
@@ -352,6 +411,12 @@ async function handlePaymentIntentSucceeded(
   if (metadata.customerEmail) {
     try {
       const tenant = await getTenant()
+      const packageRow = metadata.packageId
+        ? await prisma.package.findFirst({
+            where: { id: metadata.packageId, tenantId: metadata.tenantId },
+            select: { name: true },
+          })
+        : null
       await sendBookingConfirmation({
         to: metadata.customerEmail,
         customerName: metadata.customerName || 'Bowler',
@@ -360,7 +425,7 @@ async function handlePaymentIntentSucceeded(
         endTime: booking.endTime,
         laneCount: booking.laneCount,
         bowlerCount: booking.bowlerCount,
-        packageName: tenant.name,
+        packageName: packageRow?.name ?? 'Bowling package',
         totalCents: booking.totalAmount,
         venueName: tenant.name,
         venueAddress: tenant.address,

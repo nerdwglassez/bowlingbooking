@@ -66,7 +66,7 @@ async function findCustomerBookingPath(
     select: { confirmationCode: true },
   })
   if (upcoming) {
-    return customerBookingDetailPath(upcoming.confirmationCode, email)
+    return '/dashboard'
   }
 
   const latest = await prisma.booking.findFirst({
@@ -75,7 +75,7 @@ async function findCustomerBookingPath(
     select: { confirmationCode: true },
   })
   if (latest) {
-    return customerBookingDetailPath(latest.confirmationCode, email)
+    return '/dashboard'
   }
 
   return '/find-my-booking'

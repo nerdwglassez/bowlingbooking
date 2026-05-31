@@ -21,9 +21,12 @@ const dmSans = DM_Sans({
   display: 'swap',
 })
 
-export const metadata: Metadata = {
-  title: 'Royal Z Lanes',
-  description: 'Book a lane at Royal Z Lanes',
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await getTenant()
+  return {
+    title: tenant.name,
+    description: `Book a lane at ${tenant.name}`,
+  }
 }
 
 /** Uses headers (theme path) + DB (tenant) — never statically prerender. */

@@ -16,12 +16,13 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { policySnapshotFromBooking, policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { isDevWithoutDb } from '@/lib/env'
 import { sendBookingCancellation } from '@/lib/email'
 import { assertPublicRateLimit } from '@/lib/rate-limit-request'
 import { prisma } from '@/lib/prisma'
 import { createRefund, isStripeMocked } from '@/lib/stripe'
-import { getCancellationPolicy, getTenant } from '@/lib/tenant'
+import { getTenant } from '@/lib/tenant'
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -35,7 +36,7 @@ export interface CustomerBookingDetail {
   totalAmount: number
   customerName: string
   customerEmail: string
-  status: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'HOLD'
+  status: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'HOLD' | 'PENDING_PAYMENT'
   isRefunded: boolean
   packageName: string
   /** Whether the booking is still cancellable per policy. */
@@ -48,6 +49,8 @@ export interface CustomerBookingDetail {
   policyRefundPercent: number
   /** True if the booking start is in the past. */
   isPast: boolean
+  /** Persisted shoe sizes per bowler (empty when shoes included). */
+  shoeSizes: string[]
 }
 
 // ── Lookup ────────────────────────────────────────────────
@@ -74,11 +77,12 @@ export async function getBookingByLookup(
   const booking = await prisma.booking.findFirst({
     where: {
       confirmationCode: code,
-      // Postgres is case-sensitive by default; the seed always lowercases
-      // customer_email, but production data may not. Compare both.
       OR: [{ customerEmail: email }, { customerEmail: input.email.trim() }],
     },
-    include: { package: { select: { name: true } } },
+    include: {
+      package: { select: { name: true } },
+      bowlers: { orderBy: { index: 'asc' } },
+    },
   })
   if (!booking) return null
   return await decorate(booking)
@@ -137,7 +141,9 @@ export async function cancelBookingAction(
       where: { id: booking.id },
       data: {
         status: 'CANCELLED',
-        isRefunded: refundAmount > 0,
+        // isRefunded is set by the charge.refunded webhook for Stripe refunds.
+        isRefunded: false,
+        cancellationReason: 'CUSTOMER_REQUEST',
       },
     })
     if (shouldRefund && payment) {
@@ -214,15 +220,26 @@ interface BookingRecord {
   customerEmail: string
   status: CustomerBookingDetail['status']
   isRefunded: boolean
+  cancellationWindowHoursSnapshot: number | null
+  rescheduleWindowHoursSnapshot: number | null
+  bowlersPerLaneSnapshot: number | null
+  cancellationRefundPercentSnapshot: number | null
   package: { name: string } | null
+  bowlers?: Array<{ index: number; shoeSize: string | null }>
 }
 
 async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
   const tenant = await getTenant()
-  const policy = getCancellationPolicy(tenant)
+  const tenantPolicy = policySnapshotFromTenantRow({
+    cancellationWindowHours: tenant.cancellationWindowHours,
+    rescheduleWindowHours: tenant.rescheduleWindowHours,
+    bowlersPerLane: tenant.bowlersPerLane,
+    cancellationRefundPercent: tenant.cancellationRefundPercent,
+  })
+  const policy = policySnapshotFromBooking(b, tenantPolicy)
   const now = new Date()
   const cutoff = new Date(
-    b.startTime.getTime() - policy.windowHours * 3_600_000,
+    b.startTime.getTime() - policy.cancellationWindowHours * 3_600_000,
   )
   const isPast = b.startTime.getTime() <= now.getTime()
   const withinWindow = now <= cutoff
@@ -230,7 +247,9 @@ async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
     !isPast && b.status !== 'CANCELLED' && !b.isRefunded
   const refundIfCancelled =
     cancellable && withinWindow
-      ? Math.floor((b.totalAmount * policy.refundPercent) / 100)
+      ? Math.floor(
+          (b.totalAmount * policy.cancellationRefundPercent) / 100,
+        )
       : 0
   return {
     id: b.id,
@@ -247,9 +266,12 @@ async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
     packageName: b.package?.name ?? '',
     cancellable,
     refundIfCancelled,
-    policyWindowHours: policy.windowHours,
-    policyRefundPercent: policy.refundPercent,
+    policyWindowHours: policy.cancellationWindowHours,
+    policyRefundPercent: policy.cancellationRefundPercent,
     isPast,
+    shoeSizes:
+      b.bowlers?.map((row) => row.shoeSize).filter((s): s is string => s != null) ??
+      [],
   }
 }
 
@@ -274,5 +296,6 @@ function buildMockDetail(): CustomerBookingDetail {
     policyWindowHours: 24,
     policyRefundPercent: 100,
     isPast: false,
+    shoeSizes: [],
   }
 }

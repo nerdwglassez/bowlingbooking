@@ -41,6 +41,25 @@ vi.mock('@/lib/stripe', () => ({
   createPaymentIntent: mocks.createPaymentIntentMock,
   isStripeMocked: mocks.isStripeMockedMock,
 }))
+vi.mock('@/lib/tenant', () => ({
+  getTenant: vi.fn(async () => ({
+    id: 't1',
+    name: 'Royal Z',
+    slug: 'royalz',
+    address: 'a',
+    phone: '(555)',
+    timezone: 'America/New_York',
+    themeSlug: 'default',
+    holdTimeoutMins: 10,
+    maxOnlineBowlers: 18,
+    cancellationWindowHours: 24,
+    rescheduleWindowHours: 24,
+    checkInWindowMinutes: 60,
+    bowlersPerLane: 6,
+    cancellationRefundPercent: 100,
+    config: {},
+  })),
+}))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     tenant: { findUnique: mocks.tenantFindUnique },
@@ -467,7 +486,7 @@ describe('getPackagesForTenant', () => {
     mocks.packageFindMany.mockResolvedValue([])
     await getPackagesForTenant('t1')
     expect(mocks.packageFindMany).toHaveBeenCalledWith({
-      where: { tenantId: 't1', active: true },
+      where: { tenantId: 't1', active: true, accessType: 'PUBLIC' },
       orderBy: { sortOrder: 'asc' },
     })
   })

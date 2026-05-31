@@ -14,6 +14,7 @@ import {
   ShoeRentalTable,
 } from '@/components/patterns/shoe-rental-table'
 import { ShoesIncludedNotice } from '@/components/patterns/shoes-included-notice'
+import { OwnShoesNotice } from '@/components/patterns/own-shoes-notice'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { useBooking } from '@/context/BookingContext'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
@@ -21,6 +22,7 @@ import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import { formatDetailsStepSubtitle } from '@/lib/booking-display'
 import { isContactComplete } from '@/lib/customer-name'
 import { calculateBookingTotal } from '@/lib/pricing'
+import { OWN_SHOES_VALUE } from '@/lib/shoe-sizes'
 import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 
@@ -90,6 +92,9 @@ export default function BookDetailsPage() {
 
   const allShoesSelected = session.shoeSelections.every(
     (row) => row.size.length > 0,
+  )
+  const hasOwnShoesSelection = session.shoeSelections.some(
+    (row) => row.size === OWN_SHOES_VALUE,
   )
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
@@ -184,6 +189,7 @@ export default function BookDetailsPage() {
               }
               allComplete={allShoesSelected}
             />
+            {hasOwnShoesSelection ? <OwnShoesNotice /> : null}
           </>
         )}
       </section>

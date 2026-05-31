@@ -6,7 +6,13 @@
 
 export type Role = 'CUSTOMER' | 'STAFF' | 'MANAGER' | 'ADMIN'
 
-export type BookingStatus = 'HOLD' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW'
+export type BookingStatus =
+  | 'HOLD'
+  | 'CONFIRMED'
+  | 'PENDING_PAYMENT'
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'NO_SHOW'
 
 export type BookingSource = 'ONLINE' | 'WALK_IN' | 'PHONE'
 
@@ -30,6 +36,11 @@ export interface Tenant {
   themeSlug: string
   holdTimeoutMins: number
   maxOnlineBowlers: number
+  cancellationWindowHours: number
+  rescheduleWindowHours: number
+  checkInWindowMinutes: number
+  bowlersPerLane: number
+  cancellationRefundPercent: number
   config: Record<string, unknown>
 }
 

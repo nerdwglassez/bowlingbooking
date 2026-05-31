@@ -29,7 +29,6 @@ import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 import type { TimeSlot } from '@/types'
 
-const MAX_ONLINE_BOWLERS = 18
 const WEEK_STRIP_DAYS = 7
 
 function initialCalendarMonth(): { year: number; month: number } {
@@ -70,6 +69,7 @@ export default function BookStepOnePage() {
   const [slotsPending, setSlotsPending] = useState(false)
 
   const bowlerCount = session.bowlerCount ?? 1
+  const maxOnlineBowlers = tenant.maxOnlineBowlers
 
   useEffect(() => {
     let cancelled = false
@@ -228,11 +228,11 @@ export default function BookStepOnePage() {
         </h2>
         <BowlerCounter
           value={bowlerCount}
-          max={MAX_ONLINE_BOWLERS}
+          max={maxOnlineBowlers}
           onChange={setBowlerCount}
         />
-        {bowlerCount >= MAX_ONLINE_BOWLERS ? (
-          <GroupSizeBanner phone={tenant.phone} />
+        {bowlerCount >= maxOnlineBowlers ? (
+          <GroupSizeBanner phone={tenant.phone} maxBowlers={maxOnlineBowlers} />
         ) : null}
       </section>
       <section className="flex flex-col gap-2">

@@ -14,6 +14,7 @@ import {
 } from '@/components/patterns/payment-checkout-chrome'
 import { PaymentPriceFooter } from '@/components/patterns/payment-price-footer'
 import { PromoInput } from '@/components/patterns/promo-input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/app/(customer)/book/toast-provider'
 import { useBooking } from '@/context/BookingContext'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
@@ -63,6 +64,8 @@ export default function ConfirmBookingPage() {
   const [promoDraft, setPromoDraft] = useState('')
   const [promoError, setPromoError] = useState<string | null>(null)
   const [promoLoading, setPromoLoading] = useState(false)
+  const [smsReminderConsent, setSmsReminderConsent] = useState(false)
+  const [marketingConsent, setMarketingConsent] = useState(false)
   const nowMs = useWallClockNow()
 
   const shoesIncluded = session.selectedPackage?.shoesIncluded ?? false
@@ -162,6 +165,9 @@ export default function ConfirmBookingPage() {
         shoeSelections: session.shoeSelections,
         shoeRentalPriceCents: tenant.shoeRentalPriceCents,
         laneReservationCentsPerLane: tenant.laneReservationCentsPerLane,
+        selectedOptionalAddonIds: session.selectedOptionalAddonIds,
+        smsReminderConsent,
+        marketingConsent,
       })
       setPaymentIntent(result.clientSecret, result.paymentIntentId)
     } catch (err) {
@@ -194,6 +200,9 @@ export default function ConfirmBookingPage() {
     session.customerEmail,
     session.customerPhone,
     session.shoeSelections,
+    session.selectedOptionalAddonIds,
+    smsReminderConsent,
+    marketingConsent,
     setPaymentIntent,
     showToast,
   ])
@@ -295,6 +304,19 @@ export default function ConfirmBookingPage() {
             ) : null
           }
         />
+
+        <div className="mt-4 flex flex-col gap-3 text-sm">
+          <Checkbox
+            checked={smsReminderConsent}
+            onChange={(e) => setSmsReminderConsent(e.target.checked)}
+            label="Send me a text reminder before my booking"
+          />
+          <Checkbox
+            checked={marketingConsent}
+            onChange={(e) => setMarketingConsent(e.target.checked)}
+            label={`Send me promotions and news from ${tenant.name}`}
+          />
+        </div>
 
         {hasPaymentIntent ? (
           <div className="mt-4">

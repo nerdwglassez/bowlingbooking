@@ -14,6 +14,7 @@ import { revalidatePath } from 'next/cache'
 
 import { requireRole } from '@/lib/auth'
 import { generateConfirmationCode } from '@/lib/booking-codes'
+import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import {
   assignLanesGreedy,
   buildCockpitLanes,
@@ -39,7 +40,7 @@ export interface StaffBookingRow {
   customerName: string
   customerEmail: string
   customerPhone: string | null
-  status: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'HOLD'
+  status: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'HOLD' | 'PENDING_PAYMENT'
   source: 'ONLINE' | 'WALK_IN' | 'PHONE'
   packageName: string
   totalAmount: number
@@ -61,6 +62,8 @@ export interface StaffBookingDetail extends StaffBookingRow {
     refundedAt: Date | null
   } | null
   createdAt: Date
+  checkedInAt: Date | null
+  shoeSizes: string[]
 }
 
 export interface BlockedSlotRow {
@@ -412,6 +415,7 @@ export async function getBookingDetail(
     include: {
       package: { select: { name: true } },
       payment: true,
+      bowlers: { orderBy: { index: 'asc' } },
     },
   })
   if (!booking) return null
@@ -420,6 +424,10 @@ export async function getBookingDetail(
     partyType: booking.partyType,
     notes: booking.notes,
     createdAt: booking.createdAt,
+    checkedInAt: booking.checkedInAt,
+    shoeSizes: booking.bowlers
+      .map((b) => b.shoeSize)
+      .filter((s): s is string => s != null && s.length > 0),
     payment: booking.payment
       ? {
           id: booking.payment.id,
@@ -486,10 +494,8 @@ export async function createWalkInBooking(
     }
   }
 
-  const laneCount = getLaneCount(input.bowlerCount)
-  const bookingSource = input.source ?? 'WALK_IN'
-
   let booking: Awaited<ReturnType<typeof prisma.booking.create>> | null = null
+  const bookingSource = input.source ?? 'WALK_IN'
 
   let resolvedPackageId = input.packageId ?? null
   if (!resolvedPackageId) {
@@ -508,6 +514,12 @@ export async function createWalkInBooking(
     const confirmationCode = generateConfirmationCode()
     try {
       booking = await prisma.$transaction(async (tx) => {
+        const tenantRow = await tx.tenant.findUniqueOrThrow({
+          where: { id: input.tenantId },
+        })
+        const policySnapshot = policySnapshotFromTenantRow(tenantRow)
+        const bowlersPerLane = tenantRow.bowlersPerLane
+
         const created = await tx.booking.create({
           data: {
             tenantId: input.tenantId,
@@ -515,7 +527,7 @@ export async function createWalkInBooking(
             confirmationCode,
             partyType: input.partyType,
             bowlerCount: input.bowlerCount,
-            laneCount,
+            laneCount: getLaneCount(input.bowlerCount, bowlersPerLane),
             startTime: input.startTime,
             endTime: input.endTime,
             packageId: resolvedPackageId!,
@@ -527,6 +539,13 @@ export async function createWalkInBooking(
             totalAmount: input.totalAmount,
             notes: input.notes ?? null,
             isRefunded: false,
+            cancellationWindowHoursSnapshot:
+              policySnapshot.cancellationWindowHours,
+            rescheduleWindowHoursSnapshot:
+              policySnapshot.rescheduleWindowHours,
+            bowlersPerLaneSnapshot: policySnapshot.bowlersPerLane,
+            cancellationRefundPercentSnapshot:
+              policySnapshot.cancellationRefundPercent,
           },
         })
 
@@ -550,7 +569,8 @@ export async function createWalkInBooking(
             data: {
               bookingId: created.id,
               amount: input.totalAmount,
-              status: input.paymentMethod,
+              status: 'succeeded',
+              paymentMethod: input.paymentMethod,
             },
           })
         }
@@ -649,6 +669,98 @@ export async function blockLanes(
 
   revalidatePath('/staff/schedule')
   return { blockId: block.id, mocked: false }
+}
+
+// ── Booking lifecycle (check-in, no-show, complete) ───────
+
+export async function checkInBookingAction(bookingId: string): Promise<void> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) return
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { checkedInAt: new Date() },
+    })
+    await tx.auditLog.create({
+      data: {
+        bookingId,
+        userId: user.id,
+        action: 'BOOKING_CHECKED_IN',
+        entityType: 'Booking',
+        entityId: bookingId,
+      },
+    })
+  })
+  revalidatePath(`/staff/bookings/${bookingId}`)
+  revalidatePath('/staff')
+}
+
+export async function markBookingNoShowAction(
+  bookingId: string,
+): Promise<void> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) return
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: 'NO_SHOW', cancellationReason: 'NO_SHOW' },
+    })
+    await tx.auditLog.create({
+      data: {
+        bookingId,
+        userId: user.id,
+        action: 'BOOKING_NO_SHOW',
+        entityType: 'Booking',
+        entityId: bookingId,
+      },
+    })
+  })
+  revalidatePath(`/staff/bookings/${bookingId}`)
+  revalidatePath('/staff')
+}
+
+export async function markBookingCompletedAction(
+  bookingId: string,
+): Promise<void> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) return
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: 'COMPLETED' },
+    })
+    await tx.auditLog.create({
+      data: {
+        bookingId,
+        userId: user.id,
+        action: 'BOOKING_COMPLETED',
+        entityType: 'Booking',
+        entityId: bookingId,
+      },
+    })
+  })
+  revalidatePath(`/staff/bookings/${bookingId}`)
+  revalidatePath('/staff')
+}
+
+export async function autoCompletePastBookingsAction(
+  tenantId: string,
+): Promise<number> {
+  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) return 0
+  const now = new Date()
+  const result = await prisma.booking.updateMany({
+    where: {
+      tenantId,
+      status: 'CONFIRMED',
+      endTime: { lt: now },
+    },
+    data: { status: 'COMPLETED' },
+  })
+  if (result.count > 0) {
+    revalidatePath('/staff')
+  }
+  return result.count
 }
 
 export async function unblockLanes(blockId: string): Promise<void> {
@@ -1131,6 +1243,8 @@ function mockBookingDetail(bookingId: string): StaffBookingDetail {
     partyType: 'OPEN',
     notes: 'Mock booking for dev-without-db preview.',
     createdAt: new Date(),
+    checkedInAt: null,
+    shoeSizes: [],
     payment: {
       id: `pay_mock_${base.id}`,
       amount: base.totalAmount,

@@ -85,7 +85,7 @@ These .claude/ files override any other docs in the project.
 ## Current booking flow routes
 - /book              — bowler count + date/time (Step 1)
 - /book/package      — package selection (Step 2)
-- /book/details      — shoe sizing per bowler (Step 3 — NOT YET BUILT)
+- /book/details      — shoe sizing per bowler (Step 3)
 - /book/confirm      — review + payment (Step 4)
 - /book/success      — confirmation page (Step 5)
 

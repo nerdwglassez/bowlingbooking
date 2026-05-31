@@ -1,11 +1,16 @@
-// Unified staff app navigation — one tab bar for STAFF, MANAGER, and ADMIN.
-// Route groups (staff) and (admin) stay separate for auth gating; nav is shared.
-
 import {
   BarChart3,
   Calendar,
   ClipboardList,
+  Clock,
+  DollarSign,
+  ExternalLink,
+  FileText,
+  Home,
+  Package,
   Settings,
+  User,
+  Users,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -70,10 +75,13 @@ export function getStaffNavItems(role: Role): NavRailItem[] {
 }
 
 export type SettingsItem = {
-  href: string
+  href?: string
   label: string
   sub: string
+  icon: LucideIcon
   viewOnly?: boolean
+  variant?: 'default' | 'danger'
+  action?: 'sign-out'
 }
 
 export type SettingsGroup = {
@@ -81,23 +89,48 @@ export type SettingsGroup = {
   items: SettingsItem[]
 }
 
+export type SettingsHubMeta = {
+  packageCount: number
+  teamCount: number
+  integrationsSummary: string
+}
+
 /** Settings hub list groups — items hidden when role lacks access. */
-export function getSettingsGroups(role: Role): SettingsGroup[] {
+export function getSettingsGroups(
+  role: Role,
+  meta?: SettingsHubMeta,
+): SettingsGroup[] {
   const groups: SettingsGroup[] = []
+  const packageSub =
+    meta && meta.packageCount > 0
+      ? `${meta.packageCount} package${meta.packageCount === 1 ? '' : 's'}`
+      : 'Rates, inclusions, and availability'
+  const teamSub =
+    meta && meta.teamCount > 0
+      ? `${meta.teamCount} staff member${meta.teamCount === 1 ? '' : 's'}`
+      : 'Staff members and roles'
 
   if (role === 'ADMIN') {
     groups.push({
       label: 'Venue',
       items: [
         {
-          href: '/admin/venue',
+          href: '/staff/settings/venue',
           label: 'Venue info',
           sub: 'Name, address, contact details',
+          icon: Home,
         },
         {
-          href: '/admin/venue',
+          href: '/staff/settings/hours',
           label: 'Operating hours',
           sub: 'Open · close · lanes',
+          icon: Clock,
+        },
+        {
+          href: '/staff/settings/pricing',
+          label: 'Pricing',
+          sub: 'Strategy · rates · overrides',
+          icon: DollarSign,
         },
       ],
     })
@@ -106,9 +139,16 @@ export function getSettingsGroups(role: Role): SettingsGroup[] {
       label: 'Venue',
       items: [
         {
-          href: '/admin/venue',
+          href: '/staff/settings/hours',
           label: 'Operating hours',
           sub: 'Open · close · lanes',
+          icon: Clock,
+        },
+        {
+          href: '/staff/settings/pricing',
+          label: 'Pricing',
+          sub: 'Strategy · rates · overrides',
+          icon: DollarSign,
         },
       ],
     })
@@ -120,6 +160,7 @@ export function getSettingsGroups(role: Role): SettingsGroup[] {
           href: '/staff/settings/hours',
           label: 'Operating hours',
           sub: 'View only',
+          icon: Clock,
           viewOnly: true,
         },
       ],
@@ -133,12 +174,14 @@ export function getSettingsGroups(role: Role): SettingsGroup[] {
         {
           href: '/admin/packages',
           label: 'Packages',
-          sub: 'Rates, inclusions, and availability',
+          sub: packageSub,
+          icon: Package,
         },
         {
-          href: '/admin/promos',
-          label: 'Promo codes',
-          sub: 'Discount codes for online booking',
+          href: '/staff/settings/policies',
+          label: 'Booking policies',
+          sub: 'Hold time · cancellation window',
+          icon: FileText,
         },
       ],
     })
@@ -150,6 +193,7 @@ export function getSettingsGroups(role: Role): SettingsGroup[] {
           href: '/staff/settings/packages',
           label: 'Packages',
           sub: 'View only',
+          icon: Package,
           viewOnly: true,
         },
       ],
@@ -163,21 +207,42 @@ export function getSettingsGroups(role: Role): SettingsGroup[] {
         {
           href: '/admin/team',
           label: 'Team',
-          sub: 'Staff members and roles',
+          sub: teamSub,
+          icon: Users,
         },
       ],
     })
     groups.push({
-      label: 'System',
+      label: 'Integrations',
       items: [
         {
-          href: '/admin/audit',
-          label: 'Audit log',
-          sub: 'Settings change history',
+          href: '/staff/settings/integrations',
+          label: 'Integrations',
+          sub: meta?.integrationsSummary ?? 'Stripe · automation · email',
+          icon: ExternalLink,
         },
       ],
     })
   }
+
+  groups.push({
+    label: 'Account',
+    items: [
+      {
+        href: '/staff/settings/profile',
+        label: 'My profile',
+        sub: 'Name · email · password',
+        icon: User,
+      },
+      {
+        label: 'Sign out',
+        sub: '',
+        icon: User,
+        variant: 'danger',
+        action: 'sign-out',
+      },
+    ],
+  })
 
   return groups
 }

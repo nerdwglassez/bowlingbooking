@@ -8,11 +8,15 @@
 
 /**
  * Calculate number of lanes required for a given bowler count.
- * Always use ceiling division: ceil(bowlerCount / 6)
+ * Always use ceiling division: ceil(bowlerCount / bowlersPerLane)
  */
-export function getLaneCount(bowlerCount: number): number {
+export function getLaneCount(
+  bowlerCount: number,
+  bowlersPerLane = 6,
+): number {
   if (bowlerCount < 1) return 0
-  return Math.ceil(bowlerCount / 6)
+  if (bowlersPerLane < 1) return 0
+  return Math.ceil(bowlerCount / bowlersPerLane)
 }
 
 /**
@@ -30,16 +34,22 @@ export function isEligibleForOnlineBooking(
  * Get a human-readable lane assignment summary.
  * Example: "2 lanes for 7 bowlers"
  */
-export function getLaneAssignmentSummary(bowlerCount: number): string {
-  const laneCount = getLaneCount(bowlerCount)
+export function getLaneAssignmentSummary(
+  bowlerCount: number,
+  bowlersPerLane = 6,
+): string {
+  const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
   const laneLabel = laneCount === 1 ? 'lane' : 'lanes'
   const bowlerLabel = bowlerCount === 1 ? 'bowler' : 'bowlers'
   return `${laneCount} ${laneLabel} for ${bowlerCount} ${bowlerLabel}`
 }
 
 /** Wireframe copy (`booking-step1-2-branded.html` Step 1) — lane line under bowler control */
-export function formatLaneRequirementLine(bowlerCount: number): string {
-  const laneCount = getLaneCount(bowlerCount)
+export function formatLaneRequirementLine(
+  bowlerCount: number,
+  bowlersPerLane = 6,
+): string {
+  const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
   return laneCount === 1 ? '1 lane required' : `${laneCount} lanes required`
 }
 

@@ -23,11 +23,12 @@ describe('getStaffNavItems', () => {
     expect(getStaffNavItems('ADMIN').map((i) => i.label)).toContain('Reports')
   })
 
-  it('marks admin sub-routes as settings-active', () => {
+  it('marks admin and staff settings routes as settings-active', () => {
     const settings = getStaffNavItems('ADMIN').find(
       (i) => i.label === 'Settings',
     )
-    expect(settings?.isActive?.('/admin/venue')).toBe(true)
+    expect(settings?.isActive?.('/admin/packages')).toBe(true)
+    expect(settings?.isActive?.('/staff/settings/venue')).toBe(true)
     expect(settings?.isActive?.('/admin/reports')).toBe(false)
     expect(settings?.isActive?.('/staff/reports')).toBe(false)
   })
@@ -52,17 +53,38 @@ describe('getSettingsGroups', () => {
     const labels = groups.flatMap((g) => g.items.map((i) => i.label))
     expect(labels).toContain('Operating hours')
     expect(labels).toContain('Packages')
+    expect(labels).toContain('My profile')
+    expect(labels).toContain('Sign out')
     expect(
-      groups.flatMap((g) => g.items).every((i) => i.viewOnly === true),
+      groups
+        .flatMap((g) => g.items)
+        .filter((i) => i.label !== 'My profile' && i.action !== 'sign-out')
+        .every((i) => i.viewOnly === true),
     ).toBe(true)
   })
 
-  it('shows team and audit for ADMIN only', () => {
+  it('shows venue sub-pages and integrations for ADMIN', () => {
+    const labels = getSettingsGroups('ADMIN').flatMap((g) =>
+      g.items.map((i) => i.label),
+    )
+    expect(labels).toContain('Venue info')
+    expect(labels).toContain('Operating hours')
+    expect(labels).toContain('Pricing')
+    expect(labels).toContain('Booking policies')
+    expect(labels).toContain('Integrations')
+    expect(labels).not.toContain('Promo codes')
+  })
+
+  it('shows hours and pricing for MANAGER without team', () => {
     const adminLabels = getSettingsGroups('ADMIN').flatMap((g) => g.label)
     const managerLabels = getSettingsGroups('MANAGER').flatMap((g) => g.label)
     expect(adminLabels).toContain('Team')
-    expect(adminLabels).toContain('System')
+    expect(adminLabels).toContain('Integrations')
     expect(managerLabels).not.toContain('Team')
+    expect(managerLabels).not.toContain('Integrations')
+    expect(
+      getSettingsGroups('MANAGER').flatMap((g) => g.items.map((i) => i.label)),
+    ).toContain('Pricing')
   })
 })
 

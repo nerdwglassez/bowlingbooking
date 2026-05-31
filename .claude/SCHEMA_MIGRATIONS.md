@@ -6,7 +6,7 @@
 # Do not implement Part 2 features in BOOKING_DOMAIN.md until
 # the relevant migration here has been reviewed, approved, and run.
 #
-# Status: all migrations are PLANNED — none have been run yet.
+# Status: Migrations 1–7 implemented 2026-05-30 — see prisma/migrations/20260530120000_audit_remediation/
 #
 # Cross-reference: BOOKING_DOMAIN.md Part 2 sections map to migrations
 # in the table below. UX-only Part 2 items (partyType removal, Step 3
@@ -41,8 +41,7 @@ Before any schema change:
 ---
 
 ## Migration 1 — Policy fields on Tenant + Booking
-Status: PLANNED
-Priority: High — blocks customer dashboard + self-serve cancel/reschedule
+Status: COMPLETE (2026-05-30)
 
 ### Why
 Wireframe decision: at CONFIRMED time, snapshot policy values from
@@ -89,7 +88,7 @@ Note: Part 2 §partyType Removal and §Booking Step 3 require no migration.
 ---
 
 ## Migration 2 — Consent fields on Booking
-Status: PLANNED
+Status: COMPLETE (2026-05-30)
 Priority: Medium — legal requirement before marketing outreach
 
 ### Why
@@ -117,7 +116,7 @@ Blocks: SMS reminder integration, marketing campaigns
 ---
 
 ## Migration 3 — Inclusions system on Package
-Status: PLANNED
+Status: COMPLETE (2026-05-30)
 Priority: Medium — needed for food/game credit packages
 
 ### Why
@@ -162,7 +161,7 @@ Blocks: Migration 4
 ---
 
 ## Migration 4 — Unified Package model (CODE_REQUIRED)
-Status: PLANNED
+Status: COMPLETE (2026-05-30)
 Priority: Medium — replaces PromoCode entity
 
 ### Why
@@ -223,7 +222,7 @@ Blocks: nothing, but PromoCode cleanup should follow
 ---
 
 ## Migration 5 — PricingPeriod table
-Status: PLANNED
+Status: COMPLETE (2026-05-30)
 Priority: Low — current flat-rate pricing works for MVP
 
 ### Why
@@ -278,7 +277,7 @@ Blocks: nothing
 ---
 
 ## Migration 6 — bowlersPerLane tenant-configurable
-Status: PLANNED
+Status: COMPLETE (2026-05-30)
 Priority: Low — current hardcoded 6 works for Royal Z
 
 ### Why
@@ -310,7 +309,7 @@ Blocks: SaaS licensing to venues with different lane capacities
 ---
 
 ## Migration 7 — ClaimToken table (for customer accounts)
-Status: PLANNED
+Status: COMPLETE (2026-05-30)
 Priority: Medium — blocks customer dashboard
 
 ### Why

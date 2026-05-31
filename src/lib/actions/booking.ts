@@ -24,11 +24,13 @@
 // All monetary amounts in args/returns are integer cents.
 
 import { validatePromoCode } from '@/lib/actions/promo'
+import { serializeShoeSelections } from '@/lib/booking-metadata'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { calculateBookingTotal } from '@/lib/pricing'
 import { prisma } from '@/lib/prisma'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
+import { getTenant } from '@/lib/tenant'
 import { Prisma } from '@prisma/client'
 import QRCode from 'qrcode'
 import type { Package, ShoeSelection, TimeSlot } from '@/types'
@@ -368,7 +370,7 @@ export async function getPackagesForTenant(
   }
   try {
     const rows = await prisma.package.findMany({
-      where: { tenantId, active: true },
+      where: { tenantId, active: true, accessType: 'PUBLIC' },
       orderBy: { sortOrder: 'asc' },
     })
     return rows as unknown as Package[]
@@ -452,6 +454,9 @@ export interface ConfirmBookingInput {
   shoeSelections?: ShoeSelection[]
   shoeRentalPriceCents?: number
   laneReservationCentsPerLane?: number
+  selectedOptionalAddonIds?: string[]
+  smsReminderConsent?: boolean
+  marketingConsent?: boolean
 }
 
 export interface ConfirmBookingResult {
@@ -491,6 +496,7 @@ export async function confirmBooking(
   const shoeRentalPriceCents = input.shoeRentalPriceCents ?? 400
   const laneReservationCentsPerLane = input.laneReservationCentsPerLane ?? 1200
   const shoeSelections = input.shoeSelections ?? []
+  const selectedOptionalAddonIds = input.selectedOptionalAddonIds ?? []
 
   if (!isDevWithoutDb()) {
     const hold = await prisma.bookingHold.findUnique({
@@ -550,6 +556,7 @@ export async function confirmBooking(
       laneReservationCents: selectedPackage
         ? 0
         : laneReservationCentsPerLane * laneCount,
+      selectedOptionalAddonIds,
     }).totalAmount
 
     if (input.totalAmount !== subtotalCents) {
@@ -565,6 +572,7 @@ export async function confirmBooking(
       shoeSelections,
       shoeRentalPriceCents,
       laneReservationCents: laneReservationCentsPerLane * laneCount,
+      selectedOptionalAddonIds,
     }).totalAmount
   }
 
@@ -586,22 +594,34 @@ export async function confirmBooking(
     throw new Error('Booking total after discount must be greater than zero.')
   }
 
+  const tenantRow = await getTenant()
+  const bowlersPerLane = tenantRow.bowlersPerLane
+
   const metadata: Record<string, string> = {
     holdId: input.holdId,
     tenantId,
     packageId,
     partyType,
     bowlerCount: String(bowlerCount),
+    bowlersPerLane: String(bowlersPerLane),
     startTime: startTime.toISOString(),
     endTime: endTime.toISOString(),
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
     subtotalCents: String(subtotalCents),
+    smsReminderConsent: input.smsReminderConsent ? 'true' : 'false',
+    marketingConsent: input.marketingConsent ? 'true' : 'false',
+  }
+  if (shoeSelections.length > 0) {
+    metadata.shoeSelections = serializeShoeSelections(shoeSelections)
   }
   if (promoCodeNormalized != null && discountCents > 0) {
     metadata.promoCode = promoCodeNormalized
     metadata.discountCents = String(discountCents)
+  }
+  if (selectedOptionalAddonIds.length > 0) {
+    metadata.optionalAddonIds = selectedOptionalAddonIds.join(',')
   }
 
   const intent = await createPaymentIntent({

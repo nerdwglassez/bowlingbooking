@@ -189,10 +189,11 @@ When adding new payment-adjacent code, copy one of these test files as a templat
 - **`createPaymentResumeLink(paymentIntentId)`** in `src/lib/actions/payment-resume.ts` — STAFF+; validates the PI is still resumable via `retrievePaymentIntent` in `src/lib/stripe.ts`.
 - Returns a signed URL to **`/book/resume-payment?t=…`** (HMAC token in `src/lib/payment-resume-token.ts`, 24h TTL, signed with `AUTH_SECRET`).
 - **`getResumePaymentClientSecret(token)`** — public; returns `client_secret` for `PaymentForm`.
-- Staff UI: `PaymentResumePanel` on `/staff` cockpit.
+- Staff UI: `PaymentResumePanel` (`src/app/(staff)/staff/payment-resume-panel.tsx`) **unmounted from `/staff` cockpit** pending UX redesign. Server action and customer `/book/resume-payment` remain live; generated links still work.
 
 ## 10. Open items / known v1 limits
 
+- **Payment resume staff affordance hidden.** Until the redesigned UI ships, staff cannot generate resume links from the app — use Stripe Dashboard to locate the Payment Intent; re-enable via `PaymentResumePanel` when wireframe is ready.
 - **No webhook retry tooling.** Stripe retries automatically. If we need to replay manually (rare), we can `DELETE FROM stripe_event WHERE id = '…'` and have Stripe redeliver — that's it.
 - **Email sending is in-line with the webhook.** If Resend is slow we delay returning 200 to Stripe. Acceptable for v1; move to a background queue if it ever causes retries.
 - **Stripe partial refunds:** multiple partial refunds are allowed while `refundStatus !== PENDING` and remaining balance &gt; 0. `charge.refunded` sets `Booking.isRefunded` only when `amount_refunded >= payment.amount`.

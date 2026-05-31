@@ -9,7 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Audit remediation: `BookingBowler` shoe persistence, online `BookingLane` assignment, policy snapshots on bookings, consent fields, package `inclusions`/`CODE_REQUIRED` columns, `PricingPeriod`, `ClaimToken`, customer `/dashboard`, staff check-in/no-show/complete actions.
 - Project changelog (`CHANGELOG.md`), `/changelog` Cursor skill, and Cursor rule for Keep a Changelog updates.
+
+### Changed
+
+- Policy settings promoted from `Tenant.config` JSON to typed columns; cancel/refund reads booking snapshots.
+- Customer cancel aligns refund `isRefunded` timing with Stripe webhook (staff path).
+- `confirmBooking` validates optional add-ons server-side; PaymentIntent metadata carries shoes, add-ons, and consent.
+
+### Fixed
+
+- Confirmation email used venue name instead of package name.
+- Online checkout failed when optional package add-ons were selected.
+- `maxOnlineBowlers` tenant setting ignored on booking Step 1 UI.
+
+### Changed
+
+- Hide cockpit payment resume panel pending UX redesign; `createPaymentResumeLink` and `/book/resume-payment` remain available for existing links.
 
 ### Fixed
 

@@ -40,6 +40,11 @@ function mockTenant(slug: string): Tenant {
     themeSlug: 'default',
     holdTimeoutMins: 10,
     maxOnlineBowlers: 18,
+    cancellationWindowHours: 24,
+    rescheduleWindowHours: 24,
+    checkInWindowMinutes: 60,
+    bowlersPerLane: 6,
+    cancellationRefundPercent: 100,
     config: {},
   }
 }
@@ -54,6 +59,11 @@ function mapTenant(row: {
   themeSlug: string
   holdTimeoutMins: number
   maxOnlineBowlers: number
+  cancellationWindowHours: number
+  rescheduleWindowHours: number
+  checkInWindowMinutes: number
+  bowlersPerLane: number
+  cancellationRefundPercent: number
   config: unknown
 }): Tenant {
   return {
@@ -66,6 +76,11 @@ function mapTenant(row: {
     themeSlug: row.themeSlug,
     holdTimeoutMins: row.holdTimeoutMins,
     maxOnlineBowlers: row.maxOnlineBowlers,
+    cancellationWindowHours: row.cancellationWindowHours,
+    rescheduleWindowHours: row.rescheduleWindowHours,
+    checkInWindowMinutes: row.checkInWindowMinutes,
+    bowlersPerLane: row.bowlersPerLane,
+    cancellationRefundPercent: row.cancellationRefundPercent,
     config:
       row.config && typeof row.config === 'object' && !Array.isArray(row.config)
         ? (row.config as Record<string, unknown>)
@@ -96,17 +111,14 @@ const DEFAULT_POLICY: CancellationPolicy = {
 }
 
 export function getCancellationPolicy(tenant: Tenant): CancellationPolicy {
-  const cfg = tenant.config
   const windowHours =
-    typeof cfg.cancellationWindowHours === 'number' &&
-    cfg.cancellationWindowHours >= 0
-      ? cfg.cancellationWindowHours
+    tenant.cancellationWindowHours >= 0
+      ? tenant.cancellationWindowHours
       : DEFAULT_POLICY.windowHours
   const refundPercent =
-    typeof cfg.cancellationRefundPercent === 'number' &&
-    cfg.cancellationRefundPercent >= 0 &&
-    cfg.cancellationRefundPercent <= 100
-      ? cfg.cancellationRefundPercent
+    tenant.cancellationRefundPercent >= 0 &&
+    tenant.cancellationRefundPercent <= 100
+      ? tenant.cancellationRefundPercent
       : DEFAULT_POLICY.refundPercent
   return { windowHours, refundPercent }
 }

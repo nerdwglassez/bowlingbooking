@@ -44,7 +44,7 @@ describe('getPostSignInPath', () => {
     ).resolves.toBe('/admin')
   })
 
-  it('sends customer with upcoming booking to detail page', async () => {
+  it('sends customer with upcoming booking to dashboard', async () => {
     findFirstMock.mockResolvedValueOnce({
       confirmationCode: 'RZ9K2M',
     })
@@ -54,9 +54,7 @@ describe('getPostSignInPath', () => {
         role: 'CUSTOMER',
         email: 'bowler@example.com',
       }),
-    ).resolves.toBe(
-      '/find-my-booking/RZ9K2M?email=bowler%40example.com',
-    )
+    ).resolves.toBe('/dashboard')
     expect(findFirstMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({

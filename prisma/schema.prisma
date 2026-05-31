@@ -26,26 +26,21 @@ enum Role {
 }
 
 // BookingStatus values:
-//   HOLD       — DEPRECATED in Phase 7. Holds now live in BookingHold (a
-//                separate table). Existing HOLD rows in dev are no-ops; new
-//                bookings are written directly as CONFIRMED (or higher).
-//   CONFIRMED  — payment captured, lanes reserved
-//   CANCELLED  — booking cancelled, refund may be pending or settled
-//   COMPLETED  — booking start/end times have passed
-//   NO_SHOW    — staff marked as no-show
+//   HOLD            — DEPRECATED. Holds live in BookingHold.
+//   CONFIRMED       — payment captured, lanes reserved
+//   PENDING_PAYMENT — CODE_REQUIRED + PAYMENT_OFFLINE (Migration 4)
+//   CANCELLED       — booking cancelled, refund may be pending or settled
+//   COMPLETED       — booking start/end times have passed
+//   NO_SHOW         — staff marked as no-show
 enum BookingStatus {
   HOLD
   CONFIRMED
+  PENDING_PAYMENT
   CANCELLED
   COMPLETED
   NO_SHOW
 }
 
-// RefundStatus tracks the async lifecycle of a Stripe refund.
-//   NONE       — no refund has been requested
-//   PENDING    — refund created in Stripe, awaiting webhook confirmation
-//   SUCCEEDED  — Stripe webhook confirmed refund succeeded
-//   FAILED     — Stripe webhook reported refund failure (rare)
 enum RefundStatus {
   NONE
   PENDING
@@ -74,32 +69,39 @@ enum CancellationReason {
 }
 
 enum PromoDiscountType {
-  PERCENT // value 0..100, applies as a percent of subtotal
-  FIXED // value in cents, capped at subtotal
+  PERCENT
+  FIXED
 }
 
 // ── Models ─────────────────────────────────────────────────
 
 model Tenant {
-  id               String           @id @default(cuid())
-  name             String
-  slug             String           @unique
-  address          String
-  phone            String
-  timezone         String           @default("America/New_York")
-  themeSlug        String           @default("default") @map("theme_slug")
-  holdTimeoutMins  Int              @default(10) @map("hold_timeout_mins")
-  maxOnlineBowlers Int              @default(18) @map("max_online_bowlers")
-  config           Json             @default("{}")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  bookings         Booking[]
-  bookingHolds     BookingHold[]
-  packages         Package[]
-  lanes            Lane[]
-  users            User[]
-  operatingHours   OperatingHours[]
-  blockedSlots     BlockedSlot[]
-  promoCodes       PromoCode[]
+  id                      String           @id @default(cuid())
+  name                    String
+  slug                    String           @unique
+  address                 String
+  phone                   String
+  timezone                String           @default("America/New_York")
+  themeSlug               String           @default("default") @map("theme_slug")
+  holdTimeoutMins         Int              @default(10) @map("hold_timeout_mins")
+  maxOnlineBowlers        Int              @default(18) @map("max_online_bowlers")
+  cancellationWindowHours Int              @default(24) @map("cancellation_window_hours")
+  rescheduleWindowHours   Int              @default(24) @map("reschedule_window_hours")
+  checkInWindowMinutes    Int              @default(60) @map("check_in_window_minutes")
+  bowlersPerLane          Int              @default(6) @map("bowlers_per_lane")
+  cancellationRefundPercent Int            @default(100) @map("cancellation_refund_percent")
+  config                  Json             @default("{}")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  bookings                Booking[]
+  bookingHolds            BookingHold[]
+  packages                Package[]
+  lanes                   Lane[]
+  users                   User[]
+  operatingHours          OperatingHours[]
+  blockedSlots            BlockedSlot[]
+  promoCodes              PromoCode[]
+  pricingPeriods          PricingPeriod[]
+  claimTokens             ClaimToken[]
 }
 
 model User {
@@ -109,44 +111,66 @@ model User {
   name         String?
   phone        String?
   role         Role      @default(CUSTOMER)
-  // bcrypt hash of the user's password. NULL for OAuth-only users (no
-  // OAuth wired in v1 — Credentials provider requires a hash).
   passwordHash String?   @map("password_hash")
   createdAt    DateTime  @default(now()) @map("created_at")
   bookings     Booking[]
   tenant       Tenant?   @relation(fields: [tenantId], references: [id])
+  auditLogs    AuditLog[] @relation("AuditLogUser")
+  refundsIssued Payment[] @relation("PaymentRefundedBy")
 }
 
 model Booking {
-  id               String        @id @default(cuid())
-  tenantId         String        @map("tenant_id")
-  userId           String?       @map("user_id")
-  confirmationCode String        @unique @map("confirmation_code")
-  partyType        PartyType     @map("party_type")
-  bowlerCount      Int           @map("bowler_count")
-  laneCount        Int           @map("lane_count")
-  startTime        DateTime      @map("start_time")
-  endTime          DateTime      @map("end_time")
-  packageId        String        @map("package_id")
-  status           BookingStatus @default(HOLD)
-  source           BookingSource @default(ONLINE)
-  customerName     String        @map("customer_name")
-  customerEmail    String        @map("customer_email")
-  customerPhone    String?       @map("customer_phone")
-  totalAmount      Int           @map("total_amount")
-  discountAmount   Int           @default(0) @map("discount_amount")
-  promoCodeId      String?       @map("promo_code_id")
-  notes            String?
-  isRefunded       Boolean       @default(false) @map("is_refunded")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
-  tenant           Tenant        @relation(fields: [tenantId], references: [id])
-  user             User?         @relation(fields: [userId], references: [id])
-  package          Package       @relation(fields: [packageId], references: [id])
-  promoCode        PromoCode?    @relation(fields: [promoCodeId], references: [id])
-  lanes            BookingLane[]
-  payment          Payment?
-  auditLogs        AuditLog[]
+  id                              String              @id @default(cuid())
+  tenantId                        String              @map("tenant_id")
+  userId                          String?             @map("user_id")
+  confirmationCode                String              @unique @map("confirmation_code")
+  partyType                       PartyType           @map("party_type")
+  bowlerCount                     Int                 @map("bowler_count")
+  laneCount                       Int                 @map("lane_count")
+  startTime                       DateTime            @map("start_time")
+  endTime                         DateTime            @map("end_time")
+  packageId                       String              @map("package_id")
+  status                          BookingStatus       @default(HOLD)
+  source                          BookingSource       @default(ONLINE)
+  customerName                    String              @map("customer_name")
+  customerEmail                   String              @map("customer_email")
+  customerPhone                   String?             @map("customer_phone")
+  totalAmount                     Int                 @map("total_amount")
+  discountAmount                  Int                 @default(0) @map("discount_amount")
+  promoCodeId                     String?             @map("promo_code_id")
+  notes                           String?
+  isRefunded                      Boolean             @default(false) @map("is_refunded")
+  cancellationWindowHoursSnapshot Int?                @map("cancellation_window_hours_snapshot")
+  rescheduleWindowHoursSnapshot   Int?                @map("reschedule_window_hours_snapshot")
+  bowlersPerLaneSnapshot          Int?                @map("bowlers_per_lane_snapshot")
+  cancellationRefundPercentSnapshot Int?              @map("cancellation_refund_percent_snapshot")
+  smsReminderConsent              Boolean             @default(false) @map("sms_reminder_consent")
+  marketingConsent                Boolean             @default(false) @map("marketing_consent")
+  selectedAddonIds                Json                @default("[]") @map("selected_addon_ids")
+  cancellationReason              CancellationReason? @map("cancellation_reason")
+  checkedInAt                     DateTime?           @map("checked_in_at")
+  createdAt                       DateTime            @default(now()) @map("created_at")
+  updatedAt                       DateTime            @updatedAt @map("updated_at")
+  tenant                          Tenant              @relation(fields: [tenantId], references: [id])
+  user                            User?               @relation(fields: [userId], references: [id])
+  package                         Package             @relation(fields: [packageId], references: [id])
+  promoCode                       PromoCode?          @relation(fields: [promoCodeId], references: [id])
+  lanes                           BookingLane[]
+  bowlers                         BookingBowler[]
+  payment                         Payment?
+  auditLogs                       AuditLog[]
+  claimToken                      ClaimToken?
+
+  @@index([tenantId, status, startTime])
+}
+
+model BookingBowler {
+  bookingId String  @map("booking_id")
+  index     Int
+  shoeSize  String? @map("shoe_size")
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@id([bookingId, index])
 }
 
 model Package {
@@ -160,10 +184,22 @@ model Package {
   gameCostPer   Int?        @map("game_cost_per")
   shoeCostPer   Int?        @map("shoe_cost_per")
   partyTypes    PartyType[]
+  inclusions    Json        @default("[]")
+  accessType    String      @default("PUBLIC") @map("access_type")
+  pricingType   String?     @map("pricing_type")
+  codeString    String?     @map("code_string")
+  discountType  String?     @map("discount_type")
+  discountValue Int?        @map("discount_value")
+  expiresAt     DateTime?   @map("expires_at")
+  usageLimit    Int?        @map("usage_limit")
+  usageCount    Int         @default(0) @map("usage_count")
+  paymentMode   String?     @map("payment_mode")
   active        Boolean     @default(true)
   sortOrder     Int         @default(0) @map("sort_order")
   tenant        Tenant      @relation(fields: [tenantId], references: [id])
   bookings      Booking[]
+
+  @@unique([tenantId, codeString])
 }
 
 model Payment {
@@ -171,9 +207,9 @@ model Payment {
   bookingId             String       @unique @map("booking_id")
   stripePaymentIntentId String?      @unique @map("stripe_payment_intent_id")
   amount                Int
-  // Mirror of Stripe PaymentIntent status: 'requires_payment_method',
-  // 'requires_action', 'processing', 'succeeded', 'canceled', etc.
+  // Stripe PaymentIntent status OR walk-in method label (cash, card_at_counter).
   status                String
+  paymentMethod         String?      @map("payment_method")
   stripeRefundId        String?      @map("stripe_refund_id")
   refundAmount          Int?         @map("refund_amount")
   refundStatus          RefundStatus @default(NONE) @map("refund_status")
@@ -183,6 +219,7 @@ model Payment {
   createdAt             DateTime     @default(now()) @map("created_at")
   updatedAt             DateTime     @updatedAt @map("updated_at")
   booking               Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  refundedByUser        User?        @relation("PaymentRefundedBy", fields: [refundedBy], references: [id])
 }
 
 model Lane {
@@ -192,12 +229,14 @@ model Lane {
   active   Boolean       @default(true)
   tenant   Tenant        @relation(fields: [tenantId], references: [id])
   bookings BookingLane[]
+
+  @@unique([tenantId, number])
 }
 
 model BookingLane {
   bookingId String  @map("booking_id")
   laneId    String  @map("lane_id")
-  booking   Booking @relation(fields: [bookingId], references: [id])
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   lane      Lane    @relation(fields: [laneId], references: [id])
 
   @@id([bookingId, laneId])
@@ -206,11 +245,13 @@ model BookingLane {
 model OperatingHours {
   id        String @id @default(cuid())
   tenantId  String @map("tenant_id")
-  dayOfWeek Int    @map("day_of_week") // 0 = Sunday, 6 = Saturday
-  openTime  String @map("open_time")   // "HH:MM" 24h
-  closeTime String @map("close_time")  // "HH:MM" 24h
+  dayOfWeek Int    @map("day_of_week")
+  openTime  String @map("open_time")
+  closeTime String @map("close_time")
   closed    Boolean @default(false)
   tenant    Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, dayOfWeek])
 }
 
 model BlockedSlot {
@@ -219,8 +260,10 @@ model BlockedSlot {
   startTime DateTime @map("start_time")
   endTime   DateTime @map("end_time")
   reason    String?
-  lanes     Int[]    // lane numbers blocked; empty array = all lanes
+  lanes     Int[]
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, startTime, endTime])
 }
 
 model AuditLog {
@@ -233,18 +276,9 @@ model AuditLog {
   details    Json?
   createdAt  DateTime @default(now()) @map("created_at")
   booking    Booking? @relation(fields: [bookingId], references: [id])
+  user       User?    @relation("AuditLogUser", fields: [userId], references: [id])
 }
 
-// BookingHold — short-lived availability lock created at booking step 2.
-//
-// A hold reserves a (time slot × lane count × bowler count) for a single
-// in-progress customer. It is NOT a draft booking — it has no package, no
-// customer info, no payment. On confirm we create a `Booking` row and
-// delete the hold atomically; on expiry we just delete the row.
-//
-// Availability queries (`getAvailableTimeSlots`) UNION confirmed bookings
-// with non-expired holds. Expired holds are deleted lazily on every
-// availability query — no cron job needed for v1.
 model BookingHold {
   id           String   @id @default(cuid())
   tenantId     String   @map("tenant_id")
@@ -260,12 +294,6 @@ model BookingHold {
   @@index([expiresAt])
 }
 
-// StripeEvent — webhook idempotency log.
-//
-// Inserted on every Stripe webhook receipt BEFORE processing. The `id`
-// column is Stripe's `evt_…` event id; an INSERT conflict means we've
-// already processed this event and can safely return 200 without re-running
-// side effects. `payload` keeps the raw JSON for forensic debugging.
 model StripeEvent {
   id          String   @id
   type        String
@@ -278,16 +306,12 @@ model StripeEvent {
 model PromoCode {
   id            String            @id @default(cuid())
   tenantId      String            @map("tenant_id")
-  code          String // case-insensitive uniqueness per tenant; store lowercased
+  code          String
   description   String?
   discountType  PromoDiscountType @map("discount_type")
-  /// Percent (1..100) when discountType=PERCENT, or cents (>0) when FIXED.
   discountValue Int               @map("discount_value")
-  /// Optional max number of uses across all customers. null = unlimited.
   maxUses       Int?              @map("max_uses")
-  /// Incremented every time a booking is created with this code.
   usesCount     Int               @default(0) @map("uses_count")
-  /// UTC. Code rejected at or after this time. null = no expiry.
   expiresAt     DateTime?         @map("expires_at")
   active        Boolean           @default(true)
   createdAt     DateTime          @default(now()) @map("created_at")
@@ -298,4 +322,34 @@ model PromoCode {
 
   @@unique([tenantId, code])
   @@map("promo_codes")
+}
+
+model PricingPeriod {
+  id                   String   @id @default(cuid())
+  tenantId             String   @map("tenant_id")
+  name                 String
+  ratePerPersonPerHour Int      @map("rate_per_person_per_hour")
+  daysOfWeek           Int[]    @map("days_of_week")
+  startTime            String?  @map("start_time")
+  endTime              String?  @map("end_time")
+  specificDates        DateTime[] @map("specific_dates")
+  priority             Int      @default(0)
+  tenant               Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, priority])
+}
+
+model ClaimToken {
+  id        String    @id @default(cuid())
+  bookingId String    @unique @map("booking_id")
+  tenantId  String    @map("tenant_id")
+  email     String
+  token     String    @unique @default(cuid())
+  expiresAt DateTime  @map("expires_at")
+  claimedAt DateTime? @map("claimed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  booking   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@index([token])
 }

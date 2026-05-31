@@ -35,6 +35,17 @@ export interface AdminTenantDetail {
   cancellationWindowHours: number
   /** Percent of total refunded when cancelling within window (0-100). From Tenant.config. */
   cancellationRefundPercent: number
+  /** Reply-to email for booking confirmations. From Tenant.config. */
+  contactEmail: string
+  /** Per-bowler shoe rental in cents. From Tenant.config. */
+  shoeRentalPriceCents: number
+  /** Lane reservation base per lane in cents. From Tenant.config. */
+  laneReservationCentsPerLane: number
+  /** Display-only pricing strategy label. From Tenant.config. */
+  pricingStrategy: string
+  minBookingDurationHours: number
+  maxBookingDurationHours: number
+  totalLanes: number
 }
 
 export interface AdminOperatingHour {
@@ -80,19 +91,27 @@ export async function getTenantForAdmin(
       id: tenantId,
       name: 'Royal Z Lanes',
       slug: 'royalz',
-      address: '123 Main Street, Anytown USA',
-      phone: '(555) 555-0123',
+      address: '8512 Two Notch Rd, Columbia, SC 29223',
+      phone: '(803) 555-0100',
       timezone: 'America/New_York',
       themeSlug: 'default',
       holdTimeoutMins: 10,
       maxOnlineBowlers: 18,
       cancellationWindowHours: 24,
       cancellationRefundPercent: 100,
+      contactEmail: 'info@royalzlanes.com',
+      shoeRentalPriceCents: 400,
+      laneReservationCentsPerLane: 850,
+      pricingStrategy: 'per_person_hour',
+      minBookingDurationHours: 1.5,
+      maxBookingDurationHours: 4,
+      totalLanes: 12,
     }
   }
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } })
   if (!tenant) return null
-  const policy = readCancellationFromConfig(tenant.config)
+  const extra = readTenantConfigFields(tenant.config)
+  const totalLanes = await prisma.lane.count({ where: { tenantId: tenant.id } })
   return {
     id: tenant.id,
     name: tenant.name,
@@ -103,35 +122,98 @@ export async function getTenantForAdmin(
     themeSlug: tenant.themeSlug,
     holdTimeoutMins: tenant.holdTimeoutMins,
     maxOnlineBowlers: tenant.maxOnlineBowlers,
-    cancellationWindowHours: policy.windowHours,
-    cancellationRefundPercent: policy.refundPercent,
+    cancellationWindowHours: tenant.cancellationWindowHours,
+    cancellationRefundPercent: tenant.cancellationRefundPercent,
+    contactEmail: extra.contactEmail,
+    shoeRentalPriceCents: extra.shoeRentalPriceCents,
+    laneReservationCentsPerLane: extra.laneReservationCentsPerLane,
+    pricingStrategy: extra.pricingStrategy,
+    minBookingDurationHours: extra.minBookingDurationHours,
+    maxBookingDurationHours: extra.maxBookingDurationHours,
+    totalLanes: Math.max(totalLanes, 1),
   }
 }
 
-// Tenant.config is a Prisma JSON column. We only own two keys today
-// (cancellationWindowHours, cancellationRefundPercent); see
-// `getCancellationPolicy` in src/lib/tenant.ts for the runtime read path.
-// This helper keeps admin reads and customer reads symmetric.
-function readCancellationFromConfig(config: unknown): {
-  windowHours: number
-  refundPercent: number
+// Typed columns on Tenant hold cancellation policy; config JSON holds
+// contactEmail, shoe pricing, and duration settings only.
+function readConfigObject(config: unknown): Record<string, unknown> {
+  return config && typeof config === 'object' && !Array.isArray(config)
+    ? (config as Record<string, unknown>)
+    : {}
+}
+
+function readTenantConfigFields(config: unknown): {
+  contactEmail: string
+  shoeRentalPriceCents: number
+  laneReservationCentsPerLane: number
+  pricingStrategy: string
+  minBookingDurationHours: number
+  maxBookingDurationHours: number
 } {
-  const obj =
-    config && typeof config === 'object' && !Array.isArray(config)
-      ? (config as Record<string, unknown>)
-      : {}
-  const windowHours =
-    typeof obj.cancellationWindowHours === 'number' &&
-    obj.cancellationWindowHours >= 0
-      ? obj.cancellationWindowHours
-      : 24
-  const refundPercent =
-    typeof obj.cancellationRefundPercent === 'number' &&
-    obj.cancellationRefundPercent >= 0 &&
-    obj.cancellationRefundPercent <= 100
-      ? obj.cancellationRefundPercent
-      : 100
-  return { windowHours, refundPercent }
+  const obj = readConfigObject(config)
+  return {
+    contactEmail:
+      typeof obj.contactEmail === 'string' ? obj.contactEmail : '',
+    shoeRentalPriceCents:
+      typeof obj.shoeRentalPriceCents === 'number' &&
+      obj.shoeRentalPriceCents >= 0
+        ? obj.shoeRentalPriceCents
+        : 400,
+    laneReservationCentsPerLane:
+      typeof obj.laneReservationCentsPerLane === 'number' &&
+      obj.laneReservationCentsPerLane >= 0
+        ? obj.laneReservationCentsPerLane
+        : 1200,
+    pricingStrategy:
+      typeof obj.pricingStrategy === 'string'
+        ? obj.pricingStrategy
+        : 'packages_only',
+    minBookingDurationHours:
+      typeof obj.minBookingDurationHours === 'number' &&
+      obj.minBookingDurationHours >= 1
+        ? obj.minBookingDurationHours
+        : 1.5,
+    maxBookingDurationHours:
+      typeof obj.maxBookingDurationHours === 'number' &&
+      obj.maxBookingDurationHours >= 1
+        ? obj.maxBookingDurationHours
+        : 4,
+  }
+}
+
+export interface SettingsHubMeta {
+  packageCount: number
+  teamCount: number
+  integrationsSummary: string
+}
+
+/** Summaries for settings hub item sub-labels. */
+export async function getSettingsHubMeta(
+  tenantId: string,
+): Promise<SettingsHubMeta> {
+  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+
+  if (isDevWithoutDb()) {
+    return {
+      packageCount: 5,
+      teamCount: 5,
+      integrationsSummary: 'Stripe connected · Make error',
+    }
+  }
+
+  const [packageCount, teamCount] = await Promise.all([
+    prisma.package.count({ where: { tenantId, active: true } }),
+    prisma.user.count({
+      where: { tenantId, role: { in: ['STAFF', 'MANAGER', 'ADMIN'] } },
+    }),
+  ])
+
+  const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY?.trim())
+  const integrationsSummary = stripeConfigured
+    ? 'Stripe connected · Make optional'
+    : 'Stripe required · not connected'
+
+  return { packageCount, teamCount, integrationsSummary }
 }
 
 export interface UpdateTenantInput {
@@ -145,6 +227,12 @@ export interface UpdateTenantInput {
   maxOnlineBowlers: number
   cancellationWindowHours: number
   cancellationRefundPercent: number
+  contactEmail?: string
+  shoeRentalPriceCents?: number
+  laneReservationCentsPerLane?: number
+  pricingStrategy?: string
+  minBookingDurationHours?: number
+  maxBookingDurationHours?: number
 }
 
 export interface UpdateTenantResult {
@@ -209,10 +297,28 @@ export async function updateTenantAction(
       !Array.isArray(existing.config)
         ? (existing.config as Record<string, unknown>)
         : {}
-    const nextConfig = {
+    const nextConfig: Record<string, unknown> = {
       ...existingConfig,
       cancellationWindowHours: input.cancellationWindowHours,
       cancellationRefundPercent: input.cancellationRefundPercent,
+    }
+    if (input.contactEmail !== undefined) {
+      nextConfig.contactEmail = input.contactEmail.trim()
+    }
+    if (input.shoeRentalPriceCents !== undefined) {
+      nextConfig.shoeRentalPriceCents = input.shoeRentalPriceCents
+    }
+    if (input.laneReservationCentsPerLane !== undefined) {
+      nextConfig.laneReservationCentsPerLane = input.laneReservationCentsPerLane
+    }
+    if (input.pricingStrategy !== undefined) {
+      nextConfig.pricingStrategy = input.pricingStrategy
+    }
+    if (input.minBookingDurationHours !== undefined) {
+      nextConfig.minBookingDurationHours = input.minBookingDurationHours
+    }
+    if (input.maxBookingDurationHours !== undefined) {
+      nextConfig.maxBookingDurationHours = input.maxBookingDurationHours
     }
 
     await tx.tenant.update({
@@ -225,7 +331,9 @@ export async function updateTenantAction(
         themeSlug: input.themeSlug,
         holdTimeoutMins: input.holdTimeoutMins,
         maxOnlineBowlers: input.maxOnlineBowlers,
-        config: nextConfig,
+        cancellationWindowHours: input.cancellationWindowHours,
+        cancellationRefundPercent: input.cancellationRefundPercent,
+        config: nextConfig as Prisma.InputJsonValue,
       },
     })
     await tx.auditLog.create({
@@ -251,6 +359,10 @@ export async function updateTenantAction(
 
   revalidatePath('/admin')
   revalidatePath('/admin/venue')
+  revalidatePath('/staff/settings')
+  revalidatePath('/staff/settings/venue')
+  revalidatePath('/staff/settings/policies')
+  revalidatePath('/staff/settings/pricing')
   return { mocked: false }
 }
 
@@ -332,6 +444,7 @@ export async function updateOperatingHoursAction(
   })
 
   revalidatePath('/admin/venue')
+  revalidatePath('/staff/settings/hours')
   return { mocked: false }
 }
 

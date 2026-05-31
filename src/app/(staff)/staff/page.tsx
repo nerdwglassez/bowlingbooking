@@ -1,7 +1,6 @@
 // /staff — cockpit page (staff-app-v2.html + walkin-booking-flow.html).
 
 import { CockpitPanel } from './cockpit-panel'
-import { PaymentResumePanel } from './payment-resume-panel'
 import { getPackagesForTenant } from '@/lib/actions/booking'
 import { getCockpitSnapshot } from '@/lib/actions/staff'
 import { buildCockpitClockLine } from '@/lib/cockpit-display'
@@ -29,7 +28,6 @@ export default async function StaffCockpitPage({
         clockLine={buildCockpitClockLine()}
         initialWalkInOpen={params.walkin === '1'}
       />
-      <PaymentResumePanel />
     </>
   )
 }

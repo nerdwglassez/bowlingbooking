@@ -222,3 +222,15 @@ export function formatPrice(amountCents: number): string {
     currency: 'USD',
   }).format(amountCents / 100)
 }
+
+/** Dollar amount for controlled number inputs (no currency symbol). */
+export function formatPriceInputValue(amountCents: number): string {
+  return (amountCents / 100).toFixed(2)
+}
+
+/** Parse a dollar string from a settings input into integer cents. */
+export function parsePriceInputValue(value: string): number | null {
+  const dollars = Number(value)
+  if (!Number.isFinite(dollars) || dollars < 0) return null
+  return Math.round(dollars * 100)
+}

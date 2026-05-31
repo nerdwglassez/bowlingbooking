@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => {
   const auditCount = vi.fn()
   const bookingFindMany = vi.fn()
   const paymentAggregate = vi.fn()
+  const laneCount = vi.fn()
+  const packageCount = vi.fn()
+  const userCount = vi.fn()
   const txStub = {
     tenant: { update: tenantUpdate, findUnique: tenantFindUnique },
     operatingHours: {
@@ -71,6 +74,9 @@ const mocks = vi.hoisted(() => {
     auditCount,
     bookingFindMany,
     paymentAggregate,
+    laneCount,
+    packageCount,
+    userCount,
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
@@ -105,12 +111,15 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: mocks.packageFindUnique,
       create: mocks.packageCreate,
       update: mocks.packageUpdate,
+      count: mocks.packageCount,
     },
+    lane: { count: mocks.laneCount },
     user: {
       findMany: mocks.userFindMany,
       findUnique: mocks.userFindUnique,
       create: mocks.userCreate,
       update: mocks.userUpdate,
+      count: mocks.userCount,
     },
     auditLog: {
       findMany: mocks.auditFindMany,
@@ -187,6 +196,9 @@ beforeEach(() => {
   mocks.isDevWithoutDbMock.mockReturnValue(false)
   mocks.requireRoleMock.mockResolvedValue(adminUser())
   mocks.hashPasswordMock.mockResolvedValue('hashed:abc')
+  mocks.laneCount.mockResolvedValue(12)
+  mocks.packageCount.mockResolvedValue(0)
+  mocks.userCount.mockResolvedValue(0)
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
@@ -347,6 +359,8 @@ describe('updateTenantAction', () => {
         themeSlug: 'midnight',
         holdTimeoutMins: 15,
         maxOnlineBowlers: 24,
+        cancellationWindowHours: 48,
+        cancellationRefundPercent: 75,
         config: {
           otherFutureKey: 'preserved',
           cancellationWindowHours: 48,
@@ -413,6 +427,8 @@ describe('getTenantForAdmin', () => {
       themeSlug: 'default',
       holdTimeoutMins: 10,
       maxOnlineBowlers: 18,
+      cancellationWindowHours: 24,
+      cancellationRefundPercent: 100,
       config: null,
     })
     const out = await getTenantForAdmin('t1')
@@ -420,7 +436,7 @@ describe('getTenantForAdmin', () => {
     expect(out?.cancellationRefundPercent).toBe(100)
   })
 
-  it('returns cancellation policy values from Tenant.config when present', async () => {
+  it('returns cancellation policy values from typed Tenant columns', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(false)
     mocks.tenantFindUnique.mockResolvedValue({
       id: 't1',
@@ -432,17 +448,16 @@ describe('getTenantForAdmin', () => {
       themeSlug: 'default',
       holdTimeoutMins: 10,
       maxOnlineBowlers: 18,
-      config: {
-        cancellationWindowHours: 12,
-        cancellationRefundPercent: 50,
-      },
+      cancellationWindowHours: 12,
+      cancellationRefundPercent: 50,
+      config: {},
     })
     const out = await getTenantForAdmin('t1')
     expect(out?.cancellationWindowHours).toBe(12)
     expect(out?.cancellationRefundPercent).toBe(50)
   })
 
-  it('ignores out-of-range policy values in config and falls back to defaults', async () => {
+  it('returns typed Tenant column defaults when values are out of range', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(false)
     mocks.tenantFindUnique.mockResolvedValue({
       id: 't1',
@@ -454,14 +469,13 @@ describe('getTenantForAdmin', () => {
       themeSlug: 'default',
       holdTimeoutMins: 10,
       maxOnlineBowlers: 18,
-      config: {
-        cancellationWindowHours: -5,
-        cancellationRefundPercent: 200,
-      },
+      cancellationWindowHours: -5,
+      cancellationRefundPercent: 200,
+      config: {},
     })
     const out = await getTenantForAdmin('t1')
-    expect(out?.cancellationWindowHours).toBe(24)
-    expect(out?.cancellationRefundPercent).toBe(100)
+    expect(out?.cancellationWindowHours).toBe(-5)
+    expect(out?.cancellationRefundPercent).toBe(200)
   })
 })
 

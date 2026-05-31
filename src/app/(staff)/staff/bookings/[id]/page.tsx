@@ -14,6 +14,7 @@ import { getBookingDetail } from '@/lib/actions/staff'
 import { formatPrice } from '@/lib/pricing'
 
 import { RefundPanel } from './refund-panel'
+import { StaffBookingOpsPanel } from './staff-booking-ops-panel'
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
   weekday: 'long',
@@ -87,6 +88,24 @@ export default async function StaffBookingDetailPage({ params }: PageProps) {
           {booking.notes ? (
             <DetailRow label="Notes">{booking.notes}</DetailRow>
           ) : null}
+          {booking.shoeSizes.length > 0 ? (
+            <DetailRow label="Shoe sizes">
+              {booking.shoeSizes.join(', ')}
+            </DetailRow>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="flex flex-col gap-3 text-sm">
+          <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+            Staff actions
+          </h2>
+          <StaffBookingOpsPanel
+            bookingId={booking.id}
+            status={booking.status}
+            checkedInAt={booking.checkedInAt}
+          />
         </CardBody>
       </Card>
 

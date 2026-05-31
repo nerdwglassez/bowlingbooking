@@ -1,8 +1,6 @@
 // /staff/settings/packages — read-only package list for STAFF role.
 
-import Link from 'next/link'
-
-import { Button } from '@/components/ui/button'
+import { SettingsSubpageHeader } from '@/components/patterns/settings-subpage-header'
 import { Card, CardBody } from '@/components/ui/card'
 import { getPackagesForTenant } from '@/lib/actions/booking'
 import { formatPrice } from '@/lib/pricing'
@@ -14,17 +12,10 @@ export default async function StaffSettingsPackagesPage() {
 
   return (
     <>
-      <header className="flex flex-col gap-3">
-        <Button asChild variant="ghost" size="sm" className="w-fit">
-          <Link href="/staff/settings">← Settings</Link>
-        </Button>
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl">Packages</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            View only — contact a manager to make changes.
-          </p>
-        </div>
-      </header>
+      <SettingsSubpageHeader
+        title="Packages"
+        subtitle="View only — contact a manager to make changes."
+      />
 
       {packages.length === 0 ? (
         <p className="text-sm text-[var(--color-text-secondary)]">
@@ -37,10 +28,10 @@ export default async function StaffSettingsPackagesPage() {
               <Card variant="flat">
                 <CardBody className="flex flex-col gap-1">
                   <div className="flex items-start justify-between gap-2">
-                    <h2 className="text-base font-medium text-[var(--color-text-primary)]">
+                    <h2 className="text-sm font-medium text-[var(--color-text-primary)]">
                       {pkg.name}
                     </h2>
-                    <span className="shrink-0 text-sm [font-family:var(--font-display)] text-[var(--color-text-primary)]">
+                    <span className="shrink-0 text-sm [font-family:var(--font-display)] text-[var(--color-action)]">
                       {formatPrice(pkg.basePrice)}
                     </span>
                   </div>
