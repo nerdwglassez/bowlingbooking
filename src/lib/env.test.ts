@@ -112,4 +112,16 @@ describe('shouldUseDevDbFallback', () => {
     })
     expect(shouldUseDevDbFallback(err)).toBe(false)
   })
+
+  it('returns true in dev for interactive transaction timeout (P2028)', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@host/db')
+    const err = Object.assign(
+      new Error(
+        'Transaction already closed: A query cannot be executed on an expired transaction.',
+      ),
+      { code: 'P2028' },
+    )
+    expect(shouldUseDevDbFallback(err)).toBe(true)
+  })
 })

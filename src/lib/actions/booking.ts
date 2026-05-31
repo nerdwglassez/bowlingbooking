@@ -24,7 +24,7 @@
 // All monetary amounts in args/returns are integer cents.
 
 import { validatePromoCode } from '@/lib/actions/promo'
-import { isDevWithoutDb } from '@/lib/env'
+import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { calculateBookingTotal } from '@/lib/pricing'
 import { prisma } from '@/lib/prisma'
@@ -363,14 +363,25 @@ export async function releaseBookingHold(holdId: string): Promise<void> {
 export async function getPackagesForTenant(
   tenantId: string,
 ): Promise<Package[]> {
-  if (isDevWithoutDb()) {
+  if (shouldUseDevDbFallback()) {
     return mockPackages(tenantId)
   }
-  const rows = await prisma.package.findMany({
-    where: { tenantId, active: true },
-    orderBy: { sortOrder: 'asc' },
-  })
-  return rows as unknown as Package[]
+  try {
+    const rows = await prisma.package.findMany({
+      where: { tenantId, active: true },
+      orderBy: { sortOrder: 'asc' },
+    })
+    return rows as unknown as Package[]
+  } catch (err) {
+    if (shouldUseDevDbFallback(err)) {
+      warnOnce(
+        'packages-db',
+        'Database unreachable — returning mock packages for dev.',
+      )
+      return mockPackages(tenantId)
+    }
+    throw err
+  }
 }
 
 function mockPackages(tenantId: string): Package[] {

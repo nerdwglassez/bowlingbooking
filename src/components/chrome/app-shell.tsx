@@ -1,62 +1,51 @@
-// AppShell — shared frame for the staff and admin route groups.
+// AppShell — shared frame for the staff app (all employee roles).
 //
 // Server-safe. Lives in chrome/ (not patterns/) because it owns viewport
 // positioning via <NavRail>. The drift sentinel allows `fixed`/`sticky`
 // classes here.
 //
 // Layouts pass:
-//   - currentPath (read from `x-pathname` header set by src/proxy.ts)
-//   - navItems (which surface — staff/admin/etc.)
+//   - user.role for role-filtered nav (active path via usePathname in NavRail)
 //   - user + tenant for the brand + footer
-//   - eyebrowLabel ("Staff" / "Admin") for the brand block
 //
 // The shell never imports auth helpers — gating happens upstream in the
 // route-group layout.
 
 import { Button } from '@/components/ui/button'
-import { NavRail, type NavRailItem } from '@/components/chrome/nav-rail'
+import { NavRail } from '@/components/chrome/nav-rail'
 import { signOutAction } from '@/app/signin/actions'
+import { formatStaffRole } from '@/lib/staff-nav'
+import type { Role } from '@/types'
 
 export interface AppShellProps {
-  currentPath: string
-  user: { email: string | null; name?: string | null; role: string }
+  user: { email: string | null; name?: string | null; role: Role }
   tenant: { name: string }
-  navItems: NavRailItem[]
-  /** Small label above the venue name in the sidebar (e.g. "Staff", "Admin"). */
-  eyebrowLabel: string
-  /** Optional secondary nav rendered above sign-out (e.g. "← Staff" link). */
-  secondaryFooter?: React.ReactNode
   children: React.ReactNode
 }
 
 export function AppShell({
-  currentPath,
   user,
   tenant,
-  navItems,
-  eyebrowLabel,
-  secondaryFooter,
   children,
 }: AppShellProps) {
+  const roleLabel = formatStaffRole(user.role)
+
   const brand = (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-        {eyebrowLabel}
-      </span>
+    <div className="flex flex-col gap-1">
       <span className="[font-family:var(--font-display)] text-base text-[var(--color-text-primary)]">
         {tenant.name}
       </span>
+      <StaffRoleBadge label={roleLabel} />
     </div>
   )
 
   const footer = (
     <div className="flex flex-col gap-2">
-      {secondaryFooter}
       <div className="flex flex-col gap-0.5 px-2 text-xs">
         <span className="text-[var(--color-text-primary)]">
           {user.name ?? user.email ?? 'Signed in'}
         </span>
-        <span className="text-[var(--color-text-secondary)]">{user.role}</span>
+        <StaffRoleBadge label={roleLabel} compact />
       </div>
       <form action={signOutAction}>
         <Button type="submit" variant="ghost" size="sm" fullWidth>
@@ -69,8 +58,7 @@ export function AppShell({
   return (
     <div className="min-h-dvh bg-[var(--surface-ground)] pb-16 md:pb-0 md:pl-64">
       <NavRail
-        items={navItems}
-        currentPath={currentPath}
+        role={user.role}
         brand={brand}
         footer={footer}
       />
@@ -78,5 +66,25 @@ export function AppShell({
         {children}
       </main>
     </div>
+  )
+}
+
+function StaffRoleBadge({
+  label,
+  compact = false,
+}: {
+  label: string
+  compact?: boolean
+}) {
+  return (
+    <span
+      className={
+        compact
+          ? 'text-[var(--color-text-secondary)]'
+          : 'inline-flex w-fit rounded-[var(--radius-full)] border border-solid border-[var(--color-border-strong)] bg-[var(--surface-sunken)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]'
+      }
+    >
+      {label}
+    </span>
   )
 }

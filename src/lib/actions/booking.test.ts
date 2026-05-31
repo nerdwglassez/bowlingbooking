@@ -19,7 +19,17 @@ const mocks = vi.hoisted(() => ({
   transactionMock: vi.fn(),
 }))
 
-vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
+vi.mock('@/lib/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/env')>()
+  return {
+    ...actual,
+    isDevWithoutDb: mocks.isDevWithoutDbMock,
+    shouldUseDevDbFallback: (err?: unknown) =>
+      mocks.isDevWithoutDbMock() ||
+      (err !== undefined && actual.isPrismaConnectivityError(err)),
+    warnOnce: vi.fn(),
+  }
+})
 vi.mock('@/lib/actions/promo', () => ({
   validatePromoCode: mocks.validatePromoCodeMock,
 }))

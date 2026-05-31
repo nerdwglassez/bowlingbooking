@@ -81,7 +81,16 @@ vi.mock('@/lib/auth', () => ({
   requireRole: mocks.requireRoleMock,
   hashPassword: mocks.hashPasswordMock,
 }))
-vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
+vi.mock('@/lib/env', () => ({
+  isDevWithoutDb: mocks.isDevWithoutDbMock,
+  shouldUseDevDbFallback: (err?: unknown) =>
+    mocks.isDevWithoutDbMock() ||
+    (err !== undefined &&
+      err instanceof Error &&
+      (err.message.includes("Can't reach database server") ||
+        err.message.includes('Transaction already closed'))),
+  warnOnce: vi.fn(),
+}))
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -114,6 +123,8 @@ vi.mock('@/lib/prisma', () => ({
       create: mocks.promoCreate,
       update: mocks.promoUpdate,
     },
+    booking: { findMany: mocks.bookingFindMany },
+    payment: { aggregate: mocks.paymentAggregate },
     $transaction: mocks.txMock,
   },
 }))
@@ -209,7 +220,7 @@ beforeEach(() => {
 })
 
 describe('admin actions: role gating', () => {
-  it('every read requires MANAGER or ADMIN', async () => {
+  it('reads require MANAGER or ADMIN except operating hours (STAFF view-only)', async () => {
     mocks.tenantFindUnique.mockResolvedValue(null)
     mocks.hoursFindMany.mockResolvedValue([])
     mocks.packageFindMany.mockResolvedValue([])
@@ -221,7 +232,13 @@ describe('admin actions: role gating', () => {
     await listPromosForAdmin('t1')
     await listTeamForAdmin('t1')
     expect(mocks.requireRoleMock).toHaveBeenCalledTimes(5)
-    for (const call of mocks.requireRoleMock.mock.calls) {
+    expect(mocks.requireRoleMock.mock.calls[0]).toEqual(['MANAGER', 'ADMIN'])
+    expect(mocks.requireRoleMock.mock.calls[1]).toEqual([
+      'STAFF',
+      'MANAGER',
+      'ADMIN',
+    ])
+    for (const call of mocks.requireRoleMock.mock.calls.slice(2)) {
       expect(call).toEqual(['MANAGER', 'ADMIN'])
     }
   })
@@ -1027,6 +1044,18 @@ describe('getReportsSummary', () => {
     expect(s.topPackages).toHaveLength(5)
     expect(s.kpi.bookingCount).toBeGreaterThan(0)
     expect(mocks.txMock).not.toHaveBeenCalled()
+    expect(mocks.bookingFindMany).not.toHaveBeenCalled()
+  })
+
+  it('returns mock summary when Prisma cannot connect in dev', async () => {
+    reportsAuthUser = adminUser()
+    mocks.isDevWithoutDbMock.mockReturnValue(false)
+    mocks.bookingFindMany.mockRejectedValue(
+      Object.assign(new Error("Can't reach database server"), { code: 'P1001' }),
+    )
+    const s = await getReportsSummary('t1', '30d')
+    expect(s.range).toBe('30d')
+    expect(s.kpi.bookingCount).toBeGreaterThan(0)
   })
 
   it("maps invalid range input to '30d'", async () => {

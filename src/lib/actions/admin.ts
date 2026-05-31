@@ -15,7 +15,7 @@ import { revalidatePath } from 'next/cache'
 import type { Prisma } from '@prisma/client'
 
 import { hashPassword, requireRole, type CurrentUser } from '@/lib/auth'
-import { isDevWithoutDb } from '@/lib/env'
+import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { isValidThemeSlug } from '@/lib/themes'
 
@@ -259,7 +259,7 @@ export async function updateTenantAction(
 export async function getOperatingHours(
   tenantId: string,
 ): Promise<AdminOperatingHour[]> {
-  await requireRole('MANAGER', 'ADMIN')
+  await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) {
     return mockOperatingHours()
   }
@@ -1618,7 +1618,11 @@ export async function getReportsSummary(
   await requireRole('ADMIN')
   const range = normalizeReportsRangeInput(rangeInput)
 
-  if (isDevWithoutDb()) {
+  if (shouldUseDevDbFallback()) {
+    warnOnce(
+      'reports-db',
+      'DATABASE_URL not set — returning mock reports summary for dev.',
+    )
     return mockReportsSummary(tenantId, range)
   }
 
@@ -1628,9 +1632,9 @@ export async function getReportsSummary(
   const startDate = utcStartOfCalendarDay(now)
   startDate.setUTCDate(startDate.getUTCDate() - (dayCount - 1))
 
-  const { bookings, refundTotalCents } = await prisma.$transaction(
-    async (tx) => {
-      const bookingsInner = await tx.booking.findMany({
+  try {
+    const [bookings, refundAgg] = await Promise.all([
+      prisma.booking.findMany({
         where: {
           tenantId,
           startTime: { gte: startDate, lte: endDate },
@@ -1645,9 +1649,8 @@ export async function getReportsSummary(
           payment: { select: { status: true } },
           package: { select: { id: true, name: true } },
         },
-      })
-
-      const refundAgg = await tx.payment.aggregate({
+      }),
+      prisma.payment.aggregate({
         where: {
           refundStatus: 'SUCCEEDED',
           refundAmount: { not: null },
@@ -1657,22 +1660,27 @@ export async function getReportsSummary(
           },
         },
         _sum: { refundAmount: true },
-      })
+      }),
+    ])
 
-      return {
-        bookings: bookingsInner,
-        refundTotalCents: refundAgg._sum.refundAmount ?? 0,
-      }
-    },
-  )
-
-  return buildReportsSummaryFromBookings(
-    range,
-    startDate,
-    endDate,
-    bookings,
-    refundTotalCents,
-  )
+    return buildReportsSummaryFromBookings(
+      range,
+      startDate,
+      endDate,
+      bookings,
+      refundAgg._sum.refundAmount ?? 0,
+    )
+  } catch (err) {
+    if (shouldUseDevDbFallback(err)) {
+      warnOnce(
+        'reports-db',
+        'Database unreachable — returning mock reports summary for dev. ' +
+          'Wake your Neon project or fix DATABASE_URL.',
+      )
+      return mockReportsSummary(tenantId, range)
+    }
+    throw err
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────

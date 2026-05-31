@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => {
     bookingFindMany: vi.fn(),
     bookingFindUnique: vi.fn(),
     blockFindMany: vi.fn(),
+    laneCount: vi.fn(),
+    laneFindMany: vi.fn(),
     bookingCreate,
     paymentCreate,
     auditCreate,
@@ -31,7 +33,17 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/auth', () => ({ requireRole: mocks.requireRoleMock }))
-vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
+vi.mock('@/lib/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/env')>()
+  return {
+    ...actual,
+    isDevWithoutDb: mocks.isDevWithoutDbMock,
+    shouldUseDevDbFallback: (err?: unknown) =>
+      mocks.isDevWithoutDbMock() ||
+      (err !== undefined && actual.isPrismaConnectivityError(err)),
+    warnOnce: vi.fn(),
+  }
+})
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -40,6 +52,7 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: mocks.bookingFindUnique,
     },
     blockedSlot: { findMany: mocks.blockFindMany },
+    lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
     $transaction: mocks.txMock,
   },
 }))
@@ -48,7 +61,9 @@ import {
   blockLanes,
   createWalkInBooking,
   getBookingDetail,
+  getCockpitSnapshot,
   getScheduleForDate,
+  getScheduleForMonth,
   getTodayBookings,
   unblockLanes,
 } from './staff'
@@ -130,6 +145,32 @@ describe('staff actions: role gating', () => {
   })
 })
 
+describe('getCockpitSnapshot', () => {
+  it('returns mock lane grid and upcoming list in dev-without-db', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(true)
+    const snapshot = await getCockpitSnapshot('t1')
+    expect(snapshot.totalLanes).toBe(12)
+    expect(snapshot.lanes).toHaveLength(12)
+    expect(snapshot.bookings.length).toBeGreaterThan(0)
+    expect(snapshot.blocks.length).toBeGreaterThan(0)
+    expect(snapshot.stats.total).toBe(snapshot.bookings.length)
+    expect(snapshot.referenceNow).toBeTruthy()
+  })
+
+  it('returns mock snapshot when the database is unreachable in dev', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(false)
+    mocks.laneFindMany.mockRejectedValue(
+      Object.assign(new Error("Can't reach database server at host:5432"), {
+        code: 'P1001',
+        name: 'PrismaClientKnownRequestError',
+      }),
+    )
+    const snapshot = await getCockpitSnapshot('t1')
+    expect(snapshot.totalLanes).toBe(12)
+    expect(mocks.laneFindMany).toHaveBeenCalledOnce()
+  })
+})
+
 describe('getTodayBookings', () => {
   it('returns mock rows in dev-without-db', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
@@ -150,6 +191,28 @@ describe('getTodayBookings', () => {
         orderBy: { startTime: 'asc' },
       }),
     )
+  })
+})
+
+describe('getScheduleForMonth', () => {
+  it('returns mock month summary in dev-without-db', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(true)
+    const summary = await getScheduleForMonth('t1', 2026, 4)
+    expect(summary.days).toHaveLength(31)
+    expect(summary.totalLanes).toBeGreaterThan(0)
+    expect(summary.blocks.length).toBeGreaterThan(0)
+    expect(mocks.laneCount).not.toHaveBeenCalled()
+  })
+
+  it('queries lanes, bookings, and blocks for the month', async () => {
+    mocks.laneCount.mockResolvedValue(8)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.blockFindMany.mockResolvedValue([])
+    const summary = await getScheduleForMonth('t1', 2026, 4)
+    expect(summary.days).toHaveLength(31)
+    expect(mocks.laneCount).toHaveBeenCalledOnce()
+    expect(mocks.bookingFindMany).toHaveBeenCalledOnce()
+    expect(mocks.blockFindMany).toHaveBeenCalledOnce()
   })
 })
 

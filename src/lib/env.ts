@@ -77,11 +77,22 @@ export function isPrismaConnectivityError(err: unknown): boolean {
   return code === 'P1001' || code === 'P1017'
 }
 
+/** Interactive transaction expired — common when Neon is asleep in dev. */
+function isDevTransactionTimeoutError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  const code = (err as { code?: string }).code
+  return (
+    code === 'P2028' ||
+    err.message.includes('Transaction already closed')
+  )
+}
+
 /** Dev/test only: mock data when there is no DB or Prisma cannot connect. */
 export function shouldUseDevDbFallback(err?: unknown): boolean {
   if (process.env.NODE_ENV === 'production') return false
   if (isDevWithoutDb()) return true
-  return err !== undefined && isPrismaConnectivityError(err)
+  if (err === undefined) return false
+  return isPrismaConnectivityError(err) || isDevTransactionTimeoutError(err)
 }
 
 const warnedOnce = new Set<string>()
