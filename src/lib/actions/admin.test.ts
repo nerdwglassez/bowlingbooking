@@ -331,7 +331,7 @@ describe('updateTenantAction', () => {
     expect(mocks.tenantUpdate).not.toHaveBeenCalled()
   })
 
-  it('writes the Tenant + AuditLog rows, merging cancellation policy into config', async () => {
+  it('writes the Tenant + AuditLog rows, preserving unrelated config keys', async () => {
     mocks.tenantFindUnique.mockResolvedValue({
       config: {
         otherFutureKey: 'preserved',
@@ -363,8 +363,7 @@ describe('updateTenantAction', () => {
         cancellationRefundPercent: 75,
         config: {
           otherFutureKey: 'preserved',
-          cancellationWindowHours: 48,
-          cancellationRefundPercent: 75,
+          cancellationWindowHours: 12,
         },
       }),
     })
@@ -398,17 +397,16 @@ describe('updateTenantAction', () => {
     })
   })
 
-  it('writes default config when no prior config row exists', async () => {
+  it('writes empty config when no prior config row exists', async () => {
     mocks.tenantFindUnique.mockResolvedValue({ config: null })
     mocks.tenantUpdate.mockResolvedValue({})
     await updateTenantAction({ ...baseInput })
     expect(mocks.tenantUpdate).toHaveBeenCalledWith({
       where: { id: 't1' },
       data: expect.objectContaining({
-        config: {
-          cancellationWindowHours: 24,
-          cancellationRefundPercent: 100,
-        },
+        cancellationWindowHours: 24,
+        cancellationRefundPercent: 100,
+        config: {},
       }),
     })
   })

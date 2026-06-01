@@ -4,7 +4,7 @@
 // docs/wireframes/admin/settings-venue-details.html.
 
 import { SettingsListItem } from '@/components/patterns/settings-list-item'
-import { SettingsSignOutItem } from '@/components/patterns/settings-sign-out-item'
+import { SettingsSignOutItem } from '@/components/chrome/settings-sign-out-item'
 import { getSettingsHubMeta } from '@/lib/actions/admin'
 import { requireRole } from '@/lib/auth'
 import { getSettingsGroups } from '@/lib/staff-nav'

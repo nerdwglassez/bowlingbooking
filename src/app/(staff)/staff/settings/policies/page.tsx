@@ -2,7 +2,7 @@
 
 import { unauthorized } from 'next/navigation'
 
-import { SettingsSubpageHeader } from '@/components/patterns/settings-subpage-header'
+import { SettingsSubpageShell } from '@/components/chrome/settings-subpage-shell'
 import { getTenantForAdmin } from '@/lib/actions/admin'
 import { requireRole } from '@/lib/auth'
 import { getTenant } from '@/lib/tenant'
@@ -18,12 +18,11 @@ export default async function StaffSettingsPoliciesPage() {
   if (!detail) unauthorized()
 
   return (
-    <>
-      <SettingsSubpageHeader
-        title="Booking policies"
-        subtitle="Hold time, cancellation rules, and online booking limits."
-      />
+    <SettingsSubpageShell
+      title="Booking policies"
+      subtitle="Hold time, cancellation rules, and online booking limits."
+    >
       <PoliciesSettingsPanel initial={detail} />
-    </>
+    </SettingsSubpageShell>
   )
 }

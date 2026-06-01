@@ -7,9 +7,11 @@
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { formatPrice } from '@/lib/pricing'
 
 export type PartyType = 'OPEN' | 'BIRTHDAY' | 'CORPORATE' | 'COSMIC'
+export type PackageAccessType = 'PUBLIC' | 'CODE_REQUIRED'
 
 export interface PackageFormValues {
   name: string
@@ -25,6 +27,8 @@ export interface PackageFormValues {
   partyTypes: PartyType[]
   active: boolean
   sortOrder: number
+  accessType: PackageAccessType
+  codeString: string
 }
 
 export interface PackageFormProps {
@@ -196,6 +200,48 @@ export function PackageForm({
             />
           ))}
         </div>
+      </section>
+
+      <section
+        className={`flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid bg-[var(--surface-elevated)] p-4 ${
+          values.accessType === 'CODE_REQUIRED'
+            ? 'border-[color-mix(in_srgb,var(--color-action)_40%,var(--color-border))]'
+            : 'border-[var(--color-border)]'
+        }`}
+      >
+        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+          Access
+        </h2>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[var(--color-text-secondary)]">Who can book</span>
+          <Select
+            value={values.accessType}
+            onChange={(e) =>
+              patch({
+                accessType: e.target.value as PackageAccessType,
+              })
+            }
+          >
+            <option value="PUBLIC">Public — shown in package picker</option>
+            <option value="CODE_REQUIRED">Code required — unlock at checkout</option>
+          </Select>
+        </label>
+        {values.accessType === 'CODE_REQUIRED' ? (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-[var(--color-text-secondary)]">
+              Promo code (unique per venue)
+            </span>
+            <Input
+              type="text"
+              value={values.codeString}
+              onChange={(e) =>
+                patch({ codeString: e.target.value.toUpperCase() })
+              }
+              placeholder="SUMMER25"
+              required
+            />
+          </label>
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">

@@ -11,11 +11,13 @@
 #   5. contracts/STAFF.md — file locations, auth gating, server action rules
 #
 # Implementation status (summary):
-#   BUILT:     AppShell, NavRail, /staff cockpit, /staff/schedule,
-#              /staff/walkin, /admin settings suite, refund panel (partial)
-#   STUB:      /staff/bookings/[id] (placeholder page; refund-panel exists)
-#   NOT BUILT: booking detail sheet/panel, check-in, modification flow,
-#              lane timeline, reports UI, contact detail
+#   BUILT:     AppShell, NavRail, /staff cockpit (+ ?booking= detail sheet),
+#              /staff/schedule, walk-in FAB, /staff/reports (analytics + contacts),
+#              /staff/settings/* (venue, hours, pricing, policies, packages, team,
+#              integrations, profile), refund panel on /staff/bookings/[id]
+#   PARTIAL:   booking modification (notes-only in sheet; date/bowlers deferred),
+#              reports wireframe deltas (custom range exists; chart polish ongoing)
+#   LEGACY:    /staff/bookings/[id] kept for direct links + refunds
 
 ---
 
@@ -174,12 +176,12 @@ files into this index — they stay separate for focused loading.
 
 | Section | File | Build status | Wireframes (`docs/wireframes/`) |
 |---------|------|--------------|----------------------------------|
-| 1 — Cockpit overview, booking detail, check-in | `staff/01_COCKPIT_OVERVIEW.md` | Partial (cockpit built; detail sheet not) | `staff/staff-app-cockpit.html`, `staff/staff-app-v2.html` |
-| 2 — Lanes sub-view, walk-in FAB | `staff/02_LANES_WALKIN.md` | Partial (walk-in built; lane timeline not) | `staff/walkin-booking-flow.html`, `staff/staff-app-cockpit.html` |
-| 3 — Booking modification, cancel | `staff/03_MODIFICATION.md` | Not built | `staff/booking-modification-flow.html` |
+| 1 — Cockpit overview, booking detail, check-in | `staff/01_COCKPIT_OVERVIEW.md` | Partial (detail sheet via `?booking=`; check-in in sheet) | `staff/staff-app-cockpit.html`, `staff/staff-app-v2.html` |
+| 2 — Lanes sub-view, walk-in FAB | `staff/02_LANES_WALKIN.md` | Built (lane timeline + walk-in) | `staff/walkin-booking-flow.html`, `staff/staff-app-cockpit.html` |
+| 3 — Booking modification, cancel | `staff/03_MODIFICATION.md` | Partial (notes edit in sheet) | `staff/booking-modification-flow.html` |
 | 4 — Schedule, lane blocking | `staff/04_SCHEDULE.md` | Built | `staff/schedule-calendar-blocking.html` |
-| 5 — Reports, analytics, contacts | `staff/05_REPORTS.md` | Not built | `staff/reports-analytics-contacts.html` |
-| 6 — Admin settings sub-pages | `staff/06_SETTINGS.md` | Built | `admin/settings-*.html` (see section file) |
+| 5 — Reports, analytics, contacts | `staff/05_REPORTS.md` | Partial | `staff/reports-analytics-contacts.html` |
+| 6 — Admin settings sub-pages | `staff/06_SETTINGS.md` | Partial (see checklist in section file) | `admin/settings-*.html` (see section file) |
 | 7 — Desktop responsive, PWA | `staff/07_RESPONSIVE_PWA.md` | Reference | `admin/admin-pricing-team-pwa.html` |
 
 **Domain rules** (walk-in → CONFIRMED, refunds, status machine):

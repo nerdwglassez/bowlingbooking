@@ -3,12 +3,15 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { useStaffToast } from '@/components/chrome/staff-toast-provider'
 import {
   BookingPoliciesForm,
   type BookingPoliciesFormValues,
 } from '@/components/patterns/booking-policies-form'
 import type { AdminTenantDetail } from '@/lib/actions/admin'
 import { updateTenantAction } from '@/lib/actions/admin'
+import { useSettingsFormReporter } from '@/lib/settings-form-context'
+import { useSettingsFormState } from '@/lib/use-settings-form-state'
 
 export function PoliciesSettingsPanel({
   initial,
@@ -18,21 +21,32 @@ export function PoliciesSettingsPanel({
   readOnly?: boolean
 }) {
   const router = useRouter()
-  const [values, setValues] = useState<BookingPoliciesFormValues>({
+  const { showToast } = useStaffToast()
+  const form = useSettingsFormState<BookingPoliciesFormValues>({
     holdTimeoutMins: initial.holdTimeoutMins,
-    maxOnlineBowlers: initial.maxOnlineBowlers,
+    minBookingNoticeMinutes: initial.minBookingNoticeMinutes,
     cancellationWindowHours: initial.cancellationWindowHours,
+    rescheduleWindowHours: initial.rescheduleWindowHours,
+    checkInWindowMinutes: initial.checkInWindowMinutes,
     cancellationRefundPercent: initial.cancellationRefundPercent,
-    timezone: initial.timezone,
-    themeSlug: initial.themeSlug,
+    maxOnlineBowlers: initial.maxOnlineBowlers,
+    maxAdvanceBookingDays: initial.maxAdvanceBookingDays,
+    lateGraceMinutes: initial.lateGraceMinutes,
+    allowWalkInBookings: initial.allowWalkInBookings,
+    requireAccountToModify: initial.requireAccountToModify,
   })
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [submitting, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
+
+  useSettingsFormReporter(
+    form.dirty,
+    form.phase === 'saving',
+    () => handleSubmit(),
+  )
 
   function handleSubmit() {
     setError(null)
-    setSuccess(null)
+    form.startSaving()
     startTransition(async () => {
       try {
         await updateTenantAction({
@@ -40,33 +54,42 @@ export function PoliciesSettingsPanel({
           name: initial.name,
           address: initial.address,
           phone: initial.phone,
-          timezone: values.timezone,
-          themeSlug: values.themeSlug,
-          holdTimeoutMins: values.holdTimeoutMins,
-          maxOnlineBowlers: values.maxOnlineBowlers,
-          cancellationWindowHours: values.cancellationWindowHours,
-          cancellationRefundPercent: values.cancellationRefundPercent,
+          timezone: initial.timezone,
+          themeSlug: initial.themeSlug,
+          holdTimeoutMins: form.values.holdTimeoutMins,
+          maxOnlineBowlers: form.values.maxOnlineBowlers,
+          cancellationWindowHours: form.values.cancellationWindowHours,
+          cancellationRefundPercent: form.values.cancellationRefundPercent,
+          rescheduleWindowHours: form.values.rescheduleWindowHours,
+          checkInWindowMinutes: form.values.checkInWindowMinutes,
+          bowlersPerLane: initial.bowlersPerLane,
+          minBookingNoticeMinutes: form.values.minBookingNoticeMinutes,
+          maxAdvanceBookingDays: form.values.maxAdvanceBookingDays,
+          lateGraceMinutes: form.values.lateGraceMinutes,
+          allowWalkInBookings: form.values.allowWalkInBookings,
+          requireAccountToModify: form.values.requireAccountToModify,
           contactEmail: initial.contactEmail,
         })
-        setSuccess('Policies saved.')
+        form.commitBaseline()
+        showToast({ message: 'Policies saved', variant: 'success' })
         router.refresh()
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Could not save policies.',
-        )
+        form.setError()
+        setError(err instanceof Error ? err.message : 'Could not save policies.')
+        showToast({ message: 'Failed to save — try again', variant: 'error' })
       }
     })
   }
 
   return (
     <BookingPoliciesForm
-      values={values}
-      onChange={setValues}
+      values={form.values}
+      onChange={form.setValues}
       onSubmit={handleSubmit}
-      submitting={submitting}
       readOnly={readOnly}
       error={error}
-      successMessage={success}
+      dirty={form.dirty}
+      phase={form.phase}
     />
   )
 }

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import {
   PackageForm,
+  type PackageAccessType,
   type PackageFormValues,
   type PartyType,
 } from '@/components/patterns/package-form'
@@ -26,6 +27,8 @@ interface PackageEditorProps {
   mode: 'create' | 'edit'
   tenantId: string
   initial?: AdminPackageRow
+  /** List route after save/archive (defaults to admin packages). */
+  listPath?: string
 }
 
 function defaultValues(initial?: AdminPackageRow): PackageFormValues {
@@ -40,6 +43,8 @@ function defaultValues(initial?: AdminPackageRow): PackageFormValues {
     partyTypes: (initial?.partyTypes as PartyType[]) ?? ['OPEN'],
     active: initial?.active ?? true,
     sortOrder: initial?.sortOrder ?? 0,
+    accessType: (initial?.accessType as PackageAccessType) ?? 'PUBLIC',
+    codeString: initial?.codeString ?? '',
   }
 }
 
@@ -55,10 +60,18 @@ function toInput(values: PackageFormValues): PackageInput {
     partyTypes: values.partyTypes,
     active: values.active,
     sortOrder: values.sortOrder,
+    accessType: values.accessType,
+    codeString:
+      values.accessType === 'CODE_REQUIRED' ? values.codeString : null,
   }
 }
 
-export function PackageEditor({ mode, tenantId, initial }: PackageEditorProps) {
+export function PackageEditor({
+  mode,
+  tenantId,
+  initial,
+  listPath = '/admin/packages',
+}: PackageEditorProps) {
   const router = useRouter()
   const [values, setValues] = useState<PackageFormValues>(() =>
     defaultValues(initial),
@@ -75,7 +88,7 @@ export function PackageEditor({ mode, tenantId, initial }: PackageEditorProps) {
       try {
         if (mode === 'create') {
           const result = await createPackageAction(tenantId, toInput(values))
-          router.push(`/admin/packages/${result.packageId}`)
+          router.push(`${listPath}/${result.packageId}`)
           return
         }
         if (!initial) throw new Error('Missing package id for edit.')
@@ -95,7 +108,7 @@ export function PackageEditor({ mode, tenantId, initial }: PackageEditorProps) {
     startArchive(async () => {
       try {
         await archivePackageAction(initial.id)
-        router.push('/admin/packages')
+        router.push(listPath)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not archive.')
       }

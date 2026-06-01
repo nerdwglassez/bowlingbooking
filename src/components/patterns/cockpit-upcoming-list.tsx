@@ -16,6 +16,7 @@ export type CockpitUpcomingListProps = {
   bookings: CockpitBookingRow[]
   emptyQuery?: string | null
   referenceNow: string
+  onOpenBooking?: (bookingId: string) => void
 }
 
 const PIP_CLASS: Record<CockpitBookingRow['listStatus'], string> = {
@@ -30,6 +31,7 @@ export function CockpitUpcomingList({
   bookings,
   emptyQuery,
   referenceNow,
+  onOpenBooking,
 }: CockpitUpcomingListProps) {
   const now = new Date(referenceNow)
 
@@ -51,18 +53,16 @@ export function CockpitUpcomingList({
         const paymentPending = booking.listStatus === 'payment'
         const late = booking.listStatus === 'late'
 
-        return (
-          <li key={booking.id}>
-            <Link
-              href={`/staff/bookings/${booking.id}`}
-              className={`flex items-center gap-2.5 rounded-[var(--radius-md)] border border-solid bg-[var(--surface-card)] px-3 py-2.5 transition-colors hover:border-[var(--color-border-strong)] ${
+        const rowClass = `flex w-full items-center gap-2.5 rounded-[var(--radius-md)] border border-solid bg-[var(--surface-card)] px-3 py-2.5 text-left transition-colors hover:border-[var(--color-border-strong)] ${
                 late
                   ? 'border-[color-mix(in_srgb,var(--status-error-border)_30%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_4%,transparent)]'
                   : paymentPending
                     ? 'border-[color-mix(in_srgb,var(--status-error-border)_30%,transparent)]'
                     : 'border-[var(--color-border)]'
-              } ${checkedIn ? 'opacity-50' : ''}`}
-            >
+              } ${checkedIn ? 'opacity-50' : ''}`
+
+        const rowBody = (
+          <>
               <div className="min-w-[44px] text-center">
                 <div
                   className={`text-sm [font-family:var(--font-display)] ${
@@ -113,7 +113,24 @@ export function CockpitUpcomingList({
                   aria-hidden
                 />
               </div>
-            </Link>
+          </>
+        )
+
+        return (
+          <li key={booking.id}>
+            {onOpenBooking ? (
+              <button
+                type="button"
+                onClick={() => onOpenBooking(booking.id)}
+                className={rowClass}
+              >
+                {rowBody}
+              </button>
+            ) : (
+              <Link href={`/staff/bookings/${booking.id}`} className={rowClass}>
+                {rowBody}
+              </Link>
+            )}
           </li>
         )
       })}

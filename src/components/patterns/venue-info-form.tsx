@@ -25,6 +25,7 @@ export interface VenueInfoFormProps {
   readOnly?: boolean
   error?: string | null
   successMessage?: string | null
+  saveButton?: React.ReactNode
 }
 
 export function venueInfoFromTenant(input: {
@@ -78,6 +79,7 @@ export function VenueInfoForm({
   readOnly,
   error,
   successMessage,
+  saveButton,
 }: VenueInfoFormProps) {
   function patch(update: Partial<VenueInfoFormValues>) {
     onChange({ ...values, ...update })
@@ -193,11 +195,13 @@ export function VenueInfoForm({
         <p className="text-sm text-[var(--status-ok-text)]">{successMessage}</p>
       ) : null}
 
-      {!readOnly ? (
-        <Button type="submit" fullWidth loading={submitting}>
-          Save venue info
-        </Button>
-      ) : null}
+      {!readOnly
+        ? saveButton ?? (
+            <Button type="submit" fullWidth loading={submitting}>
+              Save venue info
+            </Button>
+          )
+        : null}
     </form>
   )
 }

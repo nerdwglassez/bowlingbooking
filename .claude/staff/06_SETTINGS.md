@@ -9,7 +9,20 @@
 #                docs/wireframes/admin/settings-packages-unified.html,
 #                docs/wireframes/admin/settings-integrations.html,
 #                docs/wireframes/admin/admin-settings-refined.html
-# Build status:  Built (admin settings suite)
+# Build status:  Partial — canonical routes under `/staff/settings/*`
+
+| Route | Status |
+|-------|--------|
+| `/staff/settings` hub | Built |
+| `/staff/settings/venue` | Built (ADMIN) |
+| `/staff/settings/hours` | Built (lane sync + bowlers/lane) |
+| `/staff/settings/pricing` | Built (PricingPeriod CRUD) |
+| `/staff/settings/policies` | Built (wireframe policy rows) |
+| `/staff/settings/packages` | Built (Public / Code-gated tabs) |
+| `/staff/settings/team` | Built (ADMIN invite + detail sheets) |
+| `/staff/settings/integrations` | Partial (read-only detail sheets) |
+| `/staff/settings/profile` | Built |
+| Legacy `/admin/packages`, `/admin/promos` | Redirect to settings packages |
 
 ---
 

@@ -13,6 +13,7 @@
 export const dynamic = 'force-dynamic'
 
 import { AppShell } from '@/components/chrome/app-shell'
+import { StaffToastProvider } from '@/components/chrome/staff-toast-provider'
 import { requireRole } from '@/lib/auth'
 import { getTenant } from '@/lib/tenant'
 
@@ -25,11 +26,13 @@ export default async function StaffLayout({
   const tenant = await getTenant()
 
   return (
-    <AppShell
-      user={{ email: user.email, name: user.name, role: user.role }}
-      tenant={{ name: tenant.name }}
-    >
-      {children}
-    </AppShell>
+    <StaffToastProvider>
+      <AppShell
+        user={{ email: user.email, name: user.name, role: user.role }}
+        tenant={{ name: tenant.name }}
+      >
+        {children}
+      </AppShell>
+    </StaffToastProvider>
   )
 }

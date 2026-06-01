@@ -25,6 +25,8 @@ export interface PricingSettingsFormProps {
   readOnly?: boolean
   error?: string | null
   successMessage?: string | null
+  periodsSlot?: React.ReactNode
+  saveButton?: React.ReactNode
 }
 
 const STRATEGY_OPTIONS: Array<{ value: PricingStrategy; label: string }> = [
@@ -75,6 +77,8 @@ export function PricingSettingsForm({
   readOnly,
   error,
   successMessage,
+  periodsSlot,
+  saveButton,
 }: PricingSettingsFormProps) {
   function patch(update: Partial<PricingSettingsFormValues>) {
     onChange({ ...values, ...update })
@@ -190,9 +194,7 @@ export function PricingSettingsForm({
         <p className="px-1 text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
           Override periods replace the default rate for specific days or times.
         </p>
-        <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)] px-3.5 py-3 text-center text-xs text-[var(--color-text-secondary)]">
-          Rate overrides coming soon — use packages for peak pricing today.
-        </p>
+        {periodsSlot}
       </section>
 
       {error ? (
@@ -202,11 +204,13 @@ export function PricingSettingsForm({
         <p className="text-sm text-[var(--status-ok-text)]">{successMessage}</p>
       ) : null}
 
-      {!readOnly ? (
-        <Button type="submit" fullWidth loading={submitting}>
-          Save pricing
-        </Button>
-      ) : null}
+      {!readOnly
+        ? saveButton ?? (
+            <Button type="submit" fullWidth loading={submitting}>
+              Save pricing
+            </Button>
+          )
+        : null}
     </form>
   )
 }

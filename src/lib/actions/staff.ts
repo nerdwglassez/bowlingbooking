@@ -719,6 +719,26 @@ export async function markBookingNoShowAction(
   revalidatePath('/staff')
 }
 
+export async function staffUpdateBookingNotesAction(
+  bookingId: string,
+  notes: string,
+): Promise<void> {
+  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+
+  if (isDevWithoutDb()) {
+    console.log(`[staff] mock notes update for ${bookingId}`)
+    return
+  }
+
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { notes: notes.trim() || null },
+  })
+
+  revalidatePath('/staff')
+  revalidatePath(`/staff/bookings/${bookingId}`)
+}
+
 export async function markBookingCompletedAction(
   bookingId: string,
 ): Promise<void> {

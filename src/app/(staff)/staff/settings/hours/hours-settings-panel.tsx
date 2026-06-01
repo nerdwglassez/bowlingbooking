@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { useStaffToast } from '@/components/chrome/staff-toast-provider'
 import {
   OperatingHoursEditor,
   type LaneConfigDisplay,
@@ -10,9 +11,12 @@ import {
 } from '@/components/patterns/operating-hours-editor'
 import type { AdminOperatingHour, AdminTenantDetail } from '@/lib/actions/admin'
 import {
+  syncTenantLanesAction,
   updateOperatingHoursAction,
   updateTenantAction,
 } from '@/lib/actions/admin'
+import { useSettingsFormReporter } from '@/lib/settings-form-context'
+import { useSettingsFormState } from '@/lib/use-settings-form-state'
 
 function ensureSevenDays(initial: AdminOperatingHour[]): OperatingHourRow[] {
   const byDay = new Map(initial.map((h) => [h.dayOfWeek, h]))
@@ -30,6 +34,11 @@ function ensureSevenDays(initial: AdminOperatingHour[]): OperatingHourRow[] {
   })
 }
 
+type HoursFormState = {
+  hours: OperatingHourRow[]
+  laneConfig: LaneConfigDisplay
+}
+
 export function HoursSettingsPanel({
   tenantId,
   initialHours,
@@ -42,25 +51,35 @@ export function HoursSettingsPanel({
   readOnly?: boolean
 }) {
   const router = useRouter()
-  const [values, setValues] = useState<OperatingHourRow[]>(() =>
-    ensureSevenDays(initialHours),
-  )
-  const [laneConfig, setLaneConfig] = useState<LaneConfigDisplay>({
-    totalLanes: tenant.totalLanes,
-    maxBowlersPerLane: 6,
-    minDurationHours: tenant.minBookingDurationHours,
-    maxDurationHours: tenant.maxBookingDurationHours,
+  const { showToast } = useStaffToast()
+  const form = useSettingsFormState<HoursFormState>({
+    hours: ensureSevenDays(initialHours),
+    laneConfig: {
+      totalLanes: tenant.totalLanes,
+      maxBowlersPerLane: tenant.bowlersPerLane,
+      minDurationHours: tenant.minBookingDurationHours,
+      maxDurationHours: tenant.maxBookingDurationHours,
+    },
   })
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [submitting, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
+
+  useSettingsFormReporter(
+    form.dirty,
+    form.phase === 'saving',
+    () => handleSubmit(),
+  )
 
   function handleSubmit() {
     setError(null)
-    setSuccess(null)
+    form.startSaving()
     startTransition(async () => {
       try {
-        await updateOperatingHoursAction({ tenantId, hours: values })
+        await updateOperatingHoursAction({
+          tenantId,
+          hours: form.values.hours,
+        })
+        await syncTenantLanesAction(tenantId, form.values.laneConfig.totalLanes)
         await updateTenantAction({
           tenantId: tenant.id,
           name: tenant.name,
@@ -73,32 +92,39 @@ export function HoursSettingsPanel({
           cancellationWindowHours: tenant.cancellationWindowHours,
           cancellationRefundPercent: tenant.cancellationRefundPercent,
           contactEmail: tenant.contactEmail,
-          minBookingDurationHours: laneConfig.minDurationHours,
-          maxBookingDurationHours: laneConfig.maxDurationHours,
+          bowlersPerLane: form.values.laneConfig.maxBowlersPerLane,
+          minBookingDurationHours: form.values.laneConfig.minDurationHours,
+          maxBookingDurationHours: form.values.laneConfig.maxDurationHours,
         })
-        setSuccess('Operating hours saved.')
+        form.commitBaseline()
+        showToast({ message: 'Operating hours saved', variant: 'success' })
         router.refresh()
       } catch (err) {
+        form.setError()
         setError(
           err instanceof Error
             ? err.message
             : 'Could not save operating hours.',
         )
+        showToast({ message: 'Failed to save — try again', variant: 'error' })
       }
     })
   }
 
   return (
     <OperatingHoursEditor
-      values={values}
-      onChange={setValues}
-      laneConfig={laneConfig}
-      onLaneConfigChange={readOnly ? undefined : setLaneConfig}
+      values={form.values.hours}
+      onChange={(hours) => form.setValues({ ...form.values, hours })}
+      laneConfig={form.values.laneConfig}
+      onLaneConfigChange={(laneConfig) =>
+        form.setValues({ ...form.values, laneConfig })
+      }
       onSubmit={handleSubmit}
-      submitting={submitting}
+      submitting={form.phase === 'saving'}
       readOnly={readOnly}
       error={error}
-      successMessage={success}
+      saveDirty={form.dirty}
+      savePhase={form.phase}
     />
   )
 }

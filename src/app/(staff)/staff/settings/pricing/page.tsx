@@ -2,8 +2,8 @@
 
 import { unauthorized } from 'next/navigation'
 
-import { SettingsSubpageHeader } from '@/components/patterns/settings-subpage-header'
-import { getTenantForAdmin } from '@/lib/actions/admin'
+import { SettingsSubpageShell } from '@/components/chrome/settings-subpage-shell'
+import { getTenantForAdmin, listPricingPeriodsForAdmin } from '@/lib/actions/admin'
 import { requireRole } from '@/lib/auth'
 import { getTenant } from '@/lib/tenant'
 
@@ -14,16 +14,18 @@ export default async function StaffSettingsPricingPage() {
   if (user.role === 'STAFF') unauthorized()
 
   const tenant = await getTenant()
-  const detail = await getTenantForAdmin(tenant.id)
+  const [detail, periods] = await Promise.all([
+    getTenantForAdmin(tenant.id),
+    listPricingPeriodsForAdmin(tenant.id),
+  ])
   if (!detail) unauthorized()
 
   return (
-    <>
-      <SettingsSubpageHeader
-        title="Pricing"
-        subtitle="Set your default rate and add overrides for peak times or special periods."
-      />
-      <PricingSettingsPanel initial={detail} />
-    </>
+    <SettingsSubpageShell
+      title="Pricing"
+      subtitle="Set your default rate and add overrides for peak times or special periods."
+    >
+      <PricingSettingsPanel initial={detail} periods={periods} />
+    </SettingsSubpageShell>
   )
 }

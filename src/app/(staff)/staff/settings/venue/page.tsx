@@ -2,7 +2,7 @@
 
 import { unauthorized } from 'next/navigation'
 
-import { SettingsSubpageHeader } from '@/components/patterns/settings-subpage-header'
+import { SettingsSubpageShell } from '@/components/chrome/settings-subpage-shell'
 import { getTenantForAdmin } from '@/lib/actions/admin'
 import { requireRole } from '@/lib/auth'
 import { getTenant } from '@/lib/tenant'
@@ -18,12 +18,11 @@ export default async function StaffSettingsVenuePage() {
   if (!detail) unauthorized()
 
   return (
-    <>
-      <SettingsSubpageHeader
-        title="Venue info"
-        subtitle="Shown to customers in the booking app, emails, and confirmations."
-      />
+    <SettingsSubpageShell
+      title="Venue info"
+      subtitle="Shown to customers in the booking app, emails, and confirmations."
+    >
       <VenueInfoPanel initial={detail} />
-    </>
+    </SettingsSubpageShell>
   )
 }

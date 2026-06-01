@@ -1,6 +1,22 @@
 # ADMIN.md — Contract for the admin settings shell
 
-Status: locked for Phase 9 (v1 critical path). Promo codes / booking-policy UI / integrations panel are deferred to Phase 10.
+Status: locked for Phase 9 (v1 critical path). Canonical manager settings live under `/staff/settings/*`; legacy `/admin/*` routes redirect or remain for audit/reports.
+
+## Settings implementation map (canonical)
+
+| Surface | Canonical route | Legacy redirect |
+|---------|-----------------|-----------------|
+| Settings hub | `/staff/settings` | `/admin` index |
+| Venue info | `/staff/settings/venue` | `/admin/venue` → venue |
+| Operating hours | `/staff/settings/hours` | (was on `/admin/venue`) |
+| Pricing + rate overrides | `/staff/settings/pricing` | — |
+| Booking policies | `/staff/settings/policies` | — |
+| Packages (unified + code-gated) | `/staff/settings/packages` | `/admin/packages`, `/admin/promos` |
+| Team | `/staff/settings/team` | `/admin/team` (full pages still work) |
+| Integrations | `/staff/settings/integrations` | Deferred Connect OAuth |
+| Profile | `/staff/settings/profile` | — |
+| Audit log | `/admin/audit` | ADMIN only |
+| Admin KPI reports | `/admin/reports` | ADMIN only |
 
 ## Where things live
 

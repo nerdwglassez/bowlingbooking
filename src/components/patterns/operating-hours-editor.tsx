@@ -1,8 +1,9 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { SettingsSaveButton } from '@/components/patterns/settings-save-button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import type { SettingsSavePhase } from '@/lib/use-settings-form-state'
 
 export interface OperatingHourRow {
   dayOfWeek: number // 0 = Sunday, 6 = Saturday
@@ -28,6 +29,8 @@ export interface OperatingHoursEditorProps {
   readOnly?: boolean
   error?: string | null
   successMessage?: string | null
+  saveDirty?: boolean
+  savePhase?: SettingsSavePhase
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -139,6 +142,8 @@ export function OperatingHoursEditor({
   readOnly,
   error,
   successMessage,
+  saveDirty = true,
+  savePhase = 'idle',
 }: OperatingHoursEditorProps) {
   function patchRow(dayOfWeek: number, update: Partial<OperatingHourRow>) {
     onChange(
@@ -289,8 +294,10 @@ export function OperatingHoursEditor({
                 value={laneConfig.maxBowlersPerLane}
                 min={4}
                 max={8}
-                disabled
-                onChange={() => undefined}
+                disabled={readOnly || !onLaneConfigChange}
+                onChange={(maxBowlersPerLane) =>
+                  onLaneConfigChange?.({ ...laneConfig, maxBowlersPerLane })
+                }
               />
             </div>
           </section>
@@ -355,9 +362,11 @@ export function OperatingHoursEditor({
       ) : null}
 
       {!readOnly ? (
-        <Button type="submit" fullWidth loading={submitting}>
-          Save operating hours
-        </Button>
+        <SettingsSaveButton
+          label="Save operating hours"
+          dirty={saveDirty}
+          phase={savePhase ?? (submitting ? 'saving' : 'idle')}
+        />
       ) : null}
     </form>
   )

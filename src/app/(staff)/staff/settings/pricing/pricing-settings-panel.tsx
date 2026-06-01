@@ -2,14 +2,30 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronRight, Plus } from 'lucide-react'
 
+import { BottomSheet } from '@/components/chrome/bottom-sheet'
+import { useStaffToast } from '@/components/chrome/staff-toast-provider'
 import {
   PricingSettingsForm,
   type PricingSettingsFormValues,
   type PricingStrategy,
 } from '@/components/patterns/pricing-settings-form'
-import type { AdminTenantDetail } from '@/lib/actions/admin'
-import { updateTenantAction } from '@/lib/actions/admin'
+import {
+  RateOverrideSheetForm,
+  rateOverrideFromRow,
+  type RateOverrideFormValues,
+} from '@/components/patterns/rate-override-sheet'
+import { SettingsSaveButton } from '@/components/patterns/settings-save-button'
+import { formatPrice } from '@/lib/pricing'
+import { useSettingsFormReporter } from '@/lib/settings-form-context'
+import { useSettingsFormState } from '@/lib/use-settings-form-state'
+import type { AdminPricingPeriodRow, AdminTenantDetail } from '@/lib/actions/admin'
+import {
+  deletePricingPeriodAction,
+  updateTenantAction,
+  upsertPricingPeriodAction,
+} from '@/lib/actions/admin'
 
 function toStrategy(value: string): PricingStrategy {
   if (
@@ -23,26 +39,62 @@ function toStrategy(value: string): PricingStrategy {
   return 'packages_only'
 }
 
+const EMPTY_PERIOD: RateOverrideFormValues = {
+  name: '',
+  ratePerPersonPerHour: 850,
+  daysOfWeek: [5, 6],
+  startTime: '17:00',
+  endTime: '22:00',
+  priority: 1,
+}
+
 export function PricingSettingsPanel({
   initial,
+  periods: initialPeriods,
   readOnly,
 }: {
   initial: AdminTenantDetail
+  periods: AdminPricingPeriodRow[]
   readOnly?: boolean
 }) {
   const router = useRouter()
-  const [values, setValues] = useState<PricingSettingsFormValues>({
+  const { showToast } = useStaffToast()
+  const [periods, setPeriods] = useState(initialPeriods)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [periodValues, setPeriodValues] = useState<RateOverrideFormValues>(EMPTY_PERIOD)
+  const [periodSubmitting, startPeriodTransition] = useTransition()
+
+  const form = useSettingsFormState<PricingSettingsFormValues>({
     strategy: toStrategy(initial.pricingStrategy),
     defaultRateCents: initial.laneReservationCentsPerLane,
     shoeRentalCents: initial.shoeRentalPriceCents,
   })
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [submitting, startTransition] = useTransition()
 
-  function handleSubmit() {
+  const [error, setError] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
+
+  useSettingsFormReporter(
+    form.dirty,
+    form.phase === 'saving',
+    () => handleSavePricing(),
+  )
+
+  function openNewPeriod() {
+    setEditingId(null)
+    setPeriodValues({ ...EMPTY_PERIOD })
+    setSheetOpen(true)
+  }
+
+  function openEditPeriod(row: AdminPricingPeriodRow) {
+    setEditingId(row.id)
+    setPeriodValues(rateOverrideFromRow(row))
+    setSheetOpen(true)
+  }
+
+  function handleSavePricing() {
     setError(null)
-    setSuccess(null)
+    form.startSaving()
     startTransition(async () => {
       try {
         await updateTenantAction({
@@ -57,29 +109,155 @@ export function PricingSettingsPanel({
           cancellationWindowHours: initial.cancellationWindowHours,
           cancellationRefundPercent: initial.cancellationRefundPercent,
           contactEmail: initial.contactEmail,
-          shoeRentalPriceCents: values.shoeRentalCents,
-          laneReservationCentsPerLane: values.defaultRateCents,
-          pricingStrategy: values.strategy,
+          shoeRentalPriceCents: form.values.shoeRentalCents,
+          laneReservationCentsPerLane: form.values.defaultRateCents,
+          pricingStrategy: form.values.strategy,
         })
-        setSuccess('Pricing saved.')
+        form.commitBaseline()
+        showToast({ message: 'Pricing saved', variant: 'success' })
         router.refresh()
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Could not save pricing.',
-        )
+        form.setError()
+        setError(err instanceof Error ? err.message : 'Could not save pricing.')
+        showToast({ message: 'Failed to save — try again', variant: 'error' })
+      }
+    })
+  }
+
+  function savePeriod() {
+    startPeriodTransition(async () => {
+      try {
+        const result = await upsertPricingPeriodAction({
+          tenantId: initial.id,
+          id: editingId ?? undefined,
+          name: periodValues.name,
+          ratePerPersonPerHour: periodValues.ratePerPersonPerHour,
+          daysOfWeek: periodValues.daysOfWeek,
+          startTime: periodValues.startTime || null,
+          endTime: periodValues.endTime || null,
+          priority: periodValues.priority,
+        })
+        setSheetOpen(false)
+        showToast({ message: 'Rate override saved', variant: 'success' })
+        router.refresh()
+        if (!editingId) {
+          setPeriods((prev) => [
+            ...prev,
+            {
+              id: result.id,
+              name: periodValues.name,
+              ratePerPersonPerHour: periodValues.ratePerPersonPerHour,
+              daysOfWeek: periodValues.daysOfWeek,
+              startTime: periodValues.startTime,
+              endTime: periodValues.endTime,
+              priority: periodValues.priority,
+            },
+          ])
+        }
+      } catch {
+        showToast({ message: 'Failed to save period', variant: 'error' })
+      }
+    })
+  }
+
+  function deletePeriod() {
+    if (!editingId) return
+    startPeriodTransition(async () => {
+      try {
+        await deletePricingPeriodAction(initial.id, editingId)
+        setSheetOpen(false)
+        setPeriods((prev) => prev.filter((p) => p.id !== editingId))
+        showToast({ message: 'Period deleted', variant: 'success' })
+        router.refresh()
+      } catch {
+        showToast({ message: 'Could not delete period', variant: 'error' })
       }
     })
   }
 
   return (
-    <PricingSettingsForm
-      values={values}
-      onChange={setValues}
-      onSubmit={handleSubmit}
-      submitting={submitting}
-      readOnly={readOnly}
-      error={error}
-      successMessage={success}
-    />
+    <>
+      <PricingSettingsForm
+        values={form.values}
+        onChange={form.setValues}
+        onSubmit={handleSavePricing}
+        readOnly={readOnly}
+        error={error}
+        periodsSlot={
+          readOnly ? null : (
+            <div className="flex flex-col gap-2">
+              <ul className="flex flex-col gap-1.5">
+                {periods
+                  .filter((p) => p.priority > 0)
+                  .map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => openEditPeriod(p)}
+                        className="flex w-full items-center gap-2.5 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] px-3.5 py-3 text-left"
+                      >
+                        <span
+                          className="size-2.5 shrink-0 rounded-full bg-[var(--color-action)]"
+                          aria-hidden
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-[var(--color-text-primary)]">
+                            {p.name}
+                          </span>
+                          <span className="block text-[10px] text-[var(--color-text-secondary)]">
+                            Priority {p.priority}
+                            {p.daysOfWeek.length
+                              ? ` · ${p.daysOfWeek.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}`
+                              : ''}
+                          </span>
+                        </span>
+                        <span className="[font-family:var(--font-display)] text-sm text-[var(--color-action)]">
+                          {formatPrice(p.ratePerPersonPerHour)}
+                        </span>
+                        <ChevronRight
+                          className="size-3.5 text-[var(--color-text-secondary)]"
+                          aria-hidden
+                        />
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+              <button
+                type="button"
+                onClick={openNewPeriod}
+                className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)] py-3 text-xs font-medium text-[var(--color-text-secondary)]"
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Add rate override
+              </button>
+            </div>
+          )
+        }
+        saveButton={
+          readOnly ? null : (
+            <SettingsSaveButton
+              label="Save pricing"
+              dirty={form.dirty}
+              phase={form.phase}
+            />
+          )
+        }
+      />
+
+      <BottomSheet
+        open={sheetOpen}
+        title={editingId ? 'Edit rate override' : 'Add rate override'}
+        onClose={() => setSheetOpen(false)}
+      >
+        <RateOverrideSheetForm
+          values={periodValues}
+          onChange={setPeriodValues}
+          onSubmit={savePeriod}
+          onDelete={editingId ? deletePeriod : undefined}
+          submitting={periodSubmitting}
+          isEdit={Boolean(editingId)}
+        />
+      </BottomSheet>
+    </>
   )
 }

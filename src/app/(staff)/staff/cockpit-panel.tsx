@@ -31,6 +31,7 @@ export type CockpitPanelProps = CockpitSnapshot & {
   tenantId: string
   packages: Package[]
   initialWalkInOpen?: boolean
+  onOpenBooking?: (bookingId: string) => void
 }
 
 function readPersistedSubview(): CockpitSubview {
@@ -72,6 +73,7 @@ export function CockpitPanel({
   tenantId,
   packages,
   initialWalkInOpen = false,
+  onOpenBooking,
 }: CockpitPanelProps) {
   const [query, setQuery] = useState('')
   const [searchExpanded, setSearchExpanded] = useState(false)
@@ -151,8 +153,12 @@ export function CockpitPanel({
                     bookings={late}
                     referenceNow={referenceNow}
                     emptyQuery={query.trim() ? query.trim() : null}
+                    onOpenBooking={onOpenBooking}
                   />
-                  <CockpitLateActions firstLateBookingId={late[0]!.id} />
+                  <CockpitLateActions
+                    firstLateBookingId={late[0]!.id}
+                    onOpenBooking={onOpenBooking}
+                  />
                 </>
               ) : null}
 
@@ -164,6 +170,7 @@ export function CockpitPanel({
                   bookings={upcoming}
                   referenceNow={referenceNow}
                   emptyQuery={query.trim() ? query.trim() : null}
+                  onOpenBooking={onOpenBooking}
                 />
               </section>
             </>
@@ -173,6 +180,7 @@ export function CockpitPanel({
               totalLanes={totalLanes}
               timeWindow={timeWindow}
               onTimeWindowChange={setTimeWindow}
+              onOpenBooking={onOpenBooking}
             />
           )}
       </div>

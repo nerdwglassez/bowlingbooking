@@ -15,6 +15,7 @@ export type CockpitLaneTimelineProps = {
   timeWindow: CockpitTimeWindow
   onTimeWindowChange: (window: CockpitTimeWindow) => void
   onLaneSelect?: (laneNumber: number) => void
+  onOpenBooking?: (bookingId: string) => void
 }
 
 const TIME_WINDOWS: { value: CockpitTimeWindow; label: string }[] = [
@@ -42,6 +43,7 @@ export function CockpitLaneTimeline({
   timeWindow,
   onTimeWindowChange,
   onLaneSelect,
+  onOpenBooking,
 }: CockpitLaneTimelineProps) {
   const scrollHint = totalLanes > 12
 
@@ -118,19 +120,33 @@ export function CockpitLaneTimeline({
                     <span className="absolute -left-[3px] -top-[3px] size-[7px] rounded-full bg-[var(--color-action)]" />
                   </div>
 
-                  {lane.blocks.map((block) => (
-                    <Link
-                      key={`${lane.number}-${block.bookingId}`}
-                      href={`/staff/bookings/${block.bookingId}`}
-                      className={`absolute bottom-0.5 top-0.5 z-[1] flex items-center overflow-hidden rounded-[3px] border border-solid px-1 text-[9px] font-semibold ${BLOCK_CLASS[block.state]}`}
-                      style={{
-                        left: `${block.leftPercent}%`,
-                        width: `${Math.max(block.widthPercent, 4)}%`,
-                      }}
-                    >
-                      {block.label}
-                    </Link>
-                  ))}
+                  {lane.blocks.map((block) => {
+                    const blockClass = `absolute bottom-0.5 top-0.5 z-[1] flex items-center overflow-hidden rounded-[3px] border border-solid px-1 text-[9px] font-semibold ${BLOCK_CLASS[block.state]}`
+                    const blockStyle = {
+                      left: `${block.leftPercent}%`,
+                      width: `${Math.max(block.widthPercent, 4)}%`,
+                    }
+                    return onOpenBooking ? (
+                      <button
+                        key={`${lane.number}-${block.bookingId}`}
+                        type="button"
+                        className={blockClass}
+                        style={blockStyle}
+                        onClick={() => onOpenBooking(block.bookingId)}
+                      >
+                        {block.label}
+                      </button>
+                    ) : (
+                      <Link
+                        key={`${lane.number}-${block.bookingId}`}
+                        href={`/staff/bookings/${block.bookingId}`}
+                        className={blockClass}
+                        style={blockStyle}
+                      >
+                        {block.label}
+                      </Link>
+                    )
+                  })}
                 </div>
               )}
             </div>

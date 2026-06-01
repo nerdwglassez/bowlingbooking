@@ -172,7 +172,7 @@ export function getSettingsGroups(
       label: 'Booking',
       items: [
         {
-          href: '/admin/packages',
+          href: '/staff/settings/packages',
           label: 'Packages',
           sub: packageSub,
           icon: Package,
@@ -205,7 +205,7 @@ export function getSettingsGroups(
       label: 'Team',
       items: [
         {
-          href: '/admin/team',
+          href: '/staff/settings/team',
           label: 'Team',
           sub: teamSub,
           icon: Users,

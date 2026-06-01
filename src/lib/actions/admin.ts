@@ -46,6 +46,24 @@ export interface AdminTenantDetail {
   minBookingDurationHours: number
   maxBookingDurationHours: number
   totalLanes: number
+  bowlersPerLane: number
+  rescheduleWindowHours: number
+  checkInWindowMinutes: number
+  minBookingNoticeMinutes: number
+  maxAdvanceBookingDays: number
+  lateGraceMinutes: number
+  allowWalkInBookings: boolean
+  requireAccountToModify: boolean
+}
+
+export interface AdminPricingPeriodRow {
+  id: string
+  name: string
+  ratePerPersonPerHour: number
+  daysOfWeek: number[]
+  startTime: string | null
+  endTime: string | null
+  priority: number
 }
 
 export interface AdminOperatingHour {
@@ -68,6 +86,9 @@ export interface AdminPackageRow {
   partyTypes: Array<'OPEN' | 'BIRTHDAY' | 'CORPORATE' | 'COSMIC'>
   active: boolean
   sortOrder: number
+  accessType: string
+  codeString: string | null
+  pricingType: string | null
 }
 
 export interface AdminUserRow {
@@ -82,10 +103,24 @@ export interface AdminUserRow {
 
 // ── Venue / tenant ────────────────────────────────────────
 
+/** Read-only tenant settings fields — all staff roles (hours view, etc.). */
+export async function getTenantSettingsDetail(
+  tenantId: string,
+): Promise<AdminTenantDetail | null> {
+  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  return loadTenantDetail(tenantId)
+}
+
 export async function getTenantForAdmin(
   tenantId: string,
 ): Promise<AdminTenantDetail | null> {
   await requireRole('MANAGER', 'ADMIN')
+  return loadTenantDetail(tenantId)
+}
+
+async function loadTenantDetail(
+  tenantId: string,
+): Promise<AdminTenantDetail | null> {
   if (isDevWithoutDb()) {
     return {
       id: tenantId,
@@ -106,6 +141,14 @@ export async function getTenantForAdmin(
       minBookingDurationHours: 1.5,
       maxBookingDurationHours: 4,
       totalLanes: 12,
+      bowlersPerLane: 6,
+      rescheduleWindowHours: 24,
+      checkInWindowMinutes: 60,
+      minBookingNoticeMinutes: 0,
+      maxAdvanceBookingDays: 90,
+      lateGraceMinutes: 5,
+      allowWalkInBookings: true,
+      requireAccountToModify: false,
     }
   }
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } })
@@ -131,6 +174,14 @@ export async function getTenantForAdmin(
     minBookingDurationHours: extra.minBookingDurationHours,
     maxBookingDurationHours: extra.maxBookingDurationHours,
     totalLanes: Math.max(totalLanes, 1),
+    bowlersPerLane: tenant.bowlersPerLane,
+    rescheduleWindowHours: tenant.rescheduleWindowHours,
+    checkInWindowMinutes: tenant.checkInWindowMinutes,
+    minBookingNoticeMinutes: extra.minBookingNoticeMinutes,
+    maxAdvanceBookingDays: extra.maxAdvanceBookingDays,
+    lateGraceMinutes: extra.lateGraceMinutes,
+    allowWalkInBookings: extra.allowWalkInBookings,
+    requireAccountToModify: extra.requireAccountToModify,
   }
 }
 
@@ -149,6 +200,11 @@ function readTenantConfigFields(config: unknown): {
   pricingStrategy: string
   minBookingDurationHours: number
   maxBookingDurationHours: number
+  minBookingNoticeMinutes: number
+  maxAdvanceBookingDays: number
+  lateGraceMinutes: number
+  allowWalkInBookings: boolean
+  requireAccountToModify: boolean
 } {
   const obj = readConfigObject(config)
   return {
@@ -178,6 +234,28 @@ function readTenantConfigFields(config: unknown): {
       obj.maxBookingDurationHours >= 1
         ? obj.maxBookingDurationHours
         : 4,
+    minBookingNoticeMinutes:
+      typeof obj.minBookingNoticeMinutes === 'number' &&
+      obj.minBookingNoticeMinutes >= 0
+        ? obj.minBookingNoticeMinutes
+        : 0,
+    maxAdvanceBookingDays:
+      typeof obj.maxAdvanceBookingDays === 'number' &&
+      obj.maxAdvanceBookingDays >= 1
+        ? obj.maxAdvanceBookingDays
+        : 90,
+    lateGraceMinutes:
+      typeof obj.lateGraceMinutes === 'number' && obj.lateGraceMinutes >= 0
+        ? obj.lateGraceMinutes
+        : 5,
+    allowWalkInBookings:
+      typeof obj.allowWalkInBookings === 'boolean'
+        ? obj.allowWalkInBookings
+        : true,
+    requireAccountToModify:
+      typeof obj.requireAccountToModify === 'boolean'
+        ? obj.requireAccountToModify
+        : false,
   }
 }
 
@@ -227,6 +305,14 @@ export interface UpdateTenantInput {
   maxOnlineBowlers: number
   cancellationWindowHours: number
   cancellationRefundPercent: number
+  bowlersPerLane?: number
+  rescheduleWindowHours?: number
+  checkInWindowMinutes?: number
+  minBookingNoticeMinutes?: number
+  maxAdvanceBookingDays?: number
+  lateGraceMinutes?: number
+  allowWalkInBookings?: boolean
+  requireAccountToModify?: boolean
   contactEmail?: string
   shoeRentalPriceCents?: number
   laneReservationCentsPerLane?: number
@@ -297,11 +383,7 @@ export async function updateTenantAction(
       !Array.isArray(existing.config)
         ? (existing.config as Record<string, unknown>)
         : {}
-    const nextConfig: Record<string, unknown> = {
-      ...existingConfig,
-      cancellationWindowHours: input.cancellationWindowHours,
-      cancellationRefundPercent: input.cancellationRefundPercent,
-    }
+    const nextConfig: Record<string, unknown> = { ...existingConfig }
     if (input.contactEmail !== undefined) {
       nextConfig.contactEmail = input.contactEmail.trim()
     }
@@ -320,6 +402,21 @@ export async function updateTenantAction(
     if (input.maxBookingDurationHours !== undefined) {
       nextConfig.maxBookingDurationHours = input.maxBookingDurationHours
     }
+    if (input.minBookingNoticeMinutes !== undefined) {
+      nextConfig.minBookingNoticeMinutes = input.minBookingNoticeMinutes
+    }
+    if (input.maxAdvanceBookingDays !== undefined) {
+      nextConfig.maxAdvanceBookingDays = input.maxAdvanceBookingDays
+    }
+    if (input.lateGraceMinutes !== undefined) {
+      nextConfig.lateGraceMinutes = input.lateGraceMinutes
+    }
+    if (input.allowWalkInBookings !== undefined) {
+      nextConfig.allowWalkInBookings = input.allowWalkInBookings
+    }
+    if (input.requireAccountToModify !== undefined) {
+      nextConfig.requireAccountToModify = input.requireAccountToModify
+    }
 
     await tx.tenant.update({
       where: { id: input.tenantId },
@@ -333,6 +430,9 @@ export async function updateTenantAction(
         maxOnlineBowlers: input.maxOnlineBowlers,
         cancellationWindowHours: input.cancellationWindowHours,
         cancellationRefundPercent: input.cancellationRefundPercent,
+        bowlersPerLane: input.bowlersPerLane ?? undefined,
+        rescheduleWindowHours: input.rescheduleWindowHours ?? undefined,
+        checkInWindowMinutes: input.checkInWindowMinutes ?? undefined,
         config: nextConfig as Prisma.InputJsonValue,
       },
     })
@@ -448,12 +548,264 @@ export async function updateOperatingHoursAction(
   return { mocked: false }
 }
 
+export async function syncTenantLanesAction(
+  tenantId: string,
+  targetCount: number,
+): Promise<{ mocked: boolean }> {
+  const user = await requireRole('MANAGER', 'ADMIN')
+  if (!Number.isInteger(targetCount) || targetCount < 1 || targetCount > 48) {
+    throw new Error('syncTenantLanesAction: targetCount must be 1..48')
+  }
+
+  if (isDevWithoutDb()) {
+    console.log(`[admin] mock lane sync by ${user.email}`, { tenantId, targetCount })
+    return { mocked: true }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.lane.findMany({
+      where: { tenantId },
+      orderBy: { number: 'asc' },
+    })
+    const current = existing.length
+
+    if (targetCount > current) {
+      const maxNum = existing.reduce((m, l) => Math.max(m, l.number), 0)
+      const toCreate = Array.from({ length: targetCount - current }, (_, i) => ({
+        tenantId,
+        number: maxNum + i + 1,
+        active: true,
+      }))
+      await tx.lane.createMany({ data: toCreate })
+    } else if (targetCount < current) {
+      const removable = existing
+        .slice()
+        .sort((a, b) => b.number - a.number)
+        .slice(0, current - targetCount)
+      await tx.lane.deleteMany({
+        where: { id: { in: removable.map((l) => l.id) } },
+      })
+    }
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'TENANT_UPDATED',
+        entityType: 'Tenant',
+        entityId: tenantId,
+        details: { laneCount: targetCount },
+      },
+    })
+  })
+
+  revalidatePath('/staff/settings/hours')
+  revalidatePath('/staff')
+  revalidatePath('/staff/schedule')
+  return { mocked: false }
+}
+
+// ── Pricing periods ───────────────────────────────────────
+
+export async function listPricingPeriodsForAdmin(
+  tenantId: string,
+): Promise<AdminPricingPeriodRow[]> {
+  await requireRole('MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) {
+    return [
+      {
+        id: 'mock-pp-1',
+        name: 'Default',
+        ratePerPersonPerHour: 850,
+        daysOfWeek: [],
+        startTime: null,
+        endTime: null,
+        priority: 0,
+      },
+      {
+        id: 'mock-pp-2',
+        name: 'Peak evenings',
+        ratePerPersonPerHour: 1200,
+        daysOfWeek: [5, 6],
+        startTime: '17:00',
+        endTime: '23:00',
+        priority: 1,
+      },
+    ]
+  }
+  const rows = await prisma.pricingPeriod.findMany({
+    where: { tenantId },
+    orderBy: [{ priority: 'desc' }, { name: 'asc' }],
+  })
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    ratePerPersonPerHour: r.ratePerPersonPerHour,
+    daysOfWeek: r.daysOfWeek,
+    startTime: r.startTime,
+    endTime: r.endTime,
+    priority: r.priority,
+  }))
+}
+
+export interface UpsertPricingPeriodInput {
+  tenantId: string
+  id?: string
+  name: string
+  ratePerPersonPerHour: number
+  daysOfWeek: number[]
+  startTime: string | null
+  endTime: string | null
+  priority: number
+}
+
+export async function upsertPricingPeriodAction(
+  input: UpsertPricingPeriodInput,
+): Promise<{ id: string; mocked: boolean }> {
+  const user = await requireRole('MANAGER', 'ADMIN')
+  if (!input.name.trim()) throw new Error('Period name is required')
+  if (input.ratePerPersonPerHour < 0) {
+    throw new Error('Rate must be non-negative')
+  }
+
+  if (isDevWithoutDb()) {
+    return { id: input.id ?? 'mock-period', mocked: true }
+  }
+
+  const id = await prisma.$transaction(async (tx) => {
+    let periodId: string
+    if (input.id) {
+      await tx.pricingPeriod.update({
+        where: { id: input.id },
+        data: {
+          name: input.name.trim(),
+          ratePerPersonPerHour: input.ratePerPersonPerHour,
+          daysOfWeek: input.daysOfWeek,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          priority: input.priority,
+        },
+      })
+      periodId = input.id
+    } else {
+      const created = await tx.pricingPeriod.create({
+        data: {
+          tenantId: input.tenantId,
+          name: input.name.trim(),
+          ratePerPersonPerHour: input.ratePerPersonPerHour,
+          daysOfWeek: input.daysOfWeek,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          priority: input.priority,
+          specificDates: [],
+        },
+      })
+      periodId = created.id
+    }
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'TENANT_UPDATED',
+        entityType: 'Tenant',
+        entityId: input.tenantId,
+        details: { pricingPeriodId: periodId, name: input.name },
+      },
+    })
+    return periodId
+  })
+
+  revalidatePath('/staff/settings/pricing')
+  return { id, mocked: false }
+}
+
+export async function deletePricingPeriodAction(
+  tenantId: string,
+  periodId: string,
+): Promise<{ mocked: boolean }> {
+  const user = await requireRole('MANAGER', 'ADMIN')
+
+  if (isDevWithoutDb()) {
+    return { mocked: true }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.pricingPeriod.delete({ where: { id: periodId } })
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'TENANT_UPDATED',
+        entityType: 'Tenant',
+        entityId: tenantId,
+        details: { deletedPricingPeriodId: periodId },
+      },
+    })
+  })
+
+  revalidatePath('/staff/settings/pricing')
+  return { mocked: false }
+}
+
+// ── Profile ───────────────────────────────────────────────
+
+export async function updateProfileAction(input: {
+  name: string
+  email: string
+  currentPassword: string
+  newPassword?: string
+}): Promise<{ mocked: boolean }> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const { verifyCredentials, hashPassword } = await import('@/lib/auth')
+
+  const valid = await verifyCredentials(user.email ?? '', input.currentPassword)
+  if (!valid) {
+    throw new Error('Current password is incorrect')
+  }
+
+  if (input.newPassword && input.newPassword.length < 8) {
+    throw new Error('New password must be at least 8 characters')
+  }
+
+  if (isDevWithoutDb()) {
+    console.log(`[admin] mock profile update by ${user.email}`)
+    return { mocked: true }
+  }
+
+  const data: Prisma.UserUpdateInput = {
+    name: input.name.trim() || null,
+    email: input.email.trim().toLowerCase(),
+  }
+  if (input.newPassword?.trim()) {
+    data.passwordHash = await hashPassword(input.newPassword.trim())
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data,
+  })
+
+  revalidatePath('/staff/settings/profile')
+  return { mocked: false }
+}
+
 // ── Packages ──────────────────────────────────────────────
+
+/** All packages for settings UI — STAFF read-only, MANAGER+ edit. */
+export async function listPackagesForSettings(
+  tenantId: string,
+): Promise<AdminPackageRow[]> {
+  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  return loadPackagesForTenant(tenantId)
+}
 
 export async function listPackagesForAdmin(
   tenantId: string,
 ): Promise<AdminPackageRow[]> {
   await requireRole('MANAGER', 'ADMIN')
+  return loadPackagesForTenant(tenantId)
+}
+
+async function loadPackagesForTenant(
+  tenantId: string,
+): Promise<AdminPackageRow[]> {
   if (isDevWithoutDb()) {
     return mockPackages()
   }
@@ -473,6 +825,9 @@ export async function listPackagesForAdmin(
     partyTypes: p.partyTypes,
     active: p.active,
     sortOrder: p.sortOrder,
+    accessType: p.accessType,
+    codeString: p.codeString,
+    pricingType: p.pricingType,
   }))
 }
 
@@ -497,6 +852,9 @@ export async function getPackageForAdmin(
     partyTypes: pkg.partyTypes,
     active: pkg.active,
     sortOrder: pkg.sortOrder,
+    accessType: pkg.accessType,
+    codeString: pkg.codeString,
+    pricingType: pkg.pricingType,
   }
 }
 
@@ -511,6 +869,9 @@ export interface PackageInput {
   partyTypes: Array<'OPEN' | 'BIRTHDAY' | 'CORPORATE' | 'COSMIC'>
   active: boolean
   sortOrder: number
+  accessType?: 'PUBLIC' | 'CODE_REQUIRED'
+  codeString?: string | null
+  pricingType?: string | null
 }
 
 function validatePackageInput(input: PackageInput): void {
@@ -532,6 +893,10 @@ function validatePackageInput(input: PackageInput): void {
     throw new Error(
       'package: shoeCostPer must be set when shoes are not included',
     )
+  }
+  const accessType = input.accessType ?? 'PUBLIC'
+  if (accessType === 'CODE_REQUIRED' && !input.codeString?.trim()) {
+    throw new Error('package: promo code is required for code-gated packages')
   }
 }
 
@@ -561,6 +926,12 @@ export async function createPackageAction(
         partyTypes: input.partyTypes,
         active: input.active,
         sortOrder: input.sortOrder,
+        accessType: input.accessType ?? 'PUBLIC',
+        codeString:
+          input.accessType === 'CODE_REQUIRED'
+            ? input.codeString?.trim().toUpperCase() ?? null
+            : null,
+        pricingType: input.pricingType ?? null,
       },
     })
     await tx.auditLog.create({
@@ -581,6 +952,7 @@ export async function createPackageAction(
   })
 
   revalidatePath('/admin/packages')
+  revalidatePath('/staff/settings/packages')
   return { packageId: pkg.id, mocked: false }
 }
 
@@ -613,6 +985,12 @@ export async function updatePackageAction(
         partyTypes: input.partyTypes,
         active: input.active,
         sortOrder: input.sortOrder,
+        accessType: input.accessType ?? 'PUBLIC',
+        codeString:
+          input.accessType === 'CODE_REQUIRED'
+            ? input.codeString?.trim().toUpperCase() ?? null
+            : null,
+        pricingType: input.pricingType ?? null,
       },
     })
     await tx.auditLog.create({
@@ -632,7 +1010,9 @@ export async function updatePackageAction(
   })
 
   revalidatePath('/admin/packages')
+  revalidatePath('/staff/settings/packages')
   revalidatePath(`/admin/packages/${packageId}`)
+  revalidatePath(`/staff/settings/packages/${packageId}`)
   return { mocked: false }
 }
 
@@ -662,6 +1042,7 @@ export async function archivePackageAction(
   })
 
   revalidatePath('/admin/packages')
+  revalidatePath('/staff/settings/packages')
   return { mocked: false }
 }
 
@@ -1074,6 +1455,7 @@ export async function createTeamUserAction(
   })
 
   revalidatePath('/admin/team')
+  revalidatePath('/staff/settings/team')
   return { userId: created.id, mocked: false }
 }
 
@@ -1120,6 +1502,7 @@ export async function updateTeamUserAction(
   })
 
   revalidatePath('/admin/team')
+  revalidatePath('/staff/settings/team')
   revalidatePath(`/admin/team/${input.userId}`)
   return { mocked: false }
 }
@@ -1846,6 +2229,9 @@ function mockPackages(): AdminPackageRow[] {
       partyTypes: ['OPEN'],
       active: true,
       sortOrder: 1,
+      accessType: 'PUBLIC',
+      codeString: null,
+      pricingType: null,
     },
     {
       id: 'pkg-pay-per-game',
@@ -1859,6 +2245,9 @@ function mockPackages(): AdminPackageRow[] {
       partyTypes: ['OPEN'],
       active: true,
       sortOrder: 2,
+      accessType: 'PUBLIC',
+      codeString: null,
+      pricingType: null,
     },
     {
       id: 'pkg-birthday',
@@ -1872,6 +2261,9 @@ function mockPackages(): AdminPackageRow[] {
       partyTypes: ['BIRTHDAY'],
       active: true,
       sortOrder: 3,
+      accessType: 'CODE_REQUIRED',
+      codeString: 'BDAY25',
+      pricingType: null,
     },
   ]
 }
