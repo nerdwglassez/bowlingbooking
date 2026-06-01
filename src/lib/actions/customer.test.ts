@@ -285,7 +285,11 @@ describe('cancelBookingAction', () => {
       paymentIntentId: 'pi_abc',
       amountCents: 4500,
       reason: 'requested_by_customer',
-      metadata: { source: 'customer_self_service' },
+      idempotencyKey: 'customer-cancel:bk_1:4500',
+      metadata: {
+        bookingId: 'bk_1',
+        source: 'customer_self_service',
+      },
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -295,6 +299,31 @@ describe('cancelBookingAction', () => {
     expect(mocks.sendCancellationMock).toHaveBeenCalled()
     expect(result.refundAmountCents).toBe(4500)
     expect(result.refundPending).toBe(true)
+  })
+
+  it('does not cancel locally when Stripe rejects the refund', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      status: 'succeeded',
+    })
+    mocks.createRefundMock.mockRejectedValue(new Error('stripe unavailable'))
+
+    await expect(
+      cancelBookingAction({
+        email: 'jane@example.com',
+        confirmationCode: 'ABC123',
+      }),
+    ).rejects.toThrow(/stripe unavailable/i)
+
+    expect(mocks.txMock).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
+    expect(mocks.sendCancellationMock).not.toHaveBeenCalled()
   })
 
   it('skips Stripe refund + payment update when refund amount is 0', async () => {
