@@ -22,11 +22,16 @@ import {
   toCockpitBookings,
 } from '@/lib/cockpit-display'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
-import { getLaneCount } from '@/lib/lane-logic'
-import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
+import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
+import {
+  isSerializableConflict,
+  isUniqueConstraintOnField,
+} from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 const WALK_IN_CODE_MAX_RETRIES = 5
+const RESERVING_BOOKING_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] as const
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -519,6 +524,41 @@ export async function createWalkInBooking(
         })
         const policySnapshot = policySnapshotFromTenantRow(tenantRow)
         const bowlersPerLane = tenantRow.bowlersPerLane
+        const laneCount = getLaneCount(input.bowlerCount, bowlersPerLane)
+
+        const now = new Date()
+        const [totalLanes, confirmedBookings, activeHolds] = await Promise.all([
+          tx.lane.count({
+            where: { tenantId: input.tenantId, active: true },
+          }),
+          tx.booking.findMany({
+            where: {
+              tenantId: input.tenantId,
+              status: { in: [...RESERVING_BOOKING_STATUSES] },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          }),
+          tx.bookingHold.findMany({
+            where: {
+              tenantId: input.tenantId,
+              expiresAt: { gt: now },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          }),
+        ])
+
+        const reservedLanes = sumOverlappingLaneCount(
+          [...confirmedBookings, ...activeHolds],
+          input.startTime,
+          input.endTime,
+        )
+        if (totalLanes - reservedLanes < laneCount) {
+          throw new Error('Selected time slot is no longer available.')
+        }
 
         const created = await tx.booking.create({
           data: {
@@ -527,7 +567,7 @@ export async function createWalkInBooking(
             confirmationCode,
             partyType: input.partyType,
             bowlerCount: input.bowlerCount,
-            laneCount: getLaneCount(input.bowlerCount, bowlersPerLane),
+            laneCount,
             startTime: input.startTime,
             endTime: input.endTime,
             packageId: resolvedPackageId!,
@@ -591,12 +631,15 @@ export async function createWalkInBooking(
         })
 
         return created
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       })
       break
     } catch (err) {
       const retryable =
         attempt < WALK_IN_CODE_MAX_RETRIES - 1 &&
-        isUniqueConstraintOnField(err, ['confirmation_code'])
+        (isUniqueConstraintOnField(err, ['confirmation_code']) ||
+          isSerializableConflict(err))
       if (retryable) {
         continue
       }
