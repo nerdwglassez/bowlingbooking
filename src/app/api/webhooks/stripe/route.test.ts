@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
   const bookingHoldDeleteMany = vi.fn()
   const bookingHoldFindUnique = vi.fn()
   const bookingHoldFindMany = vi.fn()
+  const blockedSlotFindMany = vi.fn()
   const laneCount = vi.fn()
   const promoFindUnique = vi.fn()
   const promoUpdate = vi.fn()
@@ -35,6 +36,7 @@ const mocks = vi.hoisted(() => {
       findUnique: bookingHoldFindUnique,
       findMany: bookingHoldFindMany,
     },
+    blockedSlot: { findMany: blockedSlotFindMany },
     lane: { count: laneCount, findMany: laneFindMany },
     promoCode: { findUnique: promoFindUnique, update: promoUpdate },
     auditLog: { create: auditCreate },
@@ -56,6 +58,7 @@ const mocks = vi.hoisted(() => {
     bookingHoldDeleteMany,
     bookingHoldFindUnique,
     bookingHoldFindMany,
+    blockedSlotFindMany,
     laneCount,
     laneFindMany,
     bookingLaneCreate,
@@ -164,6 +167,7 @@ beforeEach(() => {
           findUnique: mocks.bookingHoldFindUnique,
           findMany: mocks.bookingHoldFindMany,
         },
+        blockedSlot: { findMany: mocks.blockedSlotFindMany },
         lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
         promoCode: {
           findUnique: mocks.promoFindUnique,
@@ -197,6 +201,7 @@ beforeEach(() => {
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
   mocks.bookingHoldFindUnique.mockResolvedValue(null)
+  mocks.blockedSlotFindMany.mockResolvedValue([])
   mocks.stripeEventDeleteMany.mockResolvedValue({ count: 1 })
   mocks.promoFindUnique.mockResolvedValue(null)
   mocks.bookingCreate.mockResolvedValue({
@@ -268,6 +273,28 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'jane@example.com' }),
     )
+  })
+
+  it('does not assign lanes blocked by staff during payment finalization', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.blockedSlotFindMany.mockResolvedValue([
+      {
+        startTime: new Date('2025-06-01T18:00:00Z'),
+        endTime: new Date('2025-06-01T19:00:00Z'),
+        lanes: [1],
+      },
+    ])
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingLaneCreate).toHaveBeenCalledWith({
+      data: { bookingId: 'bk_1', laneId: 'lane_2' },
+    })
+    expect(mocks.bookingLaneCreate).not.toHaveBeenCalledWith({
+      data: { bookingId: 'bk_1', laneId: 'lane_1' },
+    })
   })
 
   it('links valid promo, increments uses, and writes BOOKING_PROMO_APPLIED audit', async () => {

@@ -59,6 +59,12 @@ export interface LaneReservationSlot {
   laneCount: number
 }
 
+export interface BlockedLaneSlot {
+  startTime: Date
+  endTime: Date
+  lanes: number[]
+}
+
 /** Sum laneCount for reservations overlapping [startTime, endTime). */
 export function sumOverlappingLaneCount(
   reservations: LaneReservationSlot[],
@@ -68,4 +74,28 @@ export function sumOverlappingLaneCount(
   return reservations
     .filter((r) => r.startTime < endTime && r.endTime > startTime)
     .reduce((acc, r) => acc + r.laneCount, 0)
+}
+
+/**
+ * Count distinct blocked lanes overlapping [startTime, endTime).
+ * An empty lanes array means the block covers every active lane.
+ */
+export function countBlockedLanes(
+  blocks: BlockedLaneSlot[],
+  totalLanes: number,
+  startTime: Date,
+  endTime: Date,
+): number {
+  if (totalLanes <= 0) return 0
+
+  const blocked = new Set<number>()
+  for (const block of blocks) {
+    if (block.startTime >= endTime || block.endTime <= startTime) continue
+    if (block.lanes.length === 0) return totalLanes
+    for (const lane of block.lanes) {
+      if (lane >= 1 && lane <= totalLanes) blocked.add(lane)
+    }
+  }
+
+  return Math.min(totalLanes, blocked.size)
 }

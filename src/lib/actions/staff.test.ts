@@ -6,13 +6,26 @@ const mocks = vi.hoisted(() => {
   const auditCreate = vi.fn()
   const blockCreate = vi.fn()
   const blockDeleteMany = vi.fn()
+  const bookingHoldDeleteMany = vi.fn()
+  const bookingHoldFindMany = vi.fn()
+  const bookingLaneCreate = vi.fn()
   const tenantFindUniqueOrThrow = vi.fn()
   const packageFindFirst = vi.fn()
   const txStub = {
-    booking: { create: bookingCreate },
+    booking: { create: bookingCreate, findMany: vi.fn() },
     payment: { create: paymentCreate },
     auditLog: { create: auditCreate },
-    blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany },
+    blockedSlot: {
+      create: blockCreate,
+      deleteMany: blockDeleteMany,
+      findMany: vi.fn(),
+    },
+    bookingHold: {
+      deleteMany: bookingHoldDeleteMany,
+      findMany: bookingHoldFindMany,
+    },
+    lane: { count: vi.fn(), findMany: vi.fn() },
+    bookingLane: { create: bookingLaneCreate },
     tenant: { findUniqueOrThrow: tenantFindUniqueOrThrow },
   }
   return {
@@ -29,6 +42,9 @@ const mocks = vi.hoisted(() => {
     auditCreate,
     blockCreate,
     blockDeleteMany,
+    bookingHoldDeleteMany,
+    bookingHoldFindMany,
+    bookingLaneCreate,
     tenantFindUniqueOrThrow,
     packageFindFirst,
     txMock: vi.fn(
@@ -89,13 +105,20 @@ beforeEach(() => {
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
-        booking: { create: mocks.bookingCreate },
+        booking: { create: mocks.bookingCreate, findMany: mocks.bookingFindMany },
         payment: { create: mocks.paymentCreate },
         auditLog: { create: mocks.auditCreate },
         blockedSlot: {
           create: mocks.blockCreate,
           deleteMany: mocks.blockDeleteMany,
+          findMany: mocks.blockFindMany,
         },
+        bookingHold: {
+          deleteMany: mocks.bookingHoldDeleteMany,
+          findMany: mocks.bookingHoldFindMany,
+        },
+        lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
+        bookingLane: { create: mocks.bookingLaneCreate },
         tenant: { findUniqueOrThrow: mocks.tenantFindUniqueOrThrow },
       } as Parameters<typeof fn>[0]),
   )
@@ -108,6 +131,17 @@ beforeEach(() => {
     config: {},
   })
   mocks.packageFindFirst.mockResolvedValue({ id: 'pkg_1' })
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.blockFindMany.mockResolvedValue([])
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.laneFindMany.mockResolvedValue([
+    { id: 'lane_1', number: 1 },
+    { id: 'lane_2', number: 2 },
+    { id: 'lane_3', number: 3 },
+    { id: 'lane_4', number: 4 },
+  ])
+  mocks.bookingLaneCreate.mockResolvedValue({})
 })
 
 describe('staff actions: role gating', () => {
@@ -358,13 +392,45 @@ describe('createWalkInBooking', () => {
         paymentMethod: 'card_at_counter',
       }),
     })
+    expect(mocks.bookingLaneCreate).toHaveBeenCalledWith({
+      data: { bookingId: 'bk_1', laneId: 'lane_1' },
+    })
+    expect(mocks.bookingLaneCreate).toHaveBeenCalledWith({
+      data: { bookingId: 'bk_1', laneId: 'lane_2' },
+    })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         bookingId: 'bk_1',
         userId: 'user_staff',
         action: 'BOOKING_WALK_IN_CREATED',
+        details: expect.objectContaining({ laneNumbers: [1, 2] }),
       }),
     })
+  })
+
+  it('rejects a walk-in when active holds leave no lane capacity', async () => {
+    mocks.laneCount.mockResolvedValue(1)
+    const start = new Date('2026-06-01T18:00:00Z')
+    const end = new Date('2026-06-01T19:00:00Z')
+    mocks.bookingHoldFindMany.mockResolvedValue([
+      { startTime: start, endTime: end, laneCount: 1 },
+    ])
+
+    await expect(
+      createWalkInBooking({
+        tenantId: 't1',
+        packageId: 'pkg',
+        partyType: 'OPEN',
+        bowlerCount: 1,
+        startTime: start,
+        endTime: end,
+        totalAmount: 4500,
+        customerName: 'walk in',
+        customerEmail: '',
+        paymentMethod: 'cash',
+      }),
+    ).rejects.toThrow(/no longer available/i)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
   })
 
   it('skips Payment row creation when totalAmount is 0', async () => {
@@ -425,6 +491,26 @@ describe('blockLanes', () => {
         entityId: 'block_1',
       }),
     })
+  })
+
+  it('rejects a block that would consume lanes held by reservations', async () => {
+    mocks.laneCount.mockResolvedValue(1)
+    const start = new Date('2026-06-01T14:00:00Z')
+    const end = new Date('2026-06-01T16:00:00Z')
+    mocks.bookingFindMany.mockResolvedValue([
+      { startTime: start, endTime: end, laneCount: 1 },
+    ])
+
+    await expect(
+      blockLanes({
+        tenantId: 't1',
+        startTime: start,
+        endTime: end,
+        lanes: [1],
+        reason: 'Maintenance',
+      }),
+    ).rejects.toThrow(/conflicts/i)
+    expect(mocks.blockCreate).not.toHaveBeenCalled()
   })
 })
 

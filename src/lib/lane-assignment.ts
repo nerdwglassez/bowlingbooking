@@ -18,6 +18,7 @@ export async function assignBookingLanes(
     laneCount: number
     startTime: Date
     endTime: Date
+    preferredLaneNumbers?: number[]
   },
 ): Promise<number[]> {
   const lanes = await tx.lane.findMany({
@@ -37,6 +38,14 @@ export async function assignBookingLanes(
       lanes: { include: { lane: { select: { number: true } } } },
     },
   })
+  const overlappingBlocks = await tx.blockedSlot.findMany({
+    where: {
+      tenantId: input.tenantId,
+      startTime: { lt: input.endTime },
+      endTime: { gt: input.startTime },
+    },
+    select: { lanes: true },
+  })
 
   const occupied = new Set<number>()
   for (const booking of overlapping) {
@@ -46,11 +55,35 @@ export async function assignBookingLanes(
       }
     }
   }
+  for (const block of overlappingBlocks) {
+    if (block.lanes.length === 0) {
+      for (const lane of lanes) occupied.add(lane.number)
+      break
+    }
+    for (const number of block.lanes) occupied.add(number)
+  }
 
-  const pickedNumbers: number[] = []
-  for (const lane of lanes) {
-    if (pickedNumbers.length >= input.laneCount) break
-    if (!occupied.has(lane.number)) pickedNumbers.push(lane.number)
+  const activeLaneNumbers = new Set(lanes.map((lane) => lane.number))
+  let pickedNumbers: number[]
+
+  if (input.preferredLaneNumbers && input.preferredLaneNumbers.length > 0) {
+    pickedNumbers = [...new Set(input.preferredLaneNumbers)].sort(
+      (a, b) => a - b,
+    )
+    if (
+      pickedNumbers.length !== input.laneCount ||
+      pickedNumbers.some(
+        (number) => !activeLaneNumbers.has(number) || occupied.has(number),
+      )
+    ) {
+      throw new Error('Selected lanes are no longer available.')
+    }
+  } else {
+    pickedNumbers = []
+    for (const lane of lanes) {
+      if (pickedNumbers.length >= input.laneCount) break
+      if (!occupied.has(lane.number)) pickedNumbers.push(lane.number)
+    }
   }
 
   if (pickedNumbers.length < input.laneCount) {

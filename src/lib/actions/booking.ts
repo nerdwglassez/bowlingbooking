@@ -26,7 +26,11 @@
 import { validatePromoCode } from '@/lib/actions/promo'
 import { serializeShoeSelections } from '@/lib/booking-metadata'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
-import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
+import {
+  countBlockedLanes,
+  getLaneCount,
+  sumOverlappingLaneCount,
+} from '@/lib/lane-logic'
 import { calculateBookingTotal } from '@/lib/pricing'
 import { prisma } from '@/lib/prisma'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
@@ -188,7 +192,7 @@ export async function getAvailableTimeSlots(
   const dayEnd = slots[slots.length - 1]?.endTime
   if (dayStart == null || dayEnd == null) return slots
 
-  const [confirmed, held] = await Promise.all([
+  const [confirmed, held, blocks] = await Promise.all([
     prisma.booking.findMany({
       where: {
         tenantId,
@@ -207,13 +211,23 @@ export async function getAvailableTimeSlots(
       },
       select: { startTime: true, endTime: true, laneCount: true },
     }),
+    prisma.blockedSlot.findMany({
+      where: {
+        tenantId,
+        startTime: { lt: dayEnd },
+        endTime: { gt: dayStart },
+      },
+      select: { startTime: true, endTime: true, lanes: true },
+    }),
   ])
 
   return slots.map((slot) => {
     const overlapping = [...confirmed, ...held].filter(
       (b) => b.startTime < slot.endTime && b.endTime > slot.startTime,
     )
-    const reserved = overlapping.reduce((acc, b) => acc + b.laneCount, 0)
+    const reserved =
+      overlapping.reduce((acc, b) => acc + b.laneCount, 0) +
+      countBlockedLanes(blocks, totalLanes, slot.startTime, slot.endTime)
     return enrichTimeSlotAvailability(slot, laneCount, totalLanes, reserved)
   })
 }
@@ -319,12 +333,22 @@ export async function acquireBookingHold(
           },
           select: { startTime: true, endTime: true, laneCount: true },
         })
+        const blocks = await tx.blockedSlot.findMany({
+          where: {
+            tenantId: input.tenantId,
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { startTime: true, endTime: true, lanes: true },
+        })
 
-        const reservedLanes = sumOverlappingLaneCount(
-          [...confirmedBookings, ...activeHolds],
-          input.startTime,
-          input.endTime,
-        )
+        const reservedLanes =
+          sumOverlappingLaneCount(
+            [...confirmedBookings, ...activeHolds],
+            input.startTime,
+            input.endTime,
+          ) +
+          countBlockedLanes(blocks, totalLanes, input.startTime, input.endTime)
         if (totalLanes - reservedLanes < laneCount) {
           throw new Error('Selected time slot is no longer available.')
         }

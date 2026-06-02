@@ -22,9 +22,18 @@ import {
   toCockpitBookings,
 } from '@/lib/cockpit-display'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
-import { getLaneCount } from '@/lib/lane-logic'
-import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
+import { assignBookingLanes } from '@/lib/lane-assignment'
+import {
+  countBlockedLanes,
+  getLaneCount,
+  sumOverlappingLaneCount,
+} from '@/lib/lane-logic'
+import {
+  isSerializableConflict,
+  isUniqueConstraintOnField,
+} from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 const WALK_IN_CODE_MAX_RETRIES = 5
 
@@ -513,90 +522,143 @@ export async function createWalkInBooking(
   for (let attempt = 0; attempt < WALK_IN_CODE_MAX_RETRIES; attempt++) {
     const confirmationCode = generateConfirmationCode()
     try {
-      booking = await prisma.$transaction(async (tx) => {
-        const tenantRow = await tx.tenant.findUniqueOrThrow({
-          where: { id: input.tenantId },
-        })
-        const policySnapshot = policySnapshotFromTenantRow(tenantRow)
-        const bowlersPerLane = tenantRow.bowlersPerLane
+      booking = await prisma.$transaction(
+        async (tx) => {
+          const now = new Date()
+          const tenantRow = await tx.tenant.findUniqueOrThrow({
+            where: { id: input.tenantId },
+          })
+          const policySnapshot = policySnapshotFromTenantRow(tenantRow)
+          const bowlersPerLane = tenantRow.bowlersPerLane
+          const laneCount = getLaneCount(input.bowlerCount, bowlersPerLane)
 
-        const created = await tx.booking.create({
-          data: {
+          await tx.bookingHold.deleteMany({
+            where: { tenantId: input.tenantId, expiresAt: { lt: now } },
+          })
+
+          const [totalLanes, bookings, holds, blocks] = await Promise.all([
+            tx.lane.count({
+              where: { tenantId: input.tenantId, active: true },
+            }),
+            tx.booking.findMany({
+              where: {
+                tenantId: input.tenantId,
+                status: {
+                  in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT'],
+                },
+                startTime: { lt: input.endTime },
+                endTime: { gt: input.startTime },
+              },
+              select: { startTime: true, endTime: true, laneCount: true },
+            }),
+            tx.bookingHold.findMany({
+              where: {
+                tenantId: input.tenantId,
+                expiresAt: { gt: now },
+                startTime: { lt: input.endTime },
+                endTime: { gt: input.startTime },
+              },
+              select: { startTime: true, endTime: true, laneCount: true },
+            }),
+            tx.blockedSlot.findMany({
+              where: {
+                tenantId: input.tenantId,
+                startTime: { lt: input.endTime },
+                endTime: { gt: input.startTime },
+              },
+              select: { startTime: true, endTime: true, lanes: true },
+            }),
+          ])
+          const reservedLanes =
+            sumOverlappingLaneCount(
+              [...bookings, ...holds],
+              input.startTime,
+              input.endTime,
+            ) +
+            countBlockedLanes(
+              blocks,
+              totalLanes,
+              input.startTime,
+              input.endTime,
+            )
+          if (totalLanes - reservedLanes < laneCount) {
+            throw new Error('Selected time slot is no longer available.')
+          }
+
+          const created = await tx.booking.create({
+            data: {
+              tenantId: input.tenantId,
+              userId: user.id,
+              confirmationCode,
+              partyType: input.partyType,
+              bowlerCount: input.bowlerCount,
+              laneCount,
+              startTime: input.startTime,
+              endTime: input.endTime,
+              packageId: resolvedPackageId!,
+              status: 'CONFIRMED',
+              source: bookingSource,
+              customerName: input.customerName,
+              customerEmail: input.customerEmail,
+              customerPhone: input.customerPhone ?? null,
+              totalAmount: input.totalAmount,
+              notes: input.notes ?? null,
+              isRefunded: false,
+              cancellationWindowHoursSnapshot:
+                policySnapshot.cancellationWindowHours,
+              rescheduleWindowHoursSnapshot:
+                policySnapshot.rescheduleWindowHours,
+              bowlersPerLaneSnapshot: policySnapshot.bowlersPerLane,
+              cancellationRefundPercentSnapshot:
+                policySnapshot.cancellationRefundPercent,
+            },
+          })
+
+          const laneNumbers = await assignBookingLanes(tx, {
             tenantId: input.tenantId,
-            userId: user.id,
-            confirmationCode,
-            partyType: input.partyType,
-            bowlerCount: input.bowlerCount,
-            laneCount: getLaneCount(input.bowlerCount, bowlersPerLane),
+            bookingId: created.id,
+            laneCount,
             startTime: input.startTime,
             endTime: input.endTime,
-            packageId: resolvedPackageId!,
-            status: 'CONFIRMED',
-            source: bookingSource,
-            customerName: input.customerName,
-            customerEmail: input.customerEmail,
-            customerPhone: input.customerPhone ?? null,
-            totalAmount: input.totalAmount,
-            notes: input.notes ?? null,
-            isRefunded: false,
-            cancellationWindowHoursSnapshot:
-              policySnapshot.cancellationWindowHours,
-            rescheduleWindowHoursSnapshot:
-              policySnapshot.rescheduleWindowHours,
-            bowlersPerLaneSnapshot: policySnapshot.bowlersPerLane,
-            cancellationRefundPercentSnapshot:
-              policySnapshot.cancellationRefundPercent,
-          },
-        })
-
-        if (input.laneNumbers?.length) {
-          const laneRows = await tx.lane.findMany({
-            where: {
-              tenantId: input.tenantId,
-              number: { in: input.laneNumbers },
-            },
-            select: { id: true },
+            preferredLaneNumbers: input.laneNumbers,
           })
-          for (const lane of laneRows) {
-            await tx.bookingLane.create({
-              data: { bookingId: created.id, laneId: lane.id },
+
+          if (input.totalAmount > 0) {
+            await tx.payment.create({
+              data: {
+                bookingId: created.id,
+                amount: input.totalAmount,
+                status: 'succeeded',
+                paymentMethod: input.paymentMethod,
+              },
             })
           }
-        }
 
-        if (input.totalAmount > 0) {
-          await tx.payment.create({
+          await tx.auditLog.create({
             data: {
               bookingId: created.id,
-              amount: input.totalAmount,
-              status: 'succeeded',
-              paymentMethod: input.paymentMethod,
+              userId: user.id,
+              action: 'BOOKING_WALK_IN_CREATED',
+              entityType: 'Booking',
+              entityId: created.id,
+              details: {
+                paymentMethod: input.paymentMethod,
+                source: bookingSource,
+                laneNumbers,
+              },
             },
           })
-        }
 
-        await tx.auditLog.create({
-          data: {
-            bookingId: created.id,
-            userId: user.id,
-            action: 'BOOKING_WALK_IN_CREATED',
-            entityType: 'Booking',
-            entityId: created.id,
-            details: {
-              paymentMethod: input.paymentMethod,
-              source: bookingSource,
-              laneNumbers: input.laneNumbers ?? [],
-            },
-          },
-        })
-
-        return created
-      })
+          return created
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
       break
     } catch (err) {
       const retryable =
         attempt < WALK_IN_CODE_MAX_RETRIES - 1 &&
-        isUniqueConstraintOnField(err, ['confirmation_code'])
+        (isSerializableConflict(err) ||
+          isUniqueConstraintOnField(err, ['confirmation_code']))
       if (retryable) {
         continue
       }
@@ -645,27 +707,88 @@ export async function blockLanes(
     return { blockId: `block_mock_${Date.now()}`, mocked: true }
   }
 
-  const block = await prisma.$transaction(async (tx) => {
-    const created = await tx.blockedSlot.create({
-      data: {
-        tenantId: input.tenantId,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        lanes: input.lanes,
-        reason: input.reason ?? null,
-      },
-    })
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'LANE_BLOCK_CREATED',
-        entityType: 'BlockedSlot',
-        entityId: created.id,
-        details: { lanes: input.lanes, reason: input.reason ?? null },
-      },
-    })
-    return created
-  })
+  const block = await prisma.$transaction(
+    async (tx) => {
+      const now = new Date()
+      await tx.bookingHold.deleteMany({
+        where: { tenantId: input.tenantId, expiresAt: { lt: now } },
+      })
+      const [totalLanes, bookings, holds, blocks] = await Promise.all([
+        tx.lane.count({ where: { tenantId: input.tenantId, active: true } }),
+        tx.booking.findMany({
+          where: {
+            tenantId: input.tenantId,
+            status: {
+              in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT'],
+            },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { startTime: true, endTime: true, laneCount: true },
+        }),
+        tx.bookingHold.findMany({
+          where: {
+            tenantId: input.tenantId,
+            expiresAt: { gt: now },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { startTime: true, endTime: true, laneCount: true },
+        }),
+        tx.blockedSlot.findMany({
+          where: {
+            tenantId: input.tenantId,
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { startTime: true, endTime: true, lanes: true },
+        }),
+      ])
+      const reservedLanes =
+        sumOverlappingLaneCount(
+          [...bookings, ...holds],
+          input.startTime,
+          input.endTime,
+        ) +
+        countBlockedLanes(
+          [
+            ...blocks,
+            {
+              startTime: input.startTime,
+              endTime: input.endTime,
+              lanes: input.lanes,
+            },
+          ],
+          totalLanes,
+          input.startTime,
+          input.endTime,
+        )
+      if (reservedLanes > totalLanes) {
+        throw new Error('Lane block conflicts with existing reservations.')
+      }
+
+      const created = await tx.blockedSlot.create({
+        data: {
+          tenantId: input.tenantId,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          lanes: input.lanes,
+          reason: input.reason ?? null,
+        },
+      })
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'LANE_BLOCK_CREATED',
+          entityType: 'BlockedSlot',
+          entityId: created.id,
+          details: { lanes: input.lanes, reason: input.reason ?? null },
+        },
+      })
+      return created
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  )
 
   revalidatePath('/staff/schedule')
   return { blockId: block.id, mocked: false }
