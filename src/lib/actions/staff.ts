@@ -12,7 +12,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { requireRole } from '@/lib/auth'
+import { requireRole, type CurrentUser } from '@/lib/auth'
 import { generateConfirmationCode } from '@/lib/booking-codes'
 import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import {
@@ -27,6 +27,19 @@ import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 
 const WALK_IN_CODE_MAX_RETRIES = 5
+
+function requireTenantAccess(user: CurrentUser, tenantId: string): void {
+  if (!user.tenantId || user.tenantId !== tenantId) {
+    throw new Error('Tenant not found')
+  }
+}
+
+function requireStaffTenant(user: CurrentUser): string {
+  if (!user.tenantId) {
+    throw new Error('Tenant not found')
+  }
+  return user.tenantId
+}
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -121,7 +134,8 @@ export interface CockpitSnapshot {
 export async function getTodayBookings(
   tenantId: string,
 ): Promise<StaffBookingRow[]> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  requireTenantAccess(user, tenantId)
   const today = startOfDay(new Date())
   const tomorrow = new Date(today.getTime() + 86_400_000)
 
@@ -144,7 +158,8 @@ export async function getTodayBookings(
 export async function getCockpitSnapshot(
   tenantId: string,
 ): Promise<CockpitSnapshot> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  requireTenantAccess(user, tenantId)
   const now = new Date()
   const today = startOfDay(now)
   const tomorrow = new Date(today.getTime() + 86_400_000)
@@ -286,7 +301,8 @@ export async function getScheduleForMonth(
   year: number,
   month: number,
 ): Promise<ScheduleMonthSummary> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  requireTenantAccess(user, tenantId)
   const monthStart = startOfDay(new Date(year, month, 1))
   const monthEnd = startOfDay(new Date(year, month + 1, 1))
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -358,7 +374,8 @@ export async function getScheduleForDate(
   tenantId: string,
   dateISO: string,
 ): Promise<ScheduleDay> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  requireTenantAccess(user, tenantId)
   const dayStart = startOfDay(new Date(`${dateISO}T00:00:00`))
   const dayEnd = new Date(dayStart.getTime() + 86_400_000)
 
@@ -406,12 +423,13 @@ export async function getScheduleForDate(
 export async function getBookingDetail(
   bookingId: string,
 ): Promise<StaffBookingDetail | null> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) {
     return mockBookingDetail(bookingId)
   }
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
+  const tenantId = requireStaffTenant(user)
+  const booking = await prisma.booking.findFirst({
+    where: { id: bookingId, tenantId },
     include: {
       package: { select: { name: true } },
       payment: true,
@@ -475,6 +493,7 @@ export async function createWalkInBooking(
   input: CreateWalkInInput,
 ): Promise<CreateWalkInResult> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  requireTenantAccess(user, input.tenantId)
 
   if (input.totalAmount < 0) {
     throw new Error('createWalkInBooking: totalAmount must be non-negative')
@@ -497,18 +516,19 @@ export async function createWalkInBooking(
   let booking: Awaited<ReturnType<typeof prisma.booking.create>> | null = null
   const bookingSource = input.source ?? 'WALK_IN'
 
-  let resolvedPackageId = input.packageId ?? null
-  if (!resolvedPackageId) {
-    const fallback = await prisma.package.findFirst({
-      where: { tenantId: input.tenantId, active: true },
+  const packageRow = await prisma.package.findFirst({
+    where: {
+      tenantId: input.tenantId,
+      active: true,
+      ...(input.packageId ? { id: input.packageId } : {}),
+    },
       orderBy: { sortOrder: 'asc' },
       select: { id: true },
-    })
-    if (!fallback) {
-      throw new Error('createWalkInBooking: no packages configured for tenant')
-    }
-    resolvedPackageId = fallback.id
+  })
+  if (!packageRow) {
+    throw new Error('createWalkInBooking: package not found for tenant')
   }
+  const resolvedPackageId = packageRow.id
 
   for (let attempt = 0; attempt < WALK_IN_CODE_MAX_RETRIES; attempt++) {
     const confirmationCode = generateConfirmationCode()
@@ -638,6 +658,7 @@ export async function blockLanes(
   input: BlockLanesInput,
 ): Promise<BlockLanesResult> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  requireTenantAccess(user, input.tenantId)
   if (input.endTime <= input.startTime) {
     throw new Error('blockLanes: endTime must be after startTime')
   }
@@ -676,11 +697,20 @@ export async function blockLanes(
 export async function checkInBookingAction(bookingId: string): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
+  const tenantId = requireStaffTenant(user)
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
-      where: { id: bookingId },
+    const result = await tx.booking.updateMany({
+      where: {
+        id: bookingId,
+        tenantId,
+        status: 'CONFIRMED',
+        checkedInAt: null,
+      },
       data: { checkedInAt: new Date() },
     })
+    if (result.count !== 1) {
+      throw new Error('Booking not found or not eligible for check-in')
+    }
     await tx.auditLog.create({
       data: {
         bookingId,
@@ -700,11 +730,15 @@ export async function markBookingNoShowAction(
 ): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
+  const tenantId = requireStaffTenant(user)
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
-      where: { id: bookingId },
+    const result = await tx.booking.updateMany({
+      where: { id: bookingId, tenantId, status: 'CONFIRMED' },
       data: { status: 'NO_SHOW', cancellationReason: 'NO_SHOW' },
     })
+    if (result.count !== 1) {
+      throw new Error('Booking not found or not eligible for no-show')
+    }
     await tx.auditLog.create({
       data: {
         bookingId,
@@ -723,17 +757,21 @@ export async function staffUpdateBookingNotesAction(
   bookingId: string,
   notes: string,
 ): Promise<void> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
 
   if (isDevWithoutDb()) {
     console.log(`[staff] mock notes update for ${bookingId}`)
     return
   }
 
-  await prisma.booking.update({
-    where: { id: bookingId },
+  const tenantId = requireStaffTenant(user)
+  const result = await prisma.booking.updateMany({
+    where: { id: bookingId, tenantId },
     data: { notes: notes.trim() || null },
   })
+  if (result.count !== 1) {
+    throw new Error('Booking not found')
+  }
 
   revalidatePath('/staff')
   revalidatePath(`/staff/bookings/${bookingId}`)
@@ -744,11 +782,15 @@ export async function markBookingCompletedAction(
 ): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
+  const tenantId = requireStaffTenant(user)
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
-      where: { id: bookingId },
+    const result = await tx.booking.updateMany({
+      where: { id: bookingId, tenantId, status: 'CONFIRMED' },
       data: { status: 'COMPLETED' },
     })
+    if (result.count !== 1) {
+      throw new Error('Booking not found or not eligible for completion')
+    }
     await tx.auditLog.create({
       data: {
         bookingId,
@@ -766,7 +808,8 @@ export async function markBookingCompletedAction(
 export async function autoCompletePastBookingsAction(
   tenantId: string,
 ): Promise<number> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  requireTenantAccess(user, tenantId)
   if (isDevWithoutDb()) return 0
   const now = new Date()
   const result = await prisma.booking.updateMany({
@@ -785,9 +828,15 @@ export async function autoCompletePastBookingsAction(
 
 export async function unblockLanes(blockId: string): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
-  if (isDevWithoutDb() || !blockId.startsWith('block_')) return
+  if (isDevWithoutDb()) return
+  const tenantId = requireStaffTenant(user)
   await prisma.$transaction(async (tx) => {
-    await tx.blockedSlot.deleteMany({ where: { id: blockId } })
+    const result = await tx.blockedSlot.deleteMany({
+      where: { id: blockId, tenantId },
+    })
+    if (result.count !== 1) {
+      throw new Error('Block not found')
+    }
     await tx.auditLog.create({
       data: {
         userId: user.id,

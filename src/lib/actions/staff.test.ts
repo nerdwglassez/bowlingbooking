@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const bookingCreate = vi.fn()
+  const bookingUpdateMany = vi.fn()
   const paymentCreate = vi.fn()
   const auditCreate = vi.fn()
   const blockCreate = vi.fn()
@@ -9,7 +10,7 @@ const mocks = vi.hoisted(() => {
   const tenantFindUniqueOrThrow = vi.fn()
   const packageFindFirst = vi.fn()
   const txStub = {
-    booking: { create: bookingCreate },
+    booking: { create: bookingCreate, updateMany: bookingUpdateMany },
     payment: { create: paymentCreate },
     auditLog: { create: auditCreate },
     blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany },
@@ -21,6 +22,8 @@ const mocks = vi.hoisted(() => {
     revalidatePathMock: vi.fn(),
     bookingFindMany: vi.fn(),
     bookingFindUnique: vi.fn(),
+    bookingFindFirst: vi.fn(),
+    bookingUpdateMany,
     blockFindMany: vi.fn(),
     laneCount: vi.fn(),
     laneFindMany: vi.fn(),
@@ -55,6 +58,8 @@ vi.mock('@/lib/prisma', () => ({
     booking: {
       findMany: mocks.bookingFindMany,
       findUnique: mocks.bookingFindUnique,
+      findFirst: mocks.bookingFindFirst,
+      updateMany: mocks.bookingUpdateMany,
     },
     blockedSlot: { findMany: mocks.blockFindMany },
     lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
@@ -65,12 +70,16 @@ vi.mock('@/lib/prisma', () => ({
 
 import {
   blockLanes,
+  checkInBookingAction,
   createWalkInBooking,
   getBookingDetail,
   getCockpitSnapshot,
   getScheduleForDate,
   getScheduleForMonth,
   getTodayBookings,
+  markBookingCompletedAction,
+  markBookingNoShowAction,
+  staffUpdateBookingNotesAction,
   unblockLanes,
 } from './staff'
 
@@ -85,11 +94,15 @@ beforeEach(() => {
     id: 'user_staff',
     email: 'staff@royalz.local',
     role: 'STAFF',
+    tenantId: 't1',
   })
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
-        booking: { create: mocks.bookingCreate },
+        booking: {
+          create: mocks.bookingCreate,
+          updateMany: mocks.bookingUpdateMany,
+        },
         payment: { create: mocks.paymentCreate },
         auditLog: { create: mocks.auditCreate },
         blockedSlot: {
@@ -99,6 +112,8 @@ beforeEach(() => {
         tenant: { findUniqueOrThrow: mocks.tenantFindUniqueOrThrow },
       } as Parameters<typeof fn>[0]),
   )
+  mocks.bookingUpdateMany.mockResolvedValue({ count: 1 })
+  mocks.blockDeleteMany.mockResolvedValue({ count: 1 })
   mocks.tenantFindUniqueOrThrow.mockResolvedValue({
     id: 't1',
     cancellationWindowHours: 24,
@@ -259,9 +274,19 @@ describe('getBookingDetail', () => {
   })
 
   it('returns null when not found', async () => {
-    mocks.bookingFindUnique.mockResolvedValue(null)
+    mocks.bookingFindFirst.mockResolvedValue(null)
     const out = await getBookingDetail('missing')
     expect(out).toBeNull()
+  })
+
+  it('scopes detail lookup to the authenticated tenant', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(null)
+    await getBookingDetail('bk_other_tenant')
+    expect(mocks.bookingFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'bk_other_tenant', tenantId: 't1' },
+      }),
+    )
   })
 })
 
@@ -367,6 +392,34 @@ describe('createWalkInBooking', () => {
     })
   })
 
+  it('rejects a package that does not belong to the staff tenant', async () => {
+    mocks.packageFindFirst.mockResolvedValue(null)
+    await expect(
+      createWalkInBooking({
+        tenantId: 't1',
+        packageId: 'pkg_other_tenant',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        startTime: new Date(),
+        endTime: new Date(Date.now() + 3600_000),
+        totalAmount: 4500,
+        customerName: 'Walk-In',
+        customerEmail: '',
+        paymentMethod: 'cash',
+      }),
+    ).rejects.toThrow(/package not found/i)
+    expect(mocks.packageFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'pkg_other_tenant',
+          tenantId: 't1',
+          active: true,
+        }),
+      }),
+    )
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
   it('skips Payment row creation when totalAmount is 0', async () => {
     mocks.bookingCreate.mockResolvedValue({
       id: 'bk_2',
@@ -426,6 +479,72 @@ describe('blockLanes', () => {
       }),
     })
   })
+
+  it('rejects cross-tenant block requests before writing', async () => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_staff',
+      email: 'staff@royalz.local',
+      role: 'STAFF',
+      tenantId: 't1',
+    })
+    await expect(
+      blockLanes({
+        tenantId: 't2',
+        startTime: new Date('2026-06-01T14:00:00Z'),
+        endTime: new Date('2026-06-01T16:00:00Z'),
+        lanes: [1],
+      }),
+    ).rejects.toThrow(/tenant/i)
+    expect(mocks.blockCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('booking lifecycle actions', () => {
+  it('checks in only a same-tenant CONFIRMED booking that is not already checked in', async () => {
+    await checkInBookingAction('bk_1')
+    expect(mocks.bookingUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'bk_1',
+        tenantId: 't1',
+        status: 'CONFIRMED',
+        checkedInAt: null,
+      },
+      data: { checkedInAt: expect.any(Date) },
+    })
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'BOOKING_CHECKED_IN' }),
+    })
+  })
+
+  it('does not audit when check-in update finds no eligible booking', async () => {
+    mocks.bookingUpdateMany.mockResolvedValueOnce({ count: 0 })
+    await expect(checkInBookingAction('bk_terminal')).rejects.toThrow(/eligible/i)
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
+  })
+
+  it('marks no-show only from CONFIRMED within the staff tenant', async () => {
+    await markBookingNoShowAction('bk_1')
+    expect(mocks.bookingUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'bk_1', tenantId: 't1', status: 'CONFIRMED' },
+      data: { status: 'NO_SHOW', cancellationReason: 'NO_SHOW' },
+    })
+  })
+
+  it('marks complete only from CONFIRMED within the staff tenant', async () => {
+    await markBookingCompletedAction('bk_1')
+    expect(mocks.bookingUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'bk_1', tenantId: 't1', status: 'CONFIRMED' },
+      data: { status: 'COMPLETED' },
+    })
+  })
+
+  it('updates notes only within the staff tenant', async () => {
+    await staffUpdateBookingNotesAction('bk_1', '  new note  ')
+    expect(mocks.bookingUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'bk_1', tenantId: 't1' },
+      data: { notes: 'new note' },
+    })
+  })
 })
 
 describe('unblockLanes', () => {
@@ -435,21 +554,24 @@ describe('unblockLanes', () => {
     expect(mocks.blockDeleteMany).not.toHaveBeenCalled()
   })
 
-  it('skips ids that don\u2019t look like blocks', async () => {
-    await unblockLanes('not-a-block')
-    expect(mocks.blockDeleteMany).not.toHaveBeenCalled()
-  })
-
-  it('deletes the block and writes an AuditLog', async () => {
-    await unblockLanes('block_xyz')
+  it('deletes a real Prisma cuid block and writes an AuditLog', async () => {
+    await unblockLanes('clwq0w1s10001abcd1234efgh')
     expect(mocks.blockDeleteMany).toHaveBeenCalledWith({
-      where: { id: 'block_xyz' },
+      where: { id: 'clwq0w1s10001abcd1234efgh', tenantId: 't1' },
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: 'LANE_BLOCK_REMOVED',
-        entityId: 'block_xyz',
+        entityId: 'clwq0w1s10001abcd1234efgh',
       }),
     })
+  })
+
+  it('does not audit when no same-tenant block was deleted', async () => {
+    mocks.blockDeleteMany.mockResolvedValueOnce({ count: 0 })
+    await expect(unblockLanes('clwq0w1s10001abcd1234efgh')).rejects.toThrow(
+      /block not found/i,
+    )
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
   })
 })
