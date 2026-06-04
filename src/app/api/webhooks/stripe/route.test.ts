@@ -73,6 +73,7 @@ const mocks = vi.hoisted(() => {
       name: 'Royal Z Lanes',
       address: '1 Main',
       phone: '555-0100',
+      config: {},
     })),
     sendEmailMock: vi.fn(async () => ({ id: 'email_1' })),
     transactionMock: vi.fn(
@@ -96,7 +97,13 @@ vi.mock('@/lib/stripe', () => ({
   constructWebhookEvent: mocks.constructWebhookEventMock,
 }))
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
-vi.mock('@/lib/tenant', () => ({ getTenant: mocks.getTenantMock }))
+vi.mock('@/lib/tenant', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/tenant')>()
+  return {
+    ...actual,
+    getTenant: mocks.getTenantMock,
+  }
+})
 vi.mock('@/lib/email', () => ({ sendBookingConfirmation: mocks.sendEmailMock }))
 
 import { POST } from './route'
@@ -149,6 +156,7 @@ beforeEach(() => {
     name: 'Royal Z Lanes',
     address: '1 Main',
     phone: '555-0100',
+    config: {},
   })
   mocks.transactionMock.mockImplementation(
     async (fn) =>

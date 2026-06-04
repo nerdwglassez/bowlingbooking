@@ -27,17 +27,59 @@ import { validatePromoCode } from '@/lib/actions/promo'
 import { serializeShoeSelections } from '@/lib/booking-metadata'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
-import { calculateBookingTotal } from '@/lib/pricing'
+import { calculateBookingTotal, type BookingPricingContext } from '@/lib/pricing'
 import { prisma } from '@/lib/prisma'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
-import { getTenant } from '@/lib/tenant'
+import {
+  assertBookingDurationWithinLimits,
+  getLaneReservationCentsPerLane,
+  getShoeRentalPriceCents,
+  getTenant,
+} from '@/lib/tenant'
+import {
+  buildLanePricingContext,
+  resolveStrategyForBooking,
+} from '@/lib/tenant-pricing'
 import { Prisma } from '@prisma/client'
+import type { PricingPeriod } from '@prisma/client'
 import QRCode from 'qrcode'
 import type { Package, ShoeSelection, TimeSlot } from '@/types'
 
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
 const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
 const RESERVING_BOOKING_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] as const
+
+import { loadPricingPeriodsForTenant } from '@/lib/pricing-periods-data'
+
+function lanePricingContextForHold(
+  tenant: Awaited<ReturnType<typeof getTenant>>,
+  periods: PricingPeriod[],
+  bowlerCount: number,
+  laneCount: number,
+  startTime: Date,
+  endTime: Date,
+): BookingPricingContext | undefined {
+  return buildLanePricingContext({
+    strategy: resolveStrategyForBooking(tenant),
+    periods,
+    defaultRateCentsPerLane: getLaneReservationCentsPerLane(tenant),
+    bowlerCount,
+    laneCount,
+    startTime,
+    endTime,
+  })
+}
+
+async function resolveBowlersPerLane(tenantId: string): Promise<number> {
+  if (isDevWithoutDb()) {
+    return (await getTenant()).bowlersPerLane
+  }
+  const row = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { bowlersPerLane: true },
+  })
+  return row?.bowlersPerLane ?? 6
+}
 
 // ── Date strip ────────────────────────────────────────────
 
@@ -165,7 +207,8 @@ export async function getAvailableTimeSlots(
   if (!isDevWithoutDb()) {
     await cleanupExpiredHolds(tenantId)
   }
-  const laneCount = getLaneCount(bowlerCount)
+  const bowlersPerLane = await resolveBowlersPerLane(tenantId)
+  const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
   const slots = buildMockSlotsFor(dateISO)
 
   if (isDevWithoutDb()) {
@@ -262,7 +305,8 @@ export interface AcquireHoldResult {
 export async function acquireBookingHold(
   input: AcquireHoldInput,
 ): Promise<AcquireHoldResult> {
-  const laneCount = getLaneCount(input.bowlerCount)
+  const bowlersPerLane = await resolveBowlersPerLane(input.tenantId)
+  const laneCount = getLaneCount(input.bowlerCount, bowlersPerLane)
   if (laneCount < 1) {
     throw new Error('Bowler count must be at least 1.')
   }
@@ -276,6 +320,12 @@ export async function acquireBookingHold(
     throw new Error('Invalid booking time slot.')
   }
 
+  const tenant = await getTenant()
+  if (!isDevWithoutDb() && tenant.id !== input.tenantId) {
+    throw new Error('Tenant not found')
+  }
+  assertBookingDurationWithinLimits(tenant, input.startTime, input.endTime)
+
   if (isDevWithoutDb()) {
     const expiresAt = new Date(Date.now() + HOLD_TIMEOUT_MINS_DEFAULT * 60_000)
     return { holdId: `hold_mock_${Date.now()}`, expiresAt }
@@ -287,7 +337,12 @@ export async function acquireBookingHold(
         const now = new Date()
         const tenant = await tx.tenant.findUnique({
           where: { id: input.tenantId },
-          select: { holdTimeoutMins: true, maxOnlineBowlers: true },
+          select: {
+            holdTimeoutMins: true,
+            maxOnlineBowlers: true,
+            bowlersPerLane: true,
+            config: true,
+          },
         })
         if (!tenant) throw new Error('Tenant not found')
         if (input.bowlerCount > tenant.maxOnlineBowlers) {
@@ -493,10 +548,15 @@ export async function confirmBooking(
   let subtotalCents = input.totalAmount
   let selectedPackage: Package | null = null
 
-  const shoeRentalPriceCents = input.shoeRentalPriceCents ?? 400
-  const laneReservationCentsPerLane = input.laneReservationCentsPerLane ?? 1200
+  const tenantForPricing = await getTenant()
+  const shoeRentalPriceCents =
+    input.shoeRentalPriceCents ?? getShoeRentalPriceCents(tenantForPricing)
+  const laneReservationCentsPerLane =
+    input.laneReservationCentsPerLane ??
+    getLaneReservationCentsPerLane(tenantForPricing)
   const shoeSelections = input.shoeSelections ?? []
   const selectedOptionalAddonIds = input.selectedOptionalAddonIds ?? []
+  const pricingPeriods = await loadPricingPeriodsForTenant(tenantId)
 
   if (!isDevWithoutDb()) {
     const hold = await prisma.bookingHold.findUnique({
@@ -557,6 +617,16 @@ export async function confirmBooking(
         ? 0
         : laneReservationCentsPerLane * laneCount,
       selectedOptionalAddonIds,
+      pricingContext: selectedPackage
+        ? undefined
+        : lanePricingContextForHold(
+            tenantForPricing,
+            pricingPeriods,
+            bowlerCount,
+            laneCount,
+            startTime,
+            endTime,
+          ),
     }).totalAmount
 
     if (input.totalAmount !== subtotalCents) {
@@ -573,6 +643,14 @@ export async function confirmBooking(
       shoeRentalPriceCents,
       laneReservationCents: laneReservationCentsPerLane * laneCount,
       selectedOptionalAddonIds,
+      pricingContext: lanePricingContextForHold(
+        tenantForPricing,
+        pricingPeriods,
+        bowlerCount,
+        laneCount,
+        startTime,
+        endTime,
+      ),
     }).totalAmount
   }
 

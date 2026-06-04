@@ -5,7 +5,11 @@
 // fields down so client pages can render the VenueHeader without each one
 // re-fetching.
 
-import { createContext, useContext, type ReactNode } from 'react'
+import { useMemo, createContext, useContext, type ReactNode } from 'react'
+import type { PricingPeriod } from '@prisma/client'
+
+import { buildLanePricingContext } from '@/lib/tenant-pricing'
+import type { LanePricingContext, TenantPricingStrategy } from '@/lib/tenant-pricing'
 
 export interface TenantChrome {
   id: string
@@ -16,6 +20,8 @@ export interface TenantChrome {
   laneReservationCentsPerLane: number
   maxOnlineBowlers: number
   bowlersPerLane: number
+  pricingStrategy: TenantPricingStrategy
+  pricingPeriods: PricingPeriod[]
 }
 
 const TenantContext = createContext<TenantChrome | null>(null)
@@ -38,4 +44,34 @@ export function useTenant(): TenantChrome {
     throw new Error('useTenant must be used inside TenantProvider')
   }
   return ctx
+}
+
+/** Strategy + period rate for lane-only totals (matches server confirmBooking). */
+export function useLanePricingContext(input: {
+  bowlerCount: number
+  laneCount: number
+  startTime: Date | null
+  endTime: Date | null
+}): LanePricingContext | undefined {
+  const tenant = useTenant()
+  return useMemo(() => {
+    if (input.startTime == null || input.endTime == null) return undefined
+    return buildLanePricingContext({
+      strategy: tenant.pricingStrategy,
+      periods: tenant.pricingPeriods,
+      defaultRateCentsPerLane: tenant.laneReservationCentsPerLane,
+      bowlerCount: input.bowlerCount,
+      laneCount: input.laneCount,
+      startTime: input.startTime,
+      endTime: input.endTime,
+    })
+  }, [
+    tenant.pricingStrategy,
+    tenant.pricingPeriods,
+    tenant.laneReservationCentsPerLane,
+    input.bowlerCount,
+    input.laneCount,
+    input.startTime,
+    input.endTime,
+  ])
 }

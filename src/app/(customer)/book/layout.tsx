@@ -1,5 +1,10 @@
 import { BookingProvider } from '@/context/BookingContext'
-import { getTenant, getShoeRentalPriceCents } from '@/lib/tenant'
+import { loadPricingPeriodsForTenant } from '@/lib/pricing-periods-data'
+import {
+  getPricingStrategy,
+  getShoeRentalPriceCents,
+  getTenant,
+} from '@/lib/tenant'
 import { BookingProviders } from './booking-providers'
 import { TenantProvider } from './tenant-provider'
 
@@ -12,6 +17,7 @@ export default async function BookingLayout({
   const perLane = tenant.config['laneReservationCentsPerLane']
   const laneReservationCentsPerLane =
     typeof perLane === 'number' && perLane >= 0 ? perLane : 1200
+  const pricingPeriods = await loadPricingPeriodsForTenant(tenant.id)
 
   return (
     <TenantProvider
@@ -24,10 +30,17 @@ export default async function BookingLayout({
         laneReservationCentsPerLane,
         maxOnlineBowlers: tenant.maxOnlineBowlers,
         bowlersPerLane: tenant.bowlersPerLane,
+        pricingStrategy: getPricingStrategy(tenant),
+        pricingPeriods,
       }}
     >
       <BookingProviders>
-        <BookingProvider tenantId={tenant.id}>{children}</BookingProvider>
+        <BookingProvider
+          tenantId={tenant.id}
+          bowlersPerLane={tenant.bowlersPerLane}
+        >
+          {children}
+        </BookingProvider>
       </BookingProviders>
     </TenantProvider>
   )

@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useTenant } from '@/app/(customer)/book/tenant-provider'
+import {
+  useLanePricingContext,
+  useTenant,
+} from '@/app/(customer)/book/tenant-provider'
 import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
 import { HoldTimer } from '@/components/patterns/hold-timer'
@@ -62,6 +65,12 @@ export default function PackagePage() {
 
   const laneReservationCents =
     (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane
+  const pricingContext = useLanePricingContext({
+    bowlerCount: session.bowlerCount ?? 1,
+    laneCount: session.laneCount ?? 1,
+    startTime: session.startTime,
+    endTime: session.endTime,
+  })
 
   const pricing = useMemo(() => {
     if (session.selectedPackage != null) {
@@ -78,6 +87,7 @@ export default function PackagePage() {
       shoeSelections: [],
       shoeRentalPriceCents: tenant.shoeRentalPriceCents,
       laneReservationCents,
+      pricingContext,
     })
   }, [
     session.selectedPackage,
@@ -86,6 +96,7 @@ export default function PackagePage() {
     tenant.shoeRentalPriceCents,
     laneReservationCents,
     session.selectedOptionalAddonIds,
+    pricingContext,
   ])
 
   const now = useWallClockNow()

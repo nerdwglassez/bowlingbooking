@@ -44,6 +44,8 @@ export interface BookingConfirmationArgs {
   manageUrl?: string
   /** Optional absolute URL to /api/bookings/[code]/ics?email=… */
   icsUrl?: string
+  /** Venue contact email for customer replies (from settings). */
+  replyTo?: string | null
 }
 
 const DATETIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -215,9 +217,11 @@ export async function sendBookingConfirmation(
   }
 
   const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
+  const replyTo = args.replyTo?.trim()
   const { data, error } = await resend.emails.send({
     from,
     to: args.to,
+    ...(replyTo ? { reply_to: replyTo } : {}),
     subject: `${args.venueName} — booking confirmed (${args.confirmationCode})`,
     html: renderHtml(args, qrDataUri),
     text: renderText(args),

@@ -1,3 +1,6 @@
+'use client'
+
+import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import {
   getLaneAssignmentSummary,
   getLaneCount,
@@ -18,8 +21,9 @@ export function LaneAllocationView({
   bowlerCount,
   className,
 }: LaneAllocationViewProps) {
-  const laneCount = getLaneCount(bowlerCount)
-  const summary = getLaneAssignmentSummary(bowlerCount)
+  const { bowlersPerLane } = useTenant()
+  const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
+  const summary = getLaneAssignmentSummary(bowlerCount, bowlersPerLane)
 
   return (
     <div

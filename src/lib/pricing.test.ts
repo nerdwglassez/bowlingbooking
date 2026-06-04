@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Package } from '@/types'
-import { calculatePrice, formatPrice } from './pricing'
+import { calculateBookingTotal, calculatePrice, formatPrice } from './pricing'
 
 function makePackage(overrides: Partial<Package> = {}): Package {
   return {
@@ -151,6 +151,59 @@ describe('calculatePrice', () => {
     ]) {
       expect(Number.isInteger(value)).toBe(true)
     }
+  })
+})
+
+describe('calculateBookingTotal — lane strategy', () => {
+  const start = new Date('2026-06-01T18:00:00')
+  const end = new Date('2026-06-01T20:00:00')
+
+  it('uses per_person_hour rate × bowlers × duration', () => {
+    const result = calculateBookingTotal({
+      package: null,
+      bowlerCount: 4,
+      laneCount: 1,
+      shoeSelections: [],
+      shoeRentalPriceCents: 400,
+      laneReservationCents: 2400,
+      pricingContext: {
+        strategy: 'per_person_hour',
+        rateCents: 1500,
+        startTime: start,
+        endTime: end,
+      },
+    })
+    expect(result.totalAmount).toBe(12000)
+  })
+
+  it('uses per_lane_hour rate × lanes × duration', () => {
+    const result = calculateBookingTotal({
+      package: null,
+      bowlerCount: 7,
+      laneCount: 2,
+      shoeSelections: [],
+      shoeRentalPriceCents: 400,
+      laneReservationCents: 4800,
+      pricingContext: {
+        strategy: 'per_lane_hour',
+        rateCents: 2000,
+        startTime: start,
+        endTime: end,
+      },
+    })
+    expect(result.totalAmount).toBe(8000)
+  })
+
+  it('falls back to flat lane fee when no pricingContext', () => {
+    const result = calculateBookingTotal({
+      package: null,
+      bowlerCount: 4,
+      laneCount: 2,
+      shoeSelections: [],
+      shoeRentalPriceCents: 400,
+      laneReservationCents: 3000,
+    })
+    expect(result.totalAmount).toBe(3000)
   })
 })
 

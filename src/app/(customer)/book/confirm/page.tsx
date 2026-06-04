@@ -17,7 +17,10 @@ import { PromoInput } from '@/components/patterns/promo-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/app/(customer)/book/toast-provider'
 import { useBooking } from '@/context/BookingContext'
-import { useTenant } from '@/app/(customer)/book/tenant-provider'
+import {
+  useLanePricingContext,
+  useTenant,
+} from '@/app/(customer)/book/tenant-provider'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { confirmBooking } from '@/lib/actions/booking'
 import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
@@ -89,6 +92,12 @@ export default function ConfirmBookingPage() {
 
   const laneReservationCents =
     (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane
+  const pricingContext = useLanePricingContext({
+    bowlerCount: session.bowlerCount ?? 1,
+    laneCount: session.laneCount ?? 1,
+    startTime: session.startTime,
+    endTime: session.endTime,
+  })
 
   const pricing = useMemo(
     () =>
@@ -102,6 +111,8 @@ export default function ConfirmBookingPage() {
           ? 0
           : laneReservationCents,
         selectedOptionalAddonIds: session.selectedOptionalAddonIds,
+        pricingContext:
+          session.selectedPackage == null ? pricingContext : undefined,
       }),
     [
       session.selectedPackage,
@@ -111,6 +122,7 @@ export default function ConfirmBookingPage() {
       session.selectedOptionalAddonIds,
       tenant.shoeRentalPriceCents,
       laneReservationCents,
+      pricingContext,
     ],
   )
 

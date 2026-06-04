@@ -1,5 +1,6 @@
 'use client'
 
+import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import { formatLaneRequirementLine, getLaneCount } from '@/lib/lane-logic'
 
 export type BowlerCounterProps = {
@@ -20,10 +21,11 @@ export function BowlerCounter({
   warn = false,
   className,
 }: BowlerCounterProps) {
-  const laneCount = getLaneCount(value)
+  const { bowlersPerLane } = useTenant()
+  const laneCount = getLaneCount(value, bowlersPerLane)
   const metaLine = warn
     ? `Large group · ${laneCount} ${laneCount === 1 ? 'lane' : 'lanes'} required`
-    : formatLaneRequirementLine(value)
+    : formatLaneRequirementLine(value, bowlersPerLane)
 
   return (
     <div className={className}>

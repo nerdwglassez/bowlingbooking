@@ -136,6 +136,75 @@ export function getLaneReservationCents(tenant: Tenant, laneCount: number): numb
   return rate * laneCount
 }
 
+/** Per-lane default rate in cents (before pricing-period overrides). */
+export function getLaneReservationCentsPerLane(tenant: Tenant): number {
+  const perLane = tenant.config['laneReservationCentsPerLane']
+  return typeof perLane === 'number' && perLane >= 0 ? perLane : 1200
+}
+
+/** Reply-to for transactional email — from admin venue settings. */
+export function getContactEmail(tenant: Tenant): string | null {
+  const raw = tenant.config?.['contactEmail']
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  return trimmed.length > 0 && trimmed.includes('@') ? trimmed : null
+}
+
+export type TenantPricingStrategy =
+  | 'per_person_hour'
+  | 'per_lane_hour'
+  | 'per_person_game'
+  | 'packages_only'
+
+export function getPricingStrategy(tenant: Tenant): TenantPricingStrategy {
+  const raw = tenant.config['pricingStrategy']
+  if (
+    raw === 'per_lane_hour' ||
+    raw === 'per_person_game' ||
+    raw === 'packages_only'
+  ) {
+    return raw
+  }
+  return 'per_person_hour'
+}
+
+export function getBookingDurationLimits(tenant: Tenant): {
+  minHours: number
+  maxHours: number
+} {
+  const min = tenant.config['minBookingDurationHours']
+  const max = tenant.config['maxBookingDurationHours']
+  return {
+    minHours:
+      typeof min === 'number' && min >= 0.5 ? min : 1.5,
+    maxHours: typeof max === 'number' && max >= 1 ? max : 4,
+  }
+}
+
+/** Hours between booking start and end (fractional). */
+export function bookingDurationHours(startTime: Date, endTime: Date): number {
+  return (endTime.getTime() - startTime.getTime()) / (60 * 60 * 1000)
+}
+
+export function assertBookingDurationWithinLimits(
+  tenant: Tenant,
+  startTime: Date,
+  endTime: Date,
+): void {
+  const { minHours, maxHours } = getBookingDurationLimits(tenant)
+  const hours = bookingDurationHours(startTime, endTime)
+  if (hours < minHours - 0.01) {
+    throw new Error(
+      `Minimum booking duration is ${minHours} hour${minHours === 1 ? '' : 's'}.`,
+    )
+  }
+  if (hours > maxHours + 0.01) {
+    throw new Error(
+      `Maximum booking duration is ${maxHours} hour${maxHours === 1 ? '' : 's'}.`,
+    )
+  }
+}
+
 export const getTenant = cache(async function getTenant(): Promise<Tenant> {
   const slug = resolveTenantSlug()
 

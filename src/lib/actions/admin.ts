@@ -672,6 +672,20 @@ export async function upsertPricingPeriodAction(
   }
 
   const id = await prisma.$transaction(async (tx) => {
+    const priorityConflict = await tx.pricingPeriod.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        priority: input.priority,
+        ...(input.id ? { NOT: { id: input.id } } : {}),
+      },
+      select: { id: true, name: true },
+    })
+    if (priorityConflict) {
+      throw new Error(
+        `Priority ${input.priority} is already used by "${priorityConflict.name}". Choose a different priority.`,
+      )
+    }
+
     let periodId: string
     if (input.id) {
       await tx.pricingPeriod.update({

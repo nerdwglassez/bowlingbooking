@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { useTenant } from '@/app/(customer)/book/tenant-provider'
+import {
+  useLanePricingContext,
+  useTenant,
+} from '@/app/(customer)/book/tenant-provider'
 import { BookingDetailsFooter } from '@/components/patterns/booking-details-footer'
 import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
@@ -56,6 +59,12 @@ export default function BookDetailsPage() {
 
   const laneReservationCents =
     (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane
+  const pricingContext = useLanePricingContext({
+    bowlerCount: session.bowlerCount ?? 1,
+    laneCount: session.laneCount ?? 1,
+    startTime: session.startTime,
+    endTime: session.endTime,
+  })
 
   const pricing = useMemo(
     () =>
@@ -69,6 +78,8 @@ export default function BookDetailsPage() {
           ? 0
           : laneReservationCents,
         selectedOptionalAddonIds: session.selectedOptionalAddonIds,
+        pricingContext:
+          session.selectedPackage == null ? pricingContext : undefined,
       }),
     [
       session.selectedPackage,
@@ -78,6 +89,7 @@ export default function BookDetailsPage() {
       session.selectedOptionalAddonIds,
       tenant.shoeRentalPriceCents,
       laneReservationCents,
+      pricingContext,
     ],
   )
 

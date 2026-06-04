@@ -41,24 +41,31 @@ vi.mock('@/lib/stripe', () => ({
   createPaymentIntent: mocks.createPaymentIntentMock,
   isStripeMocked: mocks.isStripeMockedMock,
 }))
-vi.mock('@/lib/tenant', () => ({
-  getTenant: vi.fn(async () => ({
-    id: 't1',
-    name: 'Royal Z',
-    slug: 'royalz',
-    address: 'a',
-    phone: '(555)',
-    timezone: 'America/New_York',
-    themeSlug: 'default',
-    holdTimeoutMins: 10,
-    maxOnlineBowlers: 18,
-    cancellationWindowHours: 24,
-    rescheduleWindowHours: 24,
-    checkInWindowMinutes: 60,
-    bowlersPerLane: 6,
-    cancellationRefundPercent: 100,
-    config: {},
-  })),
+vi.mock('@/lib/tenant', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/tenant')>()
+  return {
+    ...actual,
+    getTenant: vi.fn(async () => ({
+      id: 't1',
+      name: 'Royal Z',
+      slug: 'royalz',
+      address: 'a',
+      phone: '(555)',
+      timezone: 'America/New_York',
+      themeSlug: 'default',
+      holdTimeoutMins: 10,
+      maxOnlineBowlers: 18,
+      cancellationWindowHours: 24,
+      rescheduleWindowHours: 24,
+      checkInWindowMinutes: 60,
+      bowlersPerLane: 6,
+      cancellationRefundPercent: 100,
+      config: {},
+    })),
+  }
+})
+vi.mock('@/lib/pricing-periods-data', () => ({
+  loadPricingPeriodsForTenant: vi.fn(async () => []),
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -75,6 +82,7 @@ vi.mock('@/lib/prisma', () => ({
       findMany: mocks.packageFindMany,
       findFirst: mocks.packageFindFirst,
     },
+    pricingPeriod: { findMany: vi.fn(async () => []) },
     $transaction: mocks.transactionMock,
   },
 }))
@@ -131,7 +139,7 @@ describe('acquireBookingHold', () => {
     const result = await acquireBookingHold({
       tenantId: 't1',
       startTime: new Date(),
-      endTime: new Date(Date.now() + 3_600_000),
+      endTime: new Date(Date.now() + 2 * 3_600_000),
       bowlerCount: 6,
     })
     expect(result.holdId.startsWith('hold_mock_')).toBe(true)
@@ -148,7 +156,7 @@ describe('acquireBookingHold', () => {
     mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
 
     const startTime = new Date('2026-01-01T18:00:00Z')
-    const endTime = new Date('2026-01-01T19:00:00Z')
+    const endTime = new Date('2026-01-01T20:00:00Z')
     const result = await acquireBookingHold({
       tenantId: 't1',
       startTime,
@@ -176,7 +184,7 @@ describe('acquireBookingHold', () => {
     })
     mocks.laneCount.mockResolvedValue(2)
     const slotStart = new Date('2026-01-01T18:00:00Z')
-    const slotEnd = new Date('2026-01-01T19:00:00Z')
+    const slotEnd = new Date('2026-01-01T20:00:00Z')
     mocks.bookingFindMany.mockResolvedValue([
       { startTime: slotStart, endTime: slotEnd, laneCount: 1 },
     ])

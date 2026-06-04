@@ -26,10 +26,14 @@ function emptyShoeSelections(count: number): ShoeSelection[] {
   }))
 }
 
+function initialLaneCount(bowlerCount: number, bowlersPerLane: number) {
+  return getLaneCount(bowlerCount, bowlersPerLane)
+}
+
 const defaultSession: BookingSession = {
   partyType: null,
   bowlerCount: DEFAULT_BOWLER_COUNT,
-  laneCount: getLaneCount(DEFAULT_BOWLER_COUNT),
+  laneCount: initialLaneCount(DEFAULT_BOWLER_COUNT, 6),
   date: null,
   timeSlotId: null,
   startTime: null,
@@ -97,11 +101,16 @@ function downstreamClearFields() {
 export function BookingProvider({
   children,
   tenantId,
+  bowlersPerLane = 6,
 }: {
   children: ReactNode
   tenantId: string
+  bowlersPerLane?: number
 }) {
-  const [session, setSession] = useState<BookingSession>(defaultSession)
+  const [session, setSession] = useState<BookingSession>(() => ({
+    ...defaultSession,
+    laneCount: initialLaneCount(DEFAULT_BOWLER_COUNT, bowlersPerLane),
+  }))
   const sessionRef = useRef(session)
   useEffect(() => {
     sessionRef.current = session
@@ -111,7 +120,7 @@ export function BookingProvider({
     setSession((prev) => ({
       ...prev,
       bowlerCount: n,
-      laneCount: getLaneCount(n),
+      laneCount: getLaneCount(n, bowlersPerLane),
       timeSlotId: null,
       startTime: null,
       endTime: null,
@@ -229,7 +238,7 @@ export function BookingProvider({
       return {
         ...prev,
         bowlerCount: nextCount,
-        laneCount: getLaneCount(nextCount),
+        laneCount: getLaneCount(nextCount, bowlersPerLane),
         shoeSelections: nextSelections.map((row, i) => ({
           ...row,
           bowlerId: `bowler-${i + 1}`,
@@ -315,7 +324,10 @@ export function BookingProvider({
   }
 
   function resetSession() {
-    setSession(defaultSession)
+    setSession({
+      ...defaultSession,
+      laneCount: initialLaneCount(DEFAULT_BOWLER_COUNT, bowlersPerLane),
+    })
   }
 
   return (

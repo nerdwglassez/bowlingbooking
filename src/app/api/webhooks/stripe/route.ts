@@ -36,7 +36,7 @@ import {
 } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 import { constructWebhookEvent, type Stripe } from '@/lib/stripe'
-import { getTenant } from '@/lib/tenant'
+import { getContactEmail, getTenant } from '@/lib/tenant'
 import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs'
@@ -438,6 +438,7 @@ async function handlePaymentIntentSucceeded(
           booking.confirmationCode,
           metadata.customerEmail,
         ),
+        replyTo: getContactEmail(tenant),
       })
     } catch (err) {
       console.error('[stripe-webhook] confirmation email failed:', err)

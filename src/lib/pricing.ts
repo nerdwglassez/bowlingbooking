@@ -12,6 +12,14 @@ import {
   getPackageOptionalAddons,
   optionalAddonLineAmount,
 } from '@/lib/package-addons'
+import { rateBasedTotalCents } from '@/lib/pricing-period'
+import { bookingDurationHours } from '@/lib/tenant'
+import type {
+  LanePricingContext,
+  TenantPricingStrategy,
+} from '@/lib/tenant-pricing'
+
+export type BookingPricingContext = LanePricingContext
 
 interface PricingInput {
   package: Package
@@ -28,6 +36,67 @@ export interface BookingTotalInput {
   laneReservationCents?: number
   gamesPerBowler?: number
   selectedOptionalAddonIds?: string[]
+  /** When set, lane-only totals use strategy + period rate instead of flat lane fee. */
+  pricingContext?: BookingPricingContext
+}
+
+function calculateStrategyLaneTotal(input: {
+  strategy: TenantPricingStrategy
+  bowlerCount: number
+  laneCount: number
+  startTime: Date
+  endTime: Date
+  rateCents: number
+  gamesPerBowler: number
+}): PricingResult {
+  const {
+    strategy,
+    bowlerCount,
+    laneCount,
+    startTime,
+    endTime,
+    rateCents,
+    gamesPerBowler,
+  } = input
+  const hours = bookingDurationHours(startTime, endTime)
+
+  let amount = 0
+  let label = 'Lane reservation'
+
+  switch (strategy) {
+    case 'per_lane_hour':
+      amount = Math.round(rateCents * laneCount * hours)
+      label =
+        laneCount === 1
+          ? `Lane · ${hours.toFixed(1)} hr`
+          : `${laneCount} lanes · ${hours.toFixed(1)} hr`
+      break
+    case 'per_person_game':
+      amount = Math.round(rateCents * bowlerCount * gamesPerBowler)
+      label = `Bowling · ${bowlerCount} × ${gamesPerBowler} games`
+      break
+    case 'per_person_hour':
+      amount = rateBasedTotalCents({
+        bowlerCount,
+        durationMins: Math.round(hours * 60),
+        ratePerPersonPerHour: rateCents,
+      })
+      label = `Bowling · ${bowlerCount} bowlers · ${hours.toFixed(1)} hr`
+      break
+    case 'packages_only':
+    default:
+      amount = Math.round(rateCents * laneCount)
+      label = laneCount === 1 ? 'Lane reservation' : `${laneCount} lanes`
+      break
+  }
+
+  return {
+    baseAmount: amount,
+    gameAmount: 0,
+    shoeAmount: 0,
+    totalAmount: amount,
+    lineItems: [{ label, amount, type: 'base' }],
+  }
 }
 
 /**
@@ -178,6 +247,19 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
     }
   }
 
+  if (input.pricingContext && input.pricingContext.strategy !== 'packages_only') {
+    const strategyBase = calculateStrategyLaneTotal({
+      strategy: input.pricingContext.strategy,
+      bowlerCount,
+      laneCount,
+      startTime: input.pricingContext.startTime,
+      endTime: input.pricingContext.endTime,
+      rateCents: input.pricingContext.rateCents,
+      gamesPerBowler,
+    })
+    return appendShoeLinesToLaneTotal(strategyBase, shoeSelections)
+  }
+
   const lineItems: LineItem[] = []
   if (laneReservationCents > 0) {
     lineItems.push({
@@ -187,6 +269,25 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
     })
   }
 
+  return appendShoeLinesToLaneTotal(
+    {
+      baseAmount: laneReservationCents,
+      gameAmount: 0,
+      shoeAmount: 0,
+      totalAmount: laneReservationCents,
+      lineItems,
+    },
+    shoeSelections,
+  )
+}
+
+function appendShoeLinesToLaneTotal(
+  base: PricingResult,
+  shoeSelections: ShoeSelection[],
+): PricingResult {
+  if (shoeSelections.length === 0) return base
+
+  const lineItems = [...base.lineItems]
   let shoeAmount = 0
   shoeSelections.forEach((sel, index) => {
     lineItems.push({
@@ -200,14 +301,11 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
     shoeAmount += sel.cost
   })
 
-  const baseAmount = laneReservationCents
-  const totalAmount = baseAmount + shoeAmount
-
   return {
-    baseAmount,
+    baseAmount: base.baseAmount,
     gameAmount: 0,
     shoeAmount,
-    totalAmount,
+    totalAmount: base.baseAmount + shoeAmount,
     lineItems,
   }
 }
