@@ -209,7 +209,7 @@ describe('acquireBookingHold', () => {
       acquireBookingHold({
         tenantId: 'missing',
         startTime: new Date('2026-01-01T18:00:00Z'),
-        endTime: new Date('2026-01-01T19:00:00Z'),
+        endTime: new Date('2026-01-01T20:00:00Z'),
         bowlerCount: 1,
       }),
     ).rejects.toThrow(/Tenant not found/i)
@@ -243,6 +243,9 @@ describe('getAvailableTimeSlots', () => {
     expect(slots.length).toBe(8)
     expect(mocks.bookingHoldDeleteMany).not.toHaveBeenCalled()
     expect(mocks.bookingFindMany).not.toHaveBeenCalled()
+    expect(
+      slots[0].endTime.getTime() - slots[0].startTime.getTime(),
+    ).toBe(90 * 60_000)
 
     const hour16 = slots.find((s) => s.id === '2026-01-01-16')
     expect(hour16?.available).toBe(false)
@@ -313,7 +316,17 @@ describe('confirmBooking', () => {
     })
     mocks.packageFindFirst.mockResolvedValue({
       id: 'pkg_classic',
+      tenantId: 't1',
+      name: 'Classic',
+      description: null,
+      basePrice: 4500,
+      gameIncluded: true,
+      shoesIncluded: true,
+      gameCostPer: null,
+      shoeCostPer: null,
       partyTypes: ['OPEN'],
+      active: true,
+      sortOrder: 1,
     })
     mocks.calculateBookingTotalMock.mockReturnValue({
       totalAmount: 4500,
@@ -437,6 +450,77 @@ describe('confirmBooking', () => {
         customerPhone: '555',
       }),
     ).rejects.toThrow(/total changed/i)
+  })
+
+  it('derives pricing inputs from tenant config instead of client hints', async () => {
+    await confirmBooking({
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: null,
+      partyType: 'OPEN',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+      shoeRentalPriceCents: 1,
+      laneReservationCentsPerLane: 1,
+      shoeSelections: [
+        { bowlerId: 'b1', size: 'OWN', cost: 999 },
+        { bowlerId: 'b2', size: 'M10', cost: 0 },
+        { bowlerId: 'b3', size: 'W8', cost: 1 },
+        { bowlerId: 'b4', size: 'OWN', cost: 0 },
+      ],
+    })
+
+    expect(mocks.calculateBookingTotalMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        package: null,
+        shoeRentalPriceCents: 400,
+        laneReservationCents: 1200,
+      }),
+    )
+  })
+
+  it('rejects incomplete shoe selections when shoes are not included', async () => {
+    mocks.packageFindFirst.mockResolvedValue({
+      id: 'pkg_payg',
+      tenantId: 't1',
+      name: 'Pay per game',
+      description: null,
+      basePrice: 1200,
+      gameIncluded: true,
+      shoesIncluded: false,
+      gameCostPer: null,
+      shoeCostPer: 400,
+      partyTypes: ['OPEN'],
+      active: true,
+      sortOrder: 2,
+    })
+
+    await expect(
+      confirmBooking({
+        tenantId: 't1',
+        holdId: 'h1',
+        packageId: 'pkg_payg',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        laneCount: 1,
+        startTime,
+        endTime,
+        totalAmount: 4500,
+        customerName: 'Jane',
+        customerEmail: 'jane@example.com',
+        customerPhone: '555',
+        shoeSelections: [
+          { bowlerId: 'b1', size: 'OWN', cost: 0 },
+          { bowlerId: 'b2', size: '', cost: 0 },
+        ],
+      }),
+    ).rejects.toThrow(/shoe size/i)
   })
 
   it('applies promo to charge amount and Stripe metadata', async () => {

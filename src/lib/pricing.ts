@@ -224,15 +224,16 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
     const lineItems = base.lineItems.filter((item) => item.type !== 'shoe')
     let shoeAmount = 0
     shoeSelections.forEach((sel, index) => {
+      const amount = shoeSelectionAmount(sel, input.shoeRentalPriceCents)
       lineItems.push({
         label:
           sel.size === 'OWN'
             ? `Bowler ${index + 1} · Own shoes`
             : `Bowler ${index + 1} · Shoes`,
-        amount: sel.cost,
+        amount,
         type: 'shoe',
       })
-      shoeAmount += sel.cost
+      shoeAmount += amount
     })
 
     const totalAmount =
@@ -257,7 +258,11 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
       rateCents: input.pricingContext.rateCents,
       gamesPerBowler,
     })
-    return appendShoeLinesToLaneTotal(strategyBase, shoeSelections)
+    return appendShoeLinesToLaneTotal(
+      strategyBase,
+      shoeSelections,
+      input.shoeRentalPriceCents,
+    )
   }
 
   const lineItems: LineItem[] = []
@@ -278,27 +283,38 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
       lineItems,
     },
     shoeSelections,
+    input.shoeRentalPriceCents,
   )
+}
+
+function shoeSelectionAmount(
+  selection: ShoeSelection,
+  shoeRentalPriceCents: number,
+): number {
+  if (selection.size === 'OWN' || selection.size.length === 0) return 0
+  return shoeRentalPriceCents
 }
 
 function appendShoeLinesToLaneTotal(
   base: PricingResult,
   shoeSelections: ShoeSelection[],
+  shoeRentalPriceCents: number,
 ): PricingResult {
   if (shoeSelections.length === 0) return base
 
   const lineItems = [...base.lineItems]
   let shoeAmount = 0
   shoeSelections.forEach((sel, index) => {
+    const amount = shoeSelectionAmount(sel, shoeRentalPriceCents)
     lineItems.push({
       label:
         sel.size === 'OWN'
           ? `Bowler ${index + 1} · Own shoes`
           : `Bowler ${index + 1} · Shoes`,
-      amount: sel.cost,
+      amount,
       type: 'shoe',
     })
-    shoeAmount += sel.cost
+    shoeAmount += amount
   })
 
   return {

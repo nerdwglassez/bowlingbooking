@@ -32,6 +32,7 @@ import { prisma } from '@/lib/prisma'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
 import {
   assertBookingDurationWithinLimits,
+  getBookingDurationLimits,
   getLaneReservationCentsPerLane,
   getShoeRentalPriceCents,
   getTenant,
@@ -207,9 +208,11 @@ export async function getAvailableTimeSlots(
   if (!isDevWithoutDb()) {
     await cleanupExpiredHolds(tenantId)
   }
+  const tenant = await getTenant()
+  const { minHours } = getBookingDurationLimits(tenant)
   const bowlersPerLane = await resolveBowlersPerLane(tenantId)
   const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
-  const slots = buildMockSlotsFor(dateISO)
+  const slots = buildMockSlotsFor(dateISO, minHours)
 
   if (isDevWithoutDb()) {
     return slots.map((slot) => {
@@ -261,14 +264,15 @@ export async function getAvailableTimeSlots(
   })
 }
 
-function buildMockSlotsFor(dateISO: string): TimeSlot[] {
+function buildMockSlotsFor(dateISO: string, durationHours = 1): TimeSlot[] {
   const base = new Date(`${dateISO}T00:00:00`)
   const out: TimeSlot[] = []
+  const durationMinutes = Math.round(durationHours * 60)
   for (let hour = 16; hour < 24; hour++) {
     const start = new Date(base)
     start.setHours(hour, 0, 0, 0)
     const end = new Date(start)
-    end.setHours(hour + 1)
+    end.setMinutes(end.getMinutes() + durationMinutes)
     out.push({
       id: `${dateISO}-${hour}`,
       startTime: start,
@@ -520,6 +524,18 @@ export interface ConfirmBookingResult {
   mocked: boolean
 }
 
+function assertCompleteShoeSelections(
+  shoeSelections: ShoeSelection[],
+  bowlerCount: number,
+): void {
+  if (
+    shoeSelections.length !== bowlerCount ||
+    shoeSelections.some((selection) => selection.size.length === 0)
+  ) {
+    throw new Error('Select shoe size for each bowler.')
+  }
+}
+
 /**
  * Step 4 entry point: create the Stripe PaymentIntent and return its
  * client_secret so the browser can confirm the card. The actual Booking row
@@ -549,10 +565,8 @@ export async function confirmBooking(
   let selectedPackage: Package | null = null
 
   const tenantForPricing = await getTenant()
-  const shoeRentalPriceCents =
-    input.shoeRentalPriceCents ?? getShoeRentalPriceCents(tenantForPricing)
+  const shoeRentalPriceCents = getShoeRentalPriceCents(tenantForPricing)
   const laneReservationCentsPerLane =
-    input.laneReservationCentsPerLane ??
     getLaneReservationCentsPerLane(tenantForPricing)
   const shoeSelections = input.shoeSelections ?? []
   const selectedOptionalAddonIds = input.selectedOptionalAddonIds ?? []
@@ -605,6 +619,10 @@ export async function confirmBooking(
       packageId = fallback.id
       partyType = fallback.partyTypes[0] ?? 'OPEN'
       selectedPackage = null
+    }
+
+    if (!(selectedPackage?.shoesIncluded ?? false)) {
+      assertCompleteShoeSelections(shoeSelections, bowlerCount)
     }
 
     subtotalCents = calculateBookingTotal({

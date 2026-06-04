@@ -207,6 +207,49 @@ describe('calculateBookingTotal — lane strategy', () => {
   })
 })
 
+describe('calculateBookingTotal — shoe selections', () => {
+  it('derives package shoe line amounts from the tenant rental price', () => {
+    const result = calculateBookingTotal({
+      package: makePackage({
+        basePrice: 3600,
+        shoesIncluded: false,
+        shoeCostPer: 999,
+      }),
+      bowlerCount: 2,
+      laneCount: 1,
+      shoeRentalPriceCents: 400,
+      shoeSelections: [
+        { bowlerId: 'b1', size: 'M10', cost: 0 },
+        { bowlerId: 'b2', size: 'OWN', cost: 999 },
+      ],
+    })
+
+    expect(result.shoeAmount).toBe(400)
+    expect(result.totalAmount).toBe(4000)
+    expect(result.lineItems.filter((item) => item.type === 'shoe')).toEqual([
+      expect.objectContaining({ amount: 400 }),
+      expect.objectContaining({ amount: 0 }),
+    ])
+  })
+
+  it('derives lane-only shoe line amounts from the tenant rental price', () => {
+    const result = calculateBookingTotal({
+      package: null,
+      bowlerCount: 2,
+      laneCount: 1,
+      shoeRentalPriceCents: 400,
+      laneReservationCents: 1200,
+      shoeSelections: [
+        { bowlerId: 'b1', size: 'W8', cost: 0 },
+        { bowlerId: 'b2', size: 'M11', cost: 1 },
+      ],
+    })
+
+    expect(result.shoeAmount).toBe(800)
+    expect(result.totalAmount).toBe(2000)
+  })
+})
+
 describe('formatPrice', () => {
   it('renders integer cents as USD with two decimals', () => {
     expect(formatPrice(4500)).toBe('$45.00')
