@@ -62,6 +62,8 @@ interface BookingMetadata {
   packageId: string
   partyType: 'OPEN' | 'BIRTHDAY' | 'CORPORATE' | 'COSMIC'
   bowlerCount: number
+  laneCount: number
+  hasLaneCountSnapshot: boolean
   bowlersPerLane: number
   startTime: Date
   endTime: Date
@@ -82,23 +84,31 @@ function parseBookingMetadata(
   if (!PARTY_TYPES.has(partyType)) return null
   const bowlerCount = Number.parseInt(raw.bowlerCount ?? '', 10)
   if (!Number.isFinite(bowlerCount) || bowlerCount < 1) return null
+  const rawBowlersPerLane = Number.parseInt(raw.bowlersPerLane ?? '6', 10)
+  const bowlersPerLane =
+    Number.isFinite(rawBowlersPerLane) && rawBowlersPerLane >= 1
+      ? rawBowlersPerLane
+      : 6
+  const fallbackLaneCount = getLaneCount(bowlerCount, bowlersPerLane)
+  const rawLaneCount = Number.parseInt(raw.laneCount ?? '', 10)
+  const hasLaneCountSnapshot =
+    Number.isFinite(rawLaneCount) && rawLaneCount >= 1
+  const laneCount = hasLaneCountSnapshot ? rawLaneCount : fallbackLaneCount
   const startTime = new Date(raw.startTime ?? '')
   const endTime = new Date(raw.endTime ?? '')
   if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
     return null
   }
   if (!raw.tenantId || !raw.packageId || !raw.holdId) return null
-  const bowlersPerLane = Number.parseInt(raw.bowlersPerLane ?? '6', 10)
   return {
     holdId: raw.holdId,
     tenantId: raw.tenantId,
     packageId: raw.packageId,
     partyType: partyType as BookingMetadata['partyType'],
     bowlerCount,
-    bowlersPerLane:
-      Number.isFinite(bowlersPerLane) && bowlersPerLane >= 1
-        ? bowlersPerLane
-        : 6,
+    laneCount,
+    hasLaneCountSnapshot,
+    bowlersPerLane,
     startTime,
     endTime,
     customerName: raw.customerName ?? '',
@@ -188,7 +198,6 @@ async function handlePaymentIntentSucceeded(
     return
   }
 
-  const laneCount = getLaneCount(metadata.bowlerCount, metadata.bowlersPerLane)
   const rawMeta = intent.metadata as Record<string, string> | null
   const { promoCode: metaPromoCode, discountCents: metaDiscount } =
     parsePromoFromIntentMetadata(rawMeta)
@@ -229,11 +238,17 @@ async function handlePaymentIntentSucceeded(
             liveHold &&
             (liveHold.tenantId !== metadata.tenantId ||
               liveHold.bowlerCount !== metadata.bowlerCount ||
+              (metadata.hasLaneCountSnapshot &&
+                liveHold.laneCount !== metadata.laneCount) ||
               liveHold.startTime.getTime() !== metadata.startTime.getTime() ||
               liveHold.endTime.getTime() !== metadata.endTime.getTime())
           ) {
             throw new Error('Booking hold no longer matches paid intent.')
           }
+
+          const laneCount = metadata.hasLaneCountSnapshot
+            ? metadata.laneCount
+            : liveHold?.laneCount ?? metadata.laneCount
 
           const totalLanes = await tx.lane.count({
             where: { tenantId: metadata.tenantId, active: true },

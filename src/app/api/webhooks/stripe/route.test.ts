@@ -124,6 +124,7 @@ const validMetadata = {
   packageId: 'pkg_classic',
   partyType: 'OPEN',
   bowlerCount: '6',
+  laneCount: '1',
   startTime: '2025-06-01T18:00:00.000Z',
   endTime: '2025-06-01T19:00:00.000Z',
   customerName: 'Jane Doe',
@@ -322,6 +323,38 @@ describe('POST /api/webhooks/stripe', () => {
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'BOOKING_PROMO_APPLIED' }),
+    })
+  })
+
+  it('uses the paid hold laneCount snapshot even if bowlersPerLane changed', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      ...paymentIntentEvent,
+      id: 'evt_lane_snapshot',
+      data: {
+        object: {
+          ...paymentIntentEvent.data.object,
+          id: 'pi_lane_snapshot',
+          metadata: {
+            ...validMetadata,
+            bowlerCount: '6',
+            bowlersPerLane: '5',
+            laneCount: '1',
+          },
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.laneCount.mockResolvedValue(1)
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(200)
+    expect(mocks.bookingCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        laneCount: 1,
+        bowlerCount: 6,
+      }),
     })
   })
 

@@ -32,6 +32,7 @@ import { prisma } from '@/lib/prisma'
 import { createPaymentIntent, isStripeMocked } from '@/lib/stripe'
 import {
   assertBookingDurationWithinLimits,
+  getBookingDurationLimits,
   getLaneReservationCentsPerLane,
   getShoeRentalPriceCents,
   getTenant,
@@ -79,6 +80,32 @@ async function resolveBowlersPerLane(tenantId: string): Promise<number> {
     select: { bowlersPerLane: true },
   })
   return row?.bowlersPerLane ?? 6
+}
+
+function durationLimitsForConfig(config: unknown): {
+  minHours: number
+  maxHours: number
+} {
+  const normalizedConfig =
+    config && typeof config === 'object' && !Array.isArray(config)
+      ? (config as Record<string, unknown>)
+      : {}
+  return getBookingDurationLimits({
+    config: normalizedConfig,
+  } as Awaited<ReturnType<typeof getTenant>>)
+}
+
+async function resolveMinimumBookingDurationHours(
+  tenantId: string,
+): Promise<number> {
+  if (isDevWithoutDb()) {
+    return getBookingDurationLimits(await getTenant()).minHours
+  }
+  const row = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { config: true },
+  })
+  return durationLimitsForConfig(row?.config).minHours
 }
 
 // ── Date strip ────────────────────────────────────────────
@@ -209,7 +236,8 @@ export async function getAvailableTimeSlots(
   }
   const bowlersPerLane = await resolveBowlersPerLane(tenantId)
   const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
-  const slots = buildMockSlotsFor(dateISO)
+  const minDurationHours = await resolveMinimumBookingDurationHours(tenantId)
+  const slots = buildMockSlotsFor(dateISO, minDurationHours)
 
   if (isDevWithoutDb()) {
     return slots.map((slot) => {
@@ -261,14 +289,18 @@ export async function getAvailableTimeSlots(
   })
 }
 
-function buildMockSlotsFor(dateISO: string): TimeSlot[] {
+function buildMockSlotsFor(dateISO: string, durationHours: number): TimeSlot[] {
   const base = new Date(`${dateISO}T00:00:00`)
   const out: TimeSlot[] = []
+  const durationMs = Math.max(durationHours, 0.5) * 60 * 60 * 1000
+  const closeTime = new Date(base)
+  closeTime.setHours(24, 0, 0, 0)
   for (let hour = 16; hour < 24; hour++) {
     const start = new Date(base)
     start.setHours(hour, 0, 0, 0)
     const end = new Date(start)
-    end.setHours(hour + 1)
+    end.setTime(start.getTime() + durationMs)
+    if (end > closeTime) continue
     out.push({
       id: `${dateISO}-${hour}`,
       startTime: start,
@@ -681,6 +713,7 @@ export async function confirmBooking(
     packageId,
     partyType,
     bowlerCount: String(bowlerCount),
+    laneCount: String(laneCount),
     bowlersPerLane: String(bowlersPerLane),
     startTime: startTime.toISOString(),
     endTime: endTime.toISOString(),

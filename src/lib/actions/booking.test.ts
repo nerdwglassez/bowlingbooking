@@ -111,6 +111,7 @@ beforeEach(() => {
     discountCents: 0,
   })
   mocks.calculatePriceMock.mockReturnValue({ totalAmount: 4500, lineItems: [] })
+  mocks.tenantFindUnique.mockResolvedValue({ bowlersPerLane: 6, config: {} })
   mocks.laneCount.mockResolvedValue(8)
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
@@ -240,7 +241,7 @@ describe('getAvailableTimeSlots', () => {
   it('returns mock slots with availability fields in dev-without-db', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
     const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
-    expect(slots.length).toBe(8)
+    expect(slots.length).toBe(7)
     expect(mocks.bookingHoldDeleteMany).not.toHaveBeenCalled()
     expect(mocks.bookingFindMany).not.toHaveBeenCalled()
 
@@ -294,6 +295,29 @@ describe('getAvailableTimeSlots', () => {
     expect(free?.available).toBe(true)
     expect(free?.lanesFree).toBe(2)
     expect(free?.spotsRemaining).toBe(2)
+  })
+
+  it('returns slots that satisfy the default duration policy and can be held', async () => {
+    const expiresAt = new Date(Date.now() + 10 * 60_000)
+    mocks.bookingHoldCreate.mockResolvedValue({ id: 'h_duration', expiresAt })
+
+    const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
+    const firstAvailable = slots.find((slot) => slot.available)
+
+    expect(firstAvailable).toBeDefined()
+    expect(
+      (firstAvailable!.endTime.getTime() - firstAvailable!.startTime.getTime()) /
+        3_600_000,
+    ).toBeGreaterThanOrEqual(1.5)
+
+    await expect(
+      acquireBookingHold({
+        tenantId: 't1',
+        startTime: firstAvailable!.startTime,
+        endTime: firstAvailable!.endTime,
+        bowlerCount: 6,
+      }),
+    ).resolves.toEqual({ holdId: 'h_duration', expiresAt })
   })
 })
 
@@ -403,6 +427,7 @@ describe('confirmBooking', () => {
           tenantId: 't1',
           packageId: 'pkg_classic',
           bowlerCount: '4',
+          laneCount: '1',
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
           customerName: 'Jane',

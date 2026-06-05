@@ -1422,6 +1422,18 @@ function requireCanAssignRole(user: CurrentUser, role: string): void {
   }
 }
 
+function requireCanModifyTeamUser(
+  actor: CurrentUser,
+  target: { role: string } | null,
+): void {
+  if (!target) {
+    throw new Error('Team user not found.')
+  }
+  if (target.role === 'ADMIN' && actor.role !== 'ADMIN') {
+    throw new Error('Only an ADMIN can modify an ADMIN account.')
+  }
+}
+
 export async function createTeamUserAction(
   input: CreateUserInput,
 ): Promise<{ userId: string; mocked: boolean }> {
@@ -1496,6 +1508,11 @@ export async function updateTeamUserAction(
   }
 
   await prisma.$transaction(async (tx) => {
+    const target = await tx.user.findUnique({
+      where: { id: input.userId },
+      select: { role: true },
+    })
+    requireCanModifyTeamUser(user, target)
     await tx.user.update({
       where: { id: input.userId },
       data: {
@@ -1542,6 +1559,11 @@ export async function resetUserPasswordAction(
   const hashed = await hashPassword(input.newPassword)
 
   await prisma.$transaction(async (tx) => {
+    const target = await tx.user.findUnique({
+      where: { id: input.userId },
+      select: { role: true },
+    })
+    requireCanModifyTeamUser(user, target)
     await tx.user.update({
       where: { id: input.userId },
       data: { passwordHash: hashed },
@@ -1579,6 +1601,11 @@ export async function deactivateTeamUserAction(
   // (which filters role IN STAFF/MANAGER/ADMIN). We never hard-delete users
   // because Booking rows reference them via Booking.userId.
   await prisma.$transaction(async (tx) => {
+    const target = await tx.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    })
+    requireCanModifyTeamUser(user, target)
     await tx.user.update({
       where: { id: userId },
       data: { role: 'CUSTOMER', passwordHash: null },

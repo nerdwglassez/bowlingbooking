@@ -41,7 +41,11 @@ const mocks = vi.hoisted(() => {
       create: promoCreate,
       update: promoUpdate,
     },
-    user: { create: userCreate, update: userUpdate },
+    user: {
+      create: userCreate,
+      update: userUpdate,
+      findUnique: userFindUnique,
+    },
     auditLog: { create: auditCreate },
     booking: { findMany: bookingFindMany },
     payment: { aggregate: paymentAggregate },
@@ -221,7 +225,11 @@ beforeEach(() => {
           create: mocks.promoCreate,
           update: mocks.promoUpdate,
         },
-        user: { create: mocks.userCreate, update: mocks.userUpdate },
+        user: {
+          create: mocks.userCreate,
+          update: mocks.userUpdate,
+          findUnique: mocks.userFindUnique,
+        },
         auditLog: { create: mocks.auditCreate },
         booking: { findMany: mocks.bookingFindMany },
         payment: { aggregate: mocks.paymentAggregate },
@@ -229,6 +237,7 @@ beforeEach(() => {
   )
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.paymentAggregate.mockResolvedValue({ _sum: { refundAmount: null } })
+  mocks.userFindUnique.mockResolvedValue({ id: 'user_target', role: 'STAFF' })
 })
 
 describe('admin actions: role gating', () => {
@@ -704,6 +713,20 @@ describe('team CRUD', () => {
     })
   })
 
+  it('updateTeamUserAction rejects manager edits to an ADMIN account', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue({ id: 'user_owner', role: 'ADMIN' })
+
+    await expect(
+      updateTeamUserAction({
+        userId: 'user_owner',
+        name: 'Takeover',
+        role: 'MANAGER',
+      }),
+    ).rejects.toThrow(/ADMIN account/i)
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
   it('resetUserPasswordAction rejects short passwords', async () => {
     await expect(
       resetUserPasswordAction({ userId: 'user_1', newPassword: 'short' }),
@@ -723,6 +746,19 @@ describe('team CRUD', () => {
     })
   })
 
+  it('resetUserPasswordAction rejects manager resets for an ADMIN account', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue({ id: 'user_owner', role: 'ADMIN' })
+
+    await expect(
+      resetUserPasswordAction({
+        userId: 'user_owner',
+        newPassword: 'longenoughpw',
+      }),
+    ).rejects.toThrow(/ADMIN account/i)
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
   it('deactivateTeamUserAction rejects self-deactivation', async () => {
     await expect(deactivateTeamUserAction('user_admin')).rejects.toThrow(
       /yourself/i,
@@ -739,6 +775,16 @@ describe('team CRUD', () => {
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'TEAM_USER_DEACTIVATED' }),
     })
+  })
+
+  it('deactivateTeamUserAction rejects manager deactivation of an ADMIN account', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue({ id: 'user_owner', role: 'ADMIN' })
+
+    await expect(deactivateTeamUserAction('user_owner')).rejects.toThrow(
+      /ADMIN account/i,
+    )
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
   })
 })
 
