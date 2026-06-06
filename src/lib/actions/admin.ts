@@ -2282,6 +2282,27 @@ function mockPackages(): AdminPackageRow[] {
   ]
 }
 
+/** Stripe Connect onboarding — returns dashboard URL until OAuth is wired. */
+export async function getStripeConnectOnboardingUrl(): Promise<{
+  url: string | null
+  message: string
+}> {
+  await requireRole('ADMIN')
+  const dashboard =
+    process.env.STRIPE_CONNECT_DASHBOARD_URL?.trim() ||
+    'https://dashboard.stripe.com/connect/accounts/overview'
+  if (!process.env.STRIPE_SECRET_KEY?.trim()) {
+    return {
+      url: null,
+      message: 'Add STRIPE_SECRET_KEY before connecting Stripe.',
+    }
+  }
+  return {
+    url: dashboard,
+    message: 'Open Stripe Connect in the Stripe Dashboard to finish account setup.',
+  }
+}
+
 function mockUsers(): AdminUserRow[] {
   const now = new Date()
   return [

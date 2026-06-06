@@ -22,6 +22,8 @@ export interface DashboardBookingRow {
   refundIfCancelled: number
   policyWindowHours: number
   policyRefundPercent: number
+  reschedulable: boolean
+  rescheduleWindowHours: number
 }
 
 export async function getDashboardBookings(): Promise<DashboardBookingRow[]> {
@@ -48,6 +50,8 @@ export async function getDashboardBookings(): Promise<DashboardBookingRow[]> {
         refundIfCancelled: 4500,
         policyWindowHours: 24,
         policyRefundPercent: 100,
+        reschedulable: true,
+        rescheduleWindowHours: 24,
       },
     ]
   }
@@ -74,19 +78,28 @@ export async function getDashboardBookings(): Promise<DashboardBookingRow[]> {
   const now = new Date()
   return bookings.map((b) => {
     const policy = policySnapshotFromBooking(b, tenantPolicy)
-    const cutoff = new Date(
+    const cancelCutoff = new Date(
       b.startTime.getTime() - policy.cancellationWindowHours * 3_600_000,
     )
+    const rescheduleCutoff = new Date(
+      b.startTime.getTime() - policy.rescheduleWindowHours * 3_600_000,
+    )
     const isPast = b.startTime <= now
-    const withinWindow = now <= cutoff
     const cancellable =
-      !isPast && b.status !== 'CANCELLED' && !b.isRefunded
-    const refundIfCancelled =
-      cancellable && withinWindow
-        ? Math.floor(
-            (b.totalAmount * policy.cancellationRefundPercent) / 100,
-          )
-        : 0
+      !isPast &&
+      b.status === 'CONFIRMED' &&
+      !b.isRefunded &&
+      now <= cancelCutoff
+    const reschedulable =
+      !isPast &&
+      b.status === 'CONFIRMED' &&
+      !b.isRefunded &&
+      now <= rescheduleCutoff
+    const refundIfCancelled = cancellable
+      ? Math.floor(
+          (b.totalAmount * policy.cancellationRefundPercent) / 100,
+        )
+      : 0
     return {
       id: b.id,
       confirmationCode: b.confirmationCode,
@@ -101,6 +114,8 @@ export async function getDashboardBookings(): Promise<DashboardBookingRow[]> {
       refundIfCancelled,
       policyWindowHours: policy.cancellationWindowHours,
       policyRefundPercent: policy.cancellationRefundPercent,
+      reschedulable,
+      rescheduleWindowHours: policy.rescheduleWindowHours,
     }
   })
 }

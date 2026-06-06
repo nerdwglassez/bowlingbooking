@@ -8,7 +8,7 @@ import {
   getLaneReservationCentsPerLane,
   getPricingStrategy,
   type TenantPricingStrategy,
-} from '@/lib/tenant'
+} from '@/lib/tenant-config'
 
 export type { TenantPricingStrategy }
 

@@ -16,7 +16,7 @@
 ```
 /book           Step 1 — Bowler count + Date/Time
 /book/package   Step 2 — Package selection
-/book/details   Step 3 — Shoe sizing per bowler  [NOT YET BUILT]
+/book/details   Step 3 — Shoe sizing per bowler  [BUILT]
 /book/confirm   Step 4 — Review + Payment
 /book/success   Step 5 — Confirmation
 ```
@@ -109,12 +109,12 @@ Never call per-day availability in a loop — one call per date tap.
 
 ---
 
-## Step 3 — Shoe Sizing  (/book/details)  [NOT YET BUILT]
+## Step 3 — Shoe Sizing  (/book/details)  [BUILT]
 
-This step does not exist yet. The flow currently jumps from
-/book/package directly to /book/confirm.
+Implemented at `src/app/(customer)/book/details/page.tsx`. Flow:
+`/book/package` → `/book/details` → `/book/confirm`.
 
-### When built, it should:
+### Behavior:
 
 #### One row per bowler
 - "Bowler 1", "Bowler 2", etc.

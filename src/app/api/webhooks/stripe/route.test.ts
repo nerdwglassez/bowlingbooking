@@ -97,13 +97,10 @@ vi.mock('@/lib/stripe', () => ({
   constructWebhookEvent: mocks.constructWebhookEventMock,
 }))
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
-vi.mock('@/lib/tenant', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/tenant')>()
-  return {
-    ...actual,
-    getTenant: mocks.getTenantMock,
-  }
-})
+vi.mock('@/lib/tenant', () => ({
+  getTenant: mocks.getTenantMock,
+  getContactEmail: vi.fn(() => null),
+}))
 vi.mock('@/lib/email', () => ({ sendBookingConfirmation: mocks.sendEmailMock }))
 
 import { POST } from './route'

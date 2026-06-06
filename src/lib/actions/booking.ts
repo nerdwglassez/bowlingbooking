@@ -24,7 +24,11 @@
 // All monetary amounts in args/returns are integer cents.
 
 import { validatePromoCode } from '@/lib/actions/promo'
+import { generateConfirmationCode } from '@/lib/booking-codes'
+import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { serializeShoeSelections } from '@/lib/booking-metadata'
+import { assignBookingLanes } from '@/lib/lane-assignment'
+import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { calculateBookingTotal, type BookingPricingContext } from '@/lib/pricing'
@@ -34,8 +38,8 @@ import {
   assertBookingDurationWithinLimits,
   getLaneReservationCentsPerLane,
   getShoeRentalPriceCents,
-  getTenant,
-} from '@/lib/tenant'
+} from '@/lib/tenant-config'
+import { getTenant } from '@/lib/tenant'
 import {
   buildLanePricingContext,
   resolveStrategyForBooking,
@@ -417,15 +421,55 @@ export async function releaseBookingHold(holdId: string): Promise<void> {
 
 // ── Packages ──────────────────────────────────────────────
 
+export async function validatePackageAccessCode(
+  tenantId: string,
+  code: string,
+): Promise<{ packageId: string; name: string } | null> {
+  const normalized = code.trim()
+  if (!normalized) return null
+  if (isDevWithoutDb()) {
+    if (normalized.toUpperCase() === 'VIP2026') {
+      return { packageId: 'pkg-vip', name: 'VIP Lane' }
+    }
+    return null
+  }
+  const row = await prisma.package.findFirst({
+    where: {
+      tenantId,
+      active: true,
+      accessType: 'CODE_REQUIRED',
+      codeString: normalized,
+    },
+    select: { id: true, name: true },
+  })
+  return row ? { packageId: row.id, name: row.name } : null
+}
+
 export async function getPackagesForTenant(
   tenantId: string,
+  options?: { packageAccessCode?: string },
 ): Promise<Package[]> {
   if (shouldUseDevDbFallback()) {
     return mockPackages(tenantId)
   }
   try {
+    let unlockedId: string | null = null
+    if (options?.packageAccessCode?.trim()) {
+      const unlocked = await validatePackageAccessCode(
+        tenantId,
+        options.packageAccessCode,
+      )
+      unlockedId = unlocked?.packageId ?? null
+    }
     const rows = await prisma.package.findMany({
-      where: { tenantId, active: true, accessType: 'PUBLIC' },
+      where: {
+        tenantId,
+        active: true,
+        OR: [
+          { accessType: 'PUBLIC' },
+          ...(unlockedId ? [{ id: unlockedId }] : []),
+        ],
+      },
       orderBy: { sortOrder: 'asc' },
     })
     return rows as unknown as Package[]
@@ -515,8 +559,12 @@ export interface ConfirmBookingInput {
 }
 
 export interface ConfirmBookingResult {
-  clientSecret: string
-  paymentIntentId: string
+  clientSecret?: string
+  paymentIntentId?: string
+  confirmationCode?: string
+  bookingId?: string
+  /** CODE_REQUIRED + PAYMENT_OFFLINE — no Stripe; booking is PENDING_PAYMENT. */
+  offlinePending?: boolean
   mocked: boolean
 }
 
@@ -714,6 +762,185 @@ export async function confirmBooking(
     clientSecret: intent.clientSecret,
     paymentIntentId: intent.id,
     mocked: intent.mocked || isStripeMocked(),
+  }
+}
+
+const OFFLINE_CODE_MAX_RETRIES = 5
+
+/** CODE_REQUIRED packages with PAYMENT_OFFLINE — no Stripe PaymentIntent. */
+export async function confirmOfflineBooking(
+  input: ConfirmBookingInput,
+): Promise<ConfirmBookingResult> {
+  if (!input.packageId) {
+    throw new Error('Offline booking requires a package.')
+  }
+
+  const tenantForPricing = await getTenant()
+
+  if (isDevWithoutDb()) {
+    return {
+      confirmationCode: 'MOCK-OFF',
+      bookingId: 'bk_offline_mock',
+      offlinePending: true,
+      mocked: true,
+    }
+  }
+
+  const hold = await prisma.bookingHold.findUnique({
+    where: { id: input.holdId },
+  })
+  if (!hold || hold.expiresAt <= new Date()) {
+    throw new Error('Hold expired or not found — pick a new time slot.')
+  }
+
+  const pkgRow = await prisma.package.findFirst({
+    where: {
+      id: input.packageId,
+      tenantId: hold.tenantId,
+      active: true,
+      paymentMode: 'PAYMENT_OFFLINE',
+    },
+  })
+  if (!pkgRow) {
+    throw new Error('Selected package does not support offline payment.')
+  }
+
+  const selectedPackage = pkgRow as unknown as Package
+  const subtotalCents = calculateBookingTotal({
+    package: selectedPackage,
+    bowlerCount: hold.bowlerCount,
+    laneCount: hold.laneCount,
+    shoeSelections: input.shoeSelections ?? [],
+    shoeRentalPriceCents:
+      input.shoeRentalPriceCents ?? getShoeRentalPriceCents(tenantForPricing),
+    laneReservationCents: 0,
+    selectedOptionalAddonIds: input.selectedOptionalAddonIds ?? [],
+  }).totalAmount
+
+  if (input.totalAmount !== subtotalCents) {
+    throw new Error('Booking total changed — review your booking.')
+  }
+
+  for (let attempt = 0; attempt < OFFLINE_CODE_MAX_RETRIES; attempt++) {
+    const confirmationCode = generateConfirmationCode()
+    try {
+      const booking = await prisma.$transaction(async (tx) => {
+        const tenantRow = await tx.tenant.findUniqueOrThrow({
+          where: { id: hold.tenantId },
+        })
+        const policySnapshot = policySnapshotFromTenantRow(tenantRow)
+
+        const created = await tx.booking.create({
+          data: {
+            tenantId: hold.tenantId,
+            confirmationCode,
+            partyType: pkgRow.partyTypes[0] ?? 'OPEN',
+            bowlerCount: hold.bowlerCount,
+            laneCount: hold.laneCount,
+            startTime: hold.startTime,
+            endTime: hold.endTime,
+            packageId: pkgRow.id,
+            status: 'PENDING_PAYMENT',
+            source: 'ONLINE',
+            customerName: input.customerName,
+            customerEmail: input.customerEmail,
+            customerPhone: input.customerPhone || null,
+            totalAmount: subtotalCents,
+            smsReminderConsent: input.smsReminderConsent ?? false,
+            marketingConsent: input.marketingConsent ?? false,
+            selectedAddonIds: input.selectedOptionalAddonIds ?? [],
+            cancellationWindowHoursSnapshot:
+              policySnapshot.cancellationWindowHours,
+            rescheduleWindowHoursSnapshot:
+              policySnapshot.rescheduleWindowHours,
+            bowlersPerLaneSnapshot: policySnapshot.bowlersPerLane,
+            cancellationRefundPercentSnapshot:
+              policySnapshot.cancellationRefundPercent,
+          },
+        })
+
+        const shoeSelections = input.shoeSelections ?? []
+        if (shoeSelections.length > 0) {
+          await tx.bookingBowler.createMany({
+            data: shoeSelections.map((row, index) => ({
+              bookingId: created.id,
+              index,
+              shoeSize: row.size.length > 0 ? row.size : null,
+            })),
+          })
+        }
+
+        await assignBookingLanes(tx, {
+          tenantId: hold.tenantId,
+          bookingId: created.id,
+          laneCount: hold.laneCount,
+          startTime: hold.startTime,
+          endTime: hold.endTime,
+        })
+
+        await tx.bookingHold.deleteMany({ where: { id: input.holdId } })
+
+        return created
+      })
+
+      return {
+        confirmationCode: booking.confirmationCode,
+        bookingId: booking.id,
+        offlinePending: true,
+        mocked: false,
+      }
+    } catch (err) {
+      if (
+        attempt < OFFLINE_CODE_MAX_RETRIES - 1 &&
+        isUniqueConstraintOnField(err, ['confirmation_code'])
+      ) {
+        continue
+      }
+      throw err
+    }
+  }
+
+  throw new Error('Could not create booking.')
+}
+
+export async function getBookingByConfirmationCode(
+  code: string,
+  email: string,
+): Promise<BookingSummary | null> {
+  const normalized = code.trim().toUpperCase()
+  const emailNorm = email.trim().toLowerCase()
+  if (!normalized || !emailNorm) return null
+  if (isDevWithoutDb()) {
+    return {
+      id: 'bk_mock',
+      confirmationCode: normalized,
+      startTime: new Date(Date.now() + 86_400_000),
+      endTime: new Date(Date.now() + 86_400_000 + 3_600_000),
+      bowlerCount: 4,
+      laneCount: 1,
+      totalAmount: 4500,
+      customerEmail: emailNorm,
+      packageName: 'VIP Lane',
+    }
+  }
+  const booking = await prisma.booking.findFirst({
+    where: {
+      confirmationCode: normalized,
+      customerEmail: { equals: emailNorm, mode: 'insensitive' },
+    },
+    include: { package: true },
+  })
+  if (!booking) return null
+  return {
+    id: booking.id,
+    confirmationCode: booking.confirmationCode,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    bowlerCount: booking.bowlerCount,
+    laneCount: booking.laneCount,
+    totalAmount: booking.totalAmount,
+    customerEmail: booking.customerEmail,
+    packageName: booking.package?.name ?? '',
   }
 }
 

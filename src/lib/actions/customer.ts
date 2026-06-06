@@ -17,11 +17,14 @@
 import { revalidatePath } from 'next/cache'
 
 import { policySnapshotFromBooking, policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
+import { requireUser } from '@/lib/auth'
 import { isDevWithoutDb } from '@/lib/env'
 import { sendBookingCancellation } from '@/lib/email'
+import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { assertPublicRateLimit } from '@/lib/rate-limit-request'
 import { prisma } from '@/lib/prisma'
 import { createRefund, isStripeMocked } from '@/lib/stripe'
+import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import { getTenant } from '@/lib/tenant'
 
 // ── Shared types ──────────────────────────────────────────
@@ -49,6 +52,9 @@ export interface CustomerBookingDetail {
   policyRefundPercent: number
   /** True if the booking start is in the past. */
   isPast: boolean
+  /** Within reschedule policy window. */
+  reschedulable: boolean
+  rescheduleWindowHours: number
   /** Persisted shoe sizes per bowler (empty when shoes included). */
   shoeSizes: string[]
 }
@@ -238,15 +244,27 @@ async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
   })
   const policy = policySnapshotFromBooking(b, tenantPolicy)
   const now = new Date()
-  const cutoff = new Date(
+  const cancelCutoff = new Date(
     b.startTime.getTime() - policy.cancellationWindowHours * 3_600_000,
   )
+  const rescheduleCutoff = new Date(
+    b.startTime.getTime() - policy.rescheduleWindowHours * 3_600_000,
+  )
   const isPast = b.startTime.getTime() <= now.getTime()
-  const withinWindow = now <= cutoff
+  const withinCancelWindow = now <= cancelCutoff
+  const withinRescheduleWindow = now <= rescheduleCutoff
   const cancellable =
-    !isPast && b.status !== 'CANCELLED' && !b.isRefunded
-  const refundIfCancelled =
-    cancellable && withinWindow
+    !isPast &&
+    b.status === 'CONFIRMED' &&
+    !b.isRefunded &&
+    withinCancelWindow
+  const reschedulable =
+    !isPast &&
+    b.status === 'CONFIRMED' &&
+    !b.isRefunded &&
+    withinRescheduleWindow
+  const     refundIfCancelled =
+    cancellable
       ? Math.floor(
           (b.totalAmount * policy.cancellationRefundPercent) / 100,
         )
@@ -269,6 +287,8 @@ async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
     policyWindowHours: policy.cancellationWindowHours,
     policyRefundPercent: policy.cancellationRefundPercent,
     isPast,
+    reschedulable,
+    rescheduleWindowHours: policy.rescheduleWindowHours,
     shoeSizes:
       b.bowlers?.map((row) => row.shoeSize).filter((s): s is string => s != null) ??
       [],
@@ -296,6 +316,122 @@ function buildMockDetail(): CustomerBookingDetail {
     policyWindowHours: 24,
     policyRefundPercent: 100,
     isPast: false,
+    reschedulable: true,
+    rescheduleWindowHours: 24,
     shoeSizes: [],
   }
+}
+
+const RESCHEDULE_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT'] as const
+
+export async function cancelDashboardBookingAction(
+  bookingId: string,
+): Promise<CancelResult> {
+  const user = await requireUser()
+  if (user.role !== 'CUSTOMER') {
+    throw new Error('Only customer accounts can cancel from the dashboard.')
+  }
+  const email = user.email?.trim().toLowerCase()
+  if (!email) throw new Error('Account email is required.')
+
+  const booking = await prisma.booking.findFirst({
+    where: {
+      id: bookingId,
+      OR: [{ userId: user.id }, { customerEmail: email }],
+    },
+    select: { confirmationCode: true, customerEmail: true },
+  })
+  if (!booking) throw new Error('Booking not found.')
+
+  return cancelBookingAction({
+    email: booking.customerEmail,
+    confirmationCode: booking.confirmationCode,
+  })
+}
+
+export async function rescheduleDashboardBookingAction(input: {
+  bookingId: string
+  startTime: Date
+  endTime: Date
+}): Promise<void> {
+  const user = await requireUser()
+  if (user.role !== 'CUSTOMER') {
+    throw new Error('Only customer accounts can reschedule from the dashboard.')
+  }
+  if (input.endTime <= input.startTime) {
+    throw new Error('End time must be after start time.')
+  }
+
+  const email = user.email?.trim().toLowerCase()
+  const booking = await prisma.booking.findFirst({
+    where: {
+      id: input.bookingId,
+      OR: [
+        { userId: user.id },
+        ...(email ? [{ customerEmail: email }] : []),
+      ],
+    },
+  })
+  if (!booking) throw new Error('Booking not found.')
+  if (booking.status !== 'CONFIRMED') {
+    throw new Error('Only confirmed bookings can be rescheduled.')
+  }
+
+  const tenant = await getTenant()
+  const policy = policySnapshotFromBooking(booking, policySnapshotFromTenantRow(tenant))
+  const now = new Date()
+  const cutoff = new Date(
+    booking.startTime.getTime() - policy.rescheduleWindowHours * 3_600_000,
+  )
+  if (now > cutoff) {
+    throw new Error('Reschedule window has passed for this booking.')
+  }
+
+  assertBookingDurationWithinLimits(tenant, input.startTime, input.endTime)
+
+  const bowlersPerLane =
+    booking.bowlersPerLaneSnapshot ?? tenant.bowlersPerLane
+  const laneCount = getLaneCount(booking.bowlerCount, bowlersPerLane)
+
+  const overlapping = await prisma.booking.findMany({
+    where: {
+      tenantId: booking.tenantId,
+      status: { in: [...RESCHEDULE_STATUSES] },
+      id: { not: booking.id },
+      startTime: { lt: input.endTime },
+      endTime: { gt: input.startTime },
+    },
+    select: { startTime: true, endTime: true, laneCount: true },
+  })
+  const activeHolds = await prisma.bookingHold.findMany({
+    where: {
+      tenantId: booking.tenantId,
+      expiresAt: { gt: now },
+      startTime: { lt: input.endTime },
+      endTime: { gt: input.startTime },
+    },
+    select: { startTime: true, endTime: true, laneCount: true },
+  })
+  const totalLanes = await prisma.lane.count({
+    where: { tenantId: booking.tenantId, active: true },
+  })
+  const reserved = sumOverlappingLaneCount(
+    [...overlapping, ...activeHolds],
+    input.startTime,
+    input.endTime,
+  )
+  if (totalLanes - reserved < laneCount) {
+    throw new Error('Selected time is no longer available.')
+  }
+
+  await prisma.booking.update({
+    where: { id: booking.id },
+    data: {
+      startTime: input.startTime,
+      endTime: input.endTime,
+      laneCount,
+    },
+  })
+
+  revalidatePath('/dashboard')
 }

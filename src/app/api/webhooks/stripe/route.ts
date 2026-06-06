@@ -42,18 +42,22 @@ import { Prisma } from '@prisma/client'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function buildManageUrl(confirmationCode: string, email: string): string {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
+function appBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
     .trim()
     .replace(/\/$/, '')
-  return `${base}/find-my-booking/${confirmationCode}?email=${encodeURIComponent(email)}`
+}
+
+function buildManageUrl(confirmationCode: string, email: string): string {
+  return `${appBaseUrl()}/find-my-booking/${confirmationCode}?email=${encodeURIComponent(email)}`
+}
+
+function buildDashboardUrl(): string {
+  return `${appBaseUrl()}/dashboard`
 }
 
 function buildIcsUrl(confirmationCode: string, email: string): string {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-    .trim()
-    .replace(/\/$/, '')
-  return `${base}/api/bookings/${encodeURIComponent(confirmationCode)}/ics?email=${encodeURIComponent(email)}`
+  return `${appBaseUrl()}/api/bookings/${encodeURIComponent(confirmationCode)}/ics?email=${encodeURIComponent(email)}`
 }
 
 interface BookingMetadata {
@@ -434,6 +438,7 @@ async function handlePaymentIntentSucceeded(
           booking.confirmationCode,
           metadata.customerEmail,
         ),
+        dashboardUrl: buildDashboardUrl(),
         icsUrl: buildIcsUrl(
           booking.confirmationCode,
           metadata.customerEmail,

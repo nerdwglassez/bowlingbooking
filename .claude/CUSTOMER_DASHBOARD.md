@@ -1,14 +1,11 @@
 # Royal Z Lanes — Customer Dashboard Interactions
 # .claude/CUSTOMER_DASHBOARD.md
 #
-# Implementation status: NOT YET BUILT
-# /dashboard does not exist. Current self-serve path: /find-my-booking
-# (guest lookup by email + confirmation code — no account required).
+# Implementation status: PARTIAL
+# `/dashboard` exists (MVP list + featured card). Guest path: `/find-my-booking`.
+# Cancel/reschedule sheets, preferences, and full wireframe UX remain.
 #
-# Dependencies before building:
-#   - Migration 1 (policy snapshot fields on Booking)
-#   - Migration 7 (ClaimToken table for account creation)
-#   - /book/success account creation prompt
+# Dependencies (schema): Migration 1 + 7 COMPLETE — behavior/UI in progress.
 #
 # Domain summary: BOOKING_DOMAIN.md Part 2 §Customer Dashboard
 # Guest fallback (/find-my-booking) remains after dashboard is built.

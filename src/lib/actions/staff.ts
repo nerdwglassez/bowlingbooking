@@ -22,7 +22,9 @@ import {
   toCockpitBookings,
 } from '@/lib/cockpit-display'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
-import { getLaneCount } from '@/lib/lane-logic'
+import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
+import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
+import type { Tenant } from '@/types'
 import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 
@@ -723,18 +725,200 @@ export async function staffUpdateBookingNotesAction(
   bookingId: string,
   notes: string,
 ): Promise<void> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  await staffModifyBookingAction({ bookingId, notes })
+}
+
+export interface StaffModifyBookingInput {
+  bookingId: string
+  startTime?: Date
+  endTime?: Date
+  bowlerCount?: number
+  packageId?: string
+  notes?: string | null
+}
+
+const MODIFY_RESERVING_STATUSES = [
+  'CONFIRMED',
+  'COMPLETED',
+  'NO_SHOW',
+  'PENDING_PAYMENT',
+] as const
+
+export async function staffModifyBookingAction(
+  input: StaffModifyBookingInput,
+): Promise<void> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
 
   if (isDevWithoutDb()) {
-    console.log(`[staff] mock notes update for ${bookingId}`)
+    console.log(`[staff] mock modify booking ${input.bookingId}`, input)
+    revalidatePath('/staff')
     return
   }
 
-  await prisma.booking.update({
-    where: { id: bookingId },
-    data: { notes: notes.trim() || null },
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.booking.findUnique({
+      where: { id: input.bookingId },
+    })
+    if (!existing) throw new Error('Booking not found.')
+    if (
+      existing.status !== 'CONFIRMED' &&
+      existing.status !== 'PENDING_PAYMENT'
+    ) {
+      throw new Error('Only active bookings can be modified.')
+    }
+
+    const startTime = input.startTime ?? existing.startTime
+    const endTime = input.endTime ?? existing.endTime
+    if (endTime <= startTime) {
+      throw new Error('End time must be after start time.')
+    }
+
+    const tenantRow = await tx.tenant.findUniqueOrThrow({
+      where: { id: existing.tenantId },
+    })
+    const tenantForLimits = {
+      config: tenantRow.config,
+    } as Tenant
+    assertBookingDurationWithinLimits(tenantForLimits, startTime, endTime)
+
+    const bowlerCount = input.bowlerCount ?? existing.bowlerCount
+    const bowlersPerLane =
+      existing.bowlersPerLaneSnapshot ?? tenantRow.bowlersPerLane
+    const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
+
+    const now = new Date()
+    const overlapping = await tx.booking.findMany({
+      where: {
+        tenantId: existing.tenantId,
+        status: { in: [...MODIFY_RESERVING_STATUSES] },
+        id: { not: input.bookingId },
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
+      },
+      select: { startTime: true, endTime: true, laneCount: true },
+    })
+    const activeHolds = await tx.bookingHold.findMany({
+      where: {
+        tenantId: existing.tenantId,
+        expiresAt: { gt: now },
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
+      },
+      select: { startTime: true, endTime: true, laneCount: true },
+    })
+    const totalLanes = await tx.lane.count({
+      where: { tenantId: existing.tenantId, active: true },
+    })
+    const reserved = sumOverlappingLaneCount(
+      [...overlapping, ...activeHolds],
+      startTime,
+      endTime,
+    )
+    if (totalLanes - reserved < laneCount) {
+      throw new Error('Selected time is no longer available.')
+    }
+
+    let packageId = input.packageId ?? existing.packageId
+    let partyType = existing.partyType
+    if (input.packageId != null) {
+      const pkg = await tx.package.findFirst({
+        where: {
+          id: input.packageId,
+          tenantId: existing.tenantId,
+          active: true,
+        },
+      })
+      if (!pkg) throw new Error('Package not found.')
+      packageId = pkg.id
+      partyType = pkg.partyTypes[0] ?? 'OPEN'
+    }
+
+    await tx.booking.update({
+      where: { id: input.bookingId },
+      data: {
+        startTime,
+        endTime,
+        bowlerCount,
+        laneCount,
+        packageId,
+        partyType,
+        ...(input.notes !== undefined
+          ? { notes: input.notes?.trim() || null }
+          : {}),
+      },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        bookingId: input.bookingId,
+        userId: user.id,
+        action: 'BOOKING_MODIFIED',
+        entityType: 'Booking',
+        entityId: input.bookingId,
+        details: {
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          bowlerCount,
+          packageId,
+        },
+      },
+    })
   })
 
+  revalidatePath('/staff')
+  revalidatePath(`/staff/bookings/${input.bookingId}`)
+}
+
+export interface StaffPackageOption {
+  id: string
+  name: string
+}
+
+export async function getStaffPackageOptions(
+  tenantId: string,
+): Promise<StaffPackageOption[]> {
+  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) {
+    return [
+      { id: 'pkg-classic', name: 'Classic Bowling' },
+      { id: 'pkg-birthday', name: 'Birthday Party' },
+    ]
+  }
+  const rows = await prisma.package.findMany({
+    where: { tenantId, active: true },
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, name: true },
+  })
+  return rows
+}
+
+export async function staffConfirmPendingPaymentAction(
+  bookingId: string,
+): Promise<void> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) {
+    console.log(`[staff] mock confirm pending payment ${bookingId}`)
+    return
+  }
+  await prisma.$transaction(async (tx) => {
+    const booking = await tx.booking.findUnique({ where: { id: bookingId } })
+    if (!booking || booking.status !== 'PENDING_PAYMENT') {
+      throw new Error('Booking is not awaiting payment confirmation.')
+    }
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: 'CONFIRMED' },
+    })
+    await tx.auditLog.create({
+      data: {
+        bookingId,
+        userId: user.id,
+        action: 'BOOKING_PAYMENT_CONFIRMED',
+        entityType: 'Booking',
+        entityId: bookingId,
+      },
+    })
+  })
   revalidatePath('/staff')
   revalidatePath(`/staff/bookings/${bookingId}`)
 }

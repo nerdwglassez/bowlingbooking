@@ -12,6 +12,7 @@ export type ShoeRentalTableProps = {
   selections: ShoeSelection[]
   shoeRentalPriceCents: number
   onSizeChange: (index: number, size: string, cost: number) => void
+  onRemoveBowler?: (index: number) => void
   allComplete?: boolean
   className?: string
 }
@@ -30,6 +31,7 @@ export function ShoeRentalTable({
   selections,
   shoeRentalPriceCents,
   onSizeChange,
+  onRemoveBowler,
   allComplete = false,
   className,
 }: ShoeRentalTableProps) {
@@ -70,10 +72,19 @@ export function ShoeRentalTable({
             key={row.bowlerId}
             className="grid grid-cols-[1fr_10rem] items-center gap-2 border-b border-[var(--color-border-subtle)] py-2 last:border-b-0"
           >
-            <div>
+            <div className="flex items-center justify-between gap-2">
               <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                Guest {index + 1}
+                Bowler {index + 1}
               </p>
+              {onRemoveBowler != null && selections.length > 1 ? (
+                <button
+                  type="button"
+                  className="text-xs text-[var(--color-text-secondary)] underline"
+                  onClick={() => onRemoveBowler(index)}
+                >
+                  Remove
+                </button>
+              ) : null}
             </div>
             <Select
               value={row.size}

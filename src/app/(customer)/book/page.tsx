@@ -1,9 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useBooking } from '@/context/BookingContext'
-import { useTenant } from '@/app/(customer)/book/tenant-provider'
+import {
+  useLanePricingContext,
+  useTenant,
+} from '@/app/(customer)/book/tenant-provider'
 import {
   acquireBookingHold,
   getAvailableDates,
@@ -21,10 +24,12 @@ import { GroupSizeBanner } from '@/components/patterns/group-size-banner'
 import { HoldTimer } from '@/components/patterns/hold-timer'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { TimeSlotGrid } from '@/components/patterns/time-slot-grid'
+import { PriceFooter } from '@/components/patterns/price-footer'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatBowlersLanesDateSummary } from '@/lib/booking-display'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { calculateBookingTotal } from '@/lib/pricing'
 import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 import type { TimeSlot } from '@/types'
@@ -179,6 +184,32 @@ export default function BookStepOnePage() {
       ? formatBowlersLanesDateSummary(session.bowlerCount, session.date)
       : 'How many people, and when?'
 
+  const pricingContext = useLanePricingContext({
+    bowlerCount: session.bowlerCount ?? 1,
+    laneCount: session.laneCount ?? 1,
+    startTime: session.startTime,
+    endTime: session.endTime,
+  })
+
+  const pricing = useMemo(() => {
+    return calculateBookingTotal({
+      package: null,
+      bowlerCount: session.bowlerCount ?? 1,
+      laneCount: session.laneCount ?? 1,
+      shoeSelections: [],
+      shoeRentalPriceCents: tenant.shoeRentalPriceCents,
+      laneReservationCents:
+        (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane,
+      pricingContext,
+    })
+  }, [
+    session.bowlerCount,
+    session.laneCount,
+    pricingContext,
+    tenant.shoeRentalPriceCents,
+    tenant.laneReservationCentsPerLane,
+  ])
+
   const canProceedToPackages =
     session.timeSlotId != null &&
     session.holdExpiresAt != null &&
@@ -314,15 +345,13 @@ export default function BookStepOnePage() {
         )}
       </section>
 
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        onClick={handleNext}
-        disabled={!canProceedToPackages}
-      >
-        {ctaLabel}
-      </Button>
+      <PriceFooter
+        className="mt-auto"
+        pricing={pricing}
+        ctaLabel={ctaLabel}
+        onCta={handleNext}
+        ctaDisabled={!canProceedToPackages}
+      />
     </main>
   )
 }

@@ -30,6 +30,8 @@ export type CockpitPanelProps = CockpitSnapshot & {
   clockLine: string
   tenantId: string
   packages: Package[]
+  bowlersPerLane: number
+  allowWalkInBookings: boolean
   initialWalkInOpen?: boolean
   onOpenBooking?: (bookingId: string) => void
 }
@@ -72,6 +74,8 @@ export function CockpitPanel({
   clockLine,
   tenantId,
   packages,
+  bowlersPerLane: _bowlersPerLane,
+  allowWalkInBookings,
   initialWalkInOpen = false,
   onOpenBooking,
 }: CockpitPanelProps) {
@@ -185,10 +189,12 @@ export function CockpitPanel({
           )}
       </div>
 
-      <WalkInFab
-        hidden={walkInOpen}
-        onClick={() => setWalkInOpen(true)}
-      />
+      {allowWalkInBookings ? (
+        <WalkInFab
+          hidden={walkInOpen}
+          onClick={() => setWalkInOpen(true)}
+        />
+      ) : null}
 
       <WalkInSheet
         open={walkInOpen}

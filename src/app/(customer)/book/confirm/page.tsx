@@ -22,7 +22,10 @@ import {
   useTenant,
 } from '@/app/(customer)/book/tenant-provider'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
-import { confirmBooking } from '@/lib/actions/booking'
+import {
+  confirmBooking,
+  confirmOfflineBooking,
+} from '@/lib/actions/booking'
 import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import { paymentFooterLineItems } from '@/lib/booking-display'
 import { isContactComplete } from '@/lib/customer-name'
@@ -55,6 +58,7 @@ export default function ConfirmBookingPage() {
     applyPromoCode,
     clearPromoCode,
     setTimeSlot,
+    resetSession,
   } = useBooking()
   const tenant = useTenant()
   const router = useRouter()
@@ -72,6 +76,8 @@ export default function ConfirmBookingPage() {
   const nowMs = useWallClockNow()
 
   const shoesIncluded = session.selectedPackage?.shoesIncluded ?? false
+  const isOfflinePackage =
+    session.selectedPackage?.paymentMode === 'PAYMENT_OFFLINE'
 
   const canRender =
     session.bowlerCount != null &&
@@ -160,6 +166,32 @@ export default function ConfirmBookingPage() {
     setInitializingPayment(true)
     setPaymentError(null)
     try {
+      if (isOfflinePackage) {
+        const result = await confirmOfflineBooking({
+          tenantId: tenant.id,
+          holdId: session.holdId!,
+          packageId: session.packageId,
+          partyType: session.partyType ?? 'OPEN',
+          bowlerCount: session.bowlerCount!,
+          laneCount: session.laneCount ?? 1,
+          startTime: session.startTime!,
+          endTime: session.endTime!,
+          totalAmount: session.totalAmount!,
+          customerName: session.customerName,
+          customerEmail: session.customerEmail,
+          customerPhone: session.customerPhone,
+          shoeSelections: session.shoeSelections,
+          selectedOptionalAddonIds: session.selectedOptionalAddonIds,
+          smsReminderConsent,
+          marketingConsent,
+        })
+        resetSession()
+        const code = result.confirmationCode ?? 'PENDING'
+        router.push(
+          `/book/success?code=${encodeURIComponent(code)}&email=${encodeURIComponent(session.customerEmail)}&pending=1`,
+        )
+        return
+      }
       const result = await confirmBooking({
         tenantId: tenant.id,
         holdId: session.holdId!,
@@ -181,6 +213,9 @@ export default function ConfirmBookingPage() {
         smsReminderConsent,
         marketingConsent,
       })
+      if (!result.clientSecret || !result.paymentIntentId) {
+        throw new Error('Payment could not be started.')
+      }
       setPaymentIntent(result.clientSecret, result.paymentIntentId)
     } catch (err) {
       const message =
@@ -215,15 +250,21 @@ export default function ConfirmBookingPage() {
     session.selectedOptionalAddonIds,
     smsReminderConsent,
     marketingConsent,
+    isOfflinePackage,
+    resetSession,
+    router,
     setPaymentIntent,
     showToast,
   ])
 
   useEffect(() => {
-    if (!canRender || hasPaymentIntent || initStarted.current) return
+    if (!canRender || initStarted.current) return
+    if (!isOfflinePackage && hasPaymentIntent) return
     initStarted.current = true
-    void startPayment()
-  }, [canRender, hasPaymentIntent, startPayment])
+    queueMicrotask(() => {
+      void startPayment()
+    })
+  }, [canRender, hasPaymentIntent, isOfflinePackage, startPayment])
 
   async function handleApplyPromo() {
     setPromoError(null)

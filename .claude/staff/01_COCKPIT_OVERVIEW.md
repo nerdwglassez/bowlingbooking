@@ -7,7 +7,7 @@
 # Wireframes:    docs/wireframes/staff/staff-app-cockpit.html,
 #                docs/wireframes/staff/staff-app-v2.html,
 #                docs/wireframes/staff/staff-stat-hierarchy.html
-# Build status:  Partial — cockpit built; booking detail sheet + check-in not built
+# Build status:  Partial — cockpit + booking detail sheet + check-in built; md+ right panel optional
 
 ---
 

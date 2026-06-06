@@ -13,7 +13,7 @@ import {
   optionalAddonLineAmount,
 } from '@/lib/package-addons'
 import { rateBasedTotalCents } from '@/lib/pricing-period'
-import { bookingDurationHours } from '@/lib/tenant'
+import { bookingDurationHours } from '@/lib/tenant-config'
 import type {
   LanePricingContext,
   TenantPricingStrategy,

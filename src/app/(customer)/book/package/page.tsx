@@ -15,11 +15,16 @@ import { PackageCard } from '@/components/patterns/package-card'
 import { PackageDetailSheet } from '@/components/patterns/package-detail-sheet'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { BookingStepActions } from '@/components/patterns/booking-step-actions'
-import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
+import { LaneAllocationView } from '@/components/patterns/lane-allocation-view'
+import { PriceFooter } from '@/components/patterns/price-footer'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import {
+  getPackagesForTenant,
+  validatePackageAccessCode,
+} from '@/lib/actions/booking'
 import { useBooking } from '@/context/BookingContext'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
-import { getPackagesForTenant } from '@/lib/actions/booking'
 import { formatPackageStepSubtitle } from '@/lib/booking-display'
 import { calculateBookingTotal, calculatePackageStepTotal } from '@/lib/pricing'
 import { useHoldExpiry } from '@/lib/use-hold-expiry'
@@ -48,10 +53,17 @@ export default function PackagePage() {
   const [packages, setPackages] = useState<Package[]>([])
   const [packagesPending, setPackagesPending] = useState(true)
   const [detailPkg, setDetailPkg] = useState<Package | null>(null)
+  const [accessCodeDraft, setAccessCodeDraft] = useState('')
+  const [unlockedAccessCode, setUnlockedAccessCode] = useState<string | null>(
+    null,
+  )
+  const [accessCodeError, setAccessCodeError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    void getPackagesForTenant(tenant.id)
+    void getPackagesForTenant(tenant.id, {
+      packageAccessCode: unlockedAccessCode ?? undefined,
+    })
       .then((rows) => {
         if (!cancelled) setPackages(rows)
       })
@@ -61,7 +73,7 @@ export default function PackagePage() {
     return () => {
       cancelled = true
     }
-  }, [tenant.id])
+  }, [tenant.id, unlockedAccessCode])
 
   const laneReservationCents =
     (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane
@@ -184,6 +196,48 @@ export default function PackagePage() {
         title="Choose a package"
         subtitle={packageSubtitle}
       />
+
+      {session.bowlerCount != null ? (
+        <LaneAllocationView bowlerCount={session.bowlerCount} />
+      ) : null}
+
+      <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-card)] p-3">
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Have a special code?
+        </p>
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            value={accessCodeDraft}
+            onChange={(e) => setAccessCodeDraft(e.target.value)}
+            placeholder="Enter package code"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={async () => {
+              setAccessCodeError(null)
+              const match = await validatePackageAccessCode(
+                tenant.id,
+                accessCodeDraft,
+              )
+              if (!match) {
+                setAccessCodeError('Code not recognized.')
+                return
+              }
+              setUnlockedAccessCode(accessCodeDraft.trim())
+            }}
+          >
+            Unlock
+          </Button>
+        </div>
+        {accessCodeError ? (
+          <p className="text-xs text-[var(--status-error-text)]">
+            {accessCodeError}
+          </p>
+        ) : null}
+      </div>
+
       <PackageListToolbar resultCount={packages.length} />
 
       <div className="flex flex-col gap-3">
@@ -222,12 +276,12 @@ export default function PackagePage() {
         }}
       />
 
-      <BookingStepActions
-        backHref={BOOKING_BACK_BY_STEP[2].href}
-        backLabel={BOOKING_BACK_BY_STEP[2].label}
-        primaryLabel={packageCtaLabel}
-        onPrimary={handleNext}
-        primaryDisabled={!holdValid}
+      <PriceFooter
+        className="mt-auto"
+        pricing={pricing}
+        ctaLabel={packageCtaLabel}
+        onCta={handleNext}
+        ctaDisabled={!holdValid}
       />
     </main>
   )

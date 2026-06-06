@@ -5,7 +5,7 @@
 # Domain:       BOOKING_DOMAIN.md Part 1 (§Refund rules, status machine)
 # Code contract: contracts/STAFF.md, contracts/PAYMENTS.md
 # Wireframes:    docs/wireframes/staff/booking-modification-flow.html
-# Build status:  Not built
+# Build status:  Built (date/time, bowlers, package, notes — lane editor deferred)
 
 ---
 

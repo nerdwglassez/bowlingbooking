@@ -36,6 +36,7 @@ export default function BookDetailsPage() {
     session,
     setTimeSlot,
     setShoeSelection,
+    removeBowler,
     syncShoeRows,
     setBookingTotal,
     setCustomerInfo,
@@ -199,6 +200,7 @@ export default function BookDetailsPage() {
               onSizeChange={(index, size, cost) =>
                 setShoeSelection(index, size, cost)
               }
+              onRemoveBowler={removeBowler}
               allComplete={allShoesSelected}
             />
             {hasOwnShoesSelection ? <OwnShoesNotice /> : null}

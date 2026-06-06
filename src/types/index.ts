@@ -71,6 +71,9 @@ export interface Package {
   /** Integer cents per pair when not included (e.g. 500 = $5.00). */
   shoeCostPer: number | null
   partyTypes: PartyType[]
+  accessType?: 'PUBLIC' | 'CODE_REQUIRED'
+  paymentMode?: 'ONLINE' | 'PAYMENT_OFFLINE' | null
+  codeString?: string | null
   active: boolean
   sortOrder: number
 }

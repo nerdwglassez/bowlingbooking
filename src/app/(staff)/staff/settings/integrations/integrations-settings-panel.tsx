@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
+import { useStaffToast } from '@/components/chrome/staff-toast-provider'
+import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
+import { getStripeConnectOnboardingUrl } from '@/lib/actions/admin'
 
 type IntegrationKey = 'stripe' | 'resend' | 'make'
 
@@ -21,6 +24,8 @@ export function IntegrationsSettingsPanel({
   cards: IntegrationCard[]
 }) {
   const [openKey, setOpenKey] = useState<IntegrationKey | null>(null)
+  const [pending, startTransition] = useTransition()
+  const { showToast } = useStaffToast()
   const active = cards.find((c) => c.key === openKey)
 
   return (
@@ -64,6 +69,36 @@ export function IntegrationsSettingsPanel({
               {active.status}
             </p>
             <p>{active.detail}</p>
+            {active.key === 'stripe' ? (
+              <Button
+                type="button"
+                loading={pending}
+                onClick={() => {
+                  startTransition(async () => {
+                    try {
+                      const { url, message } =
+                        await getStripeConnectOnboardingUrl()
+                      if (url) {
+                        window.open(url, '_blank', 'noopener,noreferrer')
+                        showToast({ message, variant: 'success' })
+                      } else {
+                        showToast({ message, variant: 'error' })
+                      }
+                    } catch (err) {
+                      showToast({
+                        message:
+                          err instanceof Error
+                            ? err.message
+                            : 'Could not open Stripe Connect.',
+                        variant: 'error',
+                      })
+                    }
+                  })
+                }}
+              >
+                Open Stripe Connect
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </BottomSheet>

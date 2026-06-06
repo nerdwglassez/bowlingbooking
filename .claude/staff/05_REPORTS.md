@@ -5,7 +5,7 @@
 # Domain:       BOOKING_DOMAIN.md Part 1
 # Code contract: contracts/STAFF.md, contracts/ADMIN.md
 # Wireframes:    docs/wireframes/staff/reports-analytics-contacts.html
-# Build status:  Not built (/admin/reports stub only)
+# Build status:  Built at `/staff/reports` + `/staff/reports/contacts/[contactId]` — polish items below remain
 
 ---
 

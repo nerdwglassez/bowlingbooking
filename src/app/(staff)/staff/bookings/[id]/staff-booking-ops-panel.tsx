@@ -8,6 +8,7 @@ import {
   checkInBookingAction,
   markBookingCompletedAction,
   markBookingNoShowAction,
+  staffConfirmPendingPaymentAction,
 } from '@/lib/actions/staff'
 
 export type StaffBookingOpsPanelProps = {
@@ -45,6 +46,19 @@ export function StaffBookingOpsPanel({
         <p className="text-sm text-[var(--status-error-text)]">{error}</p>
       ) : null}
       <div className="flex flex-wrap gap-2">
+        {status === 'PENDING_PAYMENT' ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              run(() => staffConfirmPendingPaymentAction(bookingId))
+            }
+          >
+            Confirm payment received
+          </Button>
+        ) : null}
         {checkedInAt == null && status === 'CONFIRMED' ? (
           <Button
             type="button"

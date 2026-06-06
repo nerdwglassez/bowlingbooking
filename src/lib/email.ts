@@ -42,6 +42,8 @@ export interface BookingConfirmationArgs {
   venuePhone: string
   /** Optional absolute URL to /find-my-booking/[code]?email=… */
   manageUrl?: string
+  /** Optional absolute URL to /dashboard for signed-in customers. */
+  dashboardUrl?: string
   /** Optional absolute URL to /api/bookings/[code]/ics?email=… */
   icsUrl?: string
   /** Venue contact email for customer replies (from settings). */
@@ -76,7 +78,10 @@ function renderHtml(
     '</table>',
     '<p><img src="' + qrDataUri + '" alt="Booking QR code" width="160" height="160" /></p>',
     args.manageUrl
-      ? `<p><a href="${escapeHtml(args.manageUrl)}" style="color:#0066cc">View or cancel your booking</a></p>`
+      ? `<p><a href="${escapeHtml(args.manageUrl)}" style="color:#0066cc">View, cancel, or reschedule your booking</a></p>`
+      : '',
+    args.dashboardUrl
+      ? `<p><a href="${escapeHtml(args.dashboardUrl)}" style="color:#0066cc">Open your account dashboard</a></p>`
       : '',
     args.icsUrl
       ? `<p><a href="${escapeHtml(args.icsUrl)}" style="color:#0066cc">Add to your calendar</a></p>`
@@ -97,7 +102,8 @@ function renderText(args: BookingConfirmationArgs): string {
     `Bowlers: ${args.bowlerCount} on ${args.laneCount} lane${args.laneCount === 1 ? '' : 's'}`,
     `Total: ${formatPrice(args.totalCents)}`,
     '',
-    args.manageUrl ? `Manage booking: ${args.manageUrl}` : '',
+    args.manageUrl ? `Manage booking (cancel/reschedule): ${args.manageUrl}` : '',
+    args.dashboardUrl ? `Dashboard: ${args.dashboardUrl}` : '',
     args.icsUrl ? `Add to calendar: ${args.icsUrl}` : '',
     `${args.venueAddress} · ${args.venuePhone}`,
     'Show this confirmation at check-in.',

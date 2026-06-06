@@ -58,11 +58,15 @@ function BookingDetailLoader({
 
 export function BookingDetailSheet({
   bookingId,
+  tenantId,
+  bowlersPerLane = 6,
   open,
   onClose,
   canRefund,
 }: {
   bookingId: string | null
+  tenantId: string
+  bowlersPerLane?: number
   open: boolean
   onClose: () => void
   canRefund: boolean
@@ -70,6 +74,7 @@ export function BookingDetailSheet({
   const [modifyOpen, setModifyOpen] = useState(false)
   const [bookingForModify, setBookingForModify] =
     useState<StaffBookingDetail | null>(null)
+  const [detailKey, setDetailKey] = useState(0)
 
   return (
     <>
@@ -81,7 +86,7 @@ export function BookingDetailSheet({
         <div className="p-4">
           {open && bookingId ? (
             <BookingDetailLoader
-              key={bookingId}
+              key={`${bookingId}-${detailKey}`}
               bookingId={bookingId}
               canRefund={canRefund}
               onModify={(booking) => {
@@ -96,9 +101,12 @@ export function BookingDetailSheet({
       <BookingModifySheet
         open={modifyOpen}
         booking={bookingForModify}
+        tenantId={tenantId}
+        bowlersPerLane={bowlersPerLane}
         onClose={() => setModifyOpen(false)}
         onSaved={() => {
           setModifyOpen(false)
+          setDetailKey((k) => k + 1)
         }}
       />
     </>

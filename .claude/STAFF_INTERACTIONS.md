@@ -106,18 +106,15 @@ currentPath read from x-pathname header set by src/proxy.ts.
 
 ---
 
-## Booking Detail (STUB — needs building)
+## Booking Detail (BUILT — partial desktop panel)
 
-/staff/bookings/[id]/page.tsx is currently a 1-line placeholder.
+- Cockpit: `?booking=` opens `BookingDetailSheet` (`src/components/chrome/booking-detail-sheet.tsx`)
+- Direct URL: `/staff/bookings/[id]/page.tsx` for refunds and deep links
+- Modification: notes-only drill-in today; full 5-state flow per `staff/03_MODIFICATION.md` in progress
 
-When built, it should follow docs/wireframes/staff/staff-app-cockpit.html.
-Load .claude/staff/01_COCKPIT_OVERVIEW.md for the full spec.
-
-Key decisions from wireframe:
-  Booking detail is a BOTTOM SHEET on mobile (slides up over cockpit)
-  Booking detail is a RIGHT PANEL (400px) on desktop
-  Never navigate to a new page for booking detail
-  The [id] page.tsx is the fallback for direct URL access only
+Wireframe targets:
+  Booking detail: BOTTOM SHEET on mobile; RIGHT PANEL (400px) on desktop (panel optional)
+  Never navigate away from cockpit for routine detail
 
 ---
 

@@ -101,8 +101,7 @@ When you add a new staff action, mirror the existing test layout: `vi.hoisted` f
 
 ## Deferred
 
-- `/admin/settings/{venue,packages,promo-codes,policies,integrations}` — wireframes exist in `docs/wireframes/admin/`. Phase 9.
-- `/admin/team` — user CRUD UI. Phase 9.
-- Reports / analytics / contacts — wireframes in `docs/wireframes/staff/`. Phase 10+ post-launch.
-- Walk-in manual refunds (cash returned, mark `isRefunded`). Phase 9.
+- Canonical manager settings: `/staff/settings/*` (legacy `/admin/packages`, `/admin/promos` redirect).
+- Reports polish: tenant-TZ buckets, export UX — see `staff/05_REPORTS.md`.
+- Walk-in manual refunds (cash returned, mark `isRefunded`).
 - **Payment resume link UI redesign** — backend shipped (M12-M2): `createPaymentResumeLink` + `/book/resume-payment`. Cockpit `PaymentResumePanel` hidden pending wireframe; target: booking detail action or staff tools sheet. Phase 10+.

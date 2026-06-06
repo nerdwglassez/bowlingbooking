@@ -18,7 +18,7 @@
 #   contracts/PROMO_CODES_DEPRECATED.md — current PromoCode contract (deprecated)
 #   SCHEMA_MIGRATIONS.md — gates Part 2 schema work
 #   STAFF_INTERACTIONS.md + staff/0N_*.md — staff/admin surfaces
-#   CUSTOMER_DASHBOARD.md — post-booking dashboard (not yet built)
+#   CUSTOMER_DASHBOARD.md — post-booking dashboard (partial)
 
 ---
 
@@ -481,7 +481,7 @@ Pages: `/find-my-booking`, `/find-my-booking/[code]` (not API routes).
 | `createWalkInBooking(input)` | STAFF+ | Walk-in/phone booking (CONFIRMED, no Stripe) |
 | `blockLanes(input)` / `unblockLanes(id)` | STAFF+ | Schedule lane blocking |
 
-Check-in flow: **not yet implemented** (no server action exists).
+| `checkInBookingAction(bookingId)` | STAFF+ | Mark booking checked in (cockpit + detail page) |
 
 ### Refunds — `src/lib/actions/refund.ts`
 
@@ -536,10 +536,10 @@ GET  /api/health                  — deployment smoke check (DB, tenant, auth c
 
 ## How to read Part 2
 
-These sections document decisions made during the product
-redesign wireframe session. They are NOT yet implemented.
+These sections document wireframe decisions. Migrations 1–7 are **COMPLETE**;
+many fields exist in schema — verify behavior/UI per section before assuming missing.
 
-Before building anything in Part 2:
+Before building anything that needs new schema:
 1. Read `.claude/SCHEMA_MIGRATIONS.md` for migration order
 2. Confirm the migration has been run against the DB
 3. Do not assume any Part 2 field exists until you verify

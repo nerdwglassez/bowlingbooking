@@ -11,10 +11,16 @@ import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import { useBooking } from '@/context/BookingContext'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import {
+  getBookingByConfirmationCode,
   getBookingByPaymentIntentId,
   getConfirmationQrDataUri,
   type BookingSummary,
 } from '@/lib/actions/booking'
+import {
+  claimBookingAccountAction,
+  getClaimTokenForBooking,
+} from '@/lib/actions/claim'
+import { Input } from '@/components/ui/input'
 import { formatPrice } from '@/lib/pricing'
 
 const POLL_INTERVAL_MS = 800
@@ -38,8 +44,14 @@ function formatTimeLabel(start: Date, end: Date): string {
 export default function BookingSuccessPage() {
   const params = useSearchParams()
   const redirectStatus = params.get('redirect_status')
+  const offlineCode = params.get('code')
+  const offlineEmail = params.get('email')
+  const offlinePending = params.get('pending') === '1'
   const paymentIntentId =
     params.get('payment_intent') ?? params.get('payment_intent_client_secret')
+  const [claimPassword, setClaimPassword] = useState('')
+  const [claimPending, setClaimPending] = useState(false)
+  const [claimError, setClaimError] = useState<string | null>(null)
   const tenant = useTenant()
   const router = useRouter()
   const { resetSession } = useBooking()
@@ -52,15 +64,30 @@ export default function BookingSuccessPage() {
 
   const status: 'auth_failed' | 'pending' | 'ready' | 'timeout' = authFailed
     ? 'auth_failed'
-    : !paymentIntentId
-      ? 'timeout'
-      : booking
+    : offlineCode && offlineEmail
+      ? booking
         ? 'ready'
-        : pollExhausted
-          ? 'timeout'
-          : 'pending'
+        : 'pending'
+      : !paymentIntentId
+        ? 'timeout'
+        : booking
+          ? 'ready'
+          : pollExhausted
+            ? 'timeout'
+            : 'pending'
 
   useEffect(() => {
+    if (offlineCode && offlineEmail) {
+      let cancelled = false
+      void getBookingByConfirmationCode(offlineCode, offlineEmail).then(
+        (found) => {
+          if (!cancelled && found) setBooking(found)
+        },
+      )
+      return () => {
+        cancelled = true
+      }
+    }
     if (authFailed || !paymentIntentId) return
     let cancelled = false
     let attempts = 0
@@ -81,7 +108,7 @@ export default function BookingSuccessPage() {
     return () => {
       cancelled = true
     }
-  }, [authFailed, paymentIntentId])
+  }, [authFailed, paymentIntentId, offlineCode, offlineEmail])
 
   useEffect(() => {
     if (booking == null) return
@@ -199,23 +226,69 @@ export default function BookingSuccessPage() {
           />
 
           <p className="text-center text-sm text-[var(--color-text-secondary)]">
-            Total paid{' '}
+            {offlinePending ? 'Total due at venue' : 'Total paid'}{' '}
             <strong className="text-[var(--color-text-primary)]">
               {formatPrice(booking.totalAmount)}
             </strong>
           </p>
 
+          {offlinePending ? (
+            <p className="rounded-[var(--radius-md)] border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] px-3 py-2 text-center text-xs text-[var(--color-text-secondary)]">
+              Payment pending — staff will confirm when you pay at the desk.
+            </p>
+          ) : null}
+
           {showAccountPrompt ? (
             <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-sunken)] px-4 py-3 text-sm">
               <p className="text-[var(--color-text-secondary)]">
-                Want to cancel or reschedule without calling? Create a free
-                account — takes 30 seconds.
+                Create a free account to manage this booking online.
               </p>
+              <label className="mt-3 flex flex-col gap-1">
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Password (8+ characters)
+                </span>
+                <Input
+                  type="password"
+                  value={claimPassword}
+                  onChange={(e) => setClaimPassword(e.target.value)}
+                />
+              </label>
+              {claimError ? (
+                <p className="mt-2 text-xs text-[var(--status-error-text)]">
+                  {claimError}
+                </p>
+              ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => router.push('/signin?from=/book/success')}
+                  loading={claimPending}
+                  onClick={async () => {
+                    setClaimError(null)
+                    setClaimPending(true)
+                    try {
+                      const token = await getClaimTokenForBooking(booking.id)
+                      if (!token) {
+                        throw new Error(
+                          'Account link is not ready yet — check your email shortly.',
+                        )
+                      }
+                      await claimBookingAccountAction({
+                        token,
+                        password: claimPassword,
+                        name: booking.customerEmail.split('@')[0],
+                      })
+                      router.push('/dashboard')
+                    } catch (err) {
+                      setClaimError(
+                        err instanceof Error
+                          ? err.message
+                          : 'Could not create account.',
+                      )
+                    } finally {
+                      setClaimPending(false)
+                    }
+                  }}
                 >
                   Create account
                 </Button>

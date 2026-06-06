@@ -34,6 +34,8 @@ function CockpitPageInner(
       <CockpitPanel {...props} onOpenBooking={openBooking} />
       <BookingDetailSheet
         bookingId={bookingId}
+        tenantId={props.tenantId}
+        bowlersPerLane={props.bowlersPerLane}
         open={Boolean(bookingId)}
         onClose={closeSheet}
         canRefund={props.canRefund}

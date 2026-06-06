@@ -60,7 +60,7 @@ export function HoldTimer({
     label = 'Hold expired — pick a new time'
   } else {
     const remainingMs = expiresAt.getTime() - now
-    label = `Lanes held · ${formatMmSs(remainingMs)} remaining`
+    label = `Hold expires in ${formatMmSs(remainingMs)}`
   }
 
   const active = expiresAt != null && !isExpired
@@ -68,13 +68,13 @@ export function HoldTimer({
   const barClass = isExpired
     ? 'border-[var(--status-error-border)] bg-[var(--status-error-bg)] text-[var(--status-error-text)]'
     : active
-      ? 'border-[var(--status-ok-border)] bg-[var(--status-ok-bg)] text-[var(--status-ok-text)]'
+      ? 'border-[var(--color-action)] bg-[var(--color-action-subtle)] text-[var(--color-action-dark)]'
       : 'border-[var(--color-border)] bg-[var(--surface-card)] text-[var(--color-text-muted)]'
 
   const dotClass = isExpired
     ? 'size-[7px] shrink-0 rounded-full bg-current opacity-70'
     : active
-      ? 'size-[7px] shrink-0 animate-[hold-blink_2s_ease-in-out_infinite] rounded-full bg-[var(--status-ok-text)]'
+      ? 'size-[7px] shrink-0 animate-[hold-blink_2s_ease-in-out_infinite] rounded-full bg-[var(--color-action)]'
       : 'size-[7px] shrink-0 rounded-full bg-[var(--color-text-muted)]'
 
   return (

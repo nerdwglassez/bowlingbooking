@@ -36,6 +36,8 @@ function baseBooking(over: Partial<CustomerBookingDetail> = {}): CustomerBooking
     policyWindowHours: 24,
     policyRefundPercent: 100,
     isPast: false,
+    reschedulable: true,
+    rescheduleWindowHours: 24,
     shoeSizes: [],
     ...over,
   }

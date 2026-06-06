@@ -5,7 +5,7 @@ import { getPackagesForTenant } from '@/lib/actions/booking'
 import { getCockpitSnapshot } from '@/lib/actions/staff'
 import { getCurrentUser } from '@/lib/auth'
 import { buildCockpitClockLine } from '@/lib/cockpit-display'
-import { getTenant } from '@/lib/tenant'
+import { getAllowWalkInBookings, getTenant } from '@/lib/tenant'
 
 export default async function StaffCockpitPage({
   searchParams,
@@ -30,6 +30,8 @@ export default async function StaffCockpitPage({
       venueName={tenant.name}
       clockLine={buildCockpitClockLine()}
       initialWalkInOpen={params.walkin === '1'}
+      bowlersPerLane={tenant.bowlersPerLane}
+      allowWalkInBookings={getAllowWalkInBookings(tenant)}
       canRefund={canRefund}
     />
   )

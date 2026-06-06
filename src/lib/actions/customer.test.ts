@@ -51,6 +51,14 @@ vi.mock('@/lib/stripe', () => ({
 vi.mock('@/lib/email', () => ({
   sendBookingCancellation: mocks.sendCancellationMock,
 }))
+vi.mock('@/lib/auth', () => ({
+  requireUser: vi.fn(async () => ({
+    id: 'user_1',
+    email: 'jane@example.com',
+    role: 'CUSTOMER',
+    tenantId: 't1',
+  })),
+}))
 
 import { cancelBookingAction, getBookingByLookup } from './customer'
 
@@ -191,7 +199,7 @@ describe('getBookingByLookup', () => {
       email: 'jane@example.com',
       confirmationCode: 'ABC123',
     })
-    expect(result?.cancellable).toBe(true)
+    expect(result?.cancellable).toBe(false)
     expect(result?.refundIfCancelled).toBe(0)
   })
 
