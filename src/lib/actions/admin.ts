@@ -1422,11 +1422,37 @@ function requireCanAssignRole(user: CurrentUser, role: string): void {
   }
 }
 
+function requireCanUseTenant(user: CurrentUser, tenantId: string | null): void {
+  if (!user.tenantId || tenantId !== user.tenantId) {
+    throw new Error('User not found')
+  }
+}
+
+async function requireMutableTeamUser(
+  tx: Prisma.TransactionClient,
+  actor: CurrentUser,
+  targetUserId: string,
+): Promise<{ id: string; tenantId: string | null; role: string }> {
+  const target = await tx.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, tenantId: true, role: true },
+  })
+  if (!target) {
+    throw new Error('User not found')
+  }
+  requireCanUseTenant(actor, target.tenantId)
+  if (target.role === 'ADMIN' && actor.role !== 'ADMIN') {
+    throw new Error('Only an ADMIN can modify an ADMIN user.')
+  }
+  return target
+}
+
 export async function createTeamUserAction(
   input: CreateUserInput,
 ): Promise<{ userId: string; mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
   requireCanAssignRole(user, input.role)
+  requireCanUseTenant(user, input.tenantId)
 
   if (!/.+@.+\..+/.test(input.email)) {
     throw new Error('createTeamUserAction: invalid email')
@@ -1496,6 +1522,7 @@ export async function updateTeamUserAction(
   }
 
   await prisma.$transaction(async (tx) => {
+    await requireMutableTeamUser(tx, user, input.userId)
     await tx.user.update({
       where: { id: input.userId },
       data: {
@@ -1542,6 +1569,7 @@ export async function resetUserPasswordAction(
   const hashed = await hashPassword(input.newPassword)
 
   await prisma.$transaction(async (tx) => {
+    await requireMutableTeamUser(tx, user, input.userId)
     await tx.user.update({
       where: { id: input.userId },
       data: { passwordHash: hashed },
@@ -1579,6 +1607,7 @@ export async function deactivateTeamUserAction(
   // (which filters role IN STAFF/MANAGER/ADMIN). We never hard-delete users
   // because Booking rows reference them via Booking.userId.
   await prisma.$transaction(async (tx) => {
+    await requireMutableTeamUser(tx, user, userId)
     await tx.user.update({
       where: { id: userId },
       data: { role: 'CUSTOMER', passwordHash: null },

@@ -41,7 +41,7 @@ const mocks = vi.hoisted(() => {
       create: promoCreate,
       update: promoUpdate,
     },
-    user: { create: userCreate, update: userUpdate },
+    user: { create: userCreate, update: userUpdate, findUnique: userFindUnique },
     auditLog: { create: auditCreate },
     booking: { findMany: bookingFindMany },
     payment: { aggregate: paymentAggregate },
@@ -167,6 +167,7 @@ function adminUser() {
     email: 'admin@royalz.local',
     name: 'Admin',
     role: 'ADMIN',
+    tenantId: 't1',
   }
 }
 function managerUser() {
@@ -175,6 +176,7 @@ function managerUser() {
     email: 'mgr@royalz.local',
     name: 'Manager',
     role: 'MANAGER',
+    tenantId: 't1',
   }
 }
 
@@ -184,6 +186,7 @@ function staffUser() {
     email: 'staff@royalz.local',
     name: 'Staff',
     role: 'STAFF',
+    tenantId: 't1',
   }
 }
 
@@ -221,7 +224,11 @@ beforeEach(() => {
           create: mocks.promoCreate,
           update: mocks.promoUpdate,
         },
-        user: { create: mocks.userCreate, update: mocks.userUpdate },
+        user: {
+          create: mocks.userCreate,
+          update: mocks.userUpdate,
+          findUnique: mocks.userFindUnique,
+        },
         auditLog: { create: mocks.auditCreate },
         booking: { findMany: mocks.bookingFindMany },
         payment: { aggregate: mocks.paymentAggregate },
@@ -229,6 +236,13 @@ beforeEach(() => {
   )
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.paymentAggregate.mockResolvedValue({ _sum: { refundAmount: null } })
+  mocks.userFindUnique.mockImplementation(
+    async ({ where }: { where: { id: string } }) => ({
+      id: where.id,
+      tenantId: 't1',
+      role: where.id === 'user_admin' ? 'ADMIN' : 'STAFF',
+    }),
+  )
 })
 
 describe('admin actions: role gating', () => {
@@ -659,6 +673,18 @@ describe('team CRUD', () => {
     ).rejects.toThrow(/ADMIN/)
   })
 
+  it('createTeamUserAction rejects cross-tenant creates', async () => {
+    await expect(
+      createTeamUserAction({
+        tenantId: 'tenant_other',
+        email: 'a@b.co',
+        role: 'STAFF',
+        initialPassword: 'longenough',
+      }),
+    ).rejects.toThrow(/not found/i)
+    expect(mocks.userCreate).not.toHaveBeenCalled()
+  })
+
   it('createTeamUserAction hashes the password before insert', async () => {
     mocks.userCreate.mockResolvedValue({ id: 'user_new' })
     await createTeamUserAction({
@@ -704,6 +730,39 @@ describe('team CRUD', () => {
     })
   })
 
+  it('updateTeamUserAction rejects manager edits to existing ADMIN users', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_admin_target',
+      tenantId: 't1',
+      role: 'ADMIN',
+    })
+    await expect(
+      updateTeamUserAction({
+        userId: 'user_admin_target',
+        name: 'Demoted',
+        role: 'STAFF',
+      }),
+    ).rejects.toThrow(/ADMIN/)
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
+  it('updateTeamUserAction rejects cross-tenant targets', async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_other_tenant',
+      tenantId: 'tenant_other',
+      role: 'STAFF',
+    })
+    await expect(
+      updateTeamUserAction({
+        userId: 'user_other_tenant',
+        name: 'Renamed',
+        role: 'MANAGER',
+      }),
+    ).rejects.toThrow(/not found/i)
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
   it('resetUserPasswordAction rejects short passwords', async () => {
     await expect(
       resetUserPasswordAction({ userId: 'user_1', newPassword: 'short' }),
@@ -723,10 +782,39 @@ describe('team CRUD', () => {
     })
   })
 
+  it('resetUserPasswordAction rejects manager resets for existing ADMIN users', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_admin_target',
+      tenantId: 't1',
+      role: 'ADMIN',
+    })
+    await expect(
+      resetUserPasswordAction({
+        userId: 'user_admin_target',
+        newPassword: 'longenoughpw',
+      }),
+    ).rejects.toThrow(/ADMIN/)
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
   it('deactivateTeamUserAction rejects self-deactivation', async () => {
     await expect(deactivateTeamUserAction('user_admin')).rejects.toThrow(
       /yourself/i,
     )
+  })
+
+  it('deactivateTeamUserAction rejects manager deactivation of existing ADMIN users', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_admin_target',
+      tenantId: 't1',
+      role: 'ADMIN',
+    })
+    await expect(deactivateTeamUserAction('user_admin_target')).rejects.toThrow(
+      /ADMIN/,
+    )
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
   })
 
   it('deactivateTeamUserAction demotes to CUSTOMER and nulls password', async () => {
