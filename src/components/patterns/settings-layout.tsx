@@ -4,14 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { SettingsSignOutItem } from '@/components/chrome/settings-sign-out-item'
-import type { SettingsGroup } from '@/lib/staff-nav'
+import type { SettingsSidebarGroup } from '@/lib/staff-nav'
 
 export function SettingsLayout({
   groups,
   venueName,
   children,
 }: {
-  groups: SettingsGroup[]
+  groups: SettingsSidebarGroup[]
   venueName: string
   children: React.ReactNode
 }) {

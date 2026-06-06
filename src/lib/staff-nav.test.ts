@@ -4,6 +4,7 @@ import {
   formatStaffRole,
   getSettingsGroups,
   getStaffNavItems,
+  toSettingsSidebarGroups,
 } from '@/lib/staff-nav'
 
 describe('getStaffNavItems', () => {
@@ -85,6 +86,22 @@ describe('getSettingsGroups', () => {
     expect(
       getSettingsGroups('MANAGER').flatMap((g) => g.items.map((i) => i.label)),
     ).toContain('Pricing')
+  })
+})
+
+describe('toSettingsSidebarGroups', () => {
+  it('strips non-serializable icon components for client layout props', () => {
+    const sidebar = toSettingsSidebarGroups(getSettingsGroups('ADMIN'))
+    expect(sidebar[0]?.items[0]).toEqual({
+      href: '/staff/settings/venue',
+      label: 'Venue info',
+      action: undefined,
+    })
+    for (const group of sidebar) {
+      for (const item of group.items) {
+        expect(item).not.toHaveProperty('icon')
+      }
+    }
   })
 })
 

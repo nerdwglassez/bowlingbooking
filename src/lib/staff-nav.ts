@@ -89,6 +89,32 @@ export type SettingsGroup = {
   items: SettingsItem[]
 }
 
+/** Serializable settings nav for client components (no Lucide icons). */
+export type SettingsSidebarItem = {
+  href?: string
+  label: string
+  action?: 'sign-out'
+}
+
+export type SettingsSidebarGroup = {
+  label: string
+  items: SettingsSidebarItem[]
+}
+
+/** Strip non-serializable fields before passing settings nav to client components. */
+export function toSettingsSidebarGroups(
+  groups: SettingsGroup[],
+): SettingsSidebarGroup[] {
+  return groups.map((group) => ({
+    label: group.label,
+    items: group.items.map(({ href, label, action }) => ({
+      href,
+      label,
+      action,
+    })),
+  }))
+}
+
 export type SettingsHubMeta = {
   packageCount: number
   teamCount: number

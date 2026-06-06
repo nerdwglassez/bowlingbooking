@@ -6,7 +6,7 @@ import { SettingsSectionProviders } from '@/components/chrome/settings-section-p
 import { SettingsLayout } from '@/components/patterns/settings-layout'
 import { getSettingsHubMeta } from '@/lib/actions/admin'
 import { requireRole } from '@/lib/auth'
-import { getSettingsGroups } from '@/lib/staff-nav'
+import { getSettingsGroups, toSettingsSidebarGroups } from '@/lib/staff-nav'
 import { getTenant } from '@/lib/tenant'
 
 export default async function StaffSettingsLayout({
@@ -21,7 +21,10 @@ export default async function StaffSettingsLayout({
 
   return (
     <SettingsSectionProviders>
-      <SettingsLayout groups={groups} venueName={tenant.name}>
+      <SettingsLayout
+        groups={toSettingsSidebarGroups(groups)}
+        venueName={tenant.name}
+      >
         {children}
       </SettingsLayout>
     </SettingsSectionProviders>
