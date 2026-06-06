@@ -100,7 +100,7 @@ export function getBookingDurationLimits(tenant: Tenant): {
   const max = tenant.config['maxBookingDurationHours']
   return {
     minHours:
-      typeof min === 'number' && min >= 0.5 ? min : 1.5,
+      typeof min === 'number' && min >= 0.5 ? min : 1,
     maxHours: typeof max === 'number' && max >= 1 ? max : 4,
   }
 }

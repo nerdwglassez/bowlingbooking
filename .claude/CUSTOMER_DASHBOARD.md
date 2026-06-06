@@ -2,10 +2,17 @@
 # .claude/CUSTOMER_DASHBOARD.md
 #
 # Implementation status: PARTIAL
-# `/dashboard` exists (MVP list + featured card). Guest path: `/find-my-booking`.
-# Cancel/reschedule sheets, preferences, and full wireframe UX remain.
 #
-# Dependencies (schema): Migration 1 + 7 COMPLETE — behavior/UI in progress.
+# Built:
+#   /dashboard — auth required; featured card, cancel/reschedule bottom sheets, past section
+#   /find-my-booking — guest self-serve (unchanged)
+#   /book/success — ClaimToken account creation
+#
+# Remaining vs wireframe:
+#   Dark featured card, check-in/cancellation badges, preferences sheet, first-name greeting
+#   Hide account prompt when signed in; post-cancel/reschedule toasts and card treatments
+#
+# Dependencies (schema): Migration 1 + 7 COMPLETE.
 #
 # Domain summary: BOOKING_DOMAIN.md Part 2 §Customer Dashboard
 # Guest fallback (/find-my-booking) remains after dashboard is built.

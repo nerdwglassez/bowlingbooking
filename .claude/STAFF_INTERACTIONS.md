@@ -11,13 +11,15 @@
 #   5. contracts/STAFF.md — file locations, auth gating, server action rules
 #
 # Implementation status (summary):
-#   BUILT:     AppShell, NavRail, /staff cockpit (+ ?booking= detail sheet),
-#              /staff/schedule, walk-in FAB, /staff/reports (analytics + contacts),
+#   BUILT:     AppShell, NavRail, /staff cockpit (+ ?booking= detail sheet, md+ 400px panel),
+#              5-state booking modification (lane editor deferred), walk-in FAB (policy-gated),
+#              /staff/schedule, /staff/reports (analytics + contacts, MANAGER+),
 #              /staff/settings/* (venue, hours, pricing, policies, packages, team,
-#              integrations, profile), refund panel on /staff/bookings/[id]
-#   PARTIAL:   booking modification (notes-only in sheet; date/bowlers deferred),
-#              reports wireframe deltas (custom range exists; chart polish ongoing)
-#   LEGACY:    /staff/bookings/[id] kept for direct links + refunds
+#              integrations stub, profile), refund panel on /staff/bookings/[id]
+#   PARTIAL:   reports wireframe deltas (desktop contact panel, export polish),
+#              customer dashboard wireframe parity (see CUSTOMER_DASHBOARD.md)
+#   LEGACY:    /admin/* duplicate editors (packages/[id], team/new) — list routes redirect;
+#              /staff/bookings/[id] kept for direct links + refunds
 
 ---
 
@@ -30,16 +32,17 @@ src/app/(staff)/    — STAFF+ role required (requireRole in layout)
   staff/page.tsx    — cockpit
   staff/schedule/page.tsx
   staff/walkin/page.tsx
-  staff/bookings/[id]/page.tsx  ← stub, needs building
+  staff/bookings/[id]/page.tsx  — full detail + refunds (deep links)
 
 src/app/(admin)/    — MANAGER+ role required (requireRole in layout)
-  admin/page.tsx          — settings root
-  admin/packages/page.tsx
-  admin/promos/page.tsx   ← old PromoCode UI — deprecated when Migration 4 runs
-  admin/venue/page.tsx
-  admin/team/page.tsx
-  admin/reports/page.tsx
-  admin/audit/page.tsx
+  admin/page.tsx          — redirects → /staff/settings
+  admin/packages/page.tsx — redirects → /staff/settings/packages
+  admin/promos/page.tsx   — redirects → /staff/settings/packages
+  admin/venue/page.tsx    — redirects → /staff/settings/venue
+  admin/team/page.tsx     — redirects → /staff/settings/team
+  admin/reports/page.tsx  — redirects → /staff/reports
+  admin/audit/page.tsx    — ADMIN audit log (standalone)
+  admin/packages/[id], admin/team/* — legacy editors (redirect cleanup open)
 ```
 
 Both route groups use:
@@ -106,15 +109,13 @@ currentPath read from x-pathname header set by src/proxy.ts.
 
 ---
 
-## Booking Detail (BUILT — partial desktop panel)
+## Booking Detail (BUILT)
 
 - Cockpit: `?booking=` opens `BookingDetailSheet` (`src/components/chrome/booking-detail-sheet.tsx`)
+- Desktop (md+): same sheet renders as 400px right panel via `BottomSheet` chrome
 - Direct URL: `/staff/bookings/[id]/page.tsx` for refunds and deep links
-- Modification: notes-only drill-in today; full 5-state flow per `staff/03_MODIFICATION.md` in progress
-
-Wireframe targets:
-  Booking detail: BOTTOM SHEET on mobile; RIGHT PANEL (400px) on desktop (panel optional)
-  Never navigate away from cockpit for routine detail
+- Modification: 5-state drill-in via `BookingModifySheet` (lane editor deferred per `03_MODIFICATION.md`)
+- PENDING_PAYMENT: `StaffBookingOpsPanel` shows "Confirm payment received"
 
 ---
 
@@ -173,12 +174,12 @@ files into this index — they stay separate for focused loading.
 
 | Section | File | Build status | Wireframes (`docs/wireframes/`) |
 |---------|------|--------------|----------------------------------|
-| 1 — Cockpit overview, booking detail, check-in | `staff/01_COCKPIT_OVERVIEW.md` | Partial (detail sheet via `?booking=`; check-in in sheet) | `staff/staff-app-cockpit.html`, `staff/staff-app-v2.html` |
-| 2 — Lanes sub-view, walk-in FAB | `staff/02_LANES_WALKIN.md` | Built (lane timeline + walk-in) | `staff/walkin-booking-flow.html`, `staff/staff-app-cockpit.html` |
-| 3 — Booking modification, cancel | `staff/03_MODIFICATION.md` | Partial (notes edit in sheet) | `staff/booking-modification-flow.html` |
+| 1 — Cockpit overview, booking detail, check-in | `staff/01_COCKPIT_OVERVIEW.md` | Built (detail sheet + md+ panel + check-in) | `staff/staff-app-cockpit.html`, `staff/staff-app-v2.html` |
+| 2 — Lanes sub-view, walk-in FAB | `staff/02_LANES_WALKIN.md` | Built (walk-in; lane timeline partial) | `staff/walkin-booking-flow.html`, `staff/staff-app-cockpit.html` |
+| 3 — Booking modification, cancel | `staff/03_MODIFICATION.md` | Built (lane editor deferred) | `staff/booking-modification-flow.html` |
 | 4 — Schedule, lane blocking | `staff/04_SCHEDULE.md` | Built | `staff/schedule-calendar-blocking.html` |
-| 5 — Reports, analytics, contacts | `staff/05_REPORTS.md` | Partial | `staff/reports-analytics-contacts.html` |
-| 6 — Admin settings sub-pages | `staff/06_SETTINGS.md` | Partial (see checklist in section file) | `admin/settings-*.html` (see section file) |
+| 5 — Reports, analytics, contacts | `staff/05_REPORTS.md` | Built (wireframe polish open) | `staff/reports-analytics-contacts.html` |
+| 6 — Admin settings sub-pages | `staff/06_SETTINGS.md` | Built (Connect OAuth open) | `admin/settings-*.html` (see section file) |
 | 7 — Desktop responsive, PWA | `staff/07_RESPONSIVE_PWA.md` | Reference | `admin/admin-pricing-team-pwa.html` |
 
 **Domain rules** (walk-in → CONFIRMED, refunds, status machine):

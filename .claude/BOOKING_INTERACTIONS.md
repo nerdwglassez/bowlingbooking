@@ -6,6 +6,9 @@
 #   BOOKING_DOMAIN.md — business rules, server actions, schema
 #   DESIGN_SYSTEM.md — tokens and component layers
 # Paste into Cursor when building any customer booking step.
+#
+# Build status: Steps 1–5 built. PriceFooter on steps 1–4. Hold timer amber.
+# CODE_REQUIRED unlock on package step. Details step includes remove-bowler.
 
 ---
 
@@ -30,8 +33,7 @@ Changing an upstream field cascades and clears downstream selections.
 
 ### Bowler count
 - **Current:** default 1 bowler on first load (`DEFAULT_BOWLER_COUNT = 1`)
-- **Wireframe target:** default 2 — update when Step 3 is built (see Part 2
-  §Booking Step 3 in BOOKING_DOMAIN.md)
+- **Wireframe target:** default 2 — optional polish when product confirms
 - Minimum: 1 bowler
 - Maximum: 18 bowlers (online booking cap)
 - Control: stepper — [−] count [+]

@@ -177,6 +177,9 @@ export interface BookingSession {
 
   /** Step 2 — optional package add-on ids (pre-Migration 3 catalog). */
   selectedOptionalAddonIds: string[]
+
+  /** CODE_REQUIRED package access code validated at package or confirm step. */
+  packageAccessCode: string | null
 }
 
 // ── Availability ───────────────────────────────────────────

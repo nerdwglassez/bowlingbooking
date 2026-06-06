@@ -48,7 +48,7 @@ function PackageCardSkeleton() {
 export default function PackagePage() {
   const router = useRouter()
   const tenant = useTenant()
-  const { session, setPackage, clearPackage, setTimeSlot, setBookingTotal, toggleOptionalAddon } =
+  const { session, setPackage, clearPackage, setTimeSlot, setBookingTotal, toggleOptionalAddon, setPackageAccessCode } =
     useBooking()
   const [packages, setPackages] = useState<Package[]>([])
   const [packagesPending, setPackagesPending] = useState(true)
@@ -124,11 +124,18 @@ export default function PackagePage() {
         setBookingTotal(laneReservationCents)
         return
       }
+      if (pkg.accessType === 'CODE_REQUIRED' && !unlockedAccessCode) {
+        setAccessCodeError('Enter and unlock your code before selecting this package.')
+        return
+      }
       const result = calculatePackageStepTotal({
         package: pkg,
         bowlerCount: session.bowlerCount!,
         selectedOptionalAddonIds: [],
       })
+      if (pkg.accessType === 'CODE_REQUIRED' && unlockedAccessCode) {
+        setPackageAccessCode(unlockedAccessCode)
+      }
       setPackage(pkg, result.totalAmount)
     },
     [
@@ -138,6 +145,8 @@ export default function PackagePage() {
       session.packageId,
       setBookingTotal,
       setPackage,
+      setPackageAccessCode,
+      unlockedAccessCode,
     ],
   )
 
@@ -226,6 +235,7 @@ export default function PackagePage() {
                 return
               }
               setUnlockedAccessCode(accessCodeDraft.trim())
+              setPackageAccessCode(accessCodeDraft.trim())
             }}
           >
             Unlock

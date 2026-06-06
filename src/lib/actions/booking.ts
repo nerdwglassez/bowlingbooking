@@ -425,24 +425,41 @@ export async function validatePackageAccessCode(
   tenantId: string,
   code: string,
 ): Promise<{ packageId: string; name: string } | null> {
-  const normalized = code.trim()
+  const normalized = code.trim().toUpperCase()
   if (!normalized) return null
   if (isDevWithoutDb()) {
-    if (normalized.toUpperCase() === 'VIP2026') {
+    if (normalized === 'VIP2026') {
       return { packageId: 'pkg-vip', name: 'VIP Lane' }
     }
     return null
   }
-  const row = await prisma.package.findFirst({
+  const rows = await prisma.package.findMany({
     where: {
       tenantId,
       active: true,
       accessType: 'CODE_REQUIRED',
-      codeString: normalized,
     },
-    select: { id: true, name: true },
+    select: { id: true, name: true, codeString: true },
   })
+  const row = rows.find(
+    (pkg) => pkg.codeString?.trim().toUpperCase() === normalized,
+  )
   return row ? { packageId: row.id, name: row.name } : null
+}
+
+async function assertPackageAccessForCheckout(
+  tenantId: string,
+  pkg: { id: string; accessType?: string | null },
+  accessCode: string | null | undefined,
+): Promise<void> {
+  if (pkg.accessType !== 'CODE_REQUIRED') return
+  if (!accessCode?.trim()) {
+    throw new Error('This package requires a special access code.')
+  }
+  const unlocked = await validatePackageAccessCode(tenantId, accessCode)
+  if (!unlocked || unlocked.packageId !== pkg.id) {
+    throw new Error('Invalid access code for this package.')
+  }
 }
 
 export async function getPackagesForTenant(
@@ -530,6 +547,22 @@ function mockPackages(tenantId: string): Package[] {
       active: true,
       sortOrder: 3,
     },
+    {
+      id: 'pkg-vip',
+      tenantId,
+      name: 'VIP Lane',
+      description: 'Private lane package — code required.',
+      basePrice: 12000,
+      gameIncluded: true,
+      shoesIncluded: true,
+      gameCostPer: null,
+      shoeCostPer: null,
+      partyTypes: ['OPEN'],
+      accessType: 'CODE_REQUIRED',
+      paymentMode: 'PAYMENT_OFFLINE',
+      active: true,
+      sortOrder: 4,
+    },
   ]
 }
 
@@ -556,6 +589,8 @@ export interface ConfirmBookingInput {
   selectedOptionalAddonIds?: string[]
   smsReminderConsent?: boolean
   marketingConsent?: boolean
+  /** Required when package accessType is CODE_REQUIRED. */
+  packageAccessCode?: string | null
 }
 
 export interface ConfirmBookingResult {
@@ -638,6 +673,11 @@ export async function confirmBooking(
         throw new Error('Selected package is no longer available.')
       }
       selectedPackage = pkgRow as unknown as Package
+      await assertPackageAccessForCheckout(
+        hold.tenantId,
+        selectedPackage,
+        input.packageAccessCode,
+      )
       if (!selectedPackage.partyTypes.includes(input.partyType)) {
         throw new Error('Selected package is not available for this party type.')
       }
@@ -804,6 +844,12 @@ export async function confirmOfflineBooking(
   if (!pkgRow) {
     throw new Error('Selected package does not support offline payment.')
   }
+
+  await assertPackageAccessForCheckout(
+    hold.tenantId,
+    pkgRow,
+    input.packageAccessCode,
+  )
 
   const selectedPackage = pkgRow as unknown as Package
   const subtotalCents = calculateBookingTotal({

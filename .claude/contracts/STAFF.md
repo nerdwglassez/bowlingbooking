@@ -1,6 +1,6 @@
 # STAFF.md — Contract for the staff & admin shells
 
-Status: locked for Phase 8 (v1 critical path). Phase 9 extends `/admin/settings/*`.
+Status: locked. Canonical settings at `/staff/settings/*`; legacy `/admin/*` redirects where noted below.
 
 ## Where things live
 
@@ -101,7 +101,9 @@ When you add a new staff action, mirror the existing test layout: `vi.hoisted` f
 
 ## Deferred
 
-- Canonical manager settings: `/staff/settings/*` (legacy `/admin/packages`, `/admin/promos` redirect).
-- Reports polish: tenant-TZ buckets, export UX — see `staff/05_REPORTS.md`.
+- Reports polish: desktop contact panel, tenant-TZ buckets, export UX — see `staff/05_REPORTS.md`.
+- Legacy `/admin/packages/[id]`, `/admin/team/new`, `/admin/team/[id]` — redirect to settings (cleanup open).
 - Walk-in manual refunds (cash returned, mark `isRefunded`).
-- **Payment resume link UI redesign** — backend shipped (M12-M2): `createPaymentResumeLink` + `/book/resume-payment`. Cockpit `PaymentResumePanel` hidden pending wireframe; target: booking detail action or staff tools sheet. Phase 10+.
+- Booking modification lane editor — see `staff/03_MODIFICATION.md`.
+- Stripe Connect OAuth (integrations panel has dashboard URL stub only).
+- **Payment resume link UI redesign** — backend shipped: `createPaymentResumeLink` + `/book/resume-payment`. Cockpit `PaymentResumePanel` hidden pending wireframe; target: booking detail action or staff tools sheet.

@@ -1,5 +1,10 @@
 # Pages Contract
 
+> **Booking flow status (May 2026):** All 5 steps built (`/book` → `/book/package` →
+> `/book/details` → `/book/confirm` → `/book/success`). Stripe + webhook live.
+> `confirmOfflineBooking` for PAYMENT_OFFLINE packages. Sections below may describe
+> earlier milestone language — prefer `BOOKING_INTERACTIONS.md` + repo for current behavior.
+
 Source of truth for **every file under `src/app/`**. Agents building pages MUST read this file, the patterns contract (`.claude/contracts/PATTERNS.md`), and the wireframe(s) for their specific route before writing code.
 
 A **page** is a route segment in the Next.js App Router. Pages are the only layer that:
@@ -133,10 +138,12 @@ V1 surface:
 | `getAvailableTimeSlots(tenantId, dateISO, bowlerCount)` | Return time slots for the chosen date | `/book` (after date selected) |
 | `acquireBookingHold({tenantId, startTime, endTime, bowlerCount})` | Create hold; returns `holdId` + `expiresAt` | `/book` time cell select |
 | `releaseBookingHold()` | Release prior hold when switching slots | `/book` |
-| `getPackagesForTenant(tenantId)` | Fetch active packages | `/book/package` |
-| `confirmBooking(input)` | Convert HOLD → CONFIRMED after payment intent succeeds | `/book/confirm` |
+| `getPackagesForTenant(tenantId, { packageAccessCode? })` | Fetch PUBLIC + unlocked CODE_REQUIRED packages | `/book/package` |
+| `validatePackageAccessCode(tenantId, code)` | Unlock CODE_REQUIRED package | `/book/package` |
+| `confirmBooking(input)` | Create Stripe PaymentIntent; webhook creates Booking | `/book/confirm` |
+| `confirmOfflineBooking(input)` | PAYMENT_OFFLINE → PENDING_PAYMENT (no Stripe) | `/book/confirm` |
 
-For v1, **`getAvailableDates`, `getAvailableTimeSlots`, and `getPackagesForTenant` may return mock data** so the flow renders. `acquireBookingHold` should write a real HOLD row (Prisma is wired). `confirmBooking` stubs the Stripe path — we wire it in Phase 7.
+Dev-without-DB: read actions return mocks; `acquireBookingHold` and production paths use Prisma when `DATABASE_URL` is set. Stripe is wired via PaymentIntent + webhook — not stubbed.
 
 Page agents should call these by importing from `@/lib/actions/booking`. If a function is missing, file a "needed action" line in your report — do NOT implement the action in the page file.
 

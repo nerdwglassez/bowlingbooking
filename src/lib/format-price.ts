@@ -13,7 +13,9 @@ export function formatPrice(amountCents: number): string {
 
 /** Dollar amount for controlled number inputs (no currency symbol). */
 export function formatPriceInputValue(amountCents: number): string {
-  return (amountCents / 100).toFixed(2)
+  const wholeDollars = Math.trunc(amountCents / 100)
+  const centsPart = Math.abs(amountCents % 100)
+  return `${wholeDollars}.${String(centsPart).padStart(2, '0')}`
 }
 
 /** Parse a dollar string from a settings input into integer cents. */

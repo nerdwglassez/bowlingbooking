@@ -3,7 +3,7 @@
 #
 # DOCUMENT STRUCTURE:
 #   PART 1 — Current implementation (accurate to repo as of May 2026)
-#   PART 2 — Planned changes (wireframe decisions not yet built)
+#   PART 2 — Target design + gaps (migrations 1–7 complete; verify UI per section)
 #
 # When Cursor is building something in PART 1, use the schema and rules
 # as written. When building something in PART 2, treat those sections as
@@ -18,7 +18,7 @@
 #   contracts/PROMO_CODES_DEPRECATED.md — current PromoCode contract (deprecated)
 #   SCHEMA_MIGRATIONS.md — gates Part 2 schema work
 #   STAFF_INTERACTIONS.md + staff/0N_*.md — staff/admin surfaces
-#   CUSTOMER_DASHBOARD.md — post-booking dashboard (partial)
+#   CUSTOMER_DASHBOARD.md — post-booking dashboard (partial — cancel/reschedule built)
 
 ---
 
@@ -105,8 +105,15 @@ NO_SHOW       → (terminal)
 **CONFIRMED**
 - Created by Stripe webhook on payment_intent.succeeded (online flow)
 - Also set immediately on walk-in/phone bookings (no Stripe)
+- Also set when staff confirms `PENDING_PAYMENT` via `staffConfirmPendingPaymentAction`
 - totalAmount locked at this moment forever
 - Confirmation email triggered (online flow)
+
+**PENDING_PAYMENT**
+- CODE_REQUIRED package with `paymentMode: PAYMENT_OFFLINE`
+- Created by `confirmOfflineBooking()` — no Stripe PaymentIntent
+- Staff confirms payment via `staffConfirmPendingPaymentAction` → CONFIRMED
+- Customer success page shows pending messaging until staff confirms
 
 **CANCELLED**
 - Set by customer self-serve (within cancellationWindowHours window)
@@ -119,9 +126,6 @@ NO_SHOW       → (terminal)
 
 **NO_SHOW**
 - Set by staff manually
-
-Note: PENDING_PAYMENT is a planned status for CODE_REQUIRED offline
-payment packages. See Part 2 §Unified Package Model.
 
 ---
 
@@ -201,14 +205,13 @@ before computing what's free. Expired holds are deleted in the same query.
 ## Lane assignment
 
 ```typescript
-laneCount = Math.ceil(bowlerCount / 6)
+laneCount = getLaneCount(bowlerCount, bowlersPerLane)
 ```
 
-This is currently hardcoded as 6 in src/lib/lane-logic.ts.
-See Part 2 §bowlersPerLane for the planned tenant-configurable version.
-
-getLaneCount(bowlerCount) is the only function that should do this math.
-Never inline Math.ceil(bowlerCount / 6) in a component or page.
+`bowlersPerLane` comes from `Tenant.bowlersPerLane` (default 6) and is snapshotted
+on the booking at confirmation. `getLaneCount()` in `src/lib/lane-logic.ts` is the
+only function that should do this math.
+Never inline `Math.ceil(bowlerCount / 6)` in a component or page.
 
 ---
 
@@ -547,18 +550,17 @@ Before building anything that needs new schema:
 
 ### Part 2 section → migration map
 
-| Part 2 section | Migration | Schema change? |
-|----------------|-----------|----------------|
-| partyType Removal | — | No (UI + inference only) |
-| Booking Step 3 (shoe sizing) | — | No (UI + calculatePrice input) |
-| Policy Snapshot | **1** | Tenant columns + Booking snapshot fields |
-| bowlersPerLane (Tenant column + snapshot) | **1** | Part of Migration 1 |
-| bowlersPerLane (getLaneCount + call sites) | **6** | No — code only; requires Migration 1 |
-| Consent Fields | **2** | Booking columns |
-| Inclusions System | **3** | Package.inclusions JSON |
-| Unified Package / CODE_REQUIRED | **4** | Package fields + PENDING_PAYMENT enum |
-| Pricing Periods | **5** | PricingPeriod table |
-| Customer Dashboard | **1 + 7** | Migration 1 snapshots; Migration 7 ClaimToken |
+| Part 2 section | Migration | Schema | UI status |
+|----------------|-----------|--------|-----------|
+| partyType Removal | — | No | **Open** — picker removed from customer flow; metadata still carries partyType |
+| Booking Step 3 (shoe sizing) | — | No | **Built** — `/book/details` |
+| Policy Snapshot | **1** | Yes | **Built** — snapshot fields on Booking |
+| bowlersPerLane | **1 + 6** | Yes | **Built** — tenant column + `getLaneCount(bowlersPerLane)` |
+| Consent Fields | **2** | Yes | **Built** — confirm step checkbox |
+| Inclusions System | **3** | Yes | **Partial** — JSON column exists; pricing still flag-based |
+| Unified Package / CODE_REQUIRED | **4** | Yes | **Partial** — unlock + confirm validation built; PromoInput deprecation open |
+| Pricing Periods | **5** | Yes | **Built** — admin CRUD + `calculateBookingTotal` |
+| Customer Dashboard | **1 + 7** | Yes | **Partial** — `/dashboard` cancel/reschedule; wireframe polish open |
 
 Run migrations in numeric order. Migration 6 requires Migration 1 complete.
 Migration 4 requires Migration 3. Customer dashboard requires 1 and 7.
@@ -717,14 +719,14 @@ See SCHEMA_MIGRATIONS.md Migration 3.
 
 ---
 
-## Unified Package Model — CODE_REQUIRED  [PLANNED — Migration 4]
+## Unified Package Model — CODE_REQUIRED  [IMPLEMENTED — partial UI]
 
 Decision: PromoCode entity replaced by CODE_REQUIRED packages.
 Everything is a Package. Access type determines visibility.
 
 Visual spec: docs/wireframes/admin/settings-packages-unified.html
 
-Planned Package additions:
+Schema (Migration 4 — **complete**):
 ```
 accessType    String  default 'PUBLIC'   // PUBLIC | CODE_REQUIRED
 pricingType   String?                   // RATE_BASED | RATE_DISCOUNT | OVERRIDE
@@ -737,38 +739,37 @@ usageCount    Int     default 0
 paymentMode   String?                   // ONLINE | PAYMENT_OFFLINE
 ```
 
-CODE_REQUIRED package behavior:
-- Hidden from /book/package list
-- Unlocked when customer enters code at Step 4 (/book/confirm)
-- PAYMENT_OFFLINE mode: Stripe bypassed, booking created as
-  PENDING_PAYMENT (new status needed), staff confirms payment
-- CODE_REQUIRED is standalone — it is NOT a modifier of another package
+**Built behavior:**
+- Admin: package form `accessType`, `codeString`, `paymentMode` (`package-form.tsx`)
+- Customer: special-code unlock on `/book/package` → `getPackagesForTenant({ packageAccessCode })`
+- Confirm: re-validation via `packageAccessCode` on `confirmBooking` / `confirmOfflineBooking`
+- Offline: `confirmOfflineBooking()` → `PENDING_PAYMENT`; staff confirms via `staffConfirmPendingPaymentAction`
+- `PENDING_PAYMENT` in BookingStatus enum; excluded from no-show logic
 
-PromoCode model: do not delete until all PromoCode data has been
-migrated to CODE_REQUIRED packages and admin UI is updated.
+**Remaining gaps:**
+- Deprecate parallel `PromoInput` at confirm where it conflicts with unified packages
+- PromoCode model cleanup (follow-up migration per SCHEMA_MIGRATIONS)
+
+CODE_REQUIRED package behavior (spec):
+- Hidden from default `/book/package` list (PUBLIC only unless code validated)
+- PAYMENT_OFFLINE mode: Stripe bypassed → PENDING_PAYMENT → staff confirms
+- CODE_REQUIRED is standalone — not a modifier of another package
+
+PromoCode model: retained for legacy bookings; do not delete until data migrated.
 .claude/contracts/PROMO_CODES_DEPRECATED.md documents the OLD model.
 
-Admin UI target: Packages list with PUBLIC / Code-gated filter tabs,
-replacing the separate Promos nav item.
-
-PENDING_PAYMENT status (planned addition to BookingStatus):
-```
-PENDING_PAYMENT — CODE_REQUIRED + PAYMENT_OFFLINE package used.
-  Lanes held indefinitely (no expiry).
-  Staff cockpit shows "Payment pending" badge.
-  Cannot be self-serve cancelled by customer.
-  Transitions to CONFIRMED when MANAGER+ confirms payment received.
-  Excluded from no-show logic.
-```
-
-See SCHEMA_MIGRATIONS.md Migration 4.
+Admin UI: `/staff/settings/packages` with Public / Code-gated filter tabs.
+Legacy `/admin/promos` redirects to settings packages.
 
 ---
 
-## Pricing Periods  [PLANNED — Migration 5]
+## Pricing Periods  [IMPLEMENTED — Migration 5]
 
 Decision: admin-configurable time-based pricing periods.
 Rate-based packages use: people × hours × period rate.
+
+**Built:** `PricingPeriod` table, admin CRUD at `/staff/settings/pricing`,
+`loadPricingPeriodsForTenant` + `buildLanePricingContext` in booking flow.
 
 Priority stack (holiday wins over weekend wins over weekday):
 ```
@@ -797,15 +798,20 @@ See SCHEMA_MIGRATIONS.md Migration 5.
 
 ---
 
-## Customer Dashboard  [PLANNED — requires Migration 1 + 7]
+## Customer Dashboard  [PARTIAL — Migration 1 + 7 complete]
 
-`/dashboard` does not exist. Guest self-serve remains at `/find-my-booking`.
+**Built:**
+- `/dashboard` (auth required) — featured upcoming card, list, past section
+- Cancel/reschedule bottom sheets via `cancelDashboardBookingAction` /
+  `rescheduleDashboardBookingAction` (policy snapshots)
+- `/find-my-booking` guest path unchanged
+- `/book/success` claim flow via `claimBookingAccountAction` + ClaimToken
+- Confirmation email: manage + dashboard links
 
-**Dependencies:** Migration 1 (policy snapshot on Booking), Migration 7 (ClaimToken
-for account linking). ClaimToken table is not in schema yet.
-
-**Domain decisions:** self-serve cancel/reschedule reads booking snapshot fields,
-not current tenant settings; `/find-my-booking` stays as guest fallback.
+**Remaining vs CUSTOMER_DASHBOARD.md wireframe:**
+- Dark featured card, check-in window badge, cancellation window badge
+- Preferences sheet from profile icon; personalized first-name greeting
+- Hide account-creation prompt when already signed in
 
 Full UX spec: `.claude/CUSTOMER_DASHBOARD.md`.
 Wireframes: `docs/wireframes/customer/`.
@@ -814,17 +820,9 @@ Wireframes: `docs/wireframes/customer/`.
 
 ## Key Rules for Cursor (planned features)
 
-- Do not add PENDING_PAYMENT to BookingStatus enum until
-  Migration 4 has been reviewed and approved
-- Do not remove partyType from book/page.tsx until the
-  package → partyType inference logic is in place
-- Do not delete PromoCode model until CODE_REQUIRED migration
-  is complete and all data migrated
-- Do not change getLaneCount() signature until **Migration 6**
-  (requires Migration 1 column to exist first)
-- Do not implement Part 2 UI that reads snapshot fields until
-  Migration 1 has been run and verified in schema
+- Do not delete PromoCode model until CODE_REQUIRED migration cleanup is approved
+- Part 2 sections marked **Open** or **Partial** are the active build targets
+- Do not remove partyType from webhook/walk-in metadata until inference is fully updated
 - Always check SCHEMA_MIGRATIONS.md before touching schema.prisma
-- Part 2 sections are target design — confirm schema exists before
-  writing code that references those fields
+- Migrations 1–7 are complete — verify columns in `schema.prisma` before assuming gaps
 

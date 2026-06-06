@@ -1,6 +1,6 @@
 # ADMIN.md — Contract for the admin settings shell
 
-Status: locked for Phase 9 (v1 critical path). Canonical manager settings live under `/staff/settings/*`; legacy `/admin/*` routes redirect or remain for audit/reports.
+Status: locked. Canonical manager settings live under `/staff/settings/*`; legacy `/admin/*` list routes redirect; audit log remains at `/admin/audit`.
 
 ## Settings implementation map (canonical)
 
@@ -12,8 +12,8 @@ Status: locked for Phase 9 (v1 critical path). Canonical manager settings live u
 | Pricing + rate overrides | `/staff/settings/pricing` | — |
 | Booking policies | `/staff/settings/policies` | — |
 | Packages (unified + code-gated) | `/staff/settings/packages` | `/admin/packages`, `/admin/promos` |
-| Team | `/staff/settings/team` | `/admin/team` (full pages still work) |
-| Integrations | `/staff/settings/integrations` | Deferred Connect OAuth |
+| Team | `/staff/settings/team` | `/admin/team` redirects; legacy `/admin/team/new`, `/admin/team/[id]` editors remain |
+| Integrations | `/staff/settings/integrations` | Stripe Connect OAuth open (dashboard URL stub) |
 | Profile | `/staff/settings/profile` | — |
 | Audit log | `/admin/audit` | ADMIN only |
 | Admin KPI reports | `/admin/reports` | ADMIN only |
@@ -231,6 +231,7 @@ Read-only report loads are **not** written to `AuditLog` (too noisy for v1).
 
 ## Deferred
 
-- **Integrations panel** — read-only status for Stripe / Resend / NextAuth secrets. Key rotation stays deploy-time only.
+- **Stripe Connect OAuth** — `getStripeConnectOnboardingUrl()` opens Stripe Dashboard only; full OAuth flow open.
 - **Advance booking policy** — deposit %, advance-booking window, and other `Tenant.config` knobs beyond cancellation window / refund % (see [Booking policy (Phase 11)](#booking-policy-phase-11)).
-- **Deeper analytics** — cohorting, warehouse sync, and exports beyond the v1 `/admin/reports` KPIs and charts.
+- **Deeper analytics** — cohorting, warehouse sync, and exports beyond the v1 `/staff/reports` KPIs and charts.
+- **Legacy admin editors** — redirect `/admin/packages/[id]`, `/admin/team/*` to settings equivalents.

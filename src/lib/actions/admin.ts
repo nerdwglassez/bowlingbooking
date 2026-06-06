@@ -138,7 +138,7 @@ async function loadTenantDetail(
       shoeRentalPriceCents: 400,
       laneReservationCentsPerLane: 850,
       pricingStrategy: 'per_person_hour',
-      minBookingDurationHours: 1.5,
+      minBookingDurationHours: 1,
       maxBookingDurationHours: 4,
       totalLanes: 12,
       bowlersPerLane: 6,
@@ -226,9 +226,9 @@ function readTenantConfigFields(config: unknown): {
         : 'packages_only',
     minBookingDurationHours:
       typeof obj.minBookingDurationHours === 'number' &&
-      obj.minBookingDurationHours >= 1
+      obj.minBookingDurationHours >= 0.5
         ? obj.minBookingDurationHours
-        : 1.5,
+        : 1,
     maxBookingDurationHours:
       typeof obj.maxBookingDurationHours === 'number' &&
       obj.maxBookingDurationHours >= 1

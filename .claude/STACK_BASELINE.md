@@ -412,9 +412,9 @@ These were introduced after the customer booking flow landed. Every future agent
 ## 10. Open questions deferred (post-v1)
 
 - **Background queue for email.** v1 sends inline with the webhook; consider moving to a queue (e.g. Inngest, QStash) if Resend latency starts causing Stripe retries.
-- **Booking modification / reschedule.** Customers can cancel but not reschedule. Deferred to Phase 12.
-- **Customer accounts (sign-up, magic link, `/account` dashboard).** Bookings have nullable `userId`; the lookup-by-code flow covers v1. Deferred to Phase 12.
-- **Integrations panel.** Read-only status for Stripe / Resend / NextAuth secrets. Key rotation stays deploy-time only.
+- **Booking modification / reschedule.** Staff 5-state modification built; customer dashboard reschedule built. Lane editor and full wireframe polish open.
+- **Customer accounts.** `/dashboard` + ClaimToken on success page built; preferences sheet and sign-in prompt polish open.
+- **Integrations panel.** Status cards built; Stripe Connect OAuth open. Key rotation stays deploy-time only.
 - **Email reminders (24h before).** Needs a scheduler (cron or Inngest).
 - **SMS notifications.** Twilio integration.
 - **PWA manifest** for the staff app.

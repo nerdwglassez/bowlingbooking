@@ -15,6 +15,8 @@ import {
 import { PaymentPriceFooter } from '@/components/patterns/payment-price-footer'
 import { PromoInput } from '@/components/patterns/promo-input'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { useToast } from '@/app/(customer)/book/toast-provider'
 import { useBooking } from '@/context/BookingContext'
 import {
@@ -25,6 +27,7 @@ import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import {
   confirmBooking,
   confirmOfflineBooking,
+  validatePackageAccessCode,
 } from '@/lib/actions/booking'
 import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import { paymentFooterLineItems } from '@/lib/booking-display'
@@ -59,6 +62,7 @@ export default function ConfirmBookingPage() {
     clearPromoCode,
     setTimeSlot,
     resetSession,
+    setPackageAccessCode,
   } = useBooking()
   const tenant = useTenant()
   const router = useRouter()
@@ -73,7 +77,13 @@ export default function ConfirmBookingPage() {
   const [promoLoading, setPromoLoading] = useState(false)
   const [smsReminderConsent, setSmsReminderConsent] = useState(false)
   const [marketingConsent, setMarketingConsent] = useState(false)
+  const [accessCodeDraft, setAccessCodeDraft] = useState(
+    () => session.packageAccessCode ?? '',
+  )
+  const [accessCodeError, setAccessCodeError] = useState<string | null>(null)
   const nowMs = useWallClockNow()
+
+  const needsAccessCode = session.selectedPackage?.accessType === 'CODE_REQUIRED'
 
   const shoesIncluded = session.selectedPackage?.shoesIncluded ?? false
   const isOfflinePackage =
@@ -152,6 +162,9 @@ export default function ConfirmBookingPage() {
     session.holdExpiresAt != null &&
     session.holdExpiresAt.getTime() > nowMs
 
+  const accessCodeReady =
+    !needsAccessCode || Boolean(session.packageAccessCode?.trim())
+
   const hasPaymentIntent = session.stripeClientSecret != null
   const checkoutLocked = initializingPayment || paymentProcessing
 
@@ -184,6 +197,9 @@ export default function ConfirmBookingPage() {
           selectedOptionalAddonIds: session.selectedOptionalAddonIds,
           smsReminderConsent,
           marketingConsent,
+          packageAccessCode: needsAccessCode
+            ? accessCodeDraft.trim() || session.packageAccessCode
+            : null,
         })
         resetSession()
         const code = result.confirmationCode ?? 'PENDING'
@@ -212,6 +228,9 @@ export default function ConfirmBookingPage() {
         selectedOptionalAddonIds: session.selectedOptionalAddonIds,
         smsReminderConsent,
         marketingConsent,
+        packageAccessCode: needsAccessCode
+          ? accessCodeDraft.trim() || session.packageAccessCode
+          : null,
       })
       if (!result.clientSecret || !result.paymentIntentId) {
         throw new Error('Payment could not be started.')
@@ -251,6 +270,9 @@ export default function ConfirmBookingPage() {
     smsReminderConsent,
     marketingConsent,
     isOfflinePackage,
+    needsAccessCode,
+    accessCodeDraft,
+    session.packageAccessCode,
     resetSession,
     router,
     setPaymentIntent,
@@ -259,12 +281,13 @@ export default function ConfirmBookingPage() {
 
   useEffect(() => {
     if (!canRender || initStarted.current) return
+    if (!accessCodeReady) return
     if (!isOfflinePackage && hasPaymentIntent) return
     initStarted.current = true
     queueMicrotask(() => {
       void startPayment()
     })
-  }, [canRender, hasPaymentIntent, isOfflinePackage, startPayment])
+  }, [canRender, accessCodeReady, hasPaymentIntent, isOfflinePackage, startPayment])
 
   async function handleApplyPromo() {
     setPromoError(null)
@@ -357,6 +380,55 @@ export default function ConfirmBookingPage() {
             ) : null
           }
         />
+
+        {needsAccessCode ? (
+          <div className="mt-4 flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-card)] p-3">
+            <p className="text-xs text-[var(--color-text-secondary)]">
+              Special access code required for {session.selectedPackage?.name}
+            </p>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={accessCodeDraft}
+                onChange={(e) => {
+                  setAccessCodeDraft(e.target.value)
+                  setAccessCodeError(null)
+                }}
+                placeholder="Enter package code"
+                disabled={checkoutLocked}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={checkoutLocked || !accessCodeDraft.trim()}
+                onClick={async () => {
+                  setAccessCodeError(null)
+                  const match = await validatePackageAccessCode(
+                    tenant.id,
+                    accessCodeDraft,
+                  )
+                  if (
+                    !match ||
+                    match.packageId !== session.selectedPackage?.id
+                  ) {
+                    setAccessCodeError('Code not valid for this package.')
+                    return
+                  }
+                  setPackageAccessCode(accessCodeDraft.trim())
+                  initStarted.current = false
+                  clearPaymentIntent()
+                }}
+              >
+                Verify
+              </Button>
+            </div>
+            {accessCodeError ? (
+              <p className="text-xs text-[var(--status-error-text)]">
+                {accessCodeError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-col gap-3 text-sm">
           <Checkbox

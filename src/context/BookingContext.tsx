@@ -51,6 +51,7 @@ const defaultSession: BookingSession = {
   promoCode: null,
   shoeSelections: emptyShoeSelections(DEFAULT_BOWLER_COUNT),
   selectedOptionalAddonIds: [],
+  packageAccessCode: null,
 }
 
 export interface CustomerInfoUpdate {
@@ -74,6 +75,7 @@ interface BookingContextValue {
   removeBowler: (index: number) => void
   syncShoeRows: () => void
   setBookingTotal: (totalAmount: number) => void
+  setPackageAccessCode: (code: string | null) => void
   setCustomerInfo: (update: CustomerInfoUpdate) => void
   setPaymentIntent: (clientSecret: string, paymentIntentId: string) => void
   clearPaymentIntent: () => void
@@ -95,6 +97,7 @@ function downstreamClearFields() {
     promoCode: null as BookingSession['promoCode'],
     shoeSelections: [] as ShoeSelection[],
     selectedOptionalAddonIds: [] as string[],
+    packageAccessCode: null as string | null,
   }
 }
 
@@ -171,8 +174,19 @@ export function BookingProvider({
       stripeClientSecret: null,
       stripePaymentIntentId: null,
       promoCode: null,
+      packageAccessCode:
+        pkg.accessType === 'CODE_REQUIRED' ? prev.packageAccessCode : null,
       shoeSelections: emptyShoeSelections(prev.bowlerCount ?? DEFAULT_BOWLER_COUNT),
       selectedOptionalAddonIds: [],
+    }))
+  }
+
+  function setPackageAccessCode(code: string | null) {
+    setSession((prev) => ({
+      ...prev,
+      packageAccessCode: code,
+      stripeClientSecret: null,
+      stripePaymentIntentId: null,
     }))
   }
 
@@ -186,6 +200,7 @@ export function BookingProvider({
       stripeClientSecret: null,
       stripePaymentIntentId: null,
       promoCode: null,
+      packageAccessCode: null,
       shoeSelections: emptyShoeSelections(prev.bowlerCount ?? DEFAULT_BOWLER_COUNT),
       selectedOptionalAddonIds: [],
     }))
@@ -344,6 +359,7 @@ export function BookingProvider({
         removeBowler,
         syncShoeRows,
         setBookingTotal,
+        setPackageAccessCode,
         setCustomerInfo,
         setPaymentIntent,
         clearPaymentIntent,

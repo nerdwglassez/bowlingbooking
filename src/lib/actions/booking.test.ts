@@ -374,6 +374,60 @@ describe('confirmBooking', () => {
     ).rejects.toThrow(/expired/i)
   })
 
+  it('rejects CODE_REQUIRED packages without a valid access code', async () => {
+    mocks.packageFindFirst.mockResolvedValue({
+      id: 'pkg_vip',
+      accessType: 'CODE_REQUIRED',
+      partyTypes: ['OPEN'],
+    })
+    mocks.packageFindMany.mockResolvedValue([
+      { id: 'pkg_vip', name: 'VIP', codeString: 'VIP2026' },
+    ])
+    await expect(
+      confirmBooking({
+        tenantId: 't1',
+        holdId: 'h1',
+        packageId: 'pkg_vip',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        laneCount: 1,
+        startTime,
+        endTime,
+        totalAmount: 4500,
+        customerName: 'Jane',
+        customerEmail: 'jane@example.com',
+        customerPhone: '',
+      }),
+    ).rejects.toThrow(/access code/i)
+  })
+
+  it('accepts CODE_REQUIRED packages when access code matches', async () => {
+    mocks.packageFindFirst.mockResolvedValue({
+      id: 'pkg_vip',
+      accessType: 'CODE_REQUIRED',
+      partyTypes: ['OPEN'],
+    })
+    mocks.packageFindMany.mockResolvedValue([
+      { id: 'pkg_vip', name: 'VIP', codeString: 'VIP2026' },
+    ])
+    const result = await confirmBooking({
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_vip',
+      partyType: 'OPEN',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '',
+      packageAccessCode: 'VIP2026',
+    })
+    expect(result.clientSecret).toBe('pi_1_secret_x')
+  })
+
   it('embeds booking inputs in PaymentIntent metadata', async () => {
     await confirmBooking({
       tenantId: 't1',

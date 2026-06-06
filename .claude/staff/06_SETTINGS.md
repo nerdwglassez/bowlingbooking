@@ -9,7 +9,7 @@
 #                docs/wireframes/admin/settings-packages-unified.html,
 #                docs/wireframes/admin/settings-integrations.html,
 #                docs/wireframes/admin/admin-settings-refined.html
-# Build status:  Partial — canonical routes under `/staff/settings/*`
+# Build status:  Partial — canonical routes under `/staff/settings/*` (Connect OAuth open)
 
 | Route | Status |
 |-------|--------|
@@ -20,7 +20,7 @@
 | `/staff/settings/policies` | Built (wireframe policy rows) |
 | `/staff/settings/packages` | Built (Public / Code-gated tabs) |
 | `/staff/settings/team` | Built (ADMIN invite + detail sheets) |
-| `/staff/settings/integrations` | Partial (read-only detail sheets) |
+| `/staff/settings/integrations` | Partial (status cards + Stripe Dashboard link; OAuth open) |
 | `/staff/settings/profile` | Built |
 | Legacy `/admin/packages`, `/admin/promos` | Redirect to settings packages |
 
