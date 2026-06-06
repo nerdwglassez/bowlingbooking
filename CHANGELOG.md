@@ -9,28 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Audit remediation: `BookingBowler` shoe persistence, online `BookingLane` assignment, policy snapshots on bookings, consent fields, package `inclusions`/`CODE_REQUIRED` columns, `PricingPeriod`, `ClaimToken`, customer `/dashboard`, staff check-in/no-show/complete actions.
+- Unified staff employee portal: cockpit with booking detail sheet (mobile sheet / desktop 400px panel), schedule with lane blocking, walk-in FAB, reports (analytics + contacts, MANAGER+), and shared AppShell + NavRail chrome.
+- Canonical manager settings under `/staff/settings/*`: venue, operating hours, pricing periods, booking policies, unified packages (PUBLIC / code-gated tabs), team invite/detail sheets, integrations status, and profile/password.
+- Schema migrations 1–7: policy snapshots on bookings, consent fields, package `inclusions` and `CODE_REQUIRED` columns, `PricingPeriod`, `ClaimToken`, and `PENDING_PAYMENT` booking status.
+- Customer booking funnel through `/book/details` (shoe sizing) with hold timer, price footers on steps 1–4, lane allocation on package step, and remove-bowler on details.
+- CODE_REQUIRED packages: special-code unlock on the package step, offline `PAYMENT_OFFLINE` checkout → `PENDING_PAYMENT`, and staff “Confirm payment received” action.
+- Customer `/dashboard` with cancel/reschedule bottom sheets (policy snapshots); guest self-serve remains at `/find-my-booking`.
+- Success-page account claim via `ClaimToken`; confirmation email includes manage, dashboard, and calendar links with optional venue `reply_to`.
+- Staff 5-state booking modification (date/time, bowlers, package, notes); walk-in FAB gated by `allowWalkInBookings` policy.
+- Tenant pricing domain: strategy-based totals, pricing-period overrides, booking duration limits, and `bowlersPerLane` via `getLaneCount()`.
+- Staff check-in, mark completed, and mark no-show actions; online bookings persist `BookingBowler` rows and `BookingLane` assignments at webhook finalize.
+- Settings UX: toast provider, unsaved-form guard, sign-out confirm sheet, and legacy `/admin/*` list routes redirecting to `/staff/settings/*`.
 - Project changelog (`CHANGELOG.md`), `/changelog` Cursor skill, and Cursor rule for Keep a Changelog updates.
+- Crypto-backed booking confirmation codes with collision retry; role-aware sign-in redirects and configurable home entry (`NEXT_PUBLIC_HOME_ENTRY`).
 
 ### Changed
 
-- Policy settings promoted from `Tenant.config` JSON to typed columns; cancel/refund reads booking snapshots.
+- Policy settings promoted from `Tenant.config` JSON to typed tenant columns; cancel, refund, and dashboard self-serve read booking snapshot fields, not live tenant settings.
 - Customer cancel aligns refund `isRefunded` timing with Stripe webhook (staff path).
 - `confirmBooking` validates optional add-ons server-side; PaymentIntent metadata carries shoes, add-ons, and consent.
+- Promo codes contract renamed to `PROMO_CODES_DEPRECATED.md`; target model is CODE_REQUIRED packages (legacy `PromoInput` at confirm retained until cleanup).
+- Price display helpers extracted to client-safe `@/lib/format-price` for settings and reports UI.
+- Hide cockpit payment resume panel pending UX redesign; `createPaymentResumeLink` and `/book/resume-payment` remain available for existing links.
 
 ### Fixed
 
 - Confirmation email used venue name instead of package name.
 - Online checkout failed when optional package add-ons were selected.
 - `maxOnlineBowlers` tenant setting ignored on booking Step 1 UI.
-
-### Changed
-
-- Hide cockpit payment resume panel pending UX redesign; `createPaymentResumeLink` and `/book/resume-payment` remain available for existing links.
-
-### Fixed
-
-- `Button` with `asChild` passes a single child to Radix `Slot`, fixing a runtime crash on the admin “← Staff cockpit” link and other link-styled buttons.
+- Settings layout crash when Lucide icons were passed through client/server layout props.
+- Vercel production build failure from server-only imports in client settings and reports components.
+- `Button` with `asChild` passes a single child to Radix `Slot`, fixing a runtime crash on link-styled buttons.
+- `/api/health` dev-mock response when the database is unreachable.
 
 ## [0.2.0] - 2026-05-26
 
@@ -75,6 +85,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release (Phases 0–7): Next.js App Router app, design token system, UI primitives and patterns, Prisma schema and seed, core booking domain (`lane-logic`, `pricing`, `tenant`), and customer booking flow foundation.
 - Multi-tenant-ready `getTenant()` with `DEFAULT_TENANT_SLUG`; drift sentinel and project contracts under `.claude/`.
 
-[Unreleased]: https://github.com/nerdwglassez/bowlingbooking/compare/ce9454b...ac7f683
+[Unreleased]: https://github.com/nerdwglassez/bowlingbooking/compare/ce9454b...4c4e8e2
 [0.2.0]: https://github.com/nerdwglassez/bowlingbooking/compare/f52eb59...ce9454b
 [0.1.0]: https://github.com/nerdwglassez/bowlingbooking/commit/f52eb59
