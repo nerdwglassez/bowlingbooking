@@ -4,7 +4,7 @@
  * when SCHEMA_MIGRATIONS Migration 3 lands.
  */
 
-import { formatPrice } from '@/lib/pricing'
+import { formatPrice } from '@/lib/format-price'
 import type { Package, PartyType } from '@/types'
 
 export type PackageInclusionIcon =

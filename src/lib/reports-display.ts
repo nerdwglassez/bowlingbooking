@@ -1,6 +1,6 @@
 // reports-display.ts — Staff reports UI helpers (reports-analytics-contacts.html).
 
-import { formatPrice } from '@/lib/pricing'
+import { formatPrice } from '@/lib/format-price'
 
 export type StaffReportsSubview = 'analytics' | 'contacts'
 
