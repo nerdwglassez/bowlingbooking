@@ -90,6 +90,7 @@ import {
 
 function bookingFixture(overrides: Partial<{
   id: string
+  tenantId: string
   confirmationCode: string
   customerEmail: string
   startHoursFromNow: number
@@ -102,6 +103,7 @@ function bookingFixture(overrides: Partial<{
   const end = new Date(start.getTime() + 3_600_000)
   return {
     id: overrides.id ?? 'bk_1',
+    tenantId: overrides.tenantId ?? 't1',
     confirmationCode: overrides.confirmationCode ?? 'ABC123',
     startTime: start,
     endTime: end,
