@@ -13,9 +13,13 @@ const mocks = vi.hoisted(() => ({
   bookingHoldDeleteMany: vi.fn(),
   bookingFindMany: vi.fn(),
   bookingHoldFindMany: vi.fn(),
+  bookingCreate: vi.fn(),
+  bookingBowlerCreateMany: vi.fn(),
   laneCount: vi.fn(),
   packageFindMany: vi.fn(),
   packageFindFirst: vi.fn(),
+  tenantFindUniqueOrThrow: vi.fn(),
+  assignBookingLanesMock: vi.fn(),
   transactionMock: vi.fn(),
 }))
 
@@ -41,6 +45,9 @@ vi.mock('@/lib/stripe', () => ({
   createPaymentIntent: mocks.createPaymentIntentMock,
   isStripeMocked: mocks.isStripeMockedMock,
 }))
+vi.mock('@/lib/lane-assignment', () => ({
+  assignBookingLanes: mocks.assignBookingLanesMock,
+}))
 vi.mock('@/lib/tenant', () => ({
   getTenant: vi.fn(async () => ({
     id: 't1',
@@ -65,14 +72,18 @@ vi.mock('@/lib/pricing-periods-data', () => ({
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    tenant: { findUnique: mocks.tenantFindUnique },
+    tenant: {
+      findUnique: mocks.tenantFindUnique,
+      findUniqueOrThrow: mocks.tenantFindUniqueOrThrow,
+    },
     bookingHold: {
       create: mocks.bookingHoldCreate,
       findUnique: mocks.bookingHoldFindUnique,
       deleteMany: mocks.bookingHoldDeleteMany,
       findMany: mocks.bookingHoldFindMany,
     },
-    booking: { findMany: mocks.bookingFindMany },
+    booking: { findMany: mocks.bookingFindMany, create: mocks.bookingCreate },
+    bookingBowler: { createMany: mocks.bookingBowlerCreateMany },
     lane: { count: mocks.laneCount },
     package: {
       findMany: mocks.packageFindMany,
@@ -86,6 +97,7 @@ vi.mock('@/lib/prisma', () => ({
 import {
   acquireBookingHold,
   confirmBooking,
+  confirmOfflineBooking,
   getAvailableTimeSlots,
   getPackagesForTenant,
   releaseBookingHold,
@@ -112,14 +124,18 @@ beforeEach(() => {
   mocks.bookingHoldFindMany.mockResolvedValue([])
   mocks.transactionMock.mockImplementation(async (fn) =>
     fn({
-      tenant: { findUnique: mocks.tenantFindUnique },
+      tenant: {
+        findUnique: mocks.tenantFindUnique,
+        findUniqueOrThrow: mocks.tenantFindUniqueOrThrow,
+      },
       bookingHold: {
         create: mocks.bookingHoldCreate,
         findUnique: mocks.bookingHoldFindUnique,
         deleteMany: mocks.bookingHoldDeleteMany,
         findMany: mocks.bookingHoldFindMany,
       },
-      booking: { findMany: mocks.bookingFindMany },
+      booking: { findMany: mocks.bookingFindMany, create: mocks.bookingCreate },
+      bookingBowler: { createMany: mocks.bookingBowlerCreateMany },
       lane: { count: mocks.laneCount },
       package: {
         findMany: mocks.packageFindMany,
@@ -127,6 +143,15 @@ beforeEach(() => {
       },
     }),
   )
+  mocks.bookingHoldDeleteMany.mockResolvedValue({ count: 1 })
+  mocks.tenantFindUniqueOrThrow.mockResolvedValue({
+    cancellationWindowHours: 24,
+    rescheduleWindowHours: 24,
+    bowlersPerLane: 6,
+    cancellationRefundPercent: 100,
+    config: {},
+  })
+  mocks.assignBookingLanesMock.mockResolvedValue([1])
 })
 
 describe('acquireBookingHold', () => {
@@ -475,6 +500,123 @@ describe('confirmBooking', () => {
         }),
       }),
     )
+  })
+})
+
+describe('confirmOfflineBooking', () => {
+  const startTime = new Date('2026-02-01T18:00:00Z')
+  const endTime = new Date('2026-02-01T19:00:00Z')
+  const hold = {
+    id: 'h1',
+    tenantId: 't1',
+    bowlerCount: 4,
+    laneCount: 1,
+    startTime,
+    endTime,
+    expiresAt: new Date(Date.now() + 60_000),
+  }
+
+  beforeEach(() => {
+    mocks.bookingHoldFindUnique.mockResolvedValue(hold)
+    mocks.packageFindFirst.mockResolvedValue({
+      id: 'pkg_offline',
+      partyTypes: ['OPEN'],
+      paymentMode: 'PAYMENT_OFFLINE',
+    })
+    mocks.calculateBookingTotalMock.mockReturnValue({
+      totalAmount: 4500,
+      lineItems: [],
+      baseAmount: 4500,
+      gameAmount: 0,
+      shoeAmount: 0,
+    })
+    mocks.bookingCreate.mockResolvedValue({
+      id: 'bk_offline',
+      confirmationCode: 'OFF123',
+    })
+    mocks.laneCount.mockResolvedValue(2)
+  })
+
+  it('creates the pending booking only after claiming the hold and rechecking capacity', async () => {
+    await confirmOfflineBooking({
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_offline',
+      partyType: 'OPEN',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+    })
+
+    expect(mocks.transactionMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ isolationLevel: 'Serializable' }),
+    )
+    expect(mocks.bookingHoldDeleteMany).toHaveBeenCalledWith({
+      where: {
+        id: 'h1',
+        tenantId: 't1',
+        expiresAt: { gt: expect.any(Date) },
+      },
+    })
+    expect(mocks.bookingFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: {
+            in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT'],
+          },
+        }),
+      }),
+    )
+    expect(mocks.bookingCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tenantId: 't1',
+        packageId: 'pkg_offline',
+        status: 'PENDING_PAYMENT',
+        totalAmount: 4500,
+      }),
+    })
+    expect(mocks.assignBookingLanesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: 't1',
+        bookingId: 'bk_offline',
+        laneCount: 1,
+        startTime,
+        endTime,
+      }),
+    )
+  })
+
+  it('rejects when overlapping bookings consume capacity before offline confirmation', async () => {
+    mocks.laneCount.mockResolvedValue(1)
+    mocks.bookingFindMany.mockResolvedValue([
+      { startTime, endTime, laneCount: 1 },
+    ])
+
+    await expect(
+      confirmOfflineBooking({
+        tenantId: 't1',
+        holdId: 'h1',
+        packageId: 'pkg_offline',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        laneCount: 1,
+        startTime,
+        endTime,
+        totalAmount: 4500,
+        customerName: 'Jane',
+        customerEmail: 'jane@example.com',
+        customerPhone: '555',
+      }),
+    ).rejects.toThrow(/no longer available/i)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+    expect(mocks.assignBookingLanesMock).not.toHaveBeenCalled()
   })
 })
 

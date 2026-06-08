@@ -28,7 +28,10 @@ import { generateConfirmationCode } from '@/lib/booking-codes'
 import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { serializeShoeSelections } from '@/lib/booking-metadata'
 import { assignBookingLanes } from '@/lib/lane-assignment'
-import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
+import {
+  isSerializableConflict,
+  isUniqueConstraintOnField,
+} from '@/lib/prisma-errors'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { calculateBookingTotal, type BookingPricingContext } from '@/lib/pricing'
@@ -51,7 +54,12 @@ import type { Package, ShoeSelection, TimeSlot } from '@/types'
 
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
 const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
-const RESERVING_BOOKING_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] as const
+const RESERVING_BOOKING_STATUSES = [
+  'CONFIRMED',
+  'COMPLETED',
+  'NO_SHOW',
+  'PENDING_PAYMENT',
+] as const
 
 import { loadPricingPeriodsForTenant } from '@/lib/pricing-periods-data'
 
@@ -786,102 +794,163 @@ export async function confirmOfflineBooking(
     }
   }
 
-  const hold = await prisma.bookingHold.findUnique({
-    where: { id: input.holdId },
-  })
-  if (!hold || hold.expiresAt <= new Date()) {
-    throw new Error('Hold expired or not found — pick a new time slot.')
-  }
-
-  const pkgRow = await prisma.package.findFirst({
-    where: {
-      id: input.packageId,
-      tenantId: hold.tenantId,
-      active: true,
-      paymentMode: 'PAYMENT_OFFLINE',
-    },
-  })
-  if (!pkgRow) {
-    throw new Error('Selected package does not support offline payment.')
-  }
-
-  const selectedPackage = pkgRow as unknown as Package
-  const subtotalCents = calculateBookingTotal({
-    package: selectedPackage,
-    bowlerCount: hold.bowlerCount,
-    laneCount: hold.laneCount,
-    shoeSelections: input.shoeSelections ?? [],
-    shoeRentalPriceCents:
-      input.shoeRentalPriceCents ?? getShoeRentalPriceCents(tenantForPricing),
-    laneReservationCents: 0,
-    selectedOptionalAddonIds: input.selectedOptionalAddonIds ?? [],
-  }).totalAmount
-
-  if (input.totalAmount !== subtotalCents) {
-    throw new Error('Booking total changed — review your booking.')
-  }
-
   for (let attempt = 0; attempt < OFFLINE_CODE_MAX_RETRIES; attempt++) {
     const confirmationCode = generateConfirmationCode()
     try {
-      const booking = await prisma.$transaction(async (tx) => {
-        const tenantRow = await tx.tenant.findUniqueOrThrow({
-          where: { id: hold.tenantId },
-        })
-        const policySnapshot = policySnapshotFromTenantRow(tenantRow)
+      const booking = await prisma.$transaction(
+        async (tx) => {
+          const now = new Date()
+          await tx.bookingHold.deleteMany({
+            where: {
+              tenantId: input.tenantId,
+              expiresAt: { lt: now },
+            },
+          })
 
-        const created = await tx.booking.create({
-          data: {
-            tenantId: hold.tenantId,
-            confirmationCode,
-            partyType: pkgRow.partyTypes[0] ?? 'OPEN',
+          const hold = await tx.bookingHold.findUnique({
+            where: { id: input.holdId },
+          })
+          if (!hold || hold.expiresAt <= now) {
+            throw new Error('Hold expired or not found — pick a new time slot.')
+          }
+          if (hold.tenantId !== input.tenantId) {
+            throw new Error('Booking hold does not match this venue.')
+          }
+          if (
+            hold.bowlerCount !== input.bowlerCount ||
+            hold.startTime.getTime() !== input.startTime.getTime() ||
+            hold.endTime.getTime() !== input.endTime.getTime()
+          ) {
+            throw new Error('Booking hold no longer matches selected slot.')
+          }
+
+          const pkgRow = await tx.package.findFirst({
+            where: {
+              id: input.packageId,
+              tenantId: hold.tenantId,
+              active: true,
+              paymentMode: 'PAYMENT_OFFLINE',
+            },
+          })
+          if (!pkgRow) {
+            throw new Error('Selected package does not support offline payment.')
+          }
+
+          const selectedPackage = pkgRow as unknown as Package
+          const subtotalCents = calculateBookingTotal({
+            package: selectedPackage,
             bowlerCount: hold.bowlerCount,
+            laneCount: hold.laneCount,
+            shoeSelections: input.shoeSelections ?? [],
+            shoeRentalPriceCents:
+              input.shoeRentalPriceCents ??
+              getShoeRentalPriceCents(tenantForPricing),
+            laneReservationCents: 0,
+            selectedOptionalAddonIds: input.selectedOptionalAddonIds ?? [],
+          }).totalAmount
+
+          if (input.totalAmount !== subtotalCents) {
+            throw new Error('Booking total changed — review your booking.')
+          }
+
+          const claimedHold = await tx.bookingHold.deleteMany({
+            where: {
+              id: input.holdId,
+              tenantId: hold.tenantId,
+              expiresAt: { gt: now },
+            },
+          })
+          if (claimedHold.count !== 1) {
+            throw new Error('Hold expired or not found — pick a new time slot.')
+          }
+
+          const totalLanes = await tx.lane.count({
+            where: { tenantId: hold.tenantId, active: true },
+          })
+          const bookings = await tx.booking.findMany({
+            where: {
+              tenantId: hold.tenantId,
+              status: { in: [...RESERVING_BOOKING_STATUSES] },
+              startTime: { lt: hold.endTime },
+              endTime: { gt: hold.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const activeHolds = await tx.bookingHold.findMany({
+            where: {
+              tenantId: hold.tenantId,
+              expiresAt: { gt: now },
+              startTime: { lt: hold.endTime },
+              endTime: { gt: hold.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const reserved = sumOverlappingLaneCount(
+            [...bookings, ...activeHolds],
+            hold.startTime,
+            hold.endTime,
+          )
+          if (totalLanes - reserved < hold.laneCount) {
+            throw new Error('Selected time slot is no longer available.')
+          }
+
+          const tenantRow = await tx.tenant.findUniqueOrThrow({
+            where: { id: hold.tenantId },
+          })
+          const policySnapshot = policySnapshotFromTenantRow(tenantRow)
+
+          const created = await tx.booking.create({
+            data: {
+              tenantId: hold.tenantId,
+              confirmationCode,
+              partyType: pkgRow.partyTypes[0] ?? 'OPEN',
+              bowlerCount: hold.bowlerCount,
+              laneCount: hold.laneCount,
+              startTime: hold.startTime,
+              endTime: hold.endTime,
+              packageId: pkgRow.id,
+              status: 'PENDING_PAYMENT',
+              source: 'ONLINE',
+              customerName: input.customerName,
+              customerEmail: input.customerEmail,
+              customerPhone: input.customerPhone || null,
+              totalAmount: subtotalCents,
+              smsReminderConsent: input.smsReminderConsent ?? false,
+              marketingConsent: input.marketingConsent ?? false,
+              selectedAddonIds: input.selectedOptionalAddonIds ?? [],
+              cancellationWindowHoursSnapshot:
+                policySnapshot.cancellationWindowHours,
+              rescheduleWindowHoursSnapshot:
+                policySnapshot.rescheduleWindowHours,
+              bowlersPerLaneSnapshot: policySnapshot.bowlersPerLane,
+              cancellationRefundPercentSnapshot:
+                policySnapshot.cancellationRefundPercent,
+            },
+          })
+
+          const shoeSelections = input.shoeSelections ?? []
+          if (shoeSelections.length > 0) {
+            await tx.bookingBowler.createMany({
+              data: shoeSelections.map((row, index) => ({
+                bookingId: created.id,
+                index,
+                shoeSize: row.size.length > 0 ? row.size : null,
+              })),
+            })
+          }
+
+          await assignBookingLanes(tx, {
+            tenantId: hold.tenantId,
+            bookingId: created.id,
             laneCount: hold.laneCount,
             startTime: hold.startTime,
             endTime: hold.endTime,
-            packageId: pkgRow.id,
-            status: 'PENDING_PAYMENT',
-            source: 'ONLINE',
-            customerName: input.customerName,
-            customerEmail: input.customerEmail,
-            customerPhone: input.customerPhone || null,
-            totalAmount: subtotalCents,
-            smsReminderConsent: input.smsReminderConsent ?? false,
-            marketingConsent: input.marketingConsent ?? false,
-            selectedAddonIds: input.selectedOptionalAddonIds ?? [],
-            cancellationWindowHoursSnapshot:
-              policySnapshot.cancellationWindowHours,
-            rescheduleWindowHoursSnapshot:
-              policySnapshot.rescheduleWindowHours,
-            bowlersPerLaneSnapshot: policySnapshot.bowlersPerLane,
-            cancellationRefundPercentSnapshot:
-              policySnapshot.cancellationRefundPercent,
-          },
-        })
-
-        const shoeSelections = input.shoeSelections ?? []
-        if (shoeSelections.length > 0) {
-          await tx.bookingBowler.createMany({
-            data: shoeSelections.map((row, index) => ({
-              bookingId: created.id,
-              index,
-              shoeSize: row.size.length > 0 ? row.size : null,
-            })),
           })
-        }
 
-        await assignBookingLanes(tx, {
-          tenantId: hold.tenantId,
-          bookingId: created.id,
-          laneCount: hold.laneCount,
-          startTime: hold.startTime,
-          endTime: hold.endTime,
-        })
-
-        await tx.bookingHold.deleteMany({ where: { id: input.holdId } })
-
-        return created
-      })
+          return created
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
 
       return {
         confirmationCode: booking.confirmationCode,
@@ -892,7 +961,8 @@ export async function confirmOfflineBooking(
     } catch (err) {
       if (
         attempt < OFFLINE_CODE_MAX_RETRIES - 1 &&
-        isUniqueConstraintOnField(err, ['confirmation_code'])
+        (isSerializableConflict(err) ||
+          isUniqueConstraintOnField(err, ['confirmation_code']))
       ) {
         continue
       }

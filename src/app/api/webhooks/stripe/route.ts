@@ -245,7 +245,9 @@ async function handlePaymentIntentSucceeded(
           const confirmed = await tx.booking.findMany({
             where: {
               tenantId: metadata.tenantId,
-              status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+              status: {
+                in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT'],
+              },
               startTime: { lt: metadata.endTime },
               endTime: { gt: metadata.startTime },
             },

@@ -22,11 +22,13 @@ import {
   toCockpitBookings,
 } from '@/lib/cockpit-display'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
+import { reassignBookingLanes } from '@/lib/lane-assignment'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import type { Tenant } from '@/types'
-import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
+import { isSerializableConflict, isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 const WALK_IN_CODE_MAX_RETRIES = 5
 
@@ -743,6 +745,7 @@ const MODIFY_RESERVING_STATUSES = [
   'NO_SHOW',
   'PENDING_PAYMENT',
 ] as const
+const MODIFY_MAX_RETRIES = 3
 
 export async function staffModifyBookingAction(
   input: StaffModifyBookingInput,
@@ -755,115 +758,136 @@ export async function staffModifyBookingAction(
     return
   }
 
-  await prisma.$transaction(async (tx) => {
-    const existing = await tx.booking.findUnique({
-      where: { id: input.bookingId },
-    })
-    if (!existing) throw new Error('Booking not found.')
-    if (
-      existing.status !== 'CONFIRMED' &&
-      existing.status !== 'PENDING_PAYMENT'
-    ) {
-      throw new Error('Only active bookings can be modified.')
-    }
+  for (let attempt = 0; attempt < MODIFY_MAX_RETRIES; attempt++) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.booking.findUnique({
+            where: { id: input.bookingId },
+          })
+          if (!existing) throw new Error('Booking not found.')
+          if (
+            existing.status !== 'CONFIRMED' &&
+            existing.status !== 'PENDING_PAYMENT'
+          ) {
+            throw new Error('Only active bookings can be modified.')
+          }
 
-    const startTime = input.startTime ?? existing.startTime
-    const endTime = input.endTime ?? existing.endTime
-    if (endTime <= startTime) {
-      throw new Error('End time must be after start time.')
-    }
+          const startTime = input.startTime ?? existing.startTime
+          const endTime = input.endTime ?? existing.endTime
+          if (endTime <= startTime) {
+            throw new Error('End time must be after start time.')
+          }
 
-    const tenantRow = await tx.tenant.findUniqueOrThrow({
-      where: { id: existing.tenantId },
-    })
-    const tenantForLimits = {
-      config: tenantRow.config,
-    } as Tenant
-    assertBookingDurationWithinLimits(tenantForLimits, startTime, endTime)
+          const tenantRow = await tx.tenant.findUniqueOrThrow({
+            where: { id: existing.tenantId },
+          })
+          const tenantForLimits = {
+            config: tenantRow.config,
+          } as Tenant
+          assertBookingDurationWithinLimits(tenantForLimits, startTime, endTime)
 
-    const bowlerCount = input.bowlerCount ?? existing.bowlerCount
-    const bowlersPerLane =
-      existing.bowlersPerLaneSnapshot ?? tenantRow.bowlersPerLane
-    const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
+          const bowlerCount = input.bowlerCount ?? existing.bowlerCount
+          const bowlersPerLane =
+            existing.bowlersPerLaneSnapshot ?? tenantRow.bowlersPerLane
+          const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
 
-    const now = new Date()
-    const overlapping = await tx.booking.findMany({
-      where: {
-        tenantId: existing.tenantId,
-        status: { in: [...MODIFY_RESERVING_STATUSES] },
-        id: { not: input.bookingId },
-        startTime: { lt: endTime },
-        endTime: { gt: startTime },
-      },
-      select: { startTime: true, endTime: true, laneCount: true },
-    })
-    const activeHolds = await tx.bookingHold.findMany({
-      where: {
-        tenantId: existing.tenantId,
-        expiresAt: { gt: now },
-        startTime: { lt: endTime },
-        endTime: { gt: startTime },
-      },
-      select: { startTime: true, endTime: true, laneCount: true },
-    })
-    const totalLanes = await tx.lane.count({
-      where: { tenantId: existing.tenantId, active: true },
-    })
-    const reserved = sumOverlappingLaneCount(
-      [...overlapping, ...activeHolds],
-      startTime,
-      endTime,
-    )
-    if (totalLanes - reserved < laneCount) {
-      throw new Error('Selected time is no longer available.')
-    }
+          const now = new Date()
+          const overlapping = await tx.booking.findMany({
+            where: {
+              tenantId: existing.tenantId,
+              status: { in: [...MODIFY_RESERVING_STATUSES] },
+              id: { not: input.bookingId },
+              startTime: { lt: endTime },
+              endTime: { gt: startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const activeHolds = await tx.bookingHold.findMany({
+            where: {
+              tenantId: existing.tenantId,
+              expiresAt: { gt: now },
+              startTime: { lt: endTime },
+              endTime: { gt: startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const totalLanes = await tx.lane.count({
+            where: { tenantId: existing.tenantId, active: true },
+          })
+          const reserved = sumOverlappingLaneCount(
+            [...overlapping, ...activeHolds],
+            startTime,
+            endTime,
+          )
+          if (totalLanes - reserved < laneCount) {
+            throw new Error('Selected time is no longer available.')
+          }
 
-    let packageId = input.packageId ?? existing.packageId
-    let partyType = existing.partyType
-    if (input.packageId != null) {
-      const pkg = await tx.package.findFirst({
-        where: {
-          id: input.packageId,
-          tenantId: existing.tenantId,
-          active: true,
+          let packageId = input.packageId ?? existing.packageId
+          let partyType = existing.partyType
+          if (input.packageId != null) {
+            const pkg = await tx.package.findFirst({
+              where: {
+                id: input.packageId,
+                tenantId: existing.tenantId,
+                active: true,
+              },
+            })
+            if (!pkg) throw new Error('Package not found.')
+            packageId = pkg.id
+            partyType = pkg.partyTypes[0] ?? 'OPEN'
+          }
+
+          await tx.booking.update({
+            where: { id: input.bookingId },
+            data: {
+              startTime,
+              endTime,
+              bowlerCount,
+              laneCount,
+              packageId,
+              partyType,
+              ...(input.notes !== undefined
+                ? { notes: input.notes?.trim() || null }
+                : {}),
+            },
+          })
+
+          await reassignBookingLanes(tx, {
+            tenantId: existing.tenantId,
+            bookingId: input.bookingId,
+            laneCount,
+            startTime,
+            endTime,
+          })
+
+          await tx.auditLog.create({
+            data: {
+              bookingId: input.bookingId,
+              userId: user.id,
+              action: 'BOOKING_MODIFIED',
+              entityType: 'Booking',
+              entityId: input.bookingId,
+              details: {
+                startTime: startTime.toISOString(),
+                endTime: endTime.toISOString(),
+                bowlerCount,
+                packageId,
+              },
+            },
+          })
         },
-      })
-      if (!pkg) throw new Error('Package not found.')
-      packageId = pkg.id
-      partyType = pkg.partyTypes[0] ?? 'OPEN'
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+      break
+    } catch (err) {
+      if (attempt < MODIFY_MAX_RETRIES - 1 && isSerializableConflict(err)) {
+        continue
+      }
+      throw err
     }
-
-    await tx.booking.update({
-      where: { id: input.bookingId },
-      data: {
-        startTime,
-        endTime,
-        bowlerCount,
-        laneCount,
-        packageId,
-        partyType,
-        ...(input.notes !== undefined
-          ? { notes: input.notes?.trim() || null }
-          : {}),
-      },
-    })
-
-    await tx.auditLog.create({
-      data: {
-        bookingId: input.bookingId,
-        userId: user.id,
-        action: 'BOOKING_MODIFIED',
-        entityType: 'Booking',
-        entityId: input.bookingId,
-        details: {
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          bowlerCount,
-          packageId,
-        },
-      },
-    })
-  })
+  }
 
   revalidatePath('/staff')
   revalidatePath(`/staff/bookings/${input.bookingId}`)

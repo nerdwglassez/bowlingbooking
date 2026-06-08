@@ -67,3 +67,20 @@ export async function assignBookingLanes(
 
   return pickedNumbers
 }
+
+/**
+ * Replace a booking's persisted lane links after its time or lane count changes.
+ */
+export async function reassignBookingLanes(
+  tx: Prisma.TransactionClient,
+  input: {
+    tenantId: string
+    bookingId: string
+    laneCount: number
+    startTime: Date
+    endTime: Date
+  },
+): Promise<number[]> {
+  await tx.bookingLane.deleteMany({ where: { bookingId: input.bookingId } })
+  return assignBookingLanes(tx, input)
+}

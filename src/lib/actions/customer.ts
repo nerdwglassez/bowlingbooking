@@ -20,12 +20,15 @@ import { policySnapshotFromBooking, policySnapshotFromTenantRow } from '@/lib/bo
 import { requireUser } from '@/lib/auth'
 import { isDevWithoutDb } from '@/lib/env'
 import { sendBookingCancellation } from '@/lib/email'
+import { reassignBookingLanes } from '@/lib/lane-assignment'
 import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
 import { assertPublicRateLimit } from '@/lib/rate-limit-request'
 import { prisma } from '@/lib/prisma'
+import { isSerializableConflict } from '@/lib/prisma-errors'
 import { createRefund, isStripeMocked } from '@/lib/stripe'
 import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import { getTenant } from '@/lib/tenant'
+import { Prisma } from '@prisma/client'
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -323,6 +326,7 @@ function buildMockDetail(): CustomerBookingDetail {
 }
 
 const RESCHEDULE_STATUSES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT'] as const
+const RESCHEDULE_MAX_RETRIES = 3
 
 export async function cancelDashboardBookingAction(
   bookingId: string,
@@ -363,75 +367,103 @@ export async function rescheduleDashboardBookingAction(input: {
   }
 
   const email = user.email?.trim().toLowerCase()
-  const booking = await prisma.booking.findFirst({
-    where: {
-      id: input.bookingId,
-      OR: [
-        { userId: user.id },
-        ...(email ? [{ customerEmail: email }] : []),
-      ],
-    },
-  })
-  if (!booking) throw new Error('Booking not found.')
-  if (booking.status !== 'CONFIRMED') {
-    throw new Error('Only confirmed bookings can be rescheduled.')
-  }
-
   const tenant = await getTenant()
-  const policy = policySnapshotFromBooking(booking, policySnapshotFromTenantRow(tenant))
-  const now = new Date()
-  const cutoff = new Date(
-    booking.startTime.getTime() - policy.rescheduleWindowHours * 3_600_000,
-  )
-  if (now > cutoff) {
-    throw new Error('Reschedule window has passed for this booking.')
+
+  for (let attempt = 0; attempt < RESCHEDULE_MAX_RETRIES; attempt++) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          const booking = await tx.booking.findFirst({
+            where: {
+              id: input.bookingId,
+              OR: [
+                { userId: user.id },
+                ...(email ? [{ customerEmail: email }] : []),
+              ],
+            },
+          })
+          if (!booking) throw new Error('Booking not found.')
+          if (booking.status !== 'CONFIRMED') {
+            throw new Error('Only confirmed bookings can be rescheduled.')
+          }
+
+          const policy = policySnapshotFromBooking(
+            booking,
+            policySnapshotFromTenantRow(tenant),
+          )
+          const now = new Date()
+          const cutoff = new Date(
+            booking.startTime.getTime() -
+              policy.rescheduleWindowHours * 3_600_000,
+          )
+          if (now > cutoff) {
+            throw new Error('Reschedule window has passed for this booking.')
+          }
+
+          assertBookingDurationWithinLimits(tenant, input.startTime, input.endTime)
+
+          const bowlersPerLane =
+            booking.bowlersPerLaneSnapshot ?? tenant.bowlersPerLane
+          const laneCount = getLaneCount(booking.bowlerCount, bowlersPerLane)
+
+          const overlapping = await tx.booking.findMany({
+            where: {
+              tenantId: booking.tenantId,
+              status: { in: [...RESCHEDULE_STATUSES] },
+              id: { not: booking.id },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const activeHolds = await tx.bookingHold.findMany({
+            where: {
+              tenantId: booking.tenantId,
+              expiresAt: { gt: now },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            select: { startTime: true, endTime: true, laneCount: true },
+          })
+          const totalLanes = await tx.lane.count({
+            where: { tenantId: booking.tenantId, active: true },
+          })
+          const reserved = sumOverlappingLaneCount(
+            [...overlapping, ...activeHolds],
+            input.startTime,
+            input.endTime,
+          )
+          if (totalLanes - reserved < laneCount) {
+            throw new Error('Selected time is no longer available.')
+          }
+
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              startTime: input.startTime,
+              endTime: input.endTime,
+              laneCount,
+            },
+          })
+
+          await reassignBookingLanes(tx, {
+            tenantId: booking.tenantId,
+            bookingId: booking.id,
+            laneCount,
+            startTime: input.startTime,
+            endTime: input.endTime,
+          })
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+      break
+    } catch (err) {
+      if (attempt < RESCHEDULE_MAX_RETRIES - 1 && isSerializableConflict(err)) {
+        continue
+      }
+      throw err
+    }
   }
-
-  assertBookingDurationWithinLimits(tenant, input.startTime, input.endTime)
-
-  const bowlersPerLane =
-    booking.bowlersPerLaneSnapshot ?? tenant.bowlersPerLane
-  const laneCount = getLaneCount(booking.bowlerCount, bowlersPerLane)
-
-  const overlapping = await prisma.booking.findMany({
-    where: {
-      tenantId: booking.tenantId,
-      status: { in: [...RESCHEDULE_STATUSES] },
-      id: { not: booking.id },
-      startTime: { lt: input.endTime },
-      endTime: { gt: input.startTime },
-    },
-    select: { startTime: true, endTime: true, laneCount: true },
-  })
-  const activeHolds = await prisma.bookingHold.findMany({
-    where: {
-      tenantId: booking.tenantId,
-      expiresAt: { gt: now },
-      startTime: { lt: input.endTime },
-      endTime: { gt: input.startTime },
-    },
-    select: { startTime: true, endTime: true, laneCount: true },
-  })
-  const totalLanes = await prisma.lane.count({
-    where: { tenantId: booking.tenantId, active: true },
-  })
-  const reserved = sumOverlappingLaneCount(
-    [...overlapping, ...activeHolds],
-    input.startTime,
-    input.endTime,
-  )
-  if (totalLanes - reserved < laneCount) {
-    throw new Error('Selected time is no longer available.')
-  }
-
-  await prisma.booking.update({
-    where: { id: booking.id },
-    data: {
-      startTime: input.startTime,
-      endTime: input.endTime,
-      laneCount,
-    },
-  })
 
   revalidatePath('/dashboard')
 }

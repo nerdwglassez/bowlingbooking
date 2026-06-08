@@ -1,22 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
+  const bookingFindFirst = vi.fn()
+  const bookingFindMany = vi.fn()
   const bookingUpdate = vi.fn()
+  const bookingHoldFindMany = vi.fn()
+  const laneCount = vi.fn()
   const paymentUpdate = vi.fn()
   const auditCreate = vi.fn()
   const txStub = {
-    booking: { update: bookingUpdate },
+    booking: {
+      findFirst: bookingFindFirst,
+      findMany: bookingFindMany,
+      update: bookingUpdate,
+    },
+    bookingHold: { findMany: bookingHoldFindMany },
+    lane: { count: laneCount },
     payment: { update: paymentUpdate },
     auditLog: { create: auditCreate },
   }
   return {
     isDevWithoutDbMock: vi.fn(() => false),
     revalidatePathMock: vi.fn(),
-    bookingFindFirst: vi.fn(),
+    bookingFindFirst,
+    bookingFindMany,
     paymentFindUnique: vi.fn(),
     bookingUpdate,
+    bookingHoldFindMany,
+    laneCount,
     paymentUpdate,
     auditCreate,
+    reassignBookingLanesMock: vi.fn(),
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
@@ -35,10 +49,18 @@ vi.mock('@/lib/env', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    booking: { findFirst: mocks.bookingFindFirst },
+    booking: {
+      findFirst: mocks.bookingFindFirst,
+      findMany: mocks.bookingFindMany,
+    },
+    bookingHold: { findMany: mocks.bookingHoldFindMany },
+    lane: { count: mocks.laneCount },
     payment: { findUnique: mocks.paymentFindUnique },
     $transaction: mocks.txMock,
   },
+}))
+vi.mock('@/lib/lane-assignment', () => ({
+  reassignBookingLanes: mocks.reassignBookingLanesMock,
 }))
 vi.mock('@/lib/tenant', () => ({
   getTenant: mocks.getTenantMock,
@@ -60,7 +82,11 @@ vi.mock('@/lib/auth', () => ({
   })),
 }))
 
-import { cancelBookingAction, getBookingByLookup } from './customer'
+import {
+  cancelBookingAction,
+  getBookingByLookup,
+  rescheduleDashboardBookingAction,
+} from './customer'
 
 function bookingFixture(overrides: Partial<{
   id: string
@@ -125,11 +151,21 @@ beforeEach(() => {
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
-        booking: { update: mocks.bookingUpdate },
+        booking: {
+          findFirst: mocks.bookingFindFirst,
+          findMany: mocks.bookingFindMany,
+          update: mocks.bookingUpdate,
+        },
+        bookingHold: { findMany: mocks.bookingHoldFindMany },
+        lane: { count: mocks.laneCount },
         payment: { update: mocks.paymentUpdate },
         auditLog: { create: mocks.auditCreate },
       } as Parameters<typeof fn>[0]),
   )
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.reassignBookingLanesMock.mockResolvedValue([1])
 })
 
 describe('getBookingByLookup', () => {
@@ -226,6 +262,43 @@ describe('getBookingByLookup', () => {
     expect(result?.isPast).toBe(true)
     expect(result?.cancellable).toBe(false)
     expect(result?.refundIfCancelled).toBe(0)
+  })
+})
+
+describe('rescheduleDashboardBookingAction', () => {
+  it('updates the booking and reassigns persisted lanes in one serializable transaction', async () => {
+    const nextStart = new Date(Date.now() + 72 * 3_600_000)
+    const nextEnd = new Date(nextStart.getTime() + 2 * 3_600_000)
+    mocks.bookingFindFirst.mockResolvedValue(bookingFixture({ id: 'bk_1' }))
+
+    await rescheduleDashboardBookingAction({
+      bookingId: 'bk_1',
+      startTime: nextStart,
+      endTime: nextEnd,
+    })
+
+    expect(mocks.txMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ isolationLevel: 'Serializable' }),
+    )
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: {
+        startTime: nextStart,
+        endTime: nextEnd,
+        laneCount: 1,
+      },
+    })
+    expect(mocks.reassignBookingLanesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: 't1',
+        bookingId: 'bk_1',
+        laneCount: 1,
+        startTime: nextStart,
+        endTime: nextEnd,
+      }),
+    )
   })
 })
 

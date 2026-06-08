@@ -2,18 +2,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const bookingCreate = vi.fn()
+  const bookingUpdate = vi.fn()
   const paymentCreate = vi.fn()
   const auditCreate = vi.fn()
   const blockCreate = vi.fn()
   const blockDeleteMany = vi.fn()
   const tenantFindUniqueOrThrow = vi.fn()
   const packageFindFirst = vi.fn()
+  const bookingHoldFindMany = vi.fn()
+  const reassignBookingLanesMock = vi.fn()
   const txStub = {
-    booking: { create: bookingCreate },
+    booking: {
+      create: bookingCreate,
+      update: bookingUpdate,
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+    },
     payment: { create: paymentCreate },
     auditLog: { create: auditCreate },
     blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany },
     tenant: { findUniqueOrThrow: tenantFindUniqueOrThrow },
+    bookingHold: { findMany: bookingHoldFindMany },
+    lane: { count: vi.fn() },
+    package: { findFirst: packageFindFirst },
   }
   return {
     requireRoleMock: vi.fn(),
@@ -25,12 +36,15 @@ const mocks = vi.hoisted(() => {
     laneCount: vi.fn(),
     laneFindMany: vi.fn(),
     bookingCreate,
+    bookingUpdate,
     paymentCreate,
     auditCreate,
     blockCreate,
     blockDeleteMany,
     tenantFindUniqueOrThrow,
     packageFindFirst,
+    bookingHoldFindMany,
+    reassignBookingLanesMock,
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
@@ -62,6 +76,9 @@ vi.mock('@/lib/prisma', () => ({
     $transaction: mocks.txMock,
   },
 }))
+vi.mock('@/lib/lane-assignment', () => ({
+  reassignBookingLanes: mocks.reassignBookingLanesMock,
+}))
 
 import {
   blockLanes,
@@ -71,6 +88,7 @@ import {
   getScheduleForDate,
   getScheduleForMonth,
   getTodayBookings,
+  staffModifyBookingAction,
   unblockLanes,
 } from './staff'
 
@@ -89,7 +107,12 @@ beforeEach(() => {
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
-        booking: { create: mocks.bookingCreate },
+        booking: {
+          create: mocks.bookingCreate,
+          update: mocks.bookingUpdate,
+          findMany: mocks.bookingFindMany,
+          findUnique: mocks.bookingFindUnique,
+        },
         payment: { create: mocks.paymentCreate },
         auditLog: { create: mocks.auditCreate },
         blockedSlot: {
@@ -97,6 +120,9 @@ beforeEach(() => {
           deleteMany: mocks.blockDeleteMany,
         },
         tenant: { findUniqueOrThrow: mocks.tenantFindUniqueOrThrow },
+        bookingHold: { findMany: mocks.bookingHoldFindMany },
+        lane: { count: mocks.laneCount },
+        package: { findFirst: mocks.packageFindFirst },
       } as Parameters<typeof fn>[0]),
   )
   mocks.tenantFindUniqueOrThrow.mockResolvedValue({
@@ -108,6 +134,10 @@ beforeEach(() => {
     config: {},
   })
   mocks.packageFindFirst.mockResolvedValue({ id: 'pkg_1' })
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.reassignBookingLanesMock.mockResolvedValue([1])
 })
 
 describe('staff actions: role gating', () => {
@@ -385,6 +415,64 @@ describe('createWalkInBooking', () => {
       paymentMethod: 'pending',
     })
     expect(mocks.paymentCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('staffModifyBookingAction', () => {
+  it('updates the booking and reassigns persisted lanes in one serializable transaction', async () => {
+    const originalStart = new Date('2026-06-01T18:00:00Z')
+    const originalEnd = new Date('2026-06-01T20:00:00Z')
+    const nextStart = new Date('2026-06-02T18:00:00Z')
+    const nextEnd = new Date('2026-06-02T20:00:00Z')
+    mocks.bookingFindUnique.mockResolvedValue({
+      id: 'bk_1',
+      tenantId: 't1',
+      status: 'CONFIRMED',
+      startTime: originalStart,
+      endTime: originalEnd,
+      bowlerCount: 4,
+      laneCount: 1,
+      packageId: 'pkg_1',
+      partyType: 'OPEN',
+      bowlersPerLaneSnapshot: 6,
+    })
+
+    await staffModifyBookingAction({
+      bookingId: 'bk_1',
+      startTime: nextStart,
+      endTime: nextEnd,
+      bowlerCount: 8,
+    })
+
+    expect(mocks.txMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ isolationLevel: 'Serializable' }),
+    )
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: expect.objectContaining({
+        startTime: nextStart,
+        endTime: nextEnd,
+        bowlerCount: 8,
+        laneCount: 2,
+      }),
+    })
+    expect(mocks.reassignBookingLanesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: 't1',
+        bookingId: 'bk_1',
+        laneCount: 2,
+        startTime: nextStart,
+        endTime: nextEnd,
+      }),
+    )
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bookingId: 'bk_1',
+        action: 'BOOKING_MODIFIED',
+      }),
+    })
   })
 })
 
