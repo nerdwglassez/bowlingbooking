@@ -13,7 +13,10 @@ export function formatPrice(amountCents: number): string {
 
 /** Dollar amount for controlled number inputs (no currency symbol). */
 export function formatPriceInputValue(amountCents: number): string {
-  return (amountCents / 100).toFixed(2)
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amountCents / 100)
 }
 
 /** Parse a dollar string from a settings input into integer cents. */
