@@ -826,7 +826,7 @@ export async function confirmOfflineBooking(
 
           const pkgRow = await tx.package.findFirst({
             where: {
-              id: input.packageId,
+              id: input.packageId!,
               tenantId: hold.tenantId,
               active: true,
               paymentMode: 'PAYMENT_OFFLINE',
