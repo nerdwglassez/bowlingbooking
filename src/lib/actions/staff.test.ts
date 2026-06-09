@@ -153,6 +153,8 @@ beforeEach(() => {
   mocks.laneCount.mockResolvedValue(8)
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.bookingUpdateMany.mockResolvedValue({ count: 1 })
+  mocks.blockDeleteMany.mockResolvedValue({ count: 1 })
   mocks.reassignBookingLanesMock.mockResolvedValue([1])
 })
 
@@ -305,9 +307,19 @@ describe('getBookingDetail', () => {
   })
 
   it('returns null when not found', async () => {
-    mocks.bookingFindUnique.mockResolvedValue(null)
+    mocks.bookingFindFirst.mockResolvedValue(null)
     const out = await getBookingDetail('missing')
     expect(out).toBeNull()
+  })
+
+  it('scopes detail lookup to the authenticated tenant', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(null)
+    await getBookingDetail('bk_other_tenant')
+    expect(mocks.bookingFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'bk_other_tenant', tenantId: 't1' },
+      }),
+    )
   })
 })
 
@@ -365,6 +377,7 @@ describe('createWalkInBooking', () => {
   })
 
   it('creates a CONFIRMED booking with source=WALK_IN and a Payment row', async () => {
+    mocks.packageFindFirst.mockResolvedValue({ id: 'pkg_classic' })
     mocks.bookingCreate.mockResolvedValue({
       id: 'bk_1',
       confirmationCode: 'ABC123',
@@ -477,24 +490,28 @@ describe('blockLanes', () => {
 describe('unblockLanes', () => {
   it('is a no-op in dev-without-db', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
-    await unblockLanes('block_real_1')
+    await unblockLanes('clxyz123productioncuid')
     expect(mocks.blockDeleteMany).not.toHaveBeenCalled()
   })
 
-  it('skips ids that don\u2019t look like blocks', async () => {
-    await unblockLanes('not-a-block')
-    expect(mocks.blockDeleteMany).not.toHaveBeenCalled()
+  it('throws when the block is missing or outside the tenant', async () => {
+    mocks.blockDeleteMany.mockResolvedValue({ count: 0 })
+    await expect(unblockLanes('clmissingblockid000000000000')).rejects.toThrow(
+      /Block not found/,
+    )
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
   })
 
-  it('deletes the block and writes an AuditLog', async () => {
-    await unblockLanes('block_xyz')
+  it('deletes a production cuid block scoped to the tenant and writes an AuditLog', async () => {
+    mocks.blockDeleteMany.mockResolvedValue({ count: 1 })
+    await unblockLanes('clxyz123productioncuid')
     expect(mocks.blockDeleteMany).toHaveBeenCalledWith({
-      where: { id: 'block_xyz' },
+      where: { id: 'clxyz123productioncuid', tenantId: 't1' },
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: 'LANE_BLOCK_REMOVED',
-        entityId: 'block_xyz',
+        entityId: 'clxyz123productioncuid',
       }),
     })
   })
@@ -507,7 +524,7 @@ describe('staffModifyBookingAction', () => {
     const newStart = new Date('2026-06-01T20:00:00Z')
     const newEnd = new Date('2026-06-01T21:00:00Z')
 
-    mocks.bookingFindUnique.mockResolvedValue({
+    mocks.bookingFindFirst.mockResolvedValue({
       id: 'bk_1',
       tenantId: 't1',
       status: 'CONFIRMED',
@@ -550,7 +567,7 @@ describe('staffModifyBookingAction', () => {
     const start = new Date('2026-06-01T18:00:00Z')
     const end = new Date('2026-06-01T19:00:00Z')
 
-    mocks.bookingFindUnique.mockResolvedValue({
+    mocks.bookingFindFirst.mockResolvedValue({
       id: 'bk_1',
       tenantId: 't1',
       status: 'CONFIRMED',
@@ -569,5 +586,58 @@ describe('staffModifyBookingAction', () => {
     })
 
     expect(mocks.reassignBookingLanesMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects modification when the booking belongs to another tenant', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(null)
+    await expect(
+      staffModifyBookingAction({
+        bookingId: 'bk_other',
+        notes: 'Should fail',
+      }),
+    ).rejects.toThrow(/Booking not found/)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('booking lifecycle tenant guards', () => {
+  it('refuses check-in when the booking is in a terminal state', async () => {
+    mocks.bookingUpdateMany.mockResolvedValue({ count: 0 })
+    await expect(checkInBookingAction('bk_cancelled')).rejects.toThrow(
+      /cannot be checked in/,
+    )
+    expect(mocks.bookingUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'bk_cancelled',
+        tenantId: 't1',
+        status: { in: ['CONFIRMED', 'PENDING_PAYMENT'] },
+      },
+      data: expect.objectContaining({ checkedInAt: expect.any(Date) }),
+    })
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
+  })
+
+  it('refuses no-show when the booking is not CONFIRMED', async () => {
+    mocks.bookingUpdateMany.mockResolvedValue({ count: 0 })
+    await expect(markBookingNoShowAction('bk_completed')).rejects.toThrow(
+      /cannot be marked no-show/,
+    )
+    expect(mocks.bookingUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'bk_completed',
+        tenantId: 't1',
+        status: 'CONFIRMED',
+      },
+      data: { status: 'NO_SHOW', cancellationReason: 'NO_SHOW' },
+    })
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
+  })
+
+  it('refuses completion when the booking is not CONFIRMED', async () => {
+    mocks.bookingUpdateMany.mockResolvedValue({ count: 0 })
+    await expect(markBookingCompletedAction('bk_cancelled')).rejects.toThrow(
+      /cannot be completed/,
+    )
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
   })
 })
