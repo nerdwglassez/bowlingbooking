@@ -47,6 +47,7 @@ export default async function StaffReportsPage({ searchParams }: PageProps) {
       customEnd={params.end}
       analytics={analytics}
       contacts={contacts}
+      tenantId={tenant.id}
     />
   )
 }

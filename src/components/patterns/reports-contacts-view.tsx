@@ -1,14 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, Download, Search } from 'lucide-react'
 
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { ContactDetailPanel } from '@/app/(staff)/staff/reports/contacts/[contactId]/contact-detail-panel'
 import { Input } from '@/components/ui/input'
-import { getStaffContactDetail } from '@/lib/actions/staff-reports'
 import {
   contactInitials,
   downloadCsv,
@@ -25,7 +23,11 @@ export type ReportsContactsViewProps = {
   onQueryChange: (value: string) => void
   searchExpanded: boolean
   onSearchExpandedChange: (expanded: boolean) => void
-  tenantId: string
+  selectedContactId: string | null
+  onSelectContact: (contactId: string) => void
+  onCloseDetail: () => void
+  contactDetail: StaffContactDetail | null
+  contactDetailLoading: boolean
 }
 
 export function ReportsContactsView({
@@ -34,38 +36,21 @@ export function ReportsContactsView({
   onQueryChange,
   searchExpanded,
   onSearchExpandedChange,
-  tenantId,
+  selectedContactId,
+  onSelectContact,
+  onCloseDetail,
+  contactDetail,
+  contactDetailLoading,
 }: ReportsContactsViewProps) {
   const router = useRouter()
   const filtered = useMemo(
     () => filterContacts(contacts, query),
     [contacts, query],
   )
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<StaffContactDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-
-  useEffect(() => {
-    if (!selectedId) {
-      setDetail(null)
-      return
-    }
-    let cancelled = false
-    setDetailLoading(true)
-    void getStaffContactDetail(tenantId, selectedId).then((row) => {
-      if (!cancelled) {
-        setDetail(row)
-        setDetailLoading(false)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedId, tenantId])
 
   function handleSelect(contactId: string) {
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) {
-      setSelectedId(contactId)
+      onSelectContact(contactId)
       return
     }
     router.push(`/staff/reports/contacts/${contactId}`)
@@ -125,7 +110,7 @@ export function ReportsContactsView({
               type="button"
               onClick={() => handleSelect(contact.id)}
               className={`flex w-full items-center gap-3 border-b border-solid border-[var(--color-border)] py-2.5 text-left last:border-0 ${
-                selectedId === contact.id
+                selectedContactId === contact.id
                   ? 'bg-[color-mix(in_srgb,var(--color-action-subtle)_12%,transparent)]'
                   : ''
               }`}
@@ -179,14 +164,14 @@ export function ReportsContactsView({
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
         {list}
         <div className="hidden md:block md:w-[400px] md:shrink-0">
-          {selectedId ? (
-            detailLoading || !detail ? (
+          {selectedContactId ? (
+            contactDetailLoading || !contactDetail ? (
               <p className="py-8 text-sm text-[var(--color-text-secondary)]">
                 Loading contact…
               </p>
             ) : (
               <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--surface-card)] p-4">
-                <ContactDetailPanel contact={detail} compact />
+                <ContactDetailPanel contact={contactDetail} embedded />
               </div>
             )
           ) : (
@@ -197,18 +182,19 @@ export function ReportsContactsView({
         </div>
       </div>
 
-      <BottomSheet
-        open={selectedId != null && detail != null}
-        title={detail?.name ?? 'Contact'}
-        onClose={() => setSelectedId(null)}
-        className="md:hidden"
-      >
-        {detail ? (
-          <div className="p-4 md:hidden">
-            <ContactDetailPanel contact={detail} compact />
-          </div>
-        ) : null}
-      </BottomSheet>
+      <div className="md:hidden">
+        <BottomSheet
+          open={selectedContactId != null && contactDetail != null}
+          title={contactDetail?.name ?? 'Contact'}
+          onClose={onCloseDetail}
+        >
+          {contactDetail ? (
+            <div className="p-4">
+              <ContactDetailPanel contact={contactDetail} embedded />
+            </div>
+          ) : null}
+        </BottomSheet>
+      </div>
     </>
   )
 }

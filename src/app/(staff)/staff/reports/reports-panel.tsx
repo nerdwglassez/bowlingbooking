@@ -1,15 +1,17 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useSyncExternalStore } from 'react'
+import { useRef, useState, useSyncExternalStore } from 'react'
 
 import { ReportsAnalyticsView } from '@/components/patterns/reports-analytics-view'
 import { ReportsContactsView } from '@/components/patterns/reports-contacts-view'
 import { ReportsPeriodChips } from '@/components/patterns/reports-period-chips'
 import { ReportsSubviewToggle } from '@/components/patterns/reports-subview-toggle'
+import { getStaffContactDetail } from '@/lib/actions/staff-reports'
 import type { StaffAnalyticsSummary } from '@/lib/reports-display'
 import {
   STAFF_REPORTS_SUBVIEW_STORAGE_KEY,
+  type StaffContactDetail,
   type StaffContactRow,
   type StaffReportsPeriod,
   type StaffReportsSubview,
@@ -22,6 +24,7 @@ export type ReportsPanelProps = {
   customEnd?: string
   analytics: StaffAnalyticsSummary
   contacts: StaffContactRow[]
+  tenantId: string
 }
 
 function readPersistedSubview(): StaffReportsSubview | null {
@@ -54,13 +57,39 @@ export function ReportsPanel({
   customEnd,
   analytics,
   contacts,
+  tenantId,
 }: ReportsPanelProps) {
   const router = useRouter()
   const subview = usePersistedSubview(serverSubview)
   const [contactQuery, setContactQuery] = useState('')
   const [contactSearchExpanded, setContactSearchExpanded] = useState(false)
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  const [contactDetail, setContactDetail] = useState<StaffContactDetail | null>(
+    null,
+  )
+  const [contactDetailLoading, setContactDetailLoading] = useState(false)
   const [draftStart, setDraftStart] = useState(customStart ?? '')
   const [draftEnd, setDraftEnd] = useState(customEnd ?? '')
+  const contactFetchGen = useRef(0)
+
+  function handleSelectContact(contactId: string) {
+    setSelectedContactId(contactId)
+    setContactDetail(null)
+    setContactDetailLoading(true)
+    const gen = ++contactFetchGen.current
+    void getStaffContactDetail(tenantId, contactId).then((row) => {
+      if (gen !== contactFetchGen.current) return
+      setContactDetail(row)
+      setContactDetailLoading(false)
+    })
+  }
+
+  function handleCloseContactDetail() {
+    contactFetchGen.current += 1
+    setSelectedContactId(null)
+    setContactDetail(null)
+    setContactDetailLoading(false)
+  }
 
   const handleSubviewChange = (next: StaffReportsSubview) => {
     localStorage.setItem(STAFF_REPORTS_SUBVIEW_STORAGE_KEY, next)
@@ -111,6 +140,11 @@ export function ReportsPanel({
           onQueryChange={setContactQuery}
           searchExpanded={contactSearchExpanded}
           onSearchExpandedChange={setContactSearchExpanded}
+          selectedContactId={selectedContactId}
+          onSelectContact={handleSelectContact}
+          onCloseDetail={handleCloseContactDetail}
+          contactDetail={contactDetail}
+          contactDetailLoading={contactDetailLoading}
         />
       ) : null}
     </div>
