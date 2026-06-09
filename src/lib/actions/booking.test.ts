@@ -565,6 +565,67 @@ describe('confirmBooking', () => {
     expect(mocks.validatePromoCodeMock).not.toHaveBeenCalled()
   })
 
+  it('uses the hidden lane-only package id for open bowling metadata', async () => {
+    mocks.packageFindMany.mockResolvedValue([
+      {
+        id: 'pkg_lane_only',
+        tenantId: 't1',
+        name: 'Open Bowling',
+        description: null,
+        basePrice: 0,
+        gameIncluded: false,
+        shoesIncluded: false,
+        gameCostPer: null,
+        shoeCostPer: null,
+        partyTypes: ['OPEN'],
+        active: true,
+        sortOrder: 99,
+      },
+    ])
+
+    await confirmBooking({
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: null,
+      partyType: 'OPEN',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+      shoeSelections: [
+        { bowlerId: '1', size: 'M8', cost: 0 },
+        { bowlerId: '2', size: 'M9', cost: 0 },
+        { bowlerId: '3', size: 'W7', cost: 0 },
+        { bowlerId: '4', size: 'W8', cost: 0 },
+      ],
+    })
+
+    expect(mocks.packageFindMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: 't1',
+        active: true,
+        basePrice: 0,
+        gameIncluded: false,
+        shoesIncluded: false,
+        partyTypes: { has: 'OPEN' },
+      },
+      orderBy: { sortOrder: 'asc' },
+    })
+    expect(mocks.createPaymentIntentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          packageId: 'pkg_lane_only',
+          partyType: 'OPEN',
+        }),
+      }),
+    )
+    expect(mocks.packageFindFirst).not.toHaveBeenCalled()
+  })
+
   it('rejects tampered totals that do not match server pricing', async () => {
     mocks.calculateBookingTotalMock.mockReturnValue({
       totalAmount: 5000,
@@ -728,6 +789,71 @@ describe('getPackagesForTenant', () => {
         active: true,
       },
       orderBy: { sortOrder: 'asc' },
+      select: {
+        id: true,
+        tenantId: true,
+        name: true,
+        description: true,
+        basePrice: true,
+        gameIncluded: true,
+        shoesIncluded: true,
+        gameCostPer: true,
+        shoeCostPer: true,
+        partyTypes: true,
+        accessType: true,
+        paymentMode: true,
+        active: true,
+        sortOrder: true,
+      },
+    })
+  })
+
+  it('does not expose access codes in customer package rows', async () => {
+    mocks.packageFindMany.mockResolvedValue([
+      {
+        id: 'pkg_vip',
+        tenantId: 't1',
+        name: 'VIP',
+        description: null,
+        basePrice: 12000,
+        gameIncluded: true,
+        shoesIncluded: true,
+        gameCostPer: null,
+        shoeCostPer: null,
+        partyTypes: ['OPEN'],
+        accessType: 'CODE_REQUIRED',
+        paymentMode: 'PAYMENT_OFFLINE',
+        active: true,
+        sortOrder: 1,
+        codeString: 'VIP2026',
+      },
+      {
+        id: 'pkg_lane_only',
+        tenantId: 't1',
+        name: 'Open Bowling',
+        description: null,
+        basePrice: 0,
+        gameIncluded: false,
+        shoesIncluded: false,
+        gameCostPer: null,
+        shoeCostPer: null,
+        partyTypes: ['OPEN'],
+        accessType: 'PUBLIC',
+        paymentMode: null,
+        active: true,
+        sortOrder: 99,
+        codeString: null,
+      },
+    ])
+
+    const rows = await getPackagesForTenant('t1')
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      id: 'pkg_vip',
+      accessType: 'CODE_REQUIRED',
+      paymentMode: 'PAYMENT_OFFLINE',
+      codeString: null,
     })
   })
 })

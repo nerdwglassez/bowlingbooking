@@ -532,8 +532,24 @@ export async function getPackagesForTenant(tenantId: string): Promise<Package[]>
         active: true,
       },
       orderBy: { sortOrder: 'asc' },
+      select: {
+        id: true,
+        tenantId: true,
+        name: true,
+        description: true,
+        basePrice: true,
+        gameIncluded: true,
+        shoesIncluded: true,
+        gameCostPer: true,
+        shoeCostPer: true,
+        partyTypes: true,
+        accessType: true,
+        paymentMode: true,
+        active: true,
+        sortOrder: true,
+      },
     })
-    return (rows as unknown as Package[]).filter(
+    return rows.map((pkg) => ({ ...pkg, codeString: null } as Package)).filter(
       (pkg) => !isLaneOnlyDefaultPackage(pkg),
     )
   } catch (err) {
@@ -611,6 +627,23 @@ function mockPackages(tenantId: string): Package[] {
     },
   ]
   return packages.filter((pkg) => !isLaneOnlyDefaultPackage(pkg))
+}
+
+async function findLaneOnlyDefaultPackage(
+  tenantId: string,
+): Promise<Package | null> {
+  const rows = await prisma.package.findMany({
+    where: {
+      tenantId,
+      active: true,
+      basePrice: 0,
+      gameIncluded: false,
+      shoesIncluded: false,
+      partyTypes: { has: 'OPEN' },
+    },
+    orderBy: { sortOrder: 'asc' },
+  })
+  return (rows as unknown as Package[]).find(isLaneOnlyDefaultPackage) ?? null
 }
 
 // ── Confirm: create PaymentIntent, return clientSecret ────
@@ -742,15 +775,12 @@ export async function confirmBooking(
       }
       partyType = input.partyType
     } else {
-      const fallback = await prisma.package.findFirst({
-        where: { tenantId: hold.tenantId, active: true },
-        orderBy: { sortOrder: 'asc' },
-      })
+      const fallback = await findLaneOnlyDefaultPackage(hold.tenantId)
       if (!fallback) {
-        throw new Error('Venue has no packages configured for booking.')
+        throw new Error('Venue has no lane-only package configured for booking.')
       }
       packageId = fallback.id
-      partyType = fallback.partyTypes[0] ?? 'OPEN'
+      partyType = 'OPEN'
       selectedPackage = null
     }
 

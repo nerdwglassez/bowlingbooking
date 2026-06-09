@@ -113,20 +113,35 @@ export interface AdminUserRow {
   createdAt: Date
 }
 
+function assertAdminTenantAccess(
+  user: CurrentUser,
+  tenantId: string | null | undefined,
+  action: string,
+): void {
+  if (!tenantId) {
+    throw new Error(`${action}: tenant not found.`)
+  }
+  if (user.tenantId && tenantId !== user.tenantId) {
+    throw new Error(`${action}: cannot access resources outside your tenant.`)
+  }
+}
+
 // ── Venue / tenant ────────────────────────────────────────
 
 /** Read-only tenant settings fields — all staff roles (hours view, etc.). */
 export async function getTenantSettingsDetail(
   tenantId: string,
 ): Promise<AdminTenantDetail | null> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'getTenantSettingsDetail')
   return loadTenantDetail(tenantId)
 }
 
 export async function getTenantForAdmin(
   tenantId: string,
 ): Promise<AdminTenantDetail | null> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'getTenantForAdmin')
   return loadTenantDetail(tenantId)
 }
 
@@ -281,7 +296,8 @@ export interface SettingsHubMeta {
 export async function getSettingsHubMeta(
   tenantId: string,
 ): Promise<SettingsHubMeta> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'getSettingsHubMeta')
 
   if (isDevWithoutDb()) {
     return {
@@ -341,6 +357,7 @@ export async function updateTenantAction(
   input: UpdateTenantInput,
 ): Promise<UpdateTenantResult> {
   const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, input.tenantId, 'updateTenantAction')
 
   if (!input.name.trim()) {
     throw new Error('updateTenantAction: name is required')
@@ -483,7 +500,8 @@ export async function updateTenantAction(
 export async function getOperatingHours(
   tenantId: string,
 ): Promise<AdminOperatingHour[]> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'getOperatingHours')
   if (isDevWithoutDb()) {
     return mockOperatingHours()
   }
@@ -514,6 +532,7 @@ export async function updateOperatingHoursAction(
   input: UpdateOperatingHoursInput,
 ): Promise<{ mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, input.tenantId, 'updateOperatingHoursAction')
 
   if (input.hours.length !== 7) {
     throw new Error('updateOperatingHoursAction: expected 7 day entries')
@@ -565,6 +584,7 @@ export async function syncTenantLanesAction(
   targetCount: number,
 ): Promise<{ mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'syncTenantLanesAction')
   if (!Number.isInteger(targetCount) || targetCount < 1 || targetCount > 48) {
     throw new Error('syncTenantLanesAction: targetCount must be 1..48')
   }
@@ -621,7 +641,8 @@ export async function syncTenantLanesAction(
 export async function listPricingPeriodsForAdmin(
   tenantId: string,
 ): Promise<AdminPricingPeriodRow[]> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'listPricingPeriodsForAdmin')
   if (isDevWithoutDb()) {
     return [
       {
@@ -674,6 +695,7 @@ export async function upsertPricingPeriodAction(
   input: UpsertPricingPeriodInput,
 ): Promise<{ id: string; mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, input.tenantId, 'upsertPricingPeriodAction')
   if (!input.name.trim()) throw new Error('Period name is required')
   if (input.ratePerPersonPerHour < 0) {
     throw new Error('Rate must be non-negative')
@@ -700,6 +722,13 @@ export async function upsertPricingPeriodAction(
 
     let periodId: string
     if (input.id) {
+      const existing = await tx.pricingPeriod.findUnique({
+        where: { id: input.id },
+        select: { tenantId: true },
+      })
+      if (!existing || existing.tenantId !== input.tenantId) {
+        throw new Error('Pricing period not found.')
+      }
       await tx.pricingPeriod.update({
         where: { id: input.id },
         data: {
@@ -748,12 +777,20 @@ export async function deletePricingPeriodAction(
   periodId: string,
 ): Promise<{ mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'deletePricingPeriodAction')
 
   if (isDevWithoutDb()) {
     return { mocked: true }
   }
 
   await prisma.$transaction(async (tx) => {
+    const existing = await tx.pricingPeriod.findUnique({
+      where: { id: periodId },
+      select: { tenantId: true },
+    })
+    if (!existing || existing.tenantId !== tenantId) {
+      throw new Error('Pricing period not found.')
+    }
     await tx.pricingPeriod.delete({ where: { id: periodId } })
     await tx.auditLog.create({
       data: {
@@ -818,14 +855,16 @@ export async function updateProfileAction(input: {
 export async function listPackagesForSettings(
   tenantId: string,
 ): Promise<AdminPackageRow[]> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'listPackagesForSettings')
   return loadPackagesForTenant(tenantId)
 }
 
 export async function listPackagesForAdmin(
   tenantId: string,
 ): Promise<AdminPackageRow[]> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'listPackagesForAdmin')
   return loadPackagesForTenant(tenantId)
 }
 
@@ -860,12 +899,13 @@ async function loadPackagesForTenant(
 export async function getPackageForAdmin(
   packageId: string,
 ): Promise<AdminPackageRow | null> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
   if (isDevWithoutDb()) {
     return mockPackages().find((p) => p.id === packageId) ?? null
   }
   const pkg = await prisma.package.findUnique({ where: { id: packageId } })
   if (!pkg) return null
+  assertAdminTenantAccess(user, pkg.tenantId, 'getPackageForAdmin')
   return {
     id: pkg.id,
     name: pkg.name,
@@ -931,6 +971,7 @@ export async function createPackageAction(
   input: PackageInput,
 ): Promise<{ packageId: string; mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'createPackageAction')
   validatePackageInput(input)
 
   if (isDevWithoutDb()) {
@@ -997,6 +1038,12 @@ export async function updatePackageAction(
     return { mocked: true }
   }
 
+  const existing = await prisma.package.findUnique({
+    where: { id: packageId },
+    select: { tenantId: true },
+  })
+  assertAdminTenantAccess(user, existing?.tenantId, 'updatePackageAction')
+
   await prisma.$transaction(async (tx) => {
     await tx.package.update({
       where: { id: packageId },
@@ -1051,6 +1098,12 @@ export async function archivePackageAction(
     console.log(`[admin] mock package archive by ${user.email}`, packageId)
     return { mocked: true }
   }
+
+  const existing = await prisma.package.findUnique({
+    where: { id: packageId },
+    select: { tenantId: true },
+  })
+  assertAdminTenantAccess(user, existing?.tenantId, 'archivePackageAction')
 
   await prisma.$transaction(async (tx) => {
     await tx.package.update({
@@ -1177,7 +1230,8 @@ function mockPromos(_tenantId: string): AdminPromoRow[] {
 export async function listPromosForAdmin(
   tenantId: string,
 ): Promise<AdminPromoRow[]> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'listPromosForAdmin')
   if (isDevWithoutDb()) {
     return mockPromos(tenantId)
   }
@@ -1202,12 +1256,13 @@ export async function listPromosForAdmin(
 export async function getPromoForAdmin(
   promoId: string,
 ): Promise<AdminPromoDetail | null> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
   if (isDevWithoutDb()) {
     return mockPromos('t').find((p) => p.id === promoId) ?? null
   }
   const r = await prisma.promoCode.findUnique({ where: { id: promoId } })
   if (!r) return null
+  assertAdminTenantAccess(user, r.tenantId, 'getPromoForAdmin')
   return {
     id: r.id,
     code: r.code,
@@ -1226,6 +1281,7 @@ export async function createPromoAction(
   input: PromoInput,
 ): Promise<{ id: string; mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, input.tenantId, 'createPromoAction')
   validatePromoInput(input)
   const code = normalizePromoCode(input.code)
 
@@ -1298,6 +1354,7 @@ export async function updatePromoAction(
   input: PromoInput & { id: string },
 ): Promise<{ mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, input.tenantId, 'updatePromoAction')
   validatePromoInput(input)
   const code = normalizePromoCode(input.code)
 
@@ -1366,6 +1423,12 @@ export async function deactivatePromoAction(
     return { mocked: true }
   }
 
+  const existing = await prisma.promoCode.findUnique({
+    where: { id: promoId },
+    select: { tenantId: true },
+  })
+  assertAdminTenantAccess(user, existing?.tenantId, 'deactivatePromoAction')
+
   await prisma.$transaction(async (tx) => {
     await tx.promoCode.update({
       where: { id: promoId },
@@ -1391,7 +1454,8 @@ export async function deactivatePromoAction(
 export async function listTeamForAdmin(
   tenantId: string,
 ): Promise<AdminUserRow[]> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'listTeamForAdmin')
   if (isDevWithoutDb()) {
     return mockUsers()
   }
@@ -1408,12 +1472,13 @@ export async function listTeamForAdmin(
 export async function getTeamUserForAdmin(
   userId: string,
 ): Promise<AdminUserRow | null> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
   if (isDevWithoutDb()) {
     return mockUsers().find((u) => u.id === userId) ?? null
   }
   const u = await prisma.user.findUnique({ where: { id: userId } })
   if (!u) return null
+  assertAdminTenantAccess(user, u.tenantId, 'getTeamUserForAdmin')
   return toAdminUserRow(u)
 }
 
@@ -1644,6 +1709,7 @@ export async function resetUserPasswordAction(
   const hashed = await hashPassword(input.newPassword)
 
   await prisma.$transaction(async (tx) => {
+    await tx.teamInviteToken.deleteMany({ where: { userId: input.userId } })
     await tx.user.update({
       where: { id: input.userId },
       data: { passwordHash: hashed },
@@ -2233,7 +2299,8 @@ export async function getReportsSummary(
   tenantId: string,
   rangeInput: string | undefined,
 ): Promise<ReportsSummary> {
-  await requireRole('ADMIN')
+  const user = await requireRole('ADMIN')
+  assertAdminTenantAccess(user, tenantId, 'getReportsSummary')
   const range = normalizeReportsRangeInput(rangeInput)
 
   if (shouldUseDevDbFallback()) {

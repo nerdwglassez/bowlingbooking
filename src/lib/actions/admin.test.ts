@@ -232,6 +232,8 @@ beforeEach(() => {
   mocks.laneCount.mockResolvedValue(12)
   mocks.packageCount.mockResolvedValue(0)
   mocks.userCount.mockResolvedValue(0)
+  mocks.packageFindUnique.mockResolvedValue({ tenantId: 't1' })
+  mocks.promoFindUnique.mockResolvedValue({ tenantId: 't1' })
   mocks.userFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
     Promise.resolve(teamTarget({ id: where.id })),
   )
@@ -362,6 +364,17 @@ describe('updateTenantAction', () => {
     await expect(
       updateTenantAction({ ...baseInput, themeSlug: 'not-a-real-preset' }),
     ).rejects.toThrow(/themeSlug/i)
+  })
+
+  it('rejects tenant-bound managers updating another tenant', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+
+    await expect(
+      updateTenantAction({ ...baseInput, tenantId: 't2' }),
+    ).rejects.toThrow(/outside your tenant/i)
+
+    expect(mocks.tenantUpdate).not.toHaveBeenCalled()
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
   })
 
   it('returns mocked result in dev-without-db', async () => {
@@ -633,6 +646,18 @@ describe('package CRUD', () => {
     expect(mocks.packageCreate).not.toHaveBeenCalled()
   })
 
+  it('updatePackageAction rejects packages outside the caller tenant', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.packageFindUnique.mockResolvedValue({ tenantId: 't2' })
+
+    await expect(updatePackageAction('pkg_1', basePackage)).rejects.toThrow(
+      /outside your tenant/i,
+    )
+
+    expect(mocks.packageUpdate).not.toHaveBeenCalled()
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
+  })
+
   it('updatePackageAction nulls gameCostPer when gameIncluded is true', async () => {
     mocks.packageUpdate.mockResolvedValue({})
     await updatePackageAction('pkg_1', {
@@ -782,6 +807,9 @@ describe('team CRUD', () => {
       newPassword: 'longenoughpw',
     })
     expect(mocks.hashPasswordMock).toHaveBeenCalledWith('longenoughpw')
+    expect(mocks.teamInviteTokenDeleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_1' },
+    })
     expect(mocks.userUpdate).toHaveBeenCalledWith({
       where: { id: 'user_1' },
       data: { passwordHash: 'hashed:abc' },
@@ -1207,7 +1235,7 @@ describe('getReportsSummary', () => {
   it('returns deterministic mock summary in dev-without-db', async () => {
     reportsAuthUser = adminUser()
     mocks.isDevWithoutDbMock.mockReturnValue(true)
-    const s = await getReportsSummary('tenant_dev_mock', '30d')
+    const s = await getReportsSummary('t1', '30d')
     expect(s.range).toBe('30d')
     expect(s.daily.length).toBe(30)
     expect(s.topPackages).toHaveLength(5)
