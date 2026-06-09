@@ -39,7 +39,7 @@ import {
   isUniqueConstraintOnField,
 } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
-import { constructWebhookEvent, type Stripe } from '@/lib/stripe'
+import { constructWebhookEvent, createRefund, type Stripe } from '@/lib/stripe'
 import { getContactEmail, getTenant } from '@/lib/tenant'
 import { Prisma } from '@prisma/client'
 
@@ -197,6 +197,31 @@ async function clearStripeEventForRetry(eventId: string): Promise<void> {
       err,
     )
   }
+}
+
+function isFinalizeCapacityError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  return (
+    err.message === SLOT_UNAVAILABLE_MESSAGE ||
+    err.message === 'Not enough lanes available for assignment.'
+  )
+}
+
+async function refundCapturedPaymentWhenFinalizeFails(
+  intent: Stripe.PaymentIntent,
+  metadata: BookingMetadata,
+): Promise<void> {
+  await createRefund({
+    paymentIntentId: intent.id,
+    amountCents: intent.amount,
+    reason: 'requested_by_customer',
+    idempotencyKey: `finalize-refund:${intent.id}`,
+    metadata: {
+      tenantId: metadata.tenantId,
+      holdId: metadata.holdId,
+      source: 'webhook_finalize_capacity',
+    },
+  })
 }
 
 async function handlePaymentIntentSucceeded(
@@ -440,12 +465,17 @@ async function handlePaymentIntentSucceeded(
       if (retryable) {
         continue
       }
+      if (isFinalizeCapacityError(err)) {
+        await refundCapturedPaymentWhenFinalizeFails(intent, metadata)
+        return
+      }
       throw err
     }
   }
 
   if (!booking) {
-    throw new Error(SLOT_UNAVAILABLE_MESSAGE)
+    await refundCapturedPaymentWhenFinalizeFails(intent, metadata)
+    return
   }
 
   if (metadata.customerEmail) {

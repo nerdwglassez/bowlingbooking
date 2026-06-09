@@ -226,18 +226,24 @@ export function getSettingsGroups(
     })
   }
 
-  if (role === 'ADMIN') {
+  if (role === 'ADMIN' || role === 'MANAGER') {
     groups.push({
       label: 'Team',
       items: [
         {
           href: '/staff/settings/team',
           label: 'Team',
-          sub: teamSub,
+          sub:
+            role === 'MANAGER'
+              ? 'Staff profiles and access'
+              : teamSub,
           icon: Users,
         },
       ],
     })
+  }
+
+  if (role === 'ADMIN') {
     groups.push({
       label: 'Integrations',
       items: [

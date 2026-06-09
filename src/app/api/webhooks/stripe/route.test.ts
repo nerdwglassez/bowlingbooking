@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
   const bookingLaneCreate = vi.fn()
   const packageFindFirst = vi.fn()
   const blockedSlotFindMany = vi.fn()
+  const createRefundMock = vi.fn()
 
   const txStub = {
     booking: {
@@ -62,6 +63,7 @@ const mocks = vi.hoisted(() => {
     laneFindMany,
     bookingLaneCreate,
     blockedSlotFindMany,
+    createRefundMock,
     tenantFindUniqueOrThrow,
     claimTokenCreate,
     bookingBowlerCreateMany,
@@ -98,6 +100,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 vi.mock('@/lib/stripe', () => ({
   constructWebhookEvent: mocks.constructWebhookEventMock,
+  createRefund: mocks.createRefundMock,
 }))
 vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
 vi.mock('@/lib/tenant', () => ({
@@ -208,6 +211,12 @@ beforeEach(() => {
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
   mocks.blockedSlotFindMany.mockResolvedValue([])
+  mocks.createRefundMock.mockResolvedValue({
+    id: 're_finalize_refund',
+    status: 'pending',
+    amount: 4500,
+    mocked: false,
+  })
   mocks.bookingHoldFindUnique.mockResolvedValue(null)
   mocks.stripeEventDeleteMany.mockResolvedValue({ count: 1 })
   mocks.promoFindUnique.mockResolvedValue(null)
@@ -282,7 +291,7 @@ describe('POST /api/webhooks/stripe', () => {
     )
   })
 
-  it('skips finalize when lane blocks consume remaining capacity', async () => {
+  it('refunds the captured payment when lane blocks consume remaining capacity', async () => {
     mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
     mocks.stripeEventCreate.mockResolvedValue({})
     mocks.paymentFindUnique.mockResolvedValue(null)
@@ -296,13 +305,23 @@ describe('POST /api/webhooks/stripe', () => {
         lanes: [1],
       },
     ])
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const res = await POST(makeRequest('{}') as never)
 
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(200)
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
-    err.mockRestore()
+    expect(mocks.createRefundMock).toHaveBeenCalledWith({
+      paymentIntentId: 'pi_1',
+      amountCents: 4500,
+      reason: 'requested_by_customer',
+      idempotencyKey: 'finalize-refund:pi_1',
+      metadata: {
+        tenantId: 't1',
+        holdId: 'hold_1',
+        source: 'webhook_finalize_capacity',
+      },
+    })
+    expect(mocks.stripeEventDeleteMany).not.toHaveBeenCalled()
   })
 
   it('assigns the lowest unblocked lane during finalize', async () => {

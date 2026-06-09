@@ -13,12 +13,16 @@ import { Select } from '@/components/ui/select'
 import type { AdminUserRow } from '@/lib/actions/admin'
 import {
   createTeamUserAction,
+  deactivateTeamUserAction,
   updateTeamUserAction,
 } from '@/lib/actions/admin'
 import { resendTeamInviteAction } from '@/lib/actions/team-invite'
 
+type CallerRole = 'MANAGER' | 'ADMIN'
+type TeamRole = 'STAFF' | 'MANAGER' | 'ADMIN'
+
 const ROLE_VARIANT: Record<
-  'STAFF' | 'MANAGER' | 'ADMIN',
+  TeamRole,
   React.ComponentProps<typeof Badge>['variant']
 > = {
   STAFF: 'default',
@@ -37,14 +41,30 @@ function formatInvitedAgo(date: Date): string {
   return `Invited ${days}d ago`
 }
 
+function canEditTeamMember(callerRole: CallerRole, target: AdminUserRow): boolean {
+  return !(callerRole === 'MANAGER' && target.role === 'ADMIN')
+}
+
+function canRemoveTeamMember(
+  callerRole: CallerRole,
+  target: AdminUserRow,
+  callerId: string,
+): boolean {
+  if (target.id === callerId) return false
+  if (target.role === 'ADMIN' && callerRole !== 'ADMIN') return false
+  return true
+}
+
 export function TeamSettingsPanel({
   tenantId,
   users,
   callerRole,
+  callerId,
 }: {
   tenantId: string
   users: AdminUserRow[]
-  callerRole: 'ADMIN'
+  callerRole: CallerRole
+  callerId: string
 }) {
   const router = useRouter()
   const { showToast } = useStaffToast()
@@ -92,7 +112,7 @@ export function TeamSettingsPanel({
                     variant={
                       pending
                         ? 'warning'
-                        : ROLE_VARIANT[u.role as keyof typeof ROLE_VARIANT]
+                        : ROLE_VARIANT[u.role as TeamRole]
                     }
                   >
                     {pending ? 'Pending' : u.role}
@@ -120,6 +140,7 @@ export function TeamSettingsPanel({
         open={detailUser != null}
         user={detailUser}
         callerRole={callerRole}
+        callerId={callerId}
         onClose={() => setDetailUser(null)}
         onSaved={() => {
           setDetailUser(null)
@@ -128,6 +149,11 @@ export function TeamSettingsPanel({
         }}
         onResent={() => {
           showToast({ message: 'Invite resent', variant: 'success' })
+          router.refresh()
+        }}
+        onRemoved={() => {
+          setDetailUser(null)
+          showToast({ message: 'Team member removed', variant: 'success' })
           router.refresh()
         }}
       />
@@ -144,13 +170,13 @@ function InviteSheet({
 }: {
   open: boolean
   tenantId: string
-  callerRole: 'ADMIN'
+  callerRole: CallerRole
   onClose: () => void
   onSuccess: () => void
 }) {
   const [email, setEmail] = useState('')
   const [personalMessage, setPersonalMessage] = useState('')
-  const [role, setRole] = useState<'STAFF' | 'MANAGER' | 'ADMIN'>('STAFF')
+  const [role, setRole] = useState<TeamRole>('STAFF')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -198,9 +224,7 @@ function InviteSheet({
           <span className="text-[var(--color-text-secondary)]">Role</span>
           <Select
             value={role}
-            onChange={(e) =>
-              setRole(e.target.value as 'STAFF' | 'MANAGER' | 'ADMIN')
-            }
+            onChange={(e) => setRole(e.target.value as TeamRole)}
           >
             <option value="STAFF">Staff</option>
             <option value="MANAGER">Manager</option>
@@ -208,6 +232,11 @@ function InviteSheet({
               <option value="ADMIN">Admin</option>
             ) : null}
           </Select>
+          {callerRole === 'MANAGER' ? (
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              Managers can invite staff and other managers only.
+            </span>
+          ) : null}
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-[var(--color-text-secondary)]">
@@ -241,16 +270,20 @@ function DetailSheet({
   open,
   user,
   callerRole,
+  callerId,
   onClose,
   onSaved,
   onResent,
+  onRemoved,
 }: {
   open: boolean
   user: AdminUserRow | null
-  callerRole: 'ADMIN'
+  callerRole: CallerRole
+  callerId: string
   onClose: () => void
   onSaved: () => void
   onResent: () => void
+  onRemoved: () => void
 }) {
   return (
     <BottomSheet
@@ -263,8 +296,10 @@ function DetailSheet({
           key={user.id}
           user={user}
           callerRole={callerRole}
+          callerId={callerId}
           onSaved={onSaved}
           onResent={onResent}
+          onRemoved={onRemoved}
         />
       ) : null}
     </BottomSheet>
@@ -274,31 +309,39 @@ function DetailSheet({
 function DetailSheetForm({
   user,
   callerRole,
+  callerId,
   onSaved,
   onResent,
+  onRemoved,
 }: {
   user: AdminUserRow
-  callerRole: 'ADMIN'
+  callerRole: CallerRole
+  callerId: string
   onSaved: () => void
   onResent: () => void
+  onRemoved: () => void
 }) {
   const [name, setName] = useState(user.name ?? '')
-  const [role, setRole] = useState<'STAFF' | 'MANAGER' | 'ADMIN'>(
-    user.role as 'STAFF' | 'MANAGER' | 'ADMIN',
-  )
+  const [phone, setPhone] = useState(user.phone ?? '')
+  const [role, setRole] = useState<TeamRole>(user.role as TeamRole)
   const [error, setError] = useState<string | null>(null)
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const [pending, startTransition] = useTransition()
   const [resendPending, startResend] = useTransition()
+  const [removePending, startRemove] = useTransition()
   const pendingInvite = !user.hasPassword
+  const editable = canEditTeamMember(callerRole, user)
+  const removable = canRemoveTeamMember(callerRole, user, callerId)
 
   function handleSave() {
+    if (!editable) return
     setError(null)
     startTransition(async () => {
       try {
         await updateTeamUserAction({
           userId: user.id,
           name,
-          phone: user.phone,
+          phone: phone.trim() || null,
           role,
         })
         onSaved()
@@ -309,6 +352,7 @@ function DetailSheetForm({
   }
 
   function handleResend() {
+    if (!editable) return
     setError(null)
     startResend(async () => {
       try {
@@ -320,30 +364,72 @@ function DetailSheetForm({
     })
   }
 
+  function handleRemove() {
+    if (!removable) return
+    setError(null)
+    startRemove(async () => {
+      try {
+        await deactivateTeamUserAction(user.id)
+        onRemoved()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not remove member.')
+      }
+    })
+  }
+
+  const displayName = user.name ?? user.email
+
   return (
     <div className="flex flex-col gap-3 p-4">
-      <p className="text-xs text-[var(--color-text-secondary)]">{user.email}</p>
+      {!editable ? (
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Only an admin can edit admin accounts.
+        </p>
+      ) : null}
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-[var(--color-text-secondary)]">Email</span>
+        <Input type="email" value={user.email} disabled />
+      </label>
+
       {pendingInvite ? (
         <p className="text-xs text-[var(--color-text-secondary)]">
           {formatInvitedAgo(new Date(user.createdAt))} — waiting for them to
           accept.
         </p>
-      ) : null}
+      ) : (
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          {user.hasPassword ? 'Active account' : 'No password set'}
+        </p>
+      )}
+
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-[var(--color-text-secondary)]">Name</span>
         <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          disabled={!editable}
         />
       </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-[var(--color-text-secondary)]">Phone</span>
+        <Input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="(555) 555-5555"
+          disabled={!editable}
+        />
+      </label>
+
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-[var(--color-text-secondary)]">Role</span>
         <Select
           value={role}
-          onChange={(e) =>
-            setRole(e.target.value as 'STAFF' | 'MANAGER' | 'ADMIN')
-          }
+          onChange={(e) => setRole(e.target.value as TeamRole)}
+          disabled={!editable}
         >
           <option value="STAFF">Staff</option>
           <option value="MANAGER">Manager</option>
@@ -351,11 +437,18 @@ function DetailSheetForm({
             <option value="ADMIN">Admin</option>
           ) : null}
         </Select>
+        {callerRole === 'MANAGER' && user.role === 'ADMIN' ? (
+          <span className="text-xs text-[var(--color-text-secondary)]">
+            Admin role cannot be changed by a manager.
+          </span>
+        ) : null}
       </label>
+
       {error ? (
         <p className="text-sm text-[var(--status-error-text)]">{error}</p>
       ) : null}
-      {pendingInvite ? (
+
+      {editable && pendingInvite ? (
         <Button
           type="button"
           variant="secondary"
@@ -366,9 +459,55 @@ function DetailSheetForm({
           Resend invite
         </Button>
       ) : null}
-      <Button type="button" fullWidth loading={pending} onClick={handleSave}>
-        Save changes
-      </Button>
+
+      {editable ? (
+        <Button type="button" fullWidth loading={pending} onClick={handleSave}>
+          Save changes
+        </Button>
+      ) : null}
+
+      {removable ? (
+        <div className="mt-2 flex flex-col gap-2 border-t border-solid border-[var(--color-border)] pt-4">
+          {confirmRemove ? (
+            <>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Remove {displayName} from the team? They will lose staff access
+                immediately.
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="danger"
+                  fullWidth
+                  loading={removePending}
+                  onClick={handleRemove}
+                >
+                  Revoke access
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  fullWidth
+                  disabled={removePending}
+                  onClick={() => setConfirmRemove(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              fullWidth
+              className="text-[var(--status-error-text)]"
+              onClick={() => setConfirmRemove(true)}
+            >
+              Revoke access
+            </Button>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }

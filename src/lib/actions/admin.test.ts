@@ -796,7 +796,11 @@ describe('team CRUD', () => {
 
   it('deactivateTeamUserAction demotes to CUSTOMER and nulls password', async () => {
     mocks.userUpdate.mockResolvedValue({})
+    mocks.teamInviteTokenDeleteMany.mockResolvedValue({ count: 0 })
     await deactivateTeamUserAction('user_someone_else')
+    expect(mocks.teamInviteTokenDeleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_someone_else' },
+    })
     expect(mocks.userUpdate).toHaveBeenCalledWith({
       where: { id: 'user_someone_else' },
       data: { role: 'CUSTOMER', passwordHash: null },
@@ -1268,6 +1272,15 @@ describe('getReportsSummary', () => {
         packageId: 'p9',
         payment: { status: 'requires_payment_method' },
         package: { id: 'p9', name: 'Ghost' },
+      },
+      {
+        id: 'b_walkin_pending',
+        startTime: new Date('2026-05-17T10:00:00.000Z'),
+        totalAmount: 5500,
+        status: 'CONFIRMED',
+        packageId: 'p1',
+        payment: { status: 'pending' },
+        package: { id: 'p1', name: 'Pkg A' },
       },
     ])
     mocks.paymentAggregate.mockResolvedValue({ _sum: { refundAmount: 1500 } })

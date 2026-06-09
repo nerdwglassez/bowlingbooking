@@ -13,6 +13,10 @@ export {
   formatPriceInputValue,
   parsePriceInputValue,
 } from '@/lib/format-price'
+import {
+  getPackageOptionalAddons,
+  optionalAddonLineAmount,
+} from '@/lib/package-addons'
 import { OWN_SHOES_VALUE } from '@/lib/shoe-sizes'
 import { rateBasedTotalCents } from '@/lib/pricing-period'
 import { bookingDurationHours } from '@/lib/tenant-config'

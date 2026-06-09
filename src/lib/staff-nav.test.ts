@@ -76,12 +76,12 @@ describe('getSettingsGroups', () => {
     expect(labels).not.toContain('Promo codes')
   })
 
-  it('shows hours and pricing for MANAGER without team', () => {
+  it('shows team for MANAGER but not integrations', () => {
     const adminLabels = getSettingsGroups('ADMIN').flatMap((g) => g.label)
     const managerLabels = getSettingsGroups('MANAGER').flatMap((g) => g.label)
     expect(adminLabels).toContain('Team')
     expect(adminLabels).toContain('Integrations')
-    expect(managerLabels).not.toContain('Team')
+    expect(managerLabels).toContain('Team')
     expect(managerLabels).not.toContain('Integrations')
     expect(
       getSettingsGroups('MANAGER').flatMap((g) => g.items.map((i) => i.label)),

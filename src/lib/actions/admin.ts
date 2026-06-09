@@ -1685,6 +1685,7 @@ export async function deactivateTeamUserAction(
   // (which filters role IN STAFF/MANAGER/ADMIN). We never hard-delete users
   // because Booking rows reference them via Booking.userId.
   await prisma.$transaction(async (tx) => {
+    await tx.teamInviteToken.deleteMany({ where: { userId } })
     await tx.user.update({
       where: { id: userId },
       data: { role: 'CUSTOMER', passwordHash: null },
@@ -1700,6 +1701,7 @@ export async function deactivateTeamUserAction(
   })
 
   revalidatePath('/admin/team')
+  revalidatePath('/staff/settings/team')
   return { mocked: false }
 }
 

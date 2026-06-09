@@ -1,6 +1,4 @@
-// /staff/settings/team — team management (ADMIN).
-
-import { unauthorized } from 'next/navigation'
+// /staff/settings/team — team management (MANAGER + ADMIN).
 
 import { SettingsSubpageHeader } from '@/components/patterns/settings-subpage-header'
 import { listTeamForAdmin } from '@/lib/actions/admin'
@@ -10,21 +8,26 @@ import { getTenant } from '@/lib/tenant'
 import { TeamSettingsPanel } from './team-settings-panel'
 
 export default async function StaffSettingsTeamPage() {
-  const user = await requireRole('ADMIN')
-  if (user.role !== 'ADMIN') unauthorized()
+  const user = await requireRole('MANAGER', 'ADMIN')
   const tenant = await getTenant()
   const users = await listTeamForAdmin(tenant.id)
+  const callerRole = user.role === 'ADMIN' ? 'ADMIN' : 'MANAGER'
 
   return (
     <>
       <SettingsSubpageHeader
         title="Team"
-        subtitle="Invite staff and managers."
+        subtitle={
+          callerRole === 'ADMIN'
+            ? 'Invite staff and managers.'
+            : 'View profiles and manage staff access.'
+        }
       />
       <TeamSettingsPanel
         tenantId={tenant.id}
         users={users}
-        callerRole="ADMIN"
+        callerRole={callerRole}
+        callerId={user.id}
       />
     </>
   )
