@@ -25,7 +25,7 @@ export const PasswordField = React.forwardRef<
   ref,
 ) {
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <Input
         ref={ref}
         {...rest}
@@ -33,19 +33,18 @@ export const PasswordField = React.forwardRef<
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
-        className={cn('pr-10', className)}
+        className={cn('block w-full pr-11', className)}
       />
       <button
         type="button"
         aria-label={visible ? 'Hide password' : 'Show password'}
         aria-pressed={visible}
         className={cn(
-          'absolute right-1 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center',
-          'rounded-[var(--radius-md)] border-0 bg-transparent',
+          'absolute inset-y-0 right-0 flex w-11 items-center justify-center',
+          'rounded-r-[var(--radius-md)] border-0 bg-transparent',
           'text-[var(--color-text-muted)] transition-colors',
           'hover:text-[var(--color-text-secondary)]',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-strong)]',
-          'focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-ground)]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-border-strong)]',
         )}
         onClick={onToggleVisible}
       >

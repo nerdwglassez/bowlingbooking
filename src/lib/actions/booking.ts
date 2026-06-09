@@ -53,7 +53,7 @@ import {
 import { Prisma } from '@prisma/client'
 import type { PricingPeriod } from '@prisma/client'
 import QRCode from 'qrcode'
-import type { Package, ShoeSelection, Tenant, TimeSlot } from '@/types'
+import type { Package, PartyType, ShoeSelection, Tenant, TimeSlot } from '@/types'
 
 const HOLD_TIMEOUT_MINS_DEFAULT = 10
 const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
@@ -549,7 +549,7 @@ export async function getPackagesForTenant(tenantId: string): Promise<Package[]>
 }
 
 function mockPackages(tenantId: string): Package[] {
-  return [
+  const packages: Package[] = [
     {
       id: 'pkg-classic',
       tenantId,
@@ -560,7 +560,7 @@ function mockPackages(tenantId: string): Package[] {
       shoesIncluded: true,
       gameCostPer: null,
       shoeCostPer: null,
-      partyTypes: ['OPEN'],
+      partyTypes: ['OPEN'] satisfies PartyType[],
       active: true,
       sortOrder: 1,
     },
@@ -574,7 +574,7 @@ function mockPackages(tenantId: string): Package[] {
       shoesIncluded: false,
       gameCostPer: 800,
       shoeCostPer: 500,
-      partyTypes: ['OPEN'],
+      partyTypes: ['OPEN'] satisfies PartyType[],
       active: true,
       sortOrder: 2,
     },
@@ -589,7 +589,7 @@ function mockPackages(tenantId: string): Package[] {
       shoesIncluded: true,
       gameCostPer: null,
       shoeCostPer: null,
-      partyTypes: ['BIRTHDAY'],
+      partyTypes: ['BIRTHDAY'] satisfies PartyType[],
       active: true,
       sortOrder: 3,
     },
@@ -603,13 +603,14 @@ function mockPackages(tenantId: string): Package[] {
       shoesIncluded: true,
       gameCostPer: null,
       shoeCostPer: null,
-      partyTypes: ['OPEN'],
+      partyTypes: ['OPEN'] satisfies PartyType[],
       accessType: 'CODE_REQUIRED',
       paymentMode: 'PAYMENT_OFFLINE',
       active: true,
       sortOrder: 4,
     },
-  ].filter((pkg) => !isLaneOnlyDefaultPackage(pkg))
+  ]
+  return packages.filter((pkg) => !isLaneOnlyDefaultPackage(pkg))
 }
 
 // ── Confirm: create PaymentIntent, return clientSecret ────

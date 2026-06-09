@@ -103,7 +103,10 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
   const [claimPassword, setClaimPassword] = useState('')
   const [claimPending, setClaimPending] = useState(false)
   const [claimError, setClaimError] = useState<string | null>(null)
-  const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return sessionStorage.getItem(CELEBRATE_DISMISS_KEY) === '1'
+  })
   const tenant = useTenant()
   const router = useRouter()
   const { resetSession } = useBooking()
@@ -129,13 +132,6 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
           : pollExhausted
             ? 'timeout'
             : 'pending'
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    setBannerDismissed(
-      sessionStorage.getItem(CELEBRATE_DISMISS_KEY) === '1',
-    )
-  }, [])
 
   useEffect(() => {
     if (offlineCode && offlineEmail) {
