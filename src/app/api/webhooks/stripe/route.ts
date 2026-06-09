@@ -29,7 +29,11 @@ import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { sendBookingConfirmation } from '@/lib/email'
 import { isDevWithoutDb } from '@/lib/env'
 import { assignBookingLanes } from '@/lib/lane-assignment'
-import { getLaneCount, sumOverlappingLaneCount, CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
+import {
+  findOverlappingBlockedSlots,
+  sumReservedLanesIncludingBlocks,
+} from '@/lib/blocked-lanes'
+import { getLaneCount, CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
 import {
   isSerializableConflict,
   isUniqueConstraintOnField,
@@ -285,11 +289,19 @@ async function handlePaymentIntentSucceeded(
             },
             select: { startTime: true, endTime: true, laneCount: true },
           })
-
-          const reserved = sumOverlappingLaneCount(
-            [...confirmed, ...held],
+          const blocks = await findOverlappingBlockedSlots(
+            tx,
+            metadata.tenantId,
             metadata.startTime,
             metadata.endTime,
+          )
+
+          const reserved = sumReservedLanesIncludingBlocks(
+            [...confirmed, ...held],
+            blocks,
+            metadata.startTime,
+            metadata.endTime,
+            totalLanes,
           )
           if (totalLanes - reserved < laneCount) {
             throw new Error(SLOT_UNAVAILABLE_MESSAGE)

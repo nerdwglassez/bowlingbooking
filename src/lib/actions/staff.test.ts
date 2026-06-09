@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   const auditCreate = vi.fn()
   const blockCreate = vi.fn()
   const blockDeleteMany = vi.fn()
+  const blockedSlotFindMany = vi.fn()
   const tenantFindUniqueOrThrow = vi.fn()
   const packageFindFirst = vi.fn()
   const bookingFindMany = vi.fn()
@@ -26,7 +27,7 @@ const mocks = vi.hoisted(() => {
     },
     payment: { create: paymentCreate },
     auditLog: { create: auditCreate },
-    blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany },
+    blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany, findMany: blockedSlotFindMany },
     tenant: { findUniqueOrThrow: tenantFindUniqueOrThrow },
     package: { findFirst: packageFindFirst },
     bookingHold: { findMany: bookingHoldFindMany },
@@ -49,6 +50,7 @@ const mocks = vi.hoisted(() => {
     auditCreate,
     blockCreate,
     blockDeleteMany,
+    blockedSlotFindMany,
     tenantFindUniqueOrThrow,
     packageFindFirst,
     bookingHoldFindMany,
@@ -134,11 +136,12 @@ beforeEach(() => {
         blockedSlot: {
           create: mocks.blockCreate,
           deleteMany: mocks.blockDeleteMany,
+          findMany: mocks.blockedSlotFindMany,
         },
         tenant: { findUniqueOrThrow: mocks.tenantFindUniqueOrThrow },
         package: { findFirst: mocks.packageFindFirst },
         bookingHold: { findMany: mocks.bookingHoldFindMany },
-        lane: { count: mocks.laneCount },
+        lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
       } as Parameters<typeof fn>[0]),
   )
   mocks.tenantFindUniqueOrThrow.mockResolvedValue({
@@ -153,6 +156,7 @@ beforeEach(() => {
   mocks.laneCount.mockResolvedValue(8)
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.blockedSlotFindMany.mockResolvedValue([])
   mocks.bookingUpdateMany.mockResolvedValue({ count: 1 })
   mocks.blockDeleteMany.mockResolvedValue({ count: 1 })
   mocks.reassignBookingLanesMock.mockResolvedValue([1])
@@ -424,6 +428,115 @@ describe('createWalkInBooking', () => {
         action: 'BOOKING_WALK_IN_CREATED',
       }),
     })
+    expect(mocks.packageFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'pkg_classic',
+          tenantId: 't1',
+          active: true,
+        }),
+      }),
+    )
+  })
+
+  it('rejects walk-in creation for another tenant', async () => {
+    await expect(
+      createWalkInBooking({
+        tenantId: 't2',
+        packageId: 'pkg_classic',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        startTime: new Date(),
+        endTime: new Date(),
+        totalAmount: 4500,
+        customerName: 'Walk-In',
+        customerEmail: '',
+        paymentMethod: 'cash',
+      }),
+    ).rejects.toThrow(/Resource not found/)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects package ids outside the staff tenant', async () => {
+    mocks.packageFindFirst.mockResolvedValue(null)
+    await expect(
+      createWalkInBooking({
+        tenantId: 't1',
+        packageId: 'pkg_other_tenant',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        startTime: new Date(),
+        endTime: new Date(),
+        totalAmount: 4500,
+        customerName: 'Walk-In',
+        customerEmail: '',
+        paymentMethod: 'cash',
+      }),
+    ).rejects.toThrow(/Package not found/)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects walk-in creation when lane blocks consume capacity', async () => {
+    mocks.packageFindFirst.mockResolvedValue({ id: 'pkg_classic' })
+    mocks.laneCount.mockResolvedValue(8)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    mocks.blockedSlotFindMany.mockResolvedValue([
+      {
+        startTime: new Date('2026-06-01T18:00:00Z'),
+        endTime: new Date('2026-06-01T20:00:00Z'),
+        lanes: [],
+      },
+    ])
+    await expect(
+      createWalkInBooking({
+        tenantId: 't1',
+        packageId: 'pkg_classic',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        startTime: new Date('2026-06-01T18:00:00Z'),
+        endTime: new Date('2026-06-01T20:00:00Z'),
+        totalAmount: 4500,
+        customerName: 'Walk-In',
+        customerEmail: '',
+        paymentMethod: 'cash',
+      }),
+    ).rejects.toThrow(/no longer available/i)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects explicit walk-in lane selection on a blocked lane', async () => {
+    mocks.packageFindFirst.mockResolvedValue({ id: 'pkg_classic' })
+    mocks.laneCount.mockResolvedValue(8)
+    mocks.laneFindMany.mockResolvedValue([
+      { id: 'lane_1', number: 1 },
+      { id: 'lane_2', number: 2 },
+    ])
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    mocks.blockedSlotFindMany.mockResolvedValue([
+      {
+        startTime: new Date('2026-06-01T18:00:00Z'),
+        endTime: new Date('2026-06-01T20:00:00Z'),
+        lanes: [2],
+      },
+    ])
+    await expect(
+      createWalkInBooking({
+        tenantId: 't1',
+        packageId: 'pkg_classic',
+        partyType: 'OPEN',
+        bowlerCount: 6,
+        startTime: new Date('2026-06-01T18:00:00Z'),
+        endTime: new Date('2026-06-01T20:00:00Z'),
+        totalAmount: 4500,
+        customerName: 'Walk-In',
+        customerEmail: '',
+        paymentMethod: 'cash',
+        laneNumbers: [2],
+      }),
+    ).rejects.toThrow(/blocked during this time/i)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
   })
 
   it('skips Payment row creation when totalAmount is 0', async () => {

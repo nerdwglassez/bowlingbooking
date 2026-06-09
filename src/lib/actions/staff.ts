@@ -24,8 +24,13 @@ import {
   toCockpitBookings,
 } from '@/lib/cockpit-display'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
+import {
+  blockedLaneNumbersForWindow,
+  findOverlappingBlockedSlots,
+  sumReservedLanesIncludingBlocks,
+} from '@/lib/blocked-lanes'
 import { reassignBookingLanes } from '@/lib/lane-assignment'
-import { getLaneCount, sumOverlappingLaneCount, CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
+import { getLaneCount, CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
 import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import type { Tenant } from '@/types'
 import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
@@ -556,12 +561,98 @@ export async function createWalkInBooking(
   for (let attempt = 0; attempt < WALK_IN_CODE_MAX_RETRIES; attempt++) {
     const confirmationCode = generateConfirmationCode()
     try {
-      booking = await prisma.$transaction(async (tx) => {
+      booking = await prisma.$transaction(
+        async (tx) => {
         const tenantRow = await tx.tenant.findUniqueOrThrow({
           where: { id: input.tenantId },
         })
         const policySnapshot = policySnapshotFromTenantRow(tenantRow)
         const bowlersPerLane = tenantRow.bowlersPerLane
+        const laneCount = getLaneCount(input.bowlerCount, bowlersPerLane)
+        const now = new Date()
+
+        const overlapping = await tx.booking.findMany({
+          where: {
+            tenantId: input.tenantId,
+            status: { in: [...CAPACITY_BOOKING_STATUSES] },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { startTime: true, endTime: true, laneCount: true },
+        })
+        const activeHolds = await tx.bookingHold.findMany({
+          where: {
+            tenantId: input.tenantId,
+            expiresAt: { gt: now },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          },
+          select: { startTime: true, endTime: true, laneCount: true },
+        })
+        const totalLanes = await tx.lane.count({
+          where: { tenantId: input.tenantId, active: true },
+        })
+        const blocks = await findOverlappingBlockedSlots(
+          tx,
+          input.tenantId,
+          input.startTime,
+          input.endTime,
+        )
+        const reserved = sumReservedLanesIncludingBlocks(
+          [...overlapping, ...activeHolds],
+          blocks,
+          input.startTime,
+          input.endTime,
+          totalLanes,
+        )
+        if (totalLanes - reserved < laneCount) {
+          throw new Error('Selected time is no longer available.')
+        }
+
+        if (input.laneNumbers?.length) {
+          if (input.laneNumbers.length !== laneCount) {
+            throw new Error('Lane count does not match party size.')
+          }
+          const laneRows = await tx.lane.findMany({
+            where: { tenantId: input.tenantId, active: true },
+            orderBy: { number: 'asc' },
+          })
+          const activeNumbers = laneRows.map((lane) => lane.number)
+          const blocked = blockedLaneNumbersForWindow(
+            blocks,
+            input.startTime,
+            input.endTime,
+            activeNumbers,
+          )
+          const overlappingWithLanes = await tx.booking.findMany({
+            where: {
+              tenantId: input.tenantId,
+              status: { in: [...CAPACITY_BOOKING_STATUSES] },
+              startTime: { lt: input.endTime },
+              endTime: { gt: input.startTime },
+            },
+            include: {
+              lanes: { include: { lane: { select: { number: true } } } },
+            },
+          })
+          const occupied = new Set<number>()
+          for (const row of overlappingWithLanes) {
+            for (const link of row.lanes) {
+              occupied.add(link.lane.number)
+            }
+          }
+          for (const number of input.laneNumbers) {
+            if (!activeNumbers.includes(number)) {
+              throw new Error('Selected lane is not available.')
+            }
+            if (blocked.has(number)) {
+              throw new Error('Selected lane is blocked during this time.')
+            }
+            if (occupied.has(number)) {
+              throw new Error('Selected lane is not available.')
+            }
+          }
+        }
 
         const created = await tx.booking.create({
           data: {
@@ -634,7 +725,9 @@ export async function createWalkInBooking(
         })
 
         return created
-      })
+      },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
       break
     } catch (err) {
       const retryable =
@@ -689,7 +782,8 @@ export async function blockLanes(
     return { blockId: `block_mock_${Date.now()}`, mocked: true }
   }
 
-  const block = await prisma.$transaction(async (tx) => {
+  const block = await prisma.$transaction(
+    async (tx) => {
     const created = await tx.blockedSlot.create({
       data: {
         tenantId: input.tenantId,
@@ -709,7 +803,9 @@ export async function blockLanes(
       },
     })
     return created
-  })
+  },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  )
 
   revalidatePath('/staff/schedule')
   return { blockId: block.id, mocked: false }
@@ -865,10 +961,18 @@ export async function staffModifyBookingAction(
     const totalLanes = await tx.lane.count({
       where: { tenantId: existing.tenantId, active: true },
     })
-    const reserved = sumOverlappingLaneCount(
-      [...overlapping, ...activeHolds],
+    const blocks = await findOverlappingBlockedSlots(
+      tx,
+      existing.tenantId,
       startTime,
       endTime,
+    )
+    const reserved = sumReservedLanesIncludingBlocks(
+      [...overlapping, ...activeHolds],
+      blocks,
+      startTime,
+      endTime,
+      totalLanes,
     )
     if (totalLanes - reserved < laneCount) {
       throw new Error('Selected time is no longer available.')

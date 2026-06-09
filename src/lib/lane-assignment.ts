@@ -1,5 +1,9 @@
 import type { Prisma } from '@prisma/client'
 
+import {
+  blockedLaneNumbersForWindow,
+  findOverlappingBlockedSlots,
+} from '@/lib/blocked-lanes'
 import { CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
 
 /**
@@ -42,10 +46,25 @@ export async function assignBookingLanes(
     }
   }
 
+  const blocks = await findOverlappingBlockedSlots(
+    tx,
+    input.tenantId,
+    input.startTime,
+    input.endTime,
+  )
+  const blocked = blockedLaneNumbersForWindow(
+    blocks,
+    input.startTime,
+    input.endTime,
+    lanes.map((lane) => lane.number),
+  )
+
   const pickedNumbers: number[] = []
   for (const lane of lanes) {
     if (pickedNumbers.length >= input.laneCount) break
-    if (!occupied.has(lane.number)) pickedNumbers.push(lane.number)
+    if (!occupied.has(lane.number) && !blocked.has(lane.number)) {
+      pickedNumbers.push(lane.number)
+    }
   }
 
   if (pickedNumbers.length < input.laneCount) {

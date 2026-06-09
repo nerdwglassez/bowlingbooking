@@ -1,0 +1,15 @@
+---
+description: Run the /security-review workflow — drift, audit, and diff review against SECURITY.md.
+alwaysApply: false
+---
+
+# /security-review
+
+When the user says **`/security-review`**, **security check**, or **review for vulnerabilities**:
+
+1. Read and follow **`.cursor/skills/security-review/SKILL.md`** (readonly — no code changes unless asked).
+2. Run **`npm run drift`** and **`npm run audit`**; do not skip or assume pass.
+3. Review the git diff against **`.claude/contracts/SECURITY.md`**, **AUTH.md**, and **OPS.md**.
+4. Emit a PASS / PASS WITH WARNINGS / BLOCKED report with file references.
+
+Do not paste secrets from `.env.local` into the report.

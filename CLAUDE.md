@@ -143,7 +143,8 @@ Venue constants — NEVER hardcode, always import from lib/venue.ts:
   VENUE_ADDRESS  '8512 Two Notch Rd Columbia, SC 29223'
 
 Run `npm run drift` after every agent session to catch token violations.
-Run `npm run verify` before committing (TypeScript + lint + drift + tests).
+Run `npm run verify` before committing (TypeScript + lint + drift + audit + tests).
+Run `/security-review` before merging auth, payment, webhook, or new public server-action changes.
 
 ---
 
@@ -159,5 +160,5 @@ Run `npm run verify` before committing (TypeScript + lint + drift + tests).
   .claude/staff/0N_*.md                  Staff surface-specific interaction specs
   .claude/CUSTOMER_DASHBOARD.md          Customer post-booking dashboard (target design)
   .claude/SCHEMA_MIGRATIONS.md           Planned Prisma migrations — gates Part 2 features
-  .claude/contracts/*.md                 Surface-specific contracts (PAYMENTS, STAFF, etc.)
+  .claude/contracts/*.md                 Surface-specific contracts (PAYMENTS, STAFF, SECURITY, etc.)
   docs/wireframes/                       HTML wireframes organized by experience

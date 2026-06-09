@@ -62,6 +62,7 @@ Each agent owns exactly one directory tree (write access) and reads from the lay
 | 8 | **Admin pages** | `src/app/(admin)/**` | patterns/, ui/, lib/, `wireframes/admin/` | Same as #6 |
 | 9 | **Wireframe-to-spec** (readonly) | `.claude/specs/**` (new folder) | `docs/wireframes/**` | All other writes |
 | 10 | **Drift sentinel** (readonly) | `drift-report.json` | everything | Any source-code write |
+| 11 | **Security review** (readonly) | review report only | diff + `.claude/contracts/SECURITY.md` | Any source-code write |
 
 ---
 
@@ -89,6 +90,7 @@ Request/response shapes for every route in `.claude/BOOKING_DOMAIN.md` § "API r
 |---|---|---|
 | Wireframe-to-spec | `explore` (readonly) | Pure recon |
 | Drift sentinel | `explore` (readonly) | Greps for banned patterns |
+| Security review | `explore` (readonly) | Diff review + `npm run drift` + `npm run audit`; see `.cursor/skills/security-review/SKILL.md` |
 | Infra | `generalPurpose` | Multi-step config edits |
 | Tokens | `generalPurpose` | Small, focused scope |
 | Primitives (each) | `generalPurpose` per component; **`best-of-n-runner` N=3** recommended for the first one (Button) to pick the cleanest variant strategy across parallel attempts in worktrees |  |
@@ -187,6 +189,14 @@ The sentinel is the single most important safety mechanism. It only reads, only 
 - `getTenant(` must be the only way `Tenant` rows are loaded
 
 **Run between every agent.** Block the next agent if any rule fails.
+
+**Security greps** (also in drift sentinel — see `.claude/contracts/SECURITY.md`):
+- `dangerouslySetInnerHTML`, `eval(`, `new Function(` — banned everywhere
+- Secret `process.env` in `'use client'` files — only `NEXT_PUBLIC_*` / `NODE_ENV`
+- `@/lib/prisma` / `@prisma/client` in app `page.tsx` / route `layout.tsx` — banned
+- **`npm run audit`** — high/critical dependency CVEs fail CI
+
+After sensitive changes (auth, payments, webhooks, new public actions), run **`/security-review`** (`.cursor/skills/security-review/SKILL.md`).
 
 ---
 

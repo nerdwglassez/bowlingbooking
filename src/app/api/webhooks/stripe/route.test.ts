@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
   const laneFindMany = vi.fn()
   const bookingLaneCreate = vi.fn()
   const packageFindFirst = vi.fn()
+  const blockedSlotFindMany = vi.fn()
 
   const txStub = {
     booking: {
@@ -42,6 +43,7 @@ const mocks = vi.hoisted(() => {
     claimToken: { create: claimTokenCreate },
     bookingBowler: { createMany: bookingBowlerCreateMany },
     bookingLane: { create: bookingLaneCreate },
+    blockedSlot: { findMany: blockedSlotFindMany },
   }
 
   return {
@@ -59,6 +61,7 @@ const mocks = vi.hoisted(() => {
     laneCount,
     laneFindMany,
     bookingLaneCreate,
+    blockedSlotFindMany,
     tenantFindUniqueOrThrow,
     claimTokenCreate,
     bookingBowlerCreateMany,
@@ -181,6 +184,7 @@ beforeEach(() => {
         claimToken: { create: mocks.claimTokenCreate },
         bookingBowler: { createMany: mocks.bookingBowlerCreateMany },
         bookingLane: { create: mocks.bookingLaneCreate },
+        blockedSlot: { findMany: mocks.blockedSlotFindMany },
       } as Parameters<typeof fn>[0]),
   )
   mocks.laneCount.mockResolvedValue(8)
@@ -203,6 +207,7 @@ beforeEach(() => {
   mocks.packageFindFirst.mockResolvedValue({ name: 'Classic Bowling' })
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.blockedSlotFindMany.mockResolvedValue([])
   mocks.bookingHoldFindUnique.mockResolvedValue(null)
   mocks.stripeEventDeleteMany.mockResolvedValue({ count: 1 })
   mocks.promoFindUnique.mockResolvedValue(null)
@@ -275,6 +280,55 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'jane@example.com' }),
     )
+  })
+
+  it('skips finalize when lane blocks consume remaining capacity', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.laneCount.mockResolvedValue(1)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    mocks.blockedSlotFindMany.mockResolvedValue([
+      {
+        startTime: new Date(validMetadata.startTime),
+        endTime: new Date(validMetadata.endTime),
+        lanes: [1],
+      },
+    ])
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(500)
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+    err.mockRestore()
+  })
+
+  it('assigns the lowest unblocked lane during finalize', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.laneCount.mockResolvedValue(2)
+    mocks.laneFindMany.mockResolvedValue([
+      { id: 'lane_1', number: 1 },
+      { id: 'lane_2', number: 2 },
+    ])
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    mocks.blockedSlotFindMany.mockResolvedValue([
+      {
+        startTime: new Date(validMetadata.startTime),
+        endTime: new Date(validMetadata.endTime),
+        lanes: [1],
+      },
+    ])
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingLaneCreate).toHaveBeenCalledWith({
+      data: { bookingId: 'bk_1', laneId: 'lane_2' },
+    })
   })
 
   it('uses metadata laneCount snapshot instead of recomputing from bowlersPerLane', async () => {

@@ -136,6 +136,33 @@ const CHECKS = [
       !file.endsWith('instrumentation.ts'),
     hint: 'Use captureException / captureMessage / withObservability from @/lib/observability.',
   },
+  // ── Security greps (see .claude/contracts/SECURITY.md) ──
+  {
+    name: 'dangerouslySetInnerHTML',
+    regex: /dangerouslySetInnerHTML/g,
+    appliesTo: () => true,
+    hint: 'Avoid raw HTML injection. Use text nodes or escape via @/lib/email escapeHtml pattern.',
+  },
+  {
+    name: 'eval()',
+    regex: /\beval\s*\(/g,
+    appliesTo: () => true,
+    hint: 'Dynamic code execution is forbidden.',
+  },
+  {
+    name: 'new Function()',
+    regex: /new\s+Function\s*\(/g,
+    appliesTo: () => true,
+    hint: 'Dynamic code execution is forbidden.',
+  },
+  {
+    name: 'direct prisma import in app page/layout',
+    regex: /from\s+['"](?:@\/lib\/prisma|@prisma\/client)['"]/g,
+    appliesTo: (file) =>
+      file.includes('/app/') &&
+      (file.endsWith('/page.tsx') || file.endsWith('/layout.tsx')),
+    hint: 'Pages/layouts must use server actions or lib helpers — never import Prisma directly.',
+  },
 ]
 
 async function expandGlobs(patterns) {
@@ -332,8 +359,11 @@ async function main() {
   // If you need a constant or non-async helper, move it to a sibling non-
   // 'use server' module and import it (see src/lib/audit-actions.ts for the
   // canonical pattern).
-  const USE_SERVER_DIRECTIVE = /^\s*(['"])use server\1/
-  const BAD_VALUE_EXPORT = /^export\s+(?!async\s+)(?:const|let|var|function|class)\b/gm
+const USE_SERVER_DIRECTIVE = /^\s*(['"])use server\1/
+const BAD_VALUE_EXPORT = /^export\s+(?!async\s+)(?:const|let|var|function|class)\b/gm
+const USE_CLIENT_DIRECTIVE = /^\s*(['"])use client\1/m
+const SECRET_ENV_ACCESS =
+  /process\.env(?:\.(?:AUTH_SECRET|NEXTAUTH_SECRET|DATABASE_URL|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|RESEND_API_KEY)\b|\[\s*['"](?:AUTH_SECRET|NEXTAUTH_SECRET|DATABASE_URL|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|RESEND_API_KEY)['"]\s*\])/g
   for (const file of files) {
     const original = await readFile(file, 'utf8')
     if (!USE_SERVER_DIRECTIVE.test(original)) continue
@@ -359,6 +389,32 @@ async function main() {
     }
   }
 
+  // Secret server env vars must not appear in client bundles.
+  for (const file of files) {
+    const original = await readFile(file, 'utf8')
+    if (!USE_CLIENT_DIRECTIVE.test(original)) continue
+    const stripped = stripComments(original)
+    SECRET_ENV_ACCESS.lastIndex = 0
+    const matches = [...stripped.matchAll(SECRET_ENV_ACCESS)]
+    if (matches.length === 0) continue
+    for (const m of matches) {
+      failures++
+      const lineNumber = stripped.slice(0, m.index).split('\n').length
+      const key = 'secret process.env in client component'
+      if (!failedChecks.has(key)) {
+        failedChecks.set(key, {
+          hint: 'Only NEXT_PUBLIC_* and NODE_ENV may be read in use client files. Use server actions or pass props from a Server Component.',
+          hits: [],
+        })
+      }
+      failedChecks.get(key).hits.push({
+        file,
+        line: lineNumber,
+        match: m[0].trim(),
+      })
+    }
+  }
+
   if (failures === 0) {
     console.log('PASS: drift sentinel — all checks clean')
     for (const check of CHECKS) {
@@ -366,6 +422,7 @@ async function main() {
     }
     console.log('  - route-group layout guards: ok')
     console.log("  - non-async exports in 'use server' files: ok")
+    console.log('  - client secret env access: ok')
     exit(0)
   }
 

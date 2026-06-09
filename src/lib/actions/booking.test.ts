@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   bookingHoldDeleteMany: vi.fn(),
   bookingFindMany: vi.fn(),
   bookingHoldFindMany: vi.fn(),
+  blockedSlotFindMany: vi.fn(),
   laneCount: vi.fn(),
   packageFindMany: vi.fn(),
   packageFindFirst: vi.fn(),
@@ -58,6 +59,7 @@ vi.mock('@/lib/prisma', () => ({
       findMany: mocks.bookingHoldFindMany,
     },
     booking: { findMany: mocks.bookingFindMany },
+    blockedSlot: { findMany: mocks.blockedSlotFindMany },
     lane: { count: mocks.laneCount },
     package: {
       findMany: mocks.packageFindMany,
@@ -95,6 +97,7 @@ beforeEach(() => {
   mocks.laneCount.mockResolvedValue(8)
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.blockedSlotFindMany.mockResolvedValue([])
   mocks.tenantFindUnique.mockResolvedValue({ config: {} })
   mocks.getTenantMock.mockResolvedValue({
     id: 't1',
@@ -123,6 +126,7 @@ beforeEach(() => {
         findMany: mocks.bookingHoldFindMany,
       },
       booking: { findMany: mocks.bookingFindMany },
+      blockedSlot: { findMany: mocks.blockedSlotFindMany },
       lane: { count: mocks.laneCount },
       package: {
         findMany: mocks.packageFindMany,
@@ -189,6 +193,35 @@ describe('acquireBookingHold', () => {
     ])
     mocks.bookingHoldFindMany.mockResolvedValue([
       { startTime: slotStart, endTime: slotEnd, laneCount: 1 },
+    ])
+
+    await expect(
+      acquireBookingHold({
+        tenantId: 't1',
+        startTime: slotStart,
+        endTime: slotEnd,
+        bowlerCount: 6,
+      }),
+    ).rejects.toThrow(/no longer available/i)
+    expect(mocks.bookingHoldCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects a hold when lane blocks consume remaining capacity', async () => {
+    mocks.tenantFindUnique.mockResolvedValue({
+      holdTimeoutMins: 7,
+      maxOnlineBowlers: 18,
+    })
+    mocks.laneCount.mockResolvedValue(2)
+    const slotStart = new Date('2026-01-01T18:00:00Z')
+    const slotEnd = new Date('2026-01-01T20:00:00Z')
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    mocks.blockedSlotFindMany.mockResolvedValue([
+      {
+        startTime: slotStart,
+        endTime: slotEnd,
+        lanes: [1, 2],
+      },
     ])
 
     await expect(
@@ -293,6 +326,23 @@ describe('getAvailableTimeSlots', () => {
     expect(free?.available).toBe(true)
     expect(free?.lanesFree).toBe(2)
     expect(free?.spotsRemaining).toBe(2)
+  })
+
+  it('marks a slot unavailable when lane blocks consume capacity', async () => {
+    mocks.laneCount.mockResolvedValue(2)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    mocks.blockedSlotFindMany.mockResolvedValue([
+      {
+        startTime: new Date('2026-01-01T18:00:00'),
+        endTime: new Date('2026-01-01T19:00:00'),
+        lanes: [1, 2],
+      },
+    ])
+    const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
+    const blockedSlot = slots.find((s) => s.id === '2026-01-01-18')
+    expect(blockedSlot?.available).toBe(false)
+    expect(blockedSlot?.spotsRemaining).toBe(0)
   })
 
   it('counts PENDING_PAYMENT bookings when computing availability', async () => {

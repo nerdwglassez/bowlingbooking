@@ -8,12 +8,14 @@ const mocks = vi.hoisted(() => {
   const bookingHoldFindMany = vi.fn()
   const laneCount = vi.fn()
   const bookingLaneDeleteMany = vi.fn()
+  const blockedSlotFindMany = vi.fn()
   const reassignBookingLanesMock = vi.fn()
   const txStub = {
     booking: { update: bookingUpdate, findFirst: vi.fn(), findMany: bookingFindMany },
     payment: { update: paymentUpdate },
     auditLog: { create: auditCreate },
     bookingHold: { findMany: bookingHoldFindMany },
+    blockedSlot: { findMany: blockedSlotFindMany },
     lane: { count: laneCount },
     bookingLane: { deleteMany: bookingLaneDeleteMany },
   }
@@ -29,6 +31,7 @@ const mocks = vi.hoisted(() => {
     bookingHoldFindMany,
     laneCount,
     bookingLaneDeleteMany,
+    blockedSlotFindMany,
     reassignBookingLanesMock,
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
@@ -145,6 +148,7 @@ beforeEach(() => {
   mocks.laneCount.mockResolvedValue(8)
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.blockedSlotFindMany.mockResolvedValue([])
   mocks.reassignBookingLanesMock.mockResolvedValue([1])
   mocks.txMock.mockImplementation(
     async (fn) => {
@@ -157,6 +161,7 @@ beforeEach(() => {
         payment: { update: mocks.paymentUpdate },
         auditLog: { create: mocks.auditCreate },
         bookingHold: { findMany: mocks.bookingHoldFindMany },
+        blockedSlot: { findMany: mocks.blockedSlotFindMany },
         lane: { count: mocks.laneCount },
         bookingLane: { deleteMany: mocks.bookingLaneDeleteMany },
       }
@@ -297,18 +302,53 @@ describe('cancelBookingAction', () => {
     ).rejects.toThrow(/past/i)
   })
 
-  it('issues a Stripe refund when within window and PI exists', async () => {
+  it('requests Stripe refund before cancelling locally when within window and PI exists', async () => {
+    const callOrder: string[] = []
     mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
     mocks.paymentFindUnique.mockResolvedValue({
       id: 'pay_1',
       bookingId: 'bk_1',
       stripePaymentIntentId: 'pi_abc',
       amount: 4500,
+      refundAmount: null,
       status: 'succeeded',
     })
+    mocks.createRefundMock.mockImplementation(async () => {
+      callOrder.push('refund')
+      return { id: 're_1', status: 'pending', amount: 4500, mocked: false }
+    })
+    mocks.txMock.mockImplementation(async (fn) => {
+      callOrder.push('transaction')
+      return fn({
+        booking: {
+          update: mocks.bookingUpdate,
+          findFirst: vi.fn(),
+          findMany: mocks.bookingFindMany,
+        },
+        payment: { update: mocks.paymentUpdate },
+        auditLog: { create: mocks.auditCreate },
+        bookingHold: { findMany: mocks.bookingHoldFindMany },
+        blockedSlot: { findMany: mocks.blockedSlotFindMany },
+        lane: { count: mocks.laneCount },
+        bookingLane: { deleteMany: mocks.bookingLaneDeleteMany },
+      })
+    })
+
     const result = await cancelBookingAction({
       email: 'jane@example.com',
       confirmationCode: 'ABC123',
+    })
+
+    expect(callOrder).toEqual(['refund', 'transaction'])
+    expect(mocks.createRefundMock).toHaveBeenCalledWith({
+      paymentIntentId: 'pi_abc',
+      amountCents: 4500,
+      reason: 'requested_by_customer',
+      idempotencyKey: 'customer-cancel:bk_1:4500',
+      metadata: {
+        bookingId: 'bk_1',
+        source: 'customer_self_service',
+      },
     })
     expect(mocks.bookingUpdate).toHaveBeenCalledWith({
       where: { id: 'bk_1' },
@@ -320,22 +360,49 @@ describe('cancelBookingAction', () => {
     })
     expect(mocks.paymentUpdate).toHaveBeenCalledWith({
       where: { id: 'pay_1' },
-      data: { refundStatus: 'PENDING', refundAmount: 4500 },
-    })
-    expect(mocks.createRefundMock).toHaveBeenCalledWith({
-      paymentIntentId: 'pi_abc',
-      amountCents: 4500,
-      reason: 'requested_by_customer',
-      metadata: { source: 'customer_self_service' },
+      data: {
+        stripeRefundId: 're_1',
+        refundStatus: 'PENDING',
+        refundAmount: 4500,
+      },
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: 'BOOKING_CUSTOMER_CANCELLED',
+        details: expect.objectContaining({
+          stripeRefundId: 're_1',
+        }),
       }),
     })
     expect(mocks.sendCancellationMock).toHaveBeenCalled()
     expect(result.refundAmountCents).toBe(4500)
     expect(result.refundPending).toBe(true)
+  })
+
+  it('leaves booking, payment, and audit untouched when Stripe refund fails', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      refundAmount: null,
+      status: 'succeeded',
+    })
+    mocks.createRefundMock.mockRejectedValue(new Error('Stripe unavailable'))
+
+    await expect(
+      cancelBookingAction({
+        email: 'jane@example.com',
+        confirmationCode: 'ABC123',
+      }),
+    ).rejects.toThrow(/Stripe unavailable/)
+
+    expect(mocks.txMock).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
+    expect(mocks.sendCancellationMock).not.toHaveBeenCalled()
   })
 
   it('skips Stripe refund + payment update when refund amount is 0', async () => {

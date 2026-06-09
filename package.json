@@ -9,10 +9,11 @@
     "start": "next start",
     "lint": "eslint",
     "drift": "node scripts/drift-check.mjs",
+    "audit": "node scripts/security-audit.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "verify": "npx tsc --noEmit && npm run lint && npm run drift && npm test"
+    "verify": "npx tsc --noEmit && npm run lint && npm run drift && npm run audit && npm test"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   verify:
-    name: tsc · eslint · drift · tests
+    name: tsc · eslint · drift · audit · tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -32,7 +32,7 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Verify (tsc + eslint + drift + tests)
+      - name: Verify (tsc + eslint + drift + audit + tests)
         run: npm run verify
         env:
           NODE_ENV: test

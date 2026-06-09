@@ -24,9 +24,12 @@ import { isDevWithoutDb } from '@/lib/env'
 import { sendBookingCancellation } from '@/lib/email'
 import { reassignBookingLanes } from '@/lib/lane-assignment'
 import {
+  findOverlappingBlockedSlots,
+  sumReservedLanesIncludingBlocks,
+} from '@/lib/blocked-lanes'
+import {
   CAPACITY_BOOKING_STATUSES,
   getLaneCount,
-  sumOverlappingLaneCount,
 } from '@/lib/lane-logic'
 import { assertPublicRateLimit } from '@/lib/rate-limit-request'
 import { prisma } from '@/lib/prisma'
@@ -147,8 +150,23 @@ export async function cancelBookingAction(
   const shouldRefund =
     refundAmount > 0 && payment?.stripePaymentIntentId != null
 
-  // Update the booking + payment + audit in a transaction. The webhook will
-  // flip refundStatus to SUCCEEDED if a Stripe refund is created below.
+  let stripeRefund: Awaited<ReturnType<typeof createRefund>> | null = null
+  if (shouldRefund && payment?.stripePaymentIntentId) {
+    const alreadyRefunded = payment.refundAmount ?? 0
+    stripeRefund = await createRefund({
+      paymentIntentId: payment.stripePaymentIntentId,
+      amountCents: refundAmount,
+      reason: 'requested_by_customer',
+      idempotencyKey: `customer-cancel:${booking.id}:${alreadyRefunded + refundAmount}`,
+      metadata: {
+        bookingId: booking.id,
+        source: 'customer_self_service',
+      },
+    })
+  }
+
+  // Persist cancellation only after Stripe accepts the refund request.
+  // The webhook (charge.refunded) is the sole writer of refundStatus = SUCCEEDED.
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: booking.id },
@@ -159,10 +177,11 @@ export async function cancelBookingAction(
         cancellationReason: 'CUSTOMER_REQUEST',
       },
     })
-    if (shouldRefund && payment) {
+    if (shouldRefund && payment && stripeRefund) {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
+          stripeRefundId: stripeRefund.id,
           refundStatus: 'PENDING',
           refundAmount,
         },
@@ -177,6 +196,7 @@ export async function cancelBookingAction(
         entityId: booking.id,
         details: {
           refundAmount,
+          stripeRefundId: stripeRefund?.id ?? null,
           policyWindowHours: booking.policyWindowHours,
           policyRefundPercent: booking.policyRefundPercent,
           sourceEmail: input.email.trim(),
@@ -185,18 +205,7 @@ export async function cancelBookingAction(
     })
   })
 
-  // Trigger the Stripe refund AFTER the DB transaction commits. The webhook
-  // (charge.refunded) is the sole writer of refundStatus = SUCCEEDED.
-  let refundPending = false
-  if (shouldRefund && payment?.stripePaymentIntentId) {
-    await createRefund({
-      paymentIntentId: payment.stripePaymentIntentId,
-      amountCents: refundAmount,
-      reason: 'requested_by_customer',
-      metadata: { source: 'customer_self_service' },
-    })
-    refundPending = true
-  }
+  const refundPending = stripeRefund != null
 
   // Send the cancellation email (best-effort; logs in dev mode).
   await sendBookingCancellation({
@@ -443,10 +452,18 @@ export async function rescheduleDashboardBookingAction(input: {
       const totalLanes = await tx.lane.count({
         where: { tenantId: live.tenantId, active: true },
       })
-      const reserved = sumOverlappingLaneCount(
-        [...overlapping, ...activeHolds],
+      const blocks = await findOverlappingBlockedSlots(
+        tx,
+        live.tenantId,
         input.startTime,
         input.endTime,
+      )
+      const reserved = sumReservedLanesIncludingBlocks(
+        [...overlapping, ...activeHolds],
+        blocks,
+        input.startTime,
+        input.endTime,
+        totalLanes,
       )
       if (totalLanes - reserved < laneCount) {
         throw new Error('Selected time is no longer available.')
