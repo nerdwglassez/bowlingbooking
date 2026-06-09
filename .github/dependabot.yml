@@ -16,6 +16,12 @@ updates:
         dependency-type: development
     commit-message:
       prefix: deps
+    ignore:
+      # Prisma 7 requires prisma.config.ts — stay on 6.x until a planned migration.
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: "@prisma/client"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
