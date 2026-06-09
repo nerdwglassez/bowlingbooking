@@ -129,6 +129,24 @@ describe('acceptTeamInviteAction', () => {
       data: expect.objectContaining({ action: 'TEAM_USER_INVITE_ACCEPTED' }),
     })
   })
+
+  it('rejects stale invite links after a password has already been set', async () => {
+    mocks.teamInviteTokenFindUnique.mockResolvedValue({
+      id: 'invite_1',
+      userId: 'user_new',
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { role: 'STAFF', passwordHash: 'hashed-existing' },
+    })
+
+    await expect(
+      acceptTeamInviteAction({ token: 'rawtoken', password: 'longenough' }),
+    ).rejects.toThrow(/invalid or has expired/i)
+
+    expect(mocks.hashPasswordMock).not.toHaveBeenCalled()
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+    expect(mocks.teamInviteTokenUpdate).not.toHaveBeenCalled()
+  })
 })
 
 describe('resendTeamInviteAction', () => {

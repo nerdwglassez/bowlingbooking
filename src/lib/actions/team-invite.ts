@@ -38,6 +38,10 @@ export async function acceptTeamInviteAction(input: {
     throw new Error('This invite link is invalid or has expired.')
   }
 
+  if (row.user.passwordHash) {
+    throw new Error('This invite link is invalid or has expired.')
+  }
+
   const hashed = await hashPassword(input.password)
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
