@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -5,7 +6,11 @@ export const dynamic = 'force-dynamic'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { getCurrentUser } from '@/lib/auth'
 import { getPostSignInPath } from '@/lib/post-sign-in'
-import { sanitizeSignInFrom } from '@/lib/auth-paths'
+import {
+  bookingReturnPath,
+  isBookingSignInFrom,
+  sanitizeSignInFrom,
+} from '@/lib/auth-paths'
 import { getTenant } from '@/lib/tenant'
 import { SignInForm } from './sign-in-form'
 
@@ -44,6 +49,15 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           <SignInForm from={from} />
         </CardBody>
       </Card>
+
+      {isBookingSignInFrom(from) ? (
+        <Link
+          href={bookingReturnPath(from)}
+          className="block w-full text-center text-sm font-medium text-[var(--color-text-secondary)]"
+        >
+          ← Back to booking
+        </Link>
+      ) : null}
     </main>
   )
 }

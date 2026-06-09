@@ -59,6 +59,14 @@ export interface LaneReservationSlot {
   laneCount: number
 }
 
+/** Booking statuses that consume lane capacity for availability and finalization. */
+export const CAPACITY_BOOKING_STATUSES = [
+  'CONFIRMED',
+  'COMPLETED',
+  'NO_SHOW',
+  'PENDING_PAYMENT',
+] as const
+
 /** Sum laneCount for reservations overlapping [startTime, endTime). */
 export function sumOverlappingLaneCount(
   reservations: LaneReservationSlot[],

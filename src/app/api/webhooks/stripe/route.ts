@@ -29,7 +29,7 @@ import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { sendBookingConfirmation } from '@/lib/email'
 import { isDevWithoutDb } from '@/lib/env'
 import { assignBookingLanes } from '@/lib/lane-assignment'
-import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
+import { getLaneCount, sumOverlappingLaneCount, CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
 import {
   isSerializableConflict,
   isUniqueConstraintOnField,
@@ -66,6 +66,8 @@ interface BookingMetadata {
   packageId: string
   partyType: 'OPEN' | 'BIRTHDAY' | 'CORPORATE' | 'COSMIC'
   bowlerCount: number
+  /** Snapshot from hold at PaymentIntent creation; preferred over live policy. */
+  laneCount?: number
   bowlersPerLane: number
   startTime: Date
   endTime: Date
@@ -93,12 +95,20 @@ function parseBookingMetadata(
   }
   if (!raw.tenantId || !raw.packageId || !raw.holdId) return null
   const bowlersPerLane = Number.parseInt(raw.bowlersPerLane ?? '6', 10)
+  let laneCount: number | undefined
+  if (raw.laneCount != null && raw.laneCount !== '') {
+    const parsedLaneCount = Number.parseInt(raw.laneCount, 10)
+    if (Number.isFinite(parsedLaneCount) && parsedLaneCount >= 1) {
+      laneCount = parsedLaneCount
+    }
+  }
   return {
     holdId: raw.holdId,
     tenantId: raw.tenantId,
     packageId: raw.packageId,
     partyType: partyType as BookingMetadata['partyType'],
     bowlerCount,
+    laneCount,
     bowlersPerLane:
       Number.isFinite(bowlersPerLane) && bowlersPerLane >= 1
         ? bowlersPerLane
@@ -109,6 +119,19 @@ function parseBookingMetadata(
     customerEmail: raw.customerEmail ?? '',
     customerPhone: raw.customerPhone ?? '',
   }
+}
+
+function resolveFinalizationLaneCount(
+  metadata: BookingMetadata,
+  liveHold: { laneCount: number } | null,
+): number {
+  if (metadata.laneCount != null && metadata.laneCount >= 1) {
+    return metadata.laneCount
+  }
+  if (liveHold != null && liveHold.laneCount >= 1) {
+    return liveHold.laneCount
+  }
+  return getLaneCount(metadata.bowlerCount, metadata.bowlersPerLane)
 }
 
 function parsePromoFromIntentMetadata(
@@ -192,7 +215,6 @@ async function handlePaymentIntentSucceeded(
     return
   }
 
-  const laneCount = getLaneCount(metadata.bowlerCount, metadata.bowlersPerLane)
   const rawMeta = intent.metadata as Record<string, string> | null
   const { promoCode: metaPromoCode, discountCents: metaDiscount } =
     parsePromoFromIntentMetadata(rawMeta)
@@ -239,13 +261,15 @@ async function handlePaymentIntentSucceeded(
             throw new Error('Booking hold no longer matches paid intent.')
           }
 
+          const laneCount = resolveFinalizationLaneCount(metadata, liveHold)
+
           const totalLanes = await tx.lane.count({
             where: { tenantId: metadata.tenantId, active: true },
           })
           const confirmed = await tx.booking.findMany({
             where: {
               tenantId: metadata.tenantId,
-              status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+              status: { in: [...CAPACITY_BOOKING_STATUSES] },
               startTime: { lt: metadata.endTime },
               endTime: { gt: metadata.startTime },
             },

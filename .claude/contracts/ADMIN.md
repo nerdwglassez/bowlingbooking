@@ -50,18 +50,16 @@ Status: locked. Canonical manager settings live under `/staff/settings/*`; legac
 
 7. **Patterns are controlled, no `useState`.** Every form pattern (`VenueDetailsForm`, `OperatingHoursEditor`, `PackageForm`, `UserForm`) takes `values + onChange`. State lives on the page-level client island. The drift sentinel enforces this.
 
-8. **Audit every mutation.** Every write in `admin.ts` appends an `AuditLog` row in the same `prisma.$transaction`. Action types: `TENANT_UPDATED`, `OPERATING_HOURS_UPDATED`, `PACKAGE_CREATED`, `PACKAGE_UPDATED`, `PACKAGE_ARCHIVED`, `TEAM_USER_CREATED`, `TEAM_USER_UPDATED`, `TEAM_USER_PASSWORD_RESET`, `TEAM_USER_DEACTIVATED`. Each carries `userId` of the admin and identifying details — never the full input blob (Prisma's `Json` type rejects typed interfaces without index signatures; we keep only the salient scalars).
+8. **Audit every mutation.** Every write in `admin.ts` appends an `AuditLog` row in the same `prisma.$transaction`. Action types: `TENANT_UPDATED`, `OPERATING_HOURS_UPDATED`, `PACKAGE_CREATED`, `PACKAGE_UPDATED`, `PACKAGE_ARCHIVED`, `TEAM_USER_CREATED`, `TEAM_USER_UPDATED`, `TEAM_USER_PASSWORD_RESET`, `TEAM_USER_DEACTIVATED`, `TEAM_USER_INVITE_ACCEPTED`, `TEAM_USER_INVITE_RESENT`. Each carries `userId` of the admin and identifying details — never the full input blob (Prisma's `Json` type rejects typed interfaces without index signatures; we keep only the salient scalars).
 
 9. **Dev-without-DB returns mocks, never throws.** Every read returns deterministic mock data when `isDevWithoutDb()` is true. Writes log to console and return a synthesized id with `mocked: true`. The full admin surface is clickable without Postgres for design review.
 
-10. **Email is not the trust boundary.** Team-member invites use admin-set initial passwords (told out of band). No email magic links in v1. This keeps the auth model identical to the customer Credentials flow.
+10. **Team invites use email magic links.** Admin enters email + role (+ optional message). `createTeamUserAction` creates a pending user (`passwordHash: null`), issues a `TeamInviteToken` (48h TTL), and sends `sendTeamInviteEmail`. The employee sets their password at `/accept-invite`. Duplicate emails (including existing customers) are rejected. Pending users can be resent via `resendTeamInviteAction`.
 
 ## Lifecycle: team-member create
 
 ```
-Admin opens /admin/team/new
-  ↓
-TeamEditor (client) loads form values
+Admin opens /staff/settings/team → Invite sheet
   ↓
 User submits → createTeamUserAction
   ↓
@@ -69,18 +67,35 @@ requireRole(MANAGER, ADMIN)
   ↓
 requireCanAssignRole(caller, input.role)   // ADMIN-only check
   ↓
-validate email format + password length
-  ↓
-hashPassword(initialPassword)
+validate email format
   ↓
 prisma.$transaction([
-  User.create({ email, role, passwordHash, … }),
+  User.create({ email, role, passwordHash: null, … }),
+  TeamInviteToken.create({ … }),
   AuditLog.create({ action: 'TEAM_USER_CREATED', … }),
 ])
   ↓
-revalidatePath('/admin/team')
+sendTeamInviteEmail({ inviteUrl: /accept-invite?token=… })
   ↓
-router.push(`/admin/team/${result.userId}`)
+revalidatePath('/staff/settings/team')
+```
+
+## Lifecycle: team-member accept invite
+
+```
+Employee opens /accept-invite?token=…
+  ↓
+acceptTeamInviteAction({ token, password })
+  ↓
+validate token (unused, unexpired) + staff role
+  ↓
+prisma.$transaction([
+  User.update({ passwordHash }),
+  TeamInviteToken.update({ usedAt }),
+  AuditLog.create({ action: 'TEAM_USER_INVITE_ACCEPTED', … }),
+])
+  ↓
+Employee signs in at /signin?from=/staff
 ```
 
 ## Lifecycle: package archive

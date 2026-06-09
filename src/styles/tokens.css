@@ -71,6 +71,10 @@
   --surface-dark-mid:   var(--palette-stone-800);
   --surface-overlay:    rgba(0, 0, 0, 0.18);
 
+  /* Customer booking header/footer — stone chrome per booking wireframes (not staff purple) */
+  --surface-booking-chrome: var(--palette-stone-900);
+  --color-booking-chrome-link: var(--color-text-muted);
+
   /* ── LAYER 2: Brand Action ── */
   --color-action:        var(--palette-amber-500);
   --color-action-hover:  var(--palette-amber-600);
@@ -79,6 +83,7 @@
   --color-action-text:   var(--palette-amber-800);  /* text ON tint bg — WCAG AA */
   --color-action-dark:   var(--palette-amber-400);  /* action on dark surfaces */
   --color-action-on:     var(--palette-white);       /* text ON filled action button */
+  --color-chrome-link:   var(--palette-purple-300); /* Sign in / profile on dark chrome */
 
   /* ── LAYER 2: Text ── */
   --color-text-primary:   var(--palette-stone-900);
@@ -91,6 +96,7 @@
   --color-border:         var(--palette-stone-200);
   --color-border-strong:  var(--palette-stone-300);
   --color-border-subtle:  var(--palette-stone-100);
+  --color-border-on-dark: var(--palette-purple-700);
 
   /* ── LAYER 2: Status — light mode ── */
   /* Text values pass WCAG AA on light backgrounds */

@@ -121,6 +121,8 @@ const validMetadata = {
   packageId: 'pkg_classic',
   partyType: 'OPEN',
   bowlerCount: '6',
+  laneCount: '1',
+  bowlersPerLane: '6',
   startTime: '2025-06-01T18:00:00.000Z',
   endTime: '2025-06-01T19:00:00.000Z',
   customerName: 'Jane Doe',
@@ -273,6 +275,71 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'jane@example.com' }),
     )
+  })
+
+  it('uses metadata laneCount snapshot instead of recomputing from bowlersPerLane', async () => {
+    const evt = {
+      id: 'evt_lane_snap',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_lane',
+          amount: 4500,
+          status: 'succeeded',
+          metadata: {
+            ...validMetadata,
+            bowlerCount: '13',
+            laneCount: '1',
+            bowlersPerLane: '6',
+          },
+        },
+      },
+    }
+    mocks.constructWebhookEventMock.mockReturnValue(evt)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bowlerCount: 13,
+        laneCount: 1,
+      }),
+    })
+  })
+
+  it('falls back to live hold laneCount when metadata omits laneCount', async () => {
+    const { laneCount: _laneCount, ...legacyMetadata } = validMetadata
+    const evt = {
+      id: 'evt_lane_hold',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_hold_lane',
+          amount: 4500,
+          status: 'succeeded',
+          metadata: legacyMetadata,
+        },
+      },
+    }
+    mocks.constructWebhookEventMock.mockReturnValue(evt)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.bookingHoldFindUnique.mockResolvedValue({
+      id: 'hold_1',
+      tenantId: 't1',
+      bowlerCount: 6,
+      laneCount: 2,
+      startTime: new Date(validMetadata.startTime),
+      endTime: new Date(validMetadata.endTime),
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ laneCount: 2 }),
+    })
   })
 
   it('links valid promo, increments uses, and writes BOOKING_PROMO_APPLIED audit', async () => {

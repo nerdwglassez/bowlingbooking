@@ -1,16 +1,12 @@
 # Royal Z Lanes — Customer Dashboard Interactions
 # .claude/CUSTOMER_DASHBOARD.md
 #
-# Implementation status: PARTIAL
+# Implementation status: BUILT (aligned to customer-dashboard.html wireframe)
 #
 # Built:
 #   /dashboard — auth required; featured card, cancel/reschedule bottom sheets, past section
 #   /find-my-booking — guest self-serve (unchanged)
 #   /book/success — ClaimToken account creation
-#
-# Remaining vs wireframe:
-#   Dark featured card, check-in/cancellation badges, preferences sheet, first-name greeting
-#   Hide account prompt when signed in; post-cancel/reschedule toasts and card treatments
 #
 # Dependencies (schema): Migration 1 + 7 COMPLETE.
 #
@@ -51,8 +47,9 @@ Key tokens:
 Background: --surface-dark (deep purple)
 Left: venue name (--font-display, 16px, --color-text-inverted)
       address below (11px, --color-action-dark, tappable → Google Maps)
-Right: profile icon button (avatar initials circle, 32px)
+Right: profile icon button (user SVG, 36px, purple ring `--color-border-on-dark`)
        Tap → preferences sheet
+       NOT initials chip
 
 ---
 
@@ -61,30 +58,33 @@ Right: profile icon button (avatar initials circle, 32px)
 ### State A — Upcoming bookings exist
 
 Greeting:
-  "Hey [First name] 👋"  (--font-display, 26px, --color-text-primary)
-  "You have X upcoming booking(s)"  (13px, --color-text-secondary)
+  "Welcome back" (11px, --color-text-muted)
+  [First name] only (--font-display, 26px, --color-text-primary)
+  No emoji
+
+Section label: "Next booking" (10px uppercase)
 
 Featured card (next upcoming):
   Background: --surface-dark
   Border radius: --radius-xl
   Padding: 20px
-  Date: --font-display, 22px, --color-text-inverted
-  Time range: 13px, --color-action-dark
-  Detail rows: bowlers, package, lane, confirmation code
-  Check-in window badge (when within window):
-    Background: --color-action-tint
-    Text: "Check in now →" in --color-action-text
-    Visible when: current time is within checkInWindowMinutes of startTime
-  Self-serve window badge (when NOT in check-in window):
-    "Free cancellation until [date]"
-    Reads from booking.cancellationWindowHoursSnapshot (NOT current tenant setting)
-  Action buttons: Reschedule · Cancel
+  Label: "Coming up" (9px uppercase)
+  Date: --font-display, 26px, --color-text-inverted
+  Time: 13px, --color-text-muted, includes duration (e.g. "1:00 PM · 2 hours")
+  Detail rows: bowlers + package; address link (--color-action-dark, underlined)
+  Code chip: inline "Code" label + confirmation code
+  Action buttons: styled Reschedule / Cancel (not ghost Button)
+  Policy note below actions when self-serve window open
+  Inside check-in/reschedule window: actions disabled (35% opacity), call venue note
 
 Secondary upcoming cards (2nd booking onward):
   Background: --surface-card
   Border: 1.5px --color-border
-  More compact than featured card
-  Same action buttons, smaller
+  Date header + time + duration; monospace code chip top-right
+  Meta tags: bowler count, package name (pill chips)
+  "Modify by [date]" window badge when self-serve open
+  "Large group · contact venue to modify" badge when not self-serve
+  Styled Reschedule / Cancel buttons
 
 ### State B — No upcoming bookings
   Empty state: bowling icon + "No upcoming bookings"

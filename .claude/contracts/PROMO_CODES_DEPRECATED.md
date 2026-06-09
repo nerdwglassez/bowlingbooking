@@ -27,7 +27,7 @@
 
 ## Customer flow
 
-1. **Checkout (confirm step)** — `BookingContext.applyPromoCode` calls `validatePromoCode` for UI preview; `PriceFooter` shows subtotal / promo / total.
+1. **Checkout (confirm step)** — `BookingContext.applyPromoCode` calls `validatePromoCode` for UI preview; discount shown in `OrderSummaryCard` (in-content), not sticky footer.
 2. **PaymentIntent** — `confirmBooking` re-runs `validatePromoCode` with the same subtotal; client cannot forge `discountCents`.
 3. **Webhook** — On `payment_intent.succeeded`, reads `metadata.promoCode` / `discountCents`. If the DB row is still incrementable (active, not expired, under `maxUses`), sets `Booking.promoCodeId`, increments `usesCount`, and writes **`BOOKING_PROMO_APPLIED`**. If the row is no longer valid, logs a **warning** but still stores `discountAmount` from metadata (customer-friendly: they already paid the reduced amount).
 

@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified staff employee portal: cockpit with booking detail sheet (mobile sheet / desktop 400px panel), schedule with lane blocking, walk-in FAB, reports (analytics + contacts, MANAGER+), and shared AppShell + NavRail chrome.
 - Canonical manager settings under `/staff/settings/*`: venue, operating hours, pricing periods, booking policies, unified packages (PUBLIC / code-gated tabs), team invite/detail sheets, integrations status, and profile/password.
 - Schema migrations 1–7: policy snapshots on bookings, consent fields, package `inclusions` and `CODE_REQUIRED` columns, `PricingPeriod`, `ClaimToken`, and `PENDING_PAYMENT` booking status.
-- Customer booking funnel through `/book/details` (shoe sizing) with hold timer, price footers on steps 1–4, lane allocation on package step, and remove-bowler on details.
+- Customer booking funnel through `/book/details` (shoe sizing) with hold timer and CTA-only footers on steps 2–4; remove-bowler on details.
 - CODE_REQUIRED packages: special-code unlock on the package step, offline `PAYMENT_OFFLINE` checkout → `PENDING_PAYMENT`, and staff “Confirm payment received” action.
 - Customer `/dashboard` with cancel/reschedule bottom sheets (policy snapshots); guest self-serve remains at `/find-my-booking`.
 - Success-page account claim via `ClaimToken`; confirmation email includes manage, dashboard, and calendar links with optional venue `reply_to`.
@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Customer booking flow: purple `BookingFlowShell` chrome, 4-step indicator, neutral hold bar, CTA-only sticky footers (no price breakdown in footer).
+- Success page: conf header, dismissible celebration banner, icon detail rows, updated account prompt.
+- Customer dashboard: "Welcome back" greeting, profile icon, featured/secondary card structure per wireframe.
 - Policy settings promoted from `Tenant.config` JSON to typed tenant columns; cancel, refund, and dashboard self-serve read booking snapshot fields, not live tenant settings.
 - Customer cancel aligns refund `isRefunded` timing with Stripe webhook (staff path).
 - `confirmBooking` validates optional add-ons server-side; PaymentIntent metadata carries shoes, add-ons, and consent.

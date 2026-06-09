@@ -358,7 +358,7 @@ These were introduced after the customer booking flow landed. Every future agent
 - **Soft delete only.** Packages are archived (`active = false`), users are deactivated (role → CUSTOMER + `passwordHash = null`). Hard delete is forbidden because both are referenced by historical bookings.
 - **Self-mutation forbidden.** A user cannot change their own role or deactivate themselves. The server action throws; the UI hides the affordance.
 - **Audit-log every write** in the same `prisma.$transaction` as the mutation. Action types are documented in `.claude/contracts/ADMIN.md`. Audit `details` carries only salient scalars, never the full input (Prisma's `Json` rejects typed interfaces without index signatures).
-- **Team invites use admin-set initial passwords**, told out of band. No email magic links in v1 — keeps the auth model identical to the customer Credentials flow.
+- **Team invites use email magic links** (`TeamInviteToken`, 48h TTL). Admin invites by email; employee sets password at `/accept-invite`. Resend via `resendTeamInviteAction` for pending users.
 - **Operating hours edit replaces all 7 rows atomically** rather than diffing. Simpler and avoids partial-update bugs.
 - **Dev-without-DB returns deterministic mock data** for every admin read, so the full admin surface is clickable without Postgres.
 - **Full contract:** `.claude/contracts/ADMIN.md` covers route layout, action surface, lifecycle diagrams, audit-log conventions, and the deferred surfaces.

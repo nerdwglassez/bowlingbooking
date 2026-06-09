@@ -205,6 +205,113 @@ export async function sendBookingCancellation(
   return { id: data?.id ?? null }
 }
 
+export interface PasswordResetEmailArgs {
+  to: string
+  resetUrl: string
+}
+
+export async function sendPasswordResetEmail(
+  args: PasswordResetEmailArgs,
+): Promise<{ id: string | null }> {
+  const resend = resolveResend()
+  const html = [
+    '<!doctype html>',
+    '<html><body style="font-family:system-ui,Helvetica,Arial,sans-serif;line-height:1.5;color:#111">',
+    '<h1>Reset your password</h1>',
+    '<p>We received a request to reset the password for your account.</p>',
+    `<p><a href="${escapeHtml(args.resetUrl)}" style="color:#0066cc">Reset password</a></p>`,
+    '<p style="color:#666;font-size:0.9em">This link expires in 1 hour. If you did not request this, you can ignore this email.</p>',
+    '</body></html>',
+  ].join('')
+  const text = [
+    'Reset your password',
+    args.resetUrl,
+    'This link expires in 1 hour.',
+  ].join('\n')
+
+  if (!resend) {
+    console.log(`[email-mock] password reset for ${args.to}: ${args.resetUrl}`)
+    return { id: null }
+  }
+
+  const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
+  const { data, error } = await resend.emails.send({
+    from,
+    to: args.to,
+    subject: 'Reset your password',
+    html,
+    text,
+  })
+  if (error) {
+    throw new Error(`Resend send failed: ${error.message ?? 'unknown error'}`)
+  }
+  return { id: data?.id ?? null }
+}
+
+export interface TeamInviteEmailArgs {
+  to: string
+  inviteUrl: string
+  venueName: string
+  role: 'STAFF' | 'MANAGER' | 'ADMIN'
+  inviterName?: string | null
+  personalMessage?: string | null
+}
+
+const ROLE_LABELS: Record<TeamInviteEmailArgs['role'], string> = {
+  STAFF: 'Staff',
+  MANAGER: 'Manager',
+  ADMIN: 'Admin',
+}
+
+export async function sendTeamInviteEmail(
+  args: TeamInviteEmailArgs,
+): Promise<{ id: string | null }> {
+  const roleLabel = ROLE_LABELS[args.role]
+  const inviterLine = args.inviterName?.trim()
+    ? `<p>${escapeHtml(args.inviterName.trim())} invited you to join the team at ${escapeHtml(args.venueName)} as <strong>${escapeHtml(roleLabel)}</strong>.</p>`
+    : `<p>You've been invited to join the team at ${escapeHtml(args.venueName)} as <strong>${escapeHtml(roleLabel)}</strong>.</p>`
+  const messageBlock = args.personalMessage?.trim()
+    ? `<blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;color:#444">${escapeHtml(args.personalMessage.trim())}</blockquote>`
+    : ''
+
+  const html = [
+    '<!doctype html>',
+    '<html><body style="font-family:system-ui,Helvetica,Arial,sans-serif;line-height:1.5;color:#111">',
+    '<h1>Team invitation</h1>',
+    inviterLine,
+    messageBlock,
+    `<p><a href="${escapeHtml(args.inviteUrl)}" style="color:#0066cc">Accept invitation and set your password</a></p>`,
+    '<p style="color:#666;font-size:0.9em">This link expires in 48 hours. If you were not expecting this invitation, you can ignore this email.</p>',
+    '</body></html>',
+  ].join('')
+
+  const textParts = [
+    `You've been invited to join ${args.venueName} as ${roleLabel}.`,
+    args.personalMessage?.trim() ?? '',
+    args.inviteUrl,
+    'This link expires in 48 hours.',
+  ].filter(Boolean)
+
+  const resend = resolveResend()
+  if (!resend) {
+    console.log(`[email-mock] team invite for ${args.to}: ${args.inviteUrl}`)
+    return { id: null }
+  }
+
+  const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
+  const { data, error } = await resend.emails.send({
+    from,
+    to: args.to,
+    subject: `${args.venueName} — you're invited to the team`,
+    html,
+    text: textParts.join('\n'),
+  })
+  if (error) {
+    throw new Error(`Resend send failed: ${error.message ?? 'unknown error'}`)
+  }
+  return { id: data?.id ?? null }
+}
+
 export async function sendBookingConfirmation(
   args: BookingConfirmationArgs,
 ): Promise<{ id: string | null }> {

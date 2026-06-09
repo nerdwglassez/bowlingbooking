@@ -1,5 +1,6 @@
 import { isDevWithoutDb } from '@/lib/env'
 import {
+  isBookingSignInFrom,
   isGenericSignInFrom,
   resolvePostSignInPath,
   sanitizeSignInFrom,
@@ -32,6 +33,9 @@ export async function getPostSignInPath(
   user: PostSignInUser,
 ): Promise<string> {
   const safe = sanitizeSignInFrom(from)
+  if (isBookingSignInFrom(safe) && user.role === 'CUSTOMER') {
+    return safe === '/book' ? '/book' : safe
+  }
   if (!isGenericSignInFrom(safe)) return safe
 
   if (user.role !== 'CUSTOMER') {

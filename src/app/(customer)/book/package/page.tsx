@@ -1,32 +1,27 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   useLanePricingContext,
   useTenant,
 } from '@/app/(customer)/book/tenant-provider'
-import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
-import { HoldTimer } from '@/components/patterns/hold-timer'
+import { BookingFlowShell } from '@/components/patterns/booking-flow-shell'
+import { BookingFlowFooter } from '@/components/patterns/booking-flow-footer'
 import { PackageListToolbar } from '@/components/patterns/package-list-toolbar'
 import { PackageAddonSection } from '@/components/patterns/package-addon-section'
 import { PackageCard } from '@/components/patterns/package-card'
 import { PackageDetailSheet } from '@/components/patterns/package-detail-sheet'
-import { StepIndicator } from '@/components/patterns/step-indicator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { LaneAllocationView } from '@/components/patterns/lane-allocation-view'
-import { PriceFooter } from '@/components/patterns/price-footer'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import {
-  getPackagesForTenant,
-  validatePackageAccessCode,
-} from '@/lib/actions/booking'
+import { getPackagesForTenant } from '@/lib/actions/booking'
 import { useBooking } from '@/context/BookingContext'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { formatPackageStepSubtitle } from '@/lib/booking-display'
-import { calculateBookingTotal, calculatePackageStepTotal } from '@/lib/pricing'
+import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
+import {
+  calculateBookingTotal,
+  calculatePackageStepTotal,
+} from '@/lib/pricing'
 import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 import type { Package } from '@/types'
@@ -47,23 +42,17 @@ function PackageCardSkeleton() {
 
 export default function PackagePage() {
   const router = useRouter()
+  const pathname = usePathname()
   const tenant = useTenant()
-  const { session, setPackage, clearPackage, setTimeSlot, setBookingTotal, toggleOptionalAddon, setPackageAccessCode } =
+  const { session, setPackage, clearPackage, setTimeSlot, setBookingTotal, toggleOptionalAddon } =
     useBooking()
   const [packages, setPackages] = useState<Package[]>([])
   const [packagesPending, setPackagesPending] = useState(true)
   const [detailPkg, setDetailPkg] = useState<Package | null>(null)
-  const [accessCodeDraft, setAccessCodeDraft] = useState('')
-  const [unlockedAccessCode, setUnlockedAccessCode] = useState<string | null>(
-    null,
-  )
-  const [accessCodeError, setAccessCodeError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    void getPackagesForTenant(tenant.id, {
-      packageAccessCode: unlockedAccessCode ?? undefined,
-    })
+    void getPackagesForTenant(tenant.id)
       .then((rows) => {
         if (!cancelled) setPackages(rows)
       })
@@ -73,7 +62,7 @@ export default function PackagePage() {
     return () => {
       cancelled = true
     }
-  }, [tenant.id, unlockedAccessCode])
+  }, [tenant.id])
 
   const laneReservationCents =
     (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane
@@ -124,18 +113,11 @@ export default function PackagePage() {
         setBookingTotal(laneReservationCents)
         return
       }
-      if (pkg.accessType === 'CODE_REQUIRED' && !unlockedAccessCode) {
-        setAccessCodeError('Enter and unlock your code before selecting this package.')
-        return
-      }
       const result = calculatePackageStepTotal({
         package: pkg,
         bowlerCount: session.bowlerCount!,
         selectedOptionalAddonIds: [],
       })
-      if (pkg.accessType === 'CODE_REQUIRED' && unlockedAccessCode) {
-        setPackageAccessCode(unlockedAccessCode)
-      }
       setPackage(pkg, result.totalAmount)
     },
     [
@@ -145,8 +127,6 @@ export default function PackagePage() {
       session.packageId,
       setBookingTotal,
       setPackage,
-      setPackageAccessCode,
-      unlockedAccessCode,
     ],
   )
 
@@ -176,8 +156,14 @@ export default function PackagePage() {
       : ''
 
   const packageCtaLabel = holdValid
-    ? 'Continue →'
+    ? 'Continue to contact info →'
     : 'Hold expired — return to date & time'
+
+  useEffect(() => {
+    if (session.selectedPackage == null && holdValid) {
+      setBookingTotal(pricing.totalAmount)
+    }
+  }, [holdValid, pricing.totalAmount, session.selectedPackage, setBookingTotal])
 
   const needsHold = session.timeSlotId == null
 
@@ -189,64 +175,34 @@ export default function PackagePage() {
     return null
   }
 
-  return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
-      <BookingFlowHeader
-        venueName={tenant.name}
-        address={tenant.address}
-        onSignIn={() => {
-          router.push(STAFF_SIGN_IN_PATH)
-        }}
-      />
-      <StepIndicator currentStep={2} />
-      <HoldTimer expiresAt={session.holdExpiresAt} onExpire={handleHoldExpired} />
+  const footer = (
+    <BookingFlowFooter
+      ctaLabel={packageCtaLabel}
+      onCta={handleNext}
+      ctaDisabled={!holdValid}
+      back={BOOKING_BACK_BY_STEP[2]}
+    />
+  )
 
+  return (
+    <BookingFlowShell
+      venueName={tenant.name}
+      address={tenant.address}
+      signInHref={`/signin?from=${encodeURIComponent(pathname)}`}
+      currentStep={2}
+      holdExpiresAt={session.holdExpiresAt}
+      onHoldExpire={handleHoldExpired}
+      footer={footer}
+    >
       <BookingFlowLead
-        title="Choose a package"
+        title="Add a package"
         subtitle={packageSubtitle}
       />
 
-      {session.bowlerCount != null ? (
-        <LaneAllocationView bowlerCount={session.bowlerCount} />
-      ) : null}
-
-      <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-card)] p-3">
-        <p className="text-xs text-[var(--color-text-secondary)]">
-          Have a special code?
-        </p>
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            value={accessCodeDraft}
-            onChange={(e) => setAccessCodeDraft(e.target.value)}
-            placeholder="Enter package code"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={async () => {
-              setAccessCodeError(null)
-              const match = await validatePackageAccessCode(
-                tenant.id,
-                accessCodeDraft,
-              )
-              if (!match) {
-                setAccessCodeError('Code not recognized.')
-                return
-              }
-              setUnlockedAccessCode(accessCodeDraft.trim())
-              setPackageAccessCode(accessCodeDraft.trim())
-            }}
-          >
-            Unlock
-          </Button>
-        </div>
-        {accessCodeError ? (
-          <p className="text-xs text-[var(--status-error-text)]">
-            {accessCodeError}
-          </p>
-        ) : null}
-      </div>
+      <p className="text-xs text-[var(--color-text-secondary)]">
+        Open bowling by default — lane reservation only. Tap a package below to
+        add one, or continue without selecting.
+      </p>
 
       <PackageListToolbar resultCount={packages.length} />
 
@@ -286,13 +242,6 @@ export default function PackagePage() {
         }}
       />
 
-      <PriceFooter
-        className="mt-auto"
-        pricing={pricing}
-        ctaLabel={packageCtaLabel}
-        onCta={handleNext}
-        ctaDisabled={!holdValid}
-      />
-    </main>
+    </BookingFlowShell>
   )
 }

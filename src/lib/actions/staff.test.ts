@@ -2,35 +2,57 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const bookingCreate = vi.fn()
+  const bookingUpdate = vi.fn()
+  const bookingUpdateMany = vi.fn()
+  const bookingFindFirst = vi.fn()
   const paymentCreate = vi.fn()
   const auditCreate = vi.fn()
   const blockCreate = vi.fn()
   const blockDeleteMany = vi.fn()
   const tenantFindUniqueOrThrow = vi.fn()
   const packageFindFirst = vi.fn()
+  const bookingFindMany = vi.fn()
+  const bookingHoldFindMany = vi.fn()
+  const laneCount = vi.fn()
+  const reassignBookingLanesMock = vi.fn()
   const txStub = {
-    booking: { create: bookingCreate },
+    booking: {
+      create: bookingCreate,
+      update: bookingUpdate,
+      updateMany: bookingUpdateMany,
+      findUnique: vi.fn(),
+      findFirst: bookingFindFirst,
+      findMany: bookingFindMany,
+    },
     payment: { create: paymentCreate },
     auditLog: { create: auditCreate },
     blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany },
     tenant: { findUniqueOrThrow: tenantFindUniqueOrThrow },
+    package: { findFirst: packageFindFirst },
+    bookingHold: { findMany: bookingHoldFindMany },
+    lane: { count: laneCount },
   }
   return {
     requireRoleMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
     revalidatePathMock: vi.fn(),
-    bookingFindMany: vi.fn(),
+    bookingFindMany,
     bookingFindUnique: vi.fn(),
+    bookingFindFirst,
     blockFindMany: vi.fn(),
-    laneCount: vi.fn(),
+    laneCount,
     laneFindMany: vi.fn(),
     bookingCreate,
+    bookingUpdate,
+    bookingUpdateMany,
     paymentCreate,
     auditCreate,
     blockCreate,
     blockDeleteMany,
     tenantFindUniqueOrThrow,
     packageFindFirst,
+    bookingHoldFindMany,
+    reassignBookingLanesMock,
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
@@ -50,11 +72,16 @@ vi.mock('@/lib/env', async (importOriginal) => {
   }
 })
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
+vi.mock('@/lib/lane-assignment', () => ({
+  reassignBookingLanes: mocks.reassignBookingLanesMock,
+}))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     booking: {
       findMany: mocks.bookingFindMany,
       findUnique: mocks.bookingFindUnique,
+      findFirst: mocks.bookingFindFirst,
+      updateMany: mocks.bookingUpdateMany,
     },
     blockedSlot: { findMany: mocks.blockFindMany },
     lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
@@ -65,12 +92,16 @@ vi.mock('@/lib/prisma', () => ({
 
 import {
   blockLanes,
+  checkInBookingAction,
   createWalkInBooking,
   getBookingDetail,
   getCockpitSnapshot,
   getScheduleForDate,
   getScheduleForMonth,
   getTodayBookings,
+  markBookingCompletedAction,
+  markBookingNoShowAction,
+  staffModifyBookingAction,
   unblockLanes,
 } from './staff'
 
@@ -85,11 +116,19 @@ beforeEach(() => {
     id: 'user_staff',
     email: 'staff@royalz.local',
     role: 'STAFF',
+    tenantId: 't1',
   })
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
-        booking: { create: mocks.bookingCreate },
+        booking: {
+          create: mocks.bookingCreate,
+          update: mocks.bookingUpdate,
+          updateMany: mocks.bookingUpdateMany,
+          findUnique: mocks.bookingFindUnique,
+          findFirst: mocks.bookingFindFirst,
+          findMany: mocks.bookingFindMany,
+        },
         payment: { create: mocks.paymentCreate },
         auditLog: { create: mocks.auditCreate },
         blockedSlot: {
@@ -97,6 +136,9 @@ beforeEach(() => {
           deleteMany: mocks.blockDeleteMany,
         },
         tenant: { findUniqueOrThrow: mocks.tenantFindUniqueOrThrow },
+        package: { findFirst: mocks.packageFindFirst },
+        bookingHold: { findMany: mocks.bookingHoldFindMany },
+        lane: { count: mocks.laneCount },
       } as Parameters<typeof fn>[0]),
   )
   mocks.tenantFindUniqueOrThrow.mockResolvedValue({
@@ -108,6 +150,10 @@ beforeEach(() => {
     config: {},
   })
   mocks.packageFindFirst.mockResolvedValue({ id: 'pkg_1' })
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.reassignBookingLanesMock.mockResolvedValue([1])
 })
 
 describe('staff actions: role gating', () => {
@@ -451,5 +497,77 @@ describe('unblockLanes', () => {
         entityId: 'block_xyz',
       }),
     })
+  })
+})
+
+describe('staffModifyBookingAction', () => {
+  it('reassigns lane links when booking time changes', async () => {
+    const start = new Date('2026-06-01T18:00:00Z')
+    const end = new Date('2026-06-01T19:00:00Z')
+    const newStart = new Date('2026-06-01T20:00:00Z')
+    const newEnd = new Date('2026-06-01T21:00:00Z')
+
+    mocks.bookingFindUnique.mockResolvedValue({
+      id: 'bk_1',
+      tenantId: 't1',
+      status: 'CONFIRMED',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime: start,
+      endTime: end,
+      packageId: 'pkg_1',
+      partyType: 'OPEN',
+      bowlersPerLaneSnapshot: 6,
+    })
+
+    await staffModifyBookingAction({
+      bookingId: 'bk_1',
+      startTime: newStart,
+      endTime: newEnd,
+    })
+
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: expect.objectContaining({
+        startTime: newStart,
+        endTime: newEnd,
+        laneCount: 1,
+      }),
+    })
+    expect(mocks.reassignBookingLanesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        bookingId: 'bk_1',
+        tenantId: 't1',
+        laneCount: 1,
+        startTime: newStart,
+        endTime: newEnd,
+      }),
+    )
+  })
+
+  it('does not reassign lanes when only notes change', async () => {
+    const start = new Date('2026-06-01T18:00:00Z')
+    const end = new Date('2026-06-01T19:00:00Z')
+
+    mocks.bookingFindUnique.mockResolvedValue({
+      id: 'bk_1',
+      tenantId: 't1',
+      status: 'CONFIRMED',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime: start,
+      endTime: end,
+      packageId: 'pkg_1',
+      partyType: 'OPEN',
+      bowlersPerLaneSnapshot: 6,
+    })
+
+    await staffModifyBookingAction({
+      bookingId: 'bk_1',
+      notes: 'VIP guest',
+    })
+
+    expect(mocks.reassignBookingLanesMock).not.toHaveBeenCalled()
   })
 })

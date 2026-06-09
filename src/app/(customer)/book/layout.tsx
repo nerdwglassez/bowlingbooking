@@ -1,5 +1,6 @@
 import { BookingProvider } from '@/context/BookingContext'
 import { loadPricingPeriodsForTenant } from '@/lib/pricing-periods-data'
+import { tenantHasActiveLegacyPromoCodes } from '@/lib/promo-legacy'
 import {
   getPricingStrategy,
   getShoeRentalPriceCents,
@@ -18,6 +19,7 @@ export default async function BookingLayout({
   const laneReservationCentsPerLane =
     typeof perLane === 'number' && perLane >= 0 ? perLane : 1200
   const pricingPeriods = await loadPricingPeriodsForTenant(tenant.id)
+  const hasLegacyPromoCodes = await tenantHasActiveLegacyPromoCodes(tenant.id)
 
   return (
     <TenantProvider
@@ -32,6 +34,7 @@ export default async function BookingLayout({
         bowlersPerLane: tenant.bowlersPerLane,
         pricingStrategy: getPricingStrategy(tenant),
         pricingPeriods,
+        hasLegacyPromoCodes,
       }}
     >
       <BookingProviders>

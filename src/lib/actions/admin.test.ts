@@ -19,7 +19,11 @@ const mocks = vi.hoisted(() => {
   const userUpdate = vi.fn()
   const userFindMany = vi.fn()
   const userFindUnique = vi.fn()
+  const teamInviteTokenDeleteMany = vi.fn()
+  const teamInviteTokenCreate = vi.fn()
   const auditCreate = vi.fn()
+  const sendTeamInviteEmailMock = vi.fn()
+  const getTenantMock = vi.fn()
   const auditFindMany = vi.fn()
   const auditCount = vi.fn()
   const bookingFindMany = vi.fn()
@@ -42,6 +46,10 @@ const mocks = vi.hoisted(() => {
       update: promoUpdate,
     },
     user: { create: userCreate, update: userUpdate },
+    teamInviteToken: {
+      deleteMany: teamInviteTokenDeleteMany,
+      create: teamInviteTokenCreate,
+    },
     auditLog: { create: auditCreate },
     booking: { findMany: bookingFindMany },
     payment: { aggregate: paymentAggregate },
@@ -69,7 +77,11 @@ const mocks = vi.hoisted(() => {
     userUpdate,
     userFindMany,
     userFindUnique,
+    teamInviteTokenDeleteMany,
+    teamInviteTokenCreate,
     auditCreate,
+    sendTeamInviteEmailMock,
+    getTenantMock,
     auditFindMany,
     auditCount,
     bookingFindMany,
@@ -98,6 +110,12 @@ vi.mock('@/lib/env', () => ({
   warnOnce: vi.fn(),
 }))
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
+vi.mock('@/lib/email', () => ({
+  sendTeamInviteEmail: mocks.sendTeamInviteEmailMock,
+}))
+vi.mock('@/lib/tenant', () => ({
+  getTenant: mocks.getTenantMock,
+}))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     tenant: { findUnique: mocks.tenantFindUnique, update: mocks.tenantUpdate },
@@ -167,6 +185,7 @@ function adminUser() {
     email: 'admin@royalz.local',
     name: 'Admin',
     role: 'ADMIN',
+    tenantId: 't1',
   }
 }
 function managerUser() {
@@ -175,6 +194,7 @@ function managerUser() {
     email: 'mgr@royalz.local',
     name: 'Manager',
     role: 'MANAGER',
+    tenantId: 't1',
   }
 }
 
@@ -184,6 +204,19 @@ function staffUser() {
     email: 'staff@royalz.local',
     name: 'Staff',
     role: 'STAFF',
+    tenantId: 't1',
+  }
+}
+
+function teamTarget(overrides?: {
+  id?: string
+  tenantId?: string
+  role?: 'CUSTOMER' | 'STAFF' | 'MANAGER' | 'ADMIN'
+}) {
+  return {
+    id: overrides?.id ?? 'user_someone_else',
+    tenantId: overrides?.tenantId ?? 't1',
+    role: overrides?.role ?? 'STAFF',
   }
 }
 
@@ -199,6 +232,9 @@ beforeEach(() => {
   mocks.laneCount.mockResolvedValue(12)
   mocks.packageCount.mockResolvedValue(0)
   mocks.userCount.mockResolvedValue(0)
+  mocks.userFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+    Promise.resolve(teamTarget({ id: where.id })),
+  )
   mocks.txMock.mockImplementation(
     async (fn) =>
       fn({
@@ -222,6 +258,10 @@ beforeEach(() => {
           update: mocks.promoUpdate,
         },
         user: { create: mocks.userCreate, update: mocks.userUpdate },
+        teamInviteToken: {
+          deleteMany: mocks.teamInviteTokenDeleteMany,
+          create: mocks.teamInviteTokenCreate,
+        },
         auditLog: { create: mocks.auditCreate },
         booking: { findMany: mocks.bookingFindMany },
         payment: { aggregate: mocks.paymentAggregate },
@@ -625,26 +665,21 @@ describe('package CRUD', () => {
 })
 
 describe('team CRUD', () => {
+  beforeEach(() => {
+    mocks.getTenantMock.mockResolvedValue({ name: 'Royal Z Lanes' })
+    mocks.sendTeamInviteEmailMock.mockResolvedValue({ id: 'email_1' })
+    mocks.teamInviteTokenDeleteMany.mockResolvedValue({ count: 0 })
+    mocks.teamInviteTokenCreate.mockResolvedValue({ id: 'invite_1' })
+  })
+
   it('createTeamUserAction rejects invalid email', async () => {
     await expect(
       createTeamUserAction({
         tenantId: 't1',
         email: 'not-an-email',
         role: 'STAFF',
-        initialPassword: 'longenough',
       }),
     ).rejects.toThrow(/email/i)
-  })
-
-  it('createTeamUserAction rejects short password', async () => {
-    await expect(
-      createTeamUserAction({
-        tenantId: 't1',
-        email: 'a@b.co',
-        role: 'STAFF',
-        initialPassword: 'short',
-      }),
-    ).rejects.toThrow(/password/i)
   })
 
   it('createTeamUserAction rejects role=ADMIN when caller is MANAGER', async () => {
@@ -654,32 +689,62 @@ describe('team CRUD', () => {
         tenantId: 't1',
         email: 'a@b.co',
         role: 'ADMIN',
-        initialPassword: 'longenough',
       }),
     ).rejects.toThrow(/ADMIN/)
   })
 
-  it('createTeamUserAction hashes the password before insert', async () => {
-    mocks.userCreate.mockResolvedValue({ id: 'user_new' })
+  it('createTeamUserAction rejects duplicate email with friendly message', async () => {
+    mocks.txMock.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['email'] },
+    })
+    await expect(
+      createTeamUserAction({
+        tenantId: 't1',
+        email: 'a@b.co',
+        role: 'STAFF',
+      }),
+    ).rejects.toThrow(/already in use/i)
+  })
+
+  it('createTeamUserAction creates pending user, token, and sends invite email', async () => {
+    mocks.userCreate.mockResolvedValue({
+      id: 'user_new',
+      email: 'new@example.com',
+      role: 'STAFF',
+    })
     await createTeamUserAction({
       tenantId: 't1',
       email: 'New@Example.com',
       name: '  Casey  ',
       role: 'STAFF',
-      initialPassword: 'longenoughpw',
+      personalMessage: 'Welcome!',
     })
-    expect(mocks.hashPasswordMock).toHaveBeenCalledWith('longenoughpw')
+    expect(mocks.hashPasswordMock).not.toHaveBeenCalled()
     expect(mocks.userCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         email: 'new@example.com',
         name: 'Casey',
-        passwordHash: 'hashed:abc',
+        passwordHash: null,
         role: 'STAFF',
+      }),
+    })
+    expect(mocks.teamInviteTokenCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user_new',
+        personalMessage: 'Welcome!',
       }),
     })
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'TEAM_USER_CREATED' }),
     })
+    expect(mocks.sendTeamInviteEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'new@example.com',
+        role: 'STAFF',
+        personalMessage: 'Welcome!',
+      }),
+    )
   })
 
   it('updateTeamUserAction rejects self-role-change', async () => {
@@ -739,6 +804,94 @@ describe('team CRUD', () => {
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'TEAM_USER_DEACTIVATED' }),
     })
+  })
+
+  it('updateTeamUserAction rejects MANAGER demoting an existing ADMIN', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_admin_target', role: 'ADMIN' }),
+    )
+
+    await expect(
+      updateTeamUserAction({
+        userId: 'user_admin_target',
+        role: 'STAFF',
+      }),
+    ).rejects.toThrow(/ADMIN/)
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
+  it('resetUserPasswordAction rejects MANAGER resetting an ADMIN password', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_admin_target', role: 'ADMIN' }),
+    )
+
+    await expect(
+      resetUserPasswordAction({
+        userId: 'user_admin_target',
+        newPassword: 'longenoughpw',
+      }),
+    ).rejects.toThrow(/ADMIN/)
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+    expect(mocks.hashPasswordMock).not.toHaveBeenCalled()
+  })
+
+  it('deactivateTeamUserAction rejects MANAGER deactivating an ADMIN', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_admin_target', role: 'ADMIN' }),
+    )
+
+    await expect(deactivateTeamUserAction('user_admin_target')).rejects.toThrow(
+      /ADMIN/,
+    )
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
+  it('updateTeamUserAction rejects cross-tenant targets', async () => {
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_other_tenant', tenantId: 't2' }),
+    )
+
+    await expect(
+      updateTeamUserAction({
+        userId: 'user_other_tenant',
+        role: 'STAFF',
+      }),
+    ).rejects.toThrow(/tenant/i)
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
+  it('resetUserPasswordAction rejects cross-tenant targets', async () => {
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_other_tenant', tenantId: 't2' }),
+    )
+
+    await expect(
+      resetUserPasswordAction({
+        userId: 'user_other_tenant',
+        newPassword: 'longenoughpw',
+      }),
+    ).rejects.toThrow(/tenant/i)
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
+  it('deactivateTeamUserAction rejects cross-tenant targets', async () => {
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_other_tenant', tenantId: 't2' }),
+    )
+
+    await expect(deactivateTeamUserAction('user_other_tenant')).rejects.toThrow(
+      /tenant/i,
+    )
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
   })
 })
 

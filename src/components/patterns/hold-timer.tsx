@@ -1,9 +1,3 @@
-// hold-timer.tsx — Documented exception to PATTERNS.md §2 rule 7.
-//
-// Subscribes to wall-clock time via the shared useWallClockNow helper rather
-// than maintaining its own interval. No useState — the timer value is an
-// external subscription, not component state. See PATTERNS.md §2 rule 7.
-
 'use client'
 
 import { useEffect, useRef } from 'react'
@@ -25,7 +19,8 @@ export type HoldTimerProps = {
 }
 
 /**
- * Hold countdown bar (`booking-step1-2-branded.html` hold-bar).
+ * Hold countdown bar (`booking-step2-refined.html` hold-bar).
+ * Neutral sunken styling; active copy: "Lanes held · MM:SS remaining".
  */
 export function HoldTimer({
   expiresAt,
@@ -60,27 +55,21 @@ export function HoldTimer({
     label = 'Hold expired — pick a new time'
   } else {
     const remainingMs = expiresAt.getTime() - now
-    label = `Hold expires in ${formatMmSs(remainingMs)}`
+    label = `Lanes held · ${formatMmSs(remainingMs)} remaining`
   }
-
-  const active = expiresAt != null && !isExpired
 
   const barClass = isExpired
     ? 'border-[var(--status-error-border)] bg-[var(--status-error-bg)] text-[var(--status-error-text)]'
-    : active
-      ? 'border-[var(--color-action)] bg-[var(--color-action-subtle)] text-[var(--color-action-dark)]'
-      : 'border-[var(--color-border)] bg-[var(--surface-card)] text-[var(--color-text-muted)]'
+    : 'border-[var(--color-border-subtle)] bg-[var(--surface-sunken)] text-[var(--color-text-muted)]'
 
   const dotClass = isExpired
     ? 'size-[7px] shrink-0 rounded-full bg-current opacity-70'
-    : active
-      ? 'size-[7px] shrink-0 animate-[hold-blink_2s_ease-in-out_infinite] rounded-full bg-[var(--color-action)]'
-      : 'size-[7px] shrink-0 rounded-full bg-[var(--color-text-muted)]'
+    : 'size-[7px] shrink-0 animate-[hold-blink_2s_ease-in-out_infinite] rounded-full bg-[var(--color-text-muted)]'
 
   return (
     <div
       className={[
-        'mb-4 flex items-center gap-2 rounded-[var(--radius-md)] border px-[13px] py-[9px]',
+        'flex items-center gap-2 border-b px-[13px] py-2',
         barClass,
         className,
       ]
@@ -90,7 +79,7 @@ export function HoldTimer({
       aria-live="polite"
     >
       <span className={dotClass} aria-hidden />
-      <span className="text-xs font-medium">{label}</span>
+      <span className="text-[11px] font-medium">{label}</span>
     </div>
   )
 }

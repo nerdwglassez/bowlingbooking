@@ -73,9 +73,11 @@ Imported once in globals.css, available everywhere.
 --surface-card:       #FDFCFA;   /* cards, inputs */
 --surface-raised:     #FFFFFF;   /* elevated panels */
 --surface-sunken:     #EDE9E3;   /* recessed areas */
---surface-dark:       #1E0A2E;   /* headers, featured */
+--surface-dark:       #1E0A2E;   /* staff headers, featured */
 --surface-dark-mid:   #292524;
 --surface-overlay:    rgba(0,0,0,0.18);
+--surface-booking-chrome: #1C1917; /* customer booking header/footer (stone, not purple) */
+--color-booking-chrome-link: var(--color-text-muted); /* Sign in on booking header */
 ```
 
 ### Semantic tokens — action (primary interactive color)
@@ -86,6 +88,8 @@ Imported once in globals.css, available everywhere.
 --color-action-tint:   #FEF3C7;  /* selected bg */
 --color-action-text:   #92400E;  /* text ON action-tint bg — WCAG AA */
 --color-action-dark:   #FBBF24;  /* action color on dark surfaces */
+--color-chrome-link:   #C084FC;  /* Sign in / profile icon on dark chrome */
+--color-border-on-dark: #3D1A5C; /* dividers on --surface-dark footers */
 ```
 
 ### Semantic tokens — text
@@ -285,12 +289,14 @@ Directory: src/components/patterns/
 Composed ONLY from Layer 2 primitives. No raw styles.
 
 Key patterns:
-- BookingStepShell — header, step dots, hold bar, scrollable content, price footer
+- BookingFlowShell — stone booking chrome header, step strip, hold bar, scrollable content, optional CTA footer
+- BookingAppHeader — `--surface-booking-chrome` venue header (stone, not staff purple)
+- BookingFlowFooter — stone sticky bar, primary CTA, optional secondary back button
 - FeaturedBookingCard — dark card, confirmation code, booking details, action buttons
 - StaffCockpitHeader — purple surface, venue name (Fraunces), role badge, avatar
 - LaneTimelineRow — lane label, track bar, booking blocks, now-line
 - PackageCard — package summary card, **What's included →** opens detail sheet, tags, select CTA
-- PriceFooter — dark surface, line items, total, CTA button
+- OrderSummaryCard — collapsible itemized pricing on confirm step (in-content, not footer)
 
 ---
 

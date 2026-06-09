@@ -1,26 +1,23 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
 import {
   useLanePricingContext,
   useTenant,
 } from '@/app/(customer)/book/tenant-provider'
 import { BookingDetailsFooter } from '@/components/patterns/booking-details-footer'
-import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
+import { BookingFlowShell } from '@/components/patterns/booking-flow-shell'
 import { ContactInfoSection } from '@/components/patterns/contact-info-section'
-import { HoldTimer } from '@/components/patterns/hold-timer'
 import {
   ShoeRentalSectionHeader,
   ShoeRentalTable,
 } from '@/components/patterns/shoe-rental-table'
 import { ShoesIncludedNotice } from '@/components/patterns/shoes-included-notice'
 import { OwnShoesNotice } from '@/components/patterns/own-shoes-notice'
-import { StepIndicator } from '@/components/patterns/step-indicator'
 import { useBooking } from '@/context/BookingContext'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import { formatDetailsStepSubtitle } from '@/lib/booking-display'
 import { isContactComplete } from '@/lib/customer-name'
@@ -31,6 +28,7 @@ import { useWallClockNow } from '@/lib/use-wall-clock'
 
 export default function BookDetailsPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const tenant = useTenant()
   const {
     session,
@@ -43,7 +41,6 @@ export default function BookDetailsPage() {
   } = useBooking()
   const now = useWallClockNow()
   const [emailTouched, setEmailTouched] = useState(false)
-  const [editingContact, setEditingContact] = useState(false)
 
   useEffect(() => {
     syncShoeRows()
@@ -92,11 +89,6 @@ export default function BookDetailsPage() {
       laneReservationCents,
       pricingContext,
     ],
-  )
-
-  const packageLineItems = useMemo(
-    () => pricing.lineItems.filter((item) => item.type !== 'shoe'),
-    [pricing.lineItems],
   )
 
   useEffect(() => {
@@ -151,29 +143,33 @@ export default function BookDetailsPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
-      <BookingFlowHeader
-        venueName={tenant.name}
-        address={tenant.address}
-        onSignIn={() => router.push(STAFF_SIGN_IN_PATH)}
-      />
-      <StepIndicator currentStep={3} />
-      <HoldTimer
-        expiresAt={session.holdExpiresAt}
-        onExpire={handleHoldExpired}
-      />
-
+    <BookingFlowShell
+      venueName={tenant.name}
+      address={tenant.address}
+      signInHref={`/signin?from=${encodeURIComponent(pathname)}`}
+      currentStep={3}
+      holdExpiresAt={session.holdExpiresAt}
+      onHoldExpire={handleHoldExpired}
+      footer={
+        <BookingDetailsFooter
+          shoeSelections={session.shoeSelections}
+          shoesRequired={shoesRequired}
+          contactComplete={contactComplete}
+          holdValid={holdValid}
+          onContinue={handleNext}
+          back={BOOKING_BACK_BY_STEP[3]}
+        />
+      }
+    >
       <BookingFlowLead title="Your details" subtitle={subtitle} />
 
       <ContactInfoSection
         customerName={session.customerName}
         customerEmail={session.customerEmail}
         customerPhone={session.customerPhone}
-        editing={editingContact}
-        onEditingChange={setEditingContact}
-        compact={
-          contactComplete && (shoesIncluded || allShoesSelected)
-        }
+        editing={false}
+        onEditingChange={() => {}}
+        compact={false}
         onChange={setCustomerInfo}
         emailInvalid={emailTouched && !isEmailValid}
         onEmailBlur={() => setEmailTouched(true)}
@@ -207,19 +203,6 @@ export default function BookDetailsPage() {
           </>
         )}
       </section>
-
-      <BookingDetailsFooter
-        className="mt-auto"
-        packageLineItems={packageLineItems}
-        shoeSelections={session.shoeSelections}
-        shoesRequired={shoesRequired}
-        totalAmountCents={pricing.totalAmount}
-        contactComplete={contactComplete}
-        holdValid={holdValid}
-        onContinue={handleNext}
-        backHref={BOOKING_BACK_BY_STEP[3].href}
-        backLabel={BOOKING_BACK_BY_STEP[3].label}
-      />
-    </main>
+    </BookingFlowShell>
   )
 }

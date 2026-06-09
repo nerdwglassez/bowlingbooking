@@ -22,6 +22,7 @@ export interface TenantChrome {
   bowlersPerLane: number
   pricingStrategy: TenantPricingStrategy
   pricingPeriods: PricingPeriod[]
+  hasLegacyPromoCodes: boolean
 }
 
 const TenantContext = createContext<TenantChrome | null>(null)

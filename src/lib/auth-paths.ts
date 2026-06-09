@@ -17,15 +17,26 @@ export function sanitizeSignInFrom(raw: string | null | undefined): string {
 const GENERIC_SIGN_IN_FROM = new Set([
   '/',
   '/signin',
-  '/book',
   '/staff',
   '/admin',
   '/find-my-booking',
 ])
 
+export function isBookingSignInFrom(from: string): boolean {
+  const safe = sanitizeSignInFrom(from)
+  return safe === '/book' || safe.startsWith('/book/')
+}
+
+export function bookingReturnPath(from: string): string {
+  const safe = sanitizeSignInFrom(from)
+  if (!isBookingSignInFrom(safe)) return '/book'
+  return safe
+}
+
 export function isGenericSignInFrom(from: string): boolean {
   const safe = sanitizeSignInFrom(from)
   if (safe === '/' || safe === '/signin') return true
+  if (isBookingSignInFrom(safe)) return false
   if (GENERIC_SIGN_IN_FROM.has(safe)) return true
   if (safe.startsWith('/find-my-booking/')) return true
   return false

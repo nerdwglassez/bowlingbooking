@@ -15,6 +15,7 @@ import {
   createTeamUserAction,
   updateTeamUserAction,
 } from '@/lib/actions/admin'
+import { resendTeamInviteAction } from '@/lib/actions/team-invite'
 
 const ROLE_VARIANT: Record<
   'STAFF' | 'MANAGER' | 'ADMIN',
@@ -23,6 +24,17 @@ const ROLE_VARIANT: Record<
   STAFF: 'default',
   MANAGER: 'info',
   ADMIN: 'ok',
+}
+
+function formatInvitedAgo(date: Date): string {
+  const diffMs = Date.now() - date.getTime()
+  const mins = Math.floor(diffMs / 60_000)
+  if (mins < 1) return 'Invited just now'
+  if (mins < 60) return `Invited ${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 48) return `Invited ${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `Invited ${days}d ago`
 }
 
 export function TeamSettingsPanel({
@@ -54,27 +66,41 @@ export function TeamSettingsPanel({
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {users.map((u) => (
-            <li key={u.id}>
-              <button
-                type="button"
-                onClick={() => setDetailUser(u)}
-                className="flex w-full flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4 text-left transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--surface-sunken)] md:flex-row md:items-center md:justify-between"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm text-[var(--color-text-primary)]">
-                    {u.name ?? 'Unnamed'}
-                  </span>
-                  <span className="text-xs text-[var(--color-text-secondary)]">
-                    {u.email}
-                  </span>
-                </div>
-                <Badge variant={ROLE_VARIANT[u.role as keyof typeof ROLE_VARIANT]}>
-                  {u.role}
-                </Badge>
-              </button>
-            </li>
-          ))}
+          {users.map((u) => {
+            const pending = !u.hasPassword
+            return (
+              <li key={u.id}>
+                <button
+                  type="button"
+                  onClick={() => setDetailUser(u)}
+                  className="flex w-full flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4 text-left transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--surface-sunken)] md:flex-row md:items-center md:justify-between"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-[var(--color-text-primary)]">
+                      {u.name ?? 'Unnamed'}
+                    </span>
+                    <span className="text-xs text-[var(--color-text-secondary)]">
+                      {u.email}
+                    </span>
+                    {pending ? (
+                      <span className="text-xs text-[var(--color-text-secondary)]">
+                        {formatInvitedAgo(new Date(u.createdAt))}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Badge
+                    variant={
+                      pending
+                        ? 'warning'
+                        : ROLE_VARIANT[u.role as keyof typeof ROLE_VARIANT]
+                    }
+                  >
+                    {pending ? 'Pending' : u.role}
+                  </Badge>
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
 
@@ -100,6 +126,10 @@ export function TeamSettingsPanel({
           showToast({ message: 'Team member updated', variant: 'success' })
           router.refresh()
         }}
+        onResent={() => {
+          showToast({ message: 'Invite resent', variant: 'success' })
+          router.refresh()
+        }}
       />
     </>
   )
@@ -119,7 +149,7 @@ function InviteSheet({
   onSuccess: () => void
 }) {
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [personalMessage, setPersonalMessage] = useState('')
   const [role, setRole] = useState<'STAFF' | 'MANAGER' | 'ADMIN'>('STAFF')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -131,13 +161,13 @@ function InviteSheet({
         await createTeamUserAction({
           tenantId,
           email,
-          initialPassword: password,
           role,
           name: undefined,
           phone: undefined,
+          personalMessage: personalMessage.trim() || undefined,
         })
         setEmail('')
-        setPassword('')
+        setPersonalMessage('')
         setRole('STAFF')
         onSuccess()
       } catch (err) {
@@ -165,18 +195,6 @@ function InviteSheet({
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">
-            Temporary password
-          </span>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
           <span className="text-[var(--color-text-secondary)]">Role</span>
           <Select
             value={role}
@@ -191,6 +209,23 @@ function InviteSheet({
             ) : null}
           </Select>
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[var(--color-text-secondary)]">
+            Personal message (optional)
+          </span>
+          <textarea
+            rows={3}
+            value={personalMessage}
+            onChange={(e) => setPersonalMessage(e.target.value)}
+            className="w-full resize-none rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+            placeholder="Welcome to the team!"
+          />
+        </label>
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          An invite link will be sent to their email. The link expires in{' '}
+          <strong>48 hours</strong>. They&apos;ll set their own password when
+          they accept.
+        </p>
         {error ? (
           <p className="text-sm text-[var(--status-error-text)]">{error}</p>
         ) : null}
@@ -208,12 +243,14 @@ function DetailSheet({
   callerRole,
   onClose,
   onSaved,
+  onResent,
 }: {
   open: boolean
   user: AdminUserRow | null
   callerRole: 'ADMIN'
   onClose: () => void
   onSaved: () => void
+  onResent: () => void
 }) {
   return (
     <BottomSheet
@@ -227,6 +264,7 @@ function DetailSheet({
           user={user}
           callerRole={callerRole}
           onSaved={onSaved}
+          onResent={onResent}
         />
       ) : null}
     </BottomSheet>
@@ -237,10 +275,12 @@ function DetailSheetForm({
   user,
   callerRole,
   onSaved,
+  onResent,
 }: {
   user: AdminUserRow
   callerRole: 'ADMIN'
   onSaved: () => void
+  onResent: () => void
 }) {
   const [name, setName] = useState(user.name ?? '')
   const [role, setRole] = useState<'STAFF' | 'MANAGER' | 'ADMIN'>(
@@ -248,6 +288,8 @@ function DetailSheetForm({
   )
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [resendPending, startResend] = useTransition()
+  const pendingInvite = !user.hasPassword
 
   function handleSave() {
     setError(null)
@@ -266,9 +308,27 @@ function DetailSheetForm({
     })
   }
 
+  function handleResend() {
+    setError(null)
+    startResend(async () => {
+      try {
+        await resendTeamInviteAction({ userId: user.id })
+        onResent()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not resend invite.')
+      }
+    })
+  }
+
   return (
     <div className="flex flex-col gap-3 p-4">
       <p className="text-xs text-[var(--color-text-secondary)]">{user.email}</p>
+      {pendingInvite ? (
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          {formatInvitedAgo(new Date(user.createdAt))} — waiting for them to
+          accept.
+        </p>
+      ) : null}
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-[var(--color-text-secondary)]">Name</span>
         <Input
@@ -294,6 +354,17 @@ function DetailSheetForm({
       </label>
       {error ? (
         <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+      ) : null}
+      {pendingInvite ? (
+        <Button
+          type="button"
+          variant="secondary"
+          fullWidth
+          loading={resendPending}
+          onClick={handleResend}
+        >
+          Resend invite
+        </Button>
       ) : null}
       <Button type="button" fullWidth loading={pending} onClick={handleSave}>
         Save changes

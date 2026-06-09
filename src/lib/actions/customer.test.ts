@@ -4,10 +4,18 @@ const mocks = vi.hoisted(() => {
   const bookingUpdate = vi.fn()
   const paymentUpdate = vi.fn()
   const auditCreate = vi.fn()
+  const bookingFindMany = vi.fn()
+  const bookingHoldFindMany = vi.fn()
+  const laneCount = vi.fn()
+  const bookingLaneDeleteMany = vi.fn()
+  const reassignBookingLanesMock = vi.fn()
   const txStub = {
-    booking: { update: bookingUpdate },
+    booking: { update: bookingUpdate, findFirst: vi.fn(), findMany: bookingFindMany },
     payment: { update: paymentUpdate },
     auditLog: { create: auditCreate },
+    bookingHold: { findMany: bookingHoldFindMany },
+    lane: { count: laneCount },
+    bookingLane: { deleteMany: bookingLaneDeleteMany },
   }
   return {
     isDevWithoutDbMock: vi.fn(() => false),
@@ -17,6 +25,11 @@ const mocks = vi.hoisted(() => {
     bookingUpdate,
     paymentUpdate,
     auditCreate,
+    bookingFindMany,
+    bookingHoldFindMany,
+    laneCount,
+    bookingLaneDeleteMany,
+    reassignBookingLanesMock,
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
@@ -51,6 +64,9 @@ vi.mock('@/lib/stripe', () => ({
 vi.mock('@/lib/email', () => ({
   sendBookingCancellation: mocks.sendCancellationMock,
 }))
+vi.mock('@/lib/lane-assignment', () => ({
+  reassignBookingLanes: mocks.reassignBookingLanesMock,
+}))
 vi.mock('@/lib/auth', () => ({
   requireUser: vi.fn(async () => ({
     id: 'user_1',
@@ -60,7 +76,11 @@ vi.mock('@/lib/auth', () => ({
   })),
 }))
 
-import { cancelBookingAction, getBookingByLookup } from './customer'
+import {
+  cancelBookingAction,
+  getBookingByLookup,
+  rescheduleDashboardBookingAction,
+} from './customer'
 
 function bookingFixture(overrides: Partial<{
   id: string
@@ -122,13 +142,26 @@ beforeEach(() => {
   })
   mocks.sendCancellationMock.mockResolvedValue({ id: null })
   mocks.createRefundMock.mockResolvedValue({ id: 're_1', status: 'pending' })
+  mocks.laneCount.mockResolvedValue(8)
+  mocks.bookingFindMany.mockResolvedValue([])
+  mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.reassignBookingLanesMock.mockResolvedValue([1])
   mocks.txMock.mockImplementation(
-    async (fn) =>
-      fn({
-        booking: { update: mocks.bookingUpdate },
+    async (fn) => {
+      const tx = {
+        booking: {
+          update: mocks.bookingUpdate,
+          findFirst: mocks.bookingFindFirst,
+          findMany: mocks.bookingFindMany,
+        },
         payment: { update: mocks.paymentUpdate },
         auditLog: { create: mocks.auditCreate },
-      } as Parameters<typeof fn>[0]),
+        bookingHold: { findMany: mocks.bookingHoldFindMany },
+        lane: { count: mocks.laneCount },
+        bookingLane: { deleteMany: mocks.bookingLaneDeleteMany },
+      }
+      return fn(tx as Parameters<typeof fn>[0])
+    },
   )
 })
 
@@ -357,5 +390,88 @@ describe('cancelBookingAction', () => {
     })
     expect(result.mocked).toBe(true)
     expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('rescheduleDashboardBookingAction', () => {
+  it('reassigns lane links after updating booking times', async () => {
+    const start = new Date(Date.now() + 48 * 3_600_000)
+    const end = new Date(start.getTime() + 3_600_000)
+    const newStart = new Date(start.getTime() + 24 * 3_600_000)
+    const newEnd = new Date(newStart.getTime() + 3_600_000)
+
+    mocks.bookingFindFirst
+      .mockResolvedValueOnce({
+        id: 'bk_1',
+        tenantId: 't1',
+        status: 'CONFIRMED',
+        bowlerCount: 4,
+        laneCount: 1,
+        startTime: start,
+        endTime: end,
+        rescheduleWindowHoursSnapshot: 24,
+        bowlersPerLaneSnapshot: 6,
+      })
+      .mockResolvedValueOnce({
+        id: 'bk_1',
+        tenantId: 't1',
+        status: 'CONFIRMED',
+        bowlerCount: 4,
+        laneCount: 1,
+        startTime: start,
+        endTime: end,
+      })
+
+    await rescheduleDashboardBookingAction({
+      bookingId: 'bk_1',
+      startTime: newStart,
+      endTime: newEnd,
+    })
+
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: {
+        startTime: newStart,
+        endTime: newEnd,
+        laneCount: 1,
+      },
+    })
+    expect(mocks.reassignBookingLanesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        bookingId: 'bk_1',
+        tenantId: 't1',
+        laneCount: 1,
+        startTime: newStart,
+        endTime: newEnd,
+      }),
+    )
+  })
+
+  it('allows rescheduling PENDING_PAYMENT bookings', async () => {
+    const start = new Date(Date.now() + 48 * 3_600_000)
+    const end = new Date(start.getTime() + 3_600_000)
+    const newStart = new Date(start.getTime() + 24 * 3_600_000)
+    const newEnd = new Date(newStart.getTime() + 3_600_000)
+
+    mocks.bookingFindFirst.mockResolvedValue({
+      id: 'bk_pending',
+      tenantId: 't1',
+      status: 'PENDING_PAYMENT',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime: start,
+      endTime: end,
+      rescheduleWindowHoursSnapshot: 24,
+      bowlersPerLaneSnapshot: 6,
+    })
+
+    await rescheduleDashboardBookingAction({
+      bookingId: 'bk_pending',
+      startTime: newStart,
+      endTime: newEnd,
+    })
+
+    expect(mocks.reassignBookingLanesMock).toHaveBeenCalled()
   })
 })

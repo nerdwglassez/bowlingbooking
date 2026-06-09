@@ -1,12 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
-import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
-import { StepIndicator } from '@/components/patterns/step-indicator'
-import { HoldTimer } from '@/components/patterns/hold-timer'
+import { BookingFlowShell } from '@/components/patterns/booking-flow-shell'
 import { OrderSummaryCard } from '@/components/patterns/order-summary-card'
 import {
   PaymentErrorBanner,
@@ -23,16 +21,16 @@ import {
   useLanePricingContext,
   useTenant,
 } from '@/app/(customer)/book/tenant-provider'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import {
   confirmBooking,
   confirmOfflineBooking,
+  getPackagesForTenant,
   validatePackageAccessCode,
 } from '@/lib/actions/booking'
-import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import { paymentFooterLineItems } from '@/lib/booking-display'
 import { isContactComplete } from '@/lib/customer-name'
-import { calculateBookingTotal, formatPrice } from '@/lib/pricing'
+import { calculateBookingTotal, calculatePackageStepTotal, formatPrice } from '@/lib/pricing'
 import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 
@@ -62,10 +60,12 @@ export default function ConfirmBookingPage() {
     clearPromoCode,
     setTimeSlot,
     resetSession,
+    setPackage,
     setPackageAccessCode,
   } = useBooking()
   const tenant = useTenant()
   const router = useRouter()
+  const pathname = usePathname()
   const { showToast } = useToast()
   const initStarted = useRef(false)
   const [summaryExpanded, setSummaryExpanded] = useState(false)
@@ -81,9 +81,18 @@ export default function ConfirmBookingPage() {
     () => session.packageAccessCode ?? '',
   )
   const [accessCodeError, setAccessCodeError] = useState<string | null>(null)
+  const [accessCodeLoading, setAccessCodeLoading] = useState(false)
   const nowMs = useWallClockNow()
 
   const needsAccessCode = session.selectedPackage?.accessType === 'CODE_REQUIRED'
+  const accessCodeApplied = Boolean(session.packageAccessCode?.trim())
+  const [specialCodeOpen, setSpecialCodeOpen] = useState(
+    () => needsAccessCode && !accessCodeApplied,
+  )
+  const showSpecialCodeField =
+    specialCodeOpen || needsAccessCode || accessCodeApplied
+  const showLegacyPromo =
+    !needsAccessCode && tenant.hasLegacyPromoCodes && !session.promoCode
 
   const shoesIncluded = session.selectedPackage?.shoesIncluded ?? false
   const isOfflinePackage =
@@ -289,6 +298,47 @@ export default function ConfirmBookingPage() {
     })
   }, [canRender, accessCodeReady, hasPaymentIntent, isOfflinePackage, startPayment])
 
+  async function handleApplyAccessCode() {
+    const code = accessCodeDraft.trim()
+    if (!code) return
+    setAccessCodeError(null)
+    setAccessCodeLoading(true)
+    try {
+      const match = await validatePackageAccessCode(tenant.id, code)
+      if (!match) {
+        setAccessCodeError('Code not recognized.')
+        return
+      }
+      if (
+        needsAccessCode &&
+        session.selectedPackage != null &&
+        match.packageId !== session.selectedPackage.id
+      ) {
+        setAccessCodeError('Code not valid for this package.')
+        return
+      }
+      const packages = await getPackagesForTenant(tenant.id)
+      const pkg = packages.find((row) => row.id === match.packageId)
+      if (!pkg) {
+        setAccessCodeError('Package not available.')
+        return
+      }
+      if (session.packageId !== pkg.id) {
+        const total = calculatePackageStepTotal({
+          package: pkg,
+          bowlerCount: session.bowlerCount!,
+          selectedOptionalAddonIds: [],
+        }).totalAmount
+        setPackage(pkg, total)
+      }
+      setPackageAccessCode(code)
+      initStarted.current = false
+      clearPaymentIntent()
+    } finally {
+      setAccessCodeLoading(false)
+    }
+  }
+
   async function handleApplyPromo() {
     setPromoError(null)
     setPromoLoading(true)
@@ -326,158 +376,187 @@ export default function ConfirmBookingPage() {
   }
 
   return (
-    <main className="relative mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
-      <div className={checkoutLocked ? 'pointer-events-none opacity-40' : ''}>
-        <BookingFlowHeader
-          venueName={tenant.name}
-          address={tenant.address}
-          onSignIn={() => {
-            router.push(STAFF_SIGN_IN_PATH)
-          }}
-        />
-        <StepIndicator currentStep={4} className="mt-4" />
-        <HoldTimer
-          expiresAt={session.holdExpiresAt}
-          onExpire={handleHoldExpired}
-          className="mt-4"
-        />
-
-        <BookingFlowLead
-          title="Payment"
-          subtitle="Almost there — review and pay"
-          className="mt-4"
-        />
-
-        {paymentError ? (
-          <PaymentErrorBanner
-            message={`${paymentError} Your lanes are still held.`}
+    <div className="relative">
+      <BookingFlowShell
+        venueName={tenant.name}
+        address={tenant.address}
+        signInHref={`/signin?from=${encodeURIComponent(pathname)}`}
+        currentStep={4}
+        holdExpiresAt={session.holdExpiresAt}
+        onHoldExpire={handleHoldExpired}
+        footer={
+          hasPaymentIntent ? (
+            <PaymentPriceFooter
+              ctaLabel={payCtaLabel}
+              onPay={() => {}}
+              formId={BOOKING_PAYMENT_FORM_ID}
+              ctaDisabled={!holdValid || checkoutLocked}
+              ctaLoading={paymentProcessing}
+              back={BOOKING_BACK_BY_STEP[4]}
+            />
+          ) : null
+        }
+      >
+        <div className={checkoutLocked ? 'pointer-events-none opacity-40' : ''}>
+          <BookingFlowLead
+            title={isOfflinePackage ? 'Review & confirm' : 'Payment'}
+            subtitle={
+              isOfflinePackage
+                ? 'Confirm your reservation — pay at the venue'
+                : 'Almost there — review and pay'
+            }
           />
-        ) : null}
 
-        <OrderSummaryCard
-          className="mt-2"
-          totalCents={finalTotalCents}
-          lineItems={displayLineItems}
-          promoLine={promoLine}
-          expanded={summaryExpanded}
-          onExpandedChange={setSummaryExpanded}
-          expandedFooter={
-            summaryExpanded && !session.promoCode ? (
-              <div className="pt-3">
-                <PromoInput
-                  value={promoDraft}
-                  onChange={setPromoDraft}
-                  onApply={() => void handleApplyPromo()}
-                  onClear={clearPromoCode}
-                  appliedCode={null}
-                  discountCents={null}
-                  error={promoError}
-                  loading={promoLoading}
-                  disabled={!holdValid || checkoutLocked}
-                  placeholder="Have a promo code?"
-                />
-              </div>
-            ) : null
-          }
-        />
+          {paymentError ? (
+            <PaymentErrorBanner
+              message={`${paymentError} Your lanes are still held.`}
+            />
+          ) : null}
 
-        {needsAccessCode ? (
-          <div className="mt-4 flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-card)] p-3">
-            <p className="text-xs text-[var(--color-text-secondary)]">
-              Special access code required for {session.selectedPackage?.name}
-            </p>
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                value={accessCodeDraft}
-                onChange={(e) => {
-                  setAccessCodeDraft(e.target.value)
-                  setAccessCodeError(null)
-                }}
-                placeholder="Enter package code"
-                disabled={checkoutLocked}
-              />
-              <Button
+          <OrderSummaryCard
+            className="mt-2"
+            totalCents={finalTotalCents}
+            lineItems={displayLineItems}
+            promoLine={promoLine}
+            expanded={summaryExpanded}
+            onExpandedChange={setSummaryExpanded}
+            expandedFooter={
+              summaryExpanded && showLegacyPromo ? (
+                <div className="pt-3">
+                  <PromoInput
+                    value={promoDraft}
+                    onChange={setPromoDraft}
+                    onApply={() => void handleApplyPromo()}
+                    onClear={clearPromoCode}
+                    appliedCode={null}
+                    discountCents={null}
+                    error={promoError}
+                    loading={promoLoading}
+                    disabled={!holdValid || checkoutLocked}
+                    placeholder="Have a promo code?"
+                  />
+                </div>
+              ) : null
+            }
+          />
+
+          <section className="mt-4 flex flex-col gap-2">
+            {!showSpecialCodeField ? (
+              <button
                 type="button"
-                variant="ghost"
-                disabled={checkoutLocked || !accessCodeDraft.trim()}
-                onClick={async () => {
-                  setAccessCodeError(null)
-                  const match = await validatePackageAccessCode(
-                    tenant.id,
-                    accessCodeDraft,
-                  )
-                  if (
-                    !match ||
-                    match.packageId !== session.selectedPackage?.id
-                  ) {
-                    setAccessCodeError('Code not valid for this package.')
-                    return
-                  }
-                  setPackageAccessCode(accessCodeDraft.trim())
-                  initStarted.current = false
-                  clearPaymentIntent()
-                }}
+                className="w-fit border-0 bg-transparent p-0 text-xs font-semibold text-[var(--color-action)]"
+                onClick={() => setSpecialCodeOpen(true)}
               >
-                Verify
-              </Button>
-            </div>
-            {accessCodeError ? (
-              <p className="text-xs text-[var(--status-error-text)]">
-                {accessCodeError}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+                Have a special code?
+              </button>
+            ) : (
+              <>
+                <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
+                  Special access code
+                </h2>
+                {accessCodeApplied ? (
+                  <div className="flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-card)] px-3 py-2.5 text-sm">
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">
+                        {session.packageAccessCode!.toUpperCase()}
+                      </p>
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        {needsAccessCode
+                          ? `Verified for ${session.selectedPackage?.name}`
+                          : `Applied — ${session.selectedPackage?.name ?? 'package updated'}`}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={checkoutLocked}
+                      onClick={() => {
+                        setPackageAccessCode(null)
+                        setAccessCodeDraft('')
+                        initStarted.current = false
+                        clearPaymentIntent()
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {needsAccessCode ? (
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        Enter your code to complete checkout for{' '}
+                        {session.selectedPackage?.name}.
+                      </p>
+                    ) : null}
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        value={accessCodeDraft}
+                        onChange={(e) => {
+                          setAccessCodeDraft(e.target.value)
+                          setAccessCodeError(null)
+                        }}
+                        placeholder="Enter special code"
+                        disabled={checkoutLocked}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={checkoutLocked || !accessCodeDraft.trim()}
+                        loading={accessCodeLoading}
+                        onClick={() => void handleApplyAccessCode()}
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </>
+                )}
+                {accessCodeError ? (
+                  <p className="text-xs text-[var(--status-error-text)]">
+                    {accessCodeError}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </section>
 
-        <div className="mt-4 flex flex-col gap-3 text-sm">
-          <Checkbox
-            checked={smsReminderConsent}
-            onChange={(e) => setSmsReminderConsent(e.target.checked)}
-            label="Send me a text reminder before my booking"
-          />
-          <Checkbox
-            checked={marketingConsent}
-            onChange={(e) => setMarketingConsent(e.target.checked)}
-            label={`Send me promotions and news from ${tenant.name}`}
-          />
-        </div>
-
-        {hasPaymentIntent ? (
-          <div className="mt-4">
-            <PaymentForm
-              clientSecret={session.stripeClientSecret!}
-              amountCents={finalTotalCents}
-              returnUrl={returnUrl}
-              onMockConfirm={handleMockConfirm}
-              onSubmittingChange={setPaymentProcessing}
-              onError={setPaymentError}
-              errored={paymentError != null}
+          <div className="mt-4 flex flex-col gap-3 text-sm">
+            <Checkbox
+              checked={smsReminderConsent}
+              onChange={(e) => setSmsReminderConsent(e.target.checked)}
+              label="Send me a text reminder before my booking"
+            />
+            <Checkbox
+              checked={marketingConsent}
+              onChange={(e) => setMarketingConsent(e.target.checked)}
+              label={`Send me promotions and news from ${tenant.name}`}
             />
           </div>
-        ) : initializingPayment ? (
-          <p className="mt-4 text-sm text-[var(--color-text-secondary)]">
-            Preparing secure checkout…
-          </p>
-        ) : null}
-      </div>
 
-      {hasPaymentIntent ? (
-        <PaymentPriceFooter
-          className="mt-auto"
-          lineItems={displayLineItems}
-          promoLine={promoLine}
-          totalCents={finalTotalCents}
-          ctaLabel={payCtaLabel}
-          onPay={() => {}}
-          formId={BOOKING_PAYMENT_FORM_ID}
-          backHref={BOOKING_BACK_BY_STEP[4].href}
-          backLabel={BOOKING_BACK_BY_STEP[4].label}
-          backDisabled={checkoutLocked}
-          ctaDisabled={!holdValid || checkoutLocked}
-          ctaLoading={paymentProcessing}
-        />
-      ) : null}
+          {hasPaymentIntent ? (
+            <div className="mt-4">
+              <PaymentForm
+                clientSecret={session.stripeClientSecret!}
+                amountCents={finalTotalCents}
+                returnUrl={returnUrl}
+                onMockConfirm={handleMockConfirm}
+                onSubmittingChange={setPaymentProcessing}
+                onError={setPaymentError}
+                errored={paymentError != null}
+              />
+            </div>
+          ) : initializingPayment ? (
+            <p className="mt-4 text-sm text-[var(--color-text-secondary)]">
+              Preparing secure checkout…
+            </p>
+          ) : needsAccessCode && !accessCodeReady ? (
+            <p className="mt-4 text-sm text-[var(--color-text-secondary)]">
+              Apply your special access code above to continue to payment.
+            </p>
+          ) : null}
+        </div>
+      </BookingFlowShell>
 
       {checkoutLocked ? (
         <PaymentProcessingOverlay
@@ -488,6 +567,6 @@ export default function ConfirmBookingPage() {
           }
         />
       ) : null}
-    </main>
+    </div>
   )
 }

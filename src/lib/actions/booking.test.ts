@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   packageFindMany: vi.fn(),
   packageFindFirst: vi.fn(),
   transactionMock: vi.fn(),
+  getTenantMock: vi.fn(),
 }))
 
 vi.mock('@/lib/env', async (importOriginal) => {
@@ -42,23 +43,7 @@ vi.mock('@/lib/stripe', () => ({
   isStripeMocked: mocks.isStripeMockedMock,
 }))
 vi.mock('@/lib/tenant', () => ({
-  getTenant: vi.fn(async () => ({
-    id: 't1',
-    name: 'Royal Z',
-    slug: 'royalz',
-    address: 'a',
-    phone: '(555)',
-    timezone: 'America/New_York',
-    themeSlug: 'default',
-    holdTimeoutMins: 10,
-    maxOnlineBowlers: 18,
-    cancellationWindowHours: 24,
-    rescheduleWindowHours: 24,
-    checkInWindowMinutes: 60,
-    bowlersPerLane: 6,
-    cancellationRefundPercent: 100,
-    config: {},
-  })),
+  getTenant: mocks.getTenantMock,
 }))
 vi.mock('@/lib/pricing-periods-data', () => ({
   loadPricingPeriodsForTenant: vi.fn(async () => []),
@@ -110,6 +95,24 @@ beforeEach(() => {
   mocks.laneCount.mockResolvedValue(8)
   mocks.bookingFindMany.mockResolvedValue([])
   mocks.bookingHoldFindMany.mockResolvedValue([])
+  mocks.tenantFindUnique.mockResolvedValue({ config: {} })
+  mocks.getTenantMock.mockResolvedValue({
+    id: 't1',
+    name: 'Royal Z',
+    slug: 'royalz',
+    address: 'a',
+    phone: '(555)',
+    timezone: 'America/New_York',
+    themeSlug: 'default',
+    holdTimeoutMins: 10,
+    maxOnlineBowlers: 18,
+    cancellationWindowHours: 24,
+    rescheduleWindowHours: 24,
+    checkInWindowMinutes: 60,
+    bowlersPerLane: 6,
+    cancellationRefundPercent: 100,
+    config: {},
+  })
   mocks.transactionMock.mockImplementation(async (fn) =>
     fn({
       tenant: { findUnique: mocks.tenantFindUnique },
@@ -291,6 +294,51 @@ describe('getAvailableTimeSlots', () => {
     expect(free?.lanesFree).toBe(2)
     expect(free?.spotsRemaining).toBe(2)
   })
+
+  it('counts PENDING_PAYMENT bookings when computing availability', async () => {
+    mocks.laneCount.mockResolvedValue(8)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    await getAvailableTimeSlots('t1', '2026-01-01', 6)
+    expect(mocks.bookingFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: {
+            in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT'],
+          },
+        }),
+      }),
+    )
+  })
+
+  it('generates slots using the tenant minimum booking duration', async () => {
+    mocks.isDevWithoutDbMock.mockReturnValue(true)
+    mocks.getTenantMock.mockResolvedValue({
+      id: 't1',
+      name: 'Royal Z',
+      slug: 'royalz',
+      address: 'a',
+      phone: '(555)',
+      timezone: 'America/New_York',
+      themeSlug: 'default',
+      holdTimeoutMins: 10,
+      maxOnlineBowlers: 18,
+      cancellationWindowHours: 24,
+      rescheduleWindowHours: 24,
+      checkInWindowMinutes: 60,
+      bowlersPerLane: 6,
+      cancellationRefundPercent: 100,
+      config: { minBookingDurationHours: 1.5 },
+    })
+
+    const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
+    const first = slots[0]
+    expect(first?.startTime.getHours()).toBe(16)
+    expect(first?.endTime.getTime() - first!.startTime.getTime()).toBe(
+      1.5 * 60 * 60 * 1000,
+    )
+    expect(slots.length).toBe(5)
+  })
 })
 
 describe('confirmBooking', () => {
@@ -310,6 +358,7 @@ describe('confirmBooking', () => {
     mocks.packageFindFirst.mockResolvedValue({
       id: 'pkg_classic',
       partyTypes: ['OPEN'],
+      shoesIncluded: true,
     })
     mocks.calculateBookingTotalMock.mockReturnValue({
       totalAmount: 4500,
@@ -379,6 +428,7 @@ describe('confirmBooking', () => {
       id: 'pkg_vip',
       accessType: 'CODE_REQUIRED',
       partyTypes: ['OPEN'],
+      shoesIncluded: true,
     })
     mocks.packageFindMany.mockResolvedValue([
       { id: 'pkg_vip', name: 'VIP', codeString: 'VIP2026' },
@@ -406,6 +456,7 @@ describe('confirmBooking', () => {
       id: 'pkg_vip',
       accessType: 'CODE_REQUIRED',
       partyTypes: ['OPEN'],
+      shoesIncluded: true,
     })
     mocks.packageFindMany.mockResolvedValue([
       { id: 'pkg_vip', name: 'VIP', codeString: 'VIP2026' },
@@ -453,6 +504,7 @@ describe('confirmBooking', () => {
           tenantId: 't1',
           packageId: 'pkg_classic',
           bowlerCount: '4',
+          laneCount: '1',
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
           customerName: 'Jane',
@@ -487,6 +539,83 @@ describe('confirmBooking', () => {
         customerPhone: '555',
       }),
     ).rejects.toThrow(/total changed/i)
+  })
+
+  it('ignores client pricing hints when calling calculateBookingTotal', async () => {
+    mocks.getTenantMock.mockResolvedValue({
+      id: 't1',
+      name: 'Royal Z',
+      slug: 'royalz',
+      address: 'a',
+      phone: '(555)',
+      timezone: 'America/New_York',
+      themeSlug: 'default',
+      holdTimeoutMins: 10,
+      maxOnlineBowlers: 18,
+      cancellationWindowHours: 24,
+      rescheduleWindowHours: 24,
+      checkInWindowMinutes: 60,
+      bowlersPerLane: 6,
+      cancellationRefundPercent: 100,
+      config: { shoeRentalPriceCents: 400, laneReservationCentsPerLane: 850 },
+    })
+
+    await confirmBooking({
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_classic',
+      partyType: 'OPEN',
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+      shoeRentalPriceCents: 1,
+      laneReservationCentsPerLane: 1,
+    })
+
+    expect(mocks.calculateBookingTotalMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shoeRentalPriceCents: 400,
+      }),
+    )
+    expect(mocks.calculateBookingTotalMock.mock.calls[0]?.[0]).not.toMatchObject({
+      shoeRentalPriceCents: 1,
+    })
+  })
+
+  it('rejects checkout when shoe selections are incomplete', async () => {
+    mocks.packageFindFirst.mockResolvedValue({
+      id: 'pkg_open',
+      partyTypes: ['OPEN'],
+      shoesIncluded: false,
+    })
+
+    await expect(
+      confirmBooking({
+        tenantId: 't1',
+        holdId: 'h1',
+        packageId: 'pkg_open',
+        partyType: 'OPEN',
+        bowlerCount: 4,
+        laneCount: 1,
+        startTime,
+        endTime,
+        totalAmount: 4500,
+        customerName: 'Jane',
+        customerEmail: 'jane@example.com',
+        customerPhone: '555',
+        shoeSelections: [
+          { bowlerId: '1', size: 'M8', cost: 0 },
+          { bowlerId: '2', size: '', cost: 0 },
+        ],
+      }),
+    ).rejects.toThrow(/shoe size required/i)
+
+    expect(mocks.calculateBookingTotalMock).not.toHaveBeenCalled()
   })
 
   it('applies promo to charge amount and Stripe metadata', async () => {
@@ -547,7 +676,6 @@ describe('getPackagesForTenant', () => {
       where: {
         tenantId: 't1',
         active: true,
-        OR: [{ accessType: 'PUBLIC' }],
       },
       orderBy: { sortOrder: 'asc' },
     })

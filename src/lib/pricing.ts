@@ -13,10 +13,7 @@ export {
   formatPriceInputValue,
   parsePriceInputValue,
 } from '@/lib/format-price'
-import {
-  getPackageOptionalAddons,
-  optionalAddonLineAmount,
-} from '@/lib/package-addons'
+import { OWN_SHOES_VALUE } from '@/lib/shoe-sizes'
 import { rateBasedTotalCents } from '@/lib/pricing-period'
 import { bookingDurationHours } from '@/lib/tenant-config'
 import type {
@@ -43,6 +40,15 @@ export interface BookingTotalInput {
   selectedOptionalAddonIds?: string[]
   /** When set, lane-only totals use strategy + period rate instead of flat lane fee. */
   pricingContext?: BookingPricingContext
+}
+
+/** Server-side shoe line amount — never trust client-supplied `ShoeSelection.cost`. */
+export function shoeSelectionLineAmountCents(
+  size: string,
+  shoeRentalPriceCents: number,
+): number {
+  if (!size || size === OWN_SHOES_VALUE) return 0
+  return shoeRentalPriceCents >= 0 ? shoeRentalPriceCents : 0
 }
 
 function calculateStrategyLaneTotal(input: {
@@ -229,15 +235,19 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
     const lineItems = base.lineItems.filter((item) => item.type !== 'shoe')
     let shoeAmount = 0
     shoeSelections.forEach((sel, index) => {
+      const amount = shoeSelectionLineAmountCents(
+        sel.size,
+        input.shoeRentalPriceCents,
+      )
       lineItems.push({
         label:
-          sel.size === 'OWN'
+          sel.size === OWN_SHOES_VALUE
             ? `Bowler ${index + 1} · Own shoes`
             : `Bowler ${index + 1} · Shoes`,
-        amount: sel.cost,
+        amount,
         type: 'shoe',
       })
-      shoeAmount += sel.cost
+      shoeAmount += amount
     })
 
     const totalAmount =
@@ -262,7 +272,11 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
       rateCents: input.pricingContext.rateCents,
       gamesPerBowler,
     })
-    return appendShoeLinesToLaneTotal(strategyBase, shoeSelections)
+    return appendShoeLinesToLaneTotal(
+      strategyBase,
+      shoeSelections,
+      input.shoeRentalPriceCents,
+    )
   }
 
   const lineItems: LineItem[] = []
@@ -283,27 +297,30 @@ export function calculateBookingTotal(input: BookingTotalInput): PricingResult {
       lineItems,
     },
     shoeSelections,
+    input.shoeRentalPriceCents,
   )
 }
 
 function appendShoeLinesToLaneTotal(
   base: PricingResult,
   shoeSelections: ShoeSelection[],
+  shoeRentalPriceCents: number,
 ): PricingResult {
   if (shoeSelections.length === 0) return base
 
   const lineItems = [...base.lineItems]
   let shoeAmount = 0
   shoeSelections.forEach((sel, index) => {
+    const amount = shoeSelectionLineAmountCents(sel.size, shoeRentalPriceCents)
     lineItems.push({
       label:
-        sel.size === 'OWN'
+        sel.size === OWN_SHOES_VALUE
           ? `Bowler ${index + 1} · Own shoes`
           : `Bowler ${index + 1} · Shoes`,
-      amount: sel.cost,
+      amount,
       type: 'shoe',
     })
-    shoeAmount += sel.cost
+    shoeAmount += amount
   })
 
   return {

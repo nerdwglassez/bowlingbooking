@@ -15,18 +15,21 @@ import {
 
 export type ContactDetailPanelProps = {
   contact: StaffContactDetail
+  embedded?: boolean
 }
 
-export function ContactDetailPanel({ contact }: ContactDetailPanelProps) {
+export function ContactDetailPanel({ contact, embedded = false }: ContactDetailPanelProps) {
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/staff/reports?view=contacts"
-        className="flex w-fit items-center gap-1.5 text-xs text-[var(--color-text-muted)]"
-      >
-        <ChevronLeft className="size-3.5" aria-hidden />
-        Contacts
-      </Link>
+      {!embedded ? (
+        <Link
+          href="/staff/reports?view=contacts"
+          className="flex w-fit items-center gap-1.5 text-xs text-[var(--color-text-muted)]"
+        >
+          <ChevronLeft className="size-3.5" aria-hidden />
+          Contacts
+        </Link>
+      ) : null}
 
       <div className="flex items-center gap-3.5 border-b border-solid border-[var(--color-border)] pb-5">
         <div className="flex size-[52px] shrink-0 items-center justify-center rounded-[var(--radius-full)] bg-[var(--surface-raised)] text-lg font-semibold text-[var(--color-text-secondary)]">

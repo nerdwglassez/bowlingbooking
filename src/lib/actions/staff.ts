@@ -12,7 +12,9 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { requireRole } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
+
+import { requireRole, type CurrentUser } from '@/lib/auth'
 import { generateConfirmationCode } from '@/lib/booking-codes'
 import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import {
@@ -22,13 +24,29 @@ import {
   toCockpitBookings,
 } from '@/lib/cockpit-display'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
-import { getLaneCount, sumOverlappingLaneCount } from '@/lib/lane-logic'
+import { reassignBookingLanes } from '@/lib/lane-assignment'
+import { getLaneCount, sumOverlappingLaneCount, CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
 import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import type { Tenant } from '@/types'
 import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 
 const WALK_IN_CODE_MAX_RETRIES = 5
+
+function requireStaffTenantId(user: CurrentUser): string {
+  if (!user.tenantId) {
+    throw new Error('Staff user has no tenant context.')
+  }
+  return user.tenantId
+}
+
+function assertStaffTenantAccess(user: CurrentUser, tenantId: string): string {
+  const staffTenantId = requireStaffTenantId(user)
+  if (staffTenantId !== tenantId) {
+    throw new Error('Resource not found.')
+  }
+  return staffTenantId
+}
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -123,7 +141,8 @@ export interface CockpitSnapshot {
 export async function getTodayBookings(
   tenantId: string,
 ): Promise<StaffBookingRow[]> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
   const today = startOfDay(new Date())
   const tomorrow = new Date(today.getTime() + 86_400_000)
 
@@ -146,7 +165,8 @@ export async function getTodayBookings(
 export async function getCockpitSnapshot(
   tenantId: string,
 ): Promise<CockpitSnapshot> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
   const now = new Date()
   const today = startOfDay(now)
   const tomorrow = new Date(today.getTime() + 86_400_000)
@@ -288,7 +308,8 @@ export async function getScheduleForMonth(
   year: number,
   month: number,
 ): Promise<ScheduleMonthSummary> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
   const monthStart = startOfDay(new Date(year, month, 1))
   const monthEnd = startOfDay(new Date(year, month + 1, 1))
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -360,7 +381,8 @@ export async function getScheduleForDate(
   tenantId: string,
   dateISO: string,
 ): Promise<ScheduleDay> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
   const dayStart = startOfDay(new Date(`${dateISO}T00:00:00`))
   const dayEnd = new Date(dayStart.getTime() + 86_400_000)
 
@@ -408,12 +430,13 @@ export async function getScheduleForDate(
 export async function getBookingDetail(
   bookingId: string,
 ): Promise<StaffBookingDetail | null> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) {
     return mockBookingDetail(bookingId)
   }
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
+  if (!user.tenantId) return null
+  const booking = await prisma.booking.findFirst({
+    where: { id: bookingId, tenantId: user.tenantId },
     include: {
       package: { select: { name: true } },
       payment: true,
@@ -485,6 +508,11 @@ export async function createWalkInBooking(
     throw new Error('createWalkInBooking: bowlerCount must be >= 1')
   }
 
+  const staffTenantId = requireStaffTenantId(user)
+  if (input.tenantId !== staffTenantId) {
+    throw new Error('Resource not found.')
+  }
+
   if (isDevWithoutDb()) {
     console.log(
       `[staff-actions] mock walk-in created by ${user.email} for ${input.customerName}`,
@@ -500,9 +528,22 @@ export async function createWalkInBooking(
   const bookingSource = input.source ?? 'WALK_IN'
 
   let resolvedPackageId = input.packageId ?? null
-  if (!resolvedPackageId) {
+  if (resolvedPackageId) {
+    const pkg = await prisma.package.findFirst({
+      where: {
+        id: resolvedPackageId,
+        tenantId: staffTenantId,
+        active: true,
+      },
+      select: { id: true },
+    })
+    if (!pkg) {
+      throw new Error('Package not found.')
+    }
+    resolvedPackageId = pkg.id
+  } else {
     const fallback = await prisma.package.findFirst({
-      where: { tenantId: input.tenantId, active: true },
+      where: { tenantId: staffTenantId, active: true },
       orderBy: { sortOrder: 'asc' },
       select: { id: true },
     })
@@ -643,6 +684,7 @@ export async function blockLanes(
   if (input.endTime <= input.startTime) {
     throw new Error('blockLanes: endTime must be after startTime')
   }
+  assertStaffTenantAccess(user, input.tenantId)
   if (isDevWithoutDb()) {
     return { blockId: `block_mock_${Date.now()}`, mocked: true }
   }
@@ -678,11 +720,19 @@ export async function blockLanes(
 export async function checkInBookingAction(bookingId: string): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
+  const tenantId = requireStaffTenantId(user)
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
-      where: { id: bookingId },
+    const result = await tx.booking.updateMany({
+      where: {
+        id: bookingId,
+        tenantId,
+        status: { in: ['CONFIRMED', 'PENDING_PAYMENT'] },
+      },
       data: { checkedInAt: new Date() },
     })
+    if (result.count === 0) {
+      throw new Error('Booking not found or cannot be checked in.')
+    }
     await tx.auditLog.create({
       data: {
         bookingId,
@@ -702,11 +752,19 @@ export async function markBookingNoShowAction(
 ): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
+  const tenantId = requireStaffTenantId(user)
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
-      where: { id: bookingId },
+    const result = await tx.booking.updateMany({
+      where: {
+        id: bookingId,
+        tenantId,
+        status: 'CONFIRMED',
+      },
       data: { status: 'NO_SHOW', cancellationReason: 'NO_SHOW' },
     })
+    if (result.count === 0) {
+      throw new Error('Booking not found or cannot be marked no-show.')
+    }
     await tx.auditLog.create({
       data: {
         bookingId,
@@ -737,12 +795,7 @@ export interface StaffModifyBookingInput {
   notes?: string | null
 }
 
-const MODIFY_RESERVING_STATUSES = [
-  'CONFIRMED',
-  'COMPLETED',
-  'NO_SHOW',
-  'PENDING_PAYMENT',
-] as const
+const MODIFY_RESERVING_STATUSES = CAPACITY_BOOKING_STATUSES
 
 export async function staffModifyBookingAction(
   input: StaffModifyBookingInput,
@@ -755,9 +808,12 @@ export async function staffModifyBookingAction(
     return
   }
 
-  await prisma.$transaction(async (tx) => {
-    const existing = await tx.booking.findUnique({
-      where: { id: input.bookingId },
+  const tenantId = requireStaffTenantId(user)
+
+  await prisma.$transaction(
+    async (tx) => {
+    const existing = await tx.booking.findFirst({
+      where: { id: input.bookingId, tenantId },
     })
     if (!existing) throw new Error('Booking not found.')
     if (
@@ -833,6 +889,11 @@ export async function staffModifyBookingAction(
       partyType = pkg.partyTypes[0] ?? 'OPEN'
     }
 
+    const timesOrLanesChanged =
+      startTime.getTime() !== existing.startTime.getTime() ||
+      endTime.getTime() !== existing.endTime.getTime() ||
+      laneCount !== existing.laneCount
+
     await tx.booking.update({
       where: { id: input.bookingId },
       data: {
@@ -847,6 +908,16 @@ export async function staffModifyBookingAction(
           : {}),
       },
     })
+
+    if (timesOrLanesChanged) {
+      await reassignBookingLanes(tx, {
+        tenantId: existing.tenantId,
+        bookingId: input.bookingId,
+        laneCount,
+        startTime,
+        endTime,
+      })
+    }
 
     await tx.auditLog.create({
       data: {
@@ -863,7 +934,9 @@ export async function staffModifyBookingAction(
         },
       },
     })
-  })
+  },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  )
 
   revalidatePath('/staff')
   revalidatePath(`/staff/bookings/${input.bookingId}`)
@@ -877,7 +950,8 @@ export interface StaffPackageOption {
 export async function getStaffPackageOptions(
   tenantId: string,
 ): Promise<StaffPackageOption[]> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
   if (isDevWithoutDb()) {
     return [
       { id: 'pkg-classic', name: 'Classic Bowling' },
@@ -900,15 +974,19 @@ export async function staffConfirmPendingPaymentAction(
     console.log(`[staff] mock confirm pending payment ${bookingId}`)
     return
   }
+  const tenantId = requireStaffTenantId(user)
   await prisma.$transaction(async (tx) => {
-    const booking = await tx.booking.findUnique({ where: { id: bookingId } })
-    if (!booking || booking.status !== 'PENDING_PAYMENT') {
-      throw new Error('Booking is not awaiting payment confirmation.')
-    }
-    await tx.booking.update({
-      where: { id: bookingId },
+    const result = await tx.booking.updateMany({
+      where: {
+        id: bookingId,
+        tenantId,
+        status: 'PENDING_PAYMENT',
+      },
       data: { status: 'CONFIRMED' },
     })
+    if (result.count === 0) {
+      throw new Error('Booking is not awaiting payment confirmation.')
+    }
     await tx.auditLog.create({
       data: {
         bookingId,
@@ -928,11 +1006,19 @@ export async function markBookingCompletedAction(
 ): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (isDevWithoutDb()) return
+  const tenantId = requireStaffTenantId(user)
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
-      where: { id: bookingId },
+    const result = await tx.booking.updateMany({
+      where: {
+        id: bookingId,
+        tenantId,
+        status: 'CONFIRMED',
+      },
       data: { status: 'COMPLETED' },
     })
+    if (result.count === 0) {
+      throw new Error('Booking not found or cannot be completed.')
+    }
     await tx.auditLog.create({
       data: {
         bookingId,
@@ -950,7 +1036,8 @@ export async function markBookingCompletedAction(
 export async function autoCompletePastBookingsAction(
   tenantId: string,
 ): Promise<number> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
   if (isDevWithoutDb()) return 0
   const now = new Date()
   const result = await prisma.booking.updateMany({
@@ -969,9 +1056,15 @@ export async function autoCompletePastBookingsAction(
 
 export async function unblockLanes(blockId: string): Promise<void> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
-  if (isDevWithoutDb() || !blockId.startsWith('block_')) return
+  if (isDevWithoutDb()) return
+  const tenantId = requireStaffTenantId(user)
   await prisma.$transaction(async (tx) => {
-    await tx.blockedSlot.deleteMany({ where: { id: blockId } })
+    const result = await tx.blockedSlot.deleteMany({
+      where: { id: blockId, tenantId },
+    })
+    if (result.count === 0) {
+      throw new Error('Block not found.')
+    }
     await tx.auditLog.create({
       data: {
         userId: user.id,

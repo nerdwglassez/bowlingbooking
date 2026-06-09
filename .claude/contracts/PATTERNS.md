@@ -174,12 +174,18 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - Structure: a centered column inside a `<Card variant="flat">` with vertical padding (`py-12`). H3 for title, paragraph for description, action below.
 - Server-safe. No state.
 
-### `price-footer.tsx` — `PriceFooter`
-**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html`, `booking-step3-final.html`, `booking-step4-confirmation.html` (sticky bottom card).
-- Props: `pricing: PricingResult` (from `@/types`), `ctaLabel: string`, `onCta: () => void`, `ctaDisabled?: boolean`, `ctaLoading?: boolean`, `className?: string`.
-- Visual: `<Card variant="elevated">` positioned by the parent (the pattern does NOT set `position: sticky` — that's a page-layout concern, the pattern just renders the card). CardBody contains a vertical list of `pricing.lineItems` rendered as label/amount rows. CardFooter contains a row: "Total" label on the left, big bold price on the right, then a full-width Button below using `ctaLabel`, `onCta`, `ctaDisabled`, `ctaLoading`.
-- This pattern is mostly read-only display — accept `'use client'` only because the CTA needs a click handler. The line-item rendering itself is server-safe markup.
-- Use `formatPrice` from `@/lib/pricing` for every monetary value. NEVER do `${amount / 100}.toFixed(2)` inline.
+### `booking-flow-footer.tsx` — `BookingFlowFooter`
+**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html`, `booking-step3-dropdown.html`, `booking-step4-confirmation.html` (sticky bottom bar).
+- Props: `ctaLabel: string`, `onCta?: () => void`, `ctaDisabled?: boolean`, `ctaLoading?: boolean`, `ctaFormId?: string` (submit external form), `note?: string`, `className?: string`.
+- Visual: dark `--surface-dark` footer with full-width primary CTA only. **No line items or totals** — pricing belongs in page content (`OrderSummaryCard`, package cards).
+- Optional `note` below CTA (e.g. cancellation policy on confirm step).
+- Parent (`BookingFlowShell`) owns footer placement; pattern does not set sticky positioning.
+
+### `payment-price-footer.tsx` — `PaymentPriceFooter`
+Thin wrapper around `BookingFlowFooter` for confirm step — passes Pay CTA + default policy note.
+
+### `price-footer.tsx` — `PriceFooter` [LEGACY]
+Superseded by `BookingFlowFooter` + in-content pricing. Do not add line items to sticky footers.
 
 ---
 

@@ -116,12 +116,14 @@ const RATE_LIMIT_DEFAULTS: Record<
   find_booking: { max: 30, windowSec: 60 },
   booking_ics: { max: 20, windowSec: 60 },
   promo_validate: { max: 40, windowSec: 60 },
+  password_reset: { max: 5, windowSec: 3600 },
 }
 
 const RATE_LIMIT_ENV_MAX: Record<RateLimitBucket, string> = {
   find_booking: 'RATE_LIMIT_FIND_BOOKING_MAX',
   booking_ics: 'RATE_LIMIT_BOOKING_ICS_MAX',
   promo_validate: 'RATE_LIMIT_PROMO_VALIDATE_MAX',
+  password_reset: 'RATE_LIMIT_PASSWORD_RESET_MAX',
 }
 
 /**

@@ -5,6 +5,17 @@ import {
 } from '@/lib/package-addons'
 import type { Package, PartyType } from '@/types'
 
+/** Tenant row for lane-only open bowling — not shown in customer package picker. */
+export function isLaneOnlyDefaultPackage(pkg: Package): boolean {
+  return (
+    pkg.basePrice === 0 &&
+    !pkg.gameIncluded &&
+    !pkg.shoesIncluded &&
+    pkg.partyTypes.length === 1 &&
+    pkg.partyTypes[0] === 'OPEN'
+  )
+}
+
 export type PackageCardPrice = {
   amountCents: number
   clarifier: string

@@ -7,8 +7,9 @@
 #   DESIGN_SYSTEM.md — tokens and component layers
 # Paste into Cursor when building any customer booking step.
 #
-# Build status: Steps 1–5 built. PriceFooter on steps 1–4. Hold timer amber.
-# CODE_REQUIRED unlock on package step. Details step includes remove-bowler.
+# Build status: Steps 1–5 built. BookingFlowShell on steps 1–4. CTA-only sticky footers on steps 2–4.
+# Hold bar: neutral sunken, "Lanes held · MM:SS remaining". Price breakdown on confirm summary only.
+# CODE_REQUIRED packages unlock at confirm (payment step). Details step includes remove-bowler.
 
 ---
 
@@ -73,10 +74,9 @@ Never call per-day availability in a loop — one call per date tap.
 - Slots render as pill options: "2:00 PM", "2:30 PM", etc.
 - Selecting a slot: calls acquireBookingHold() immediately
   Hold timer starts in BookingContext (holdExpiresAt)
-- Hold timer renders below selected slot:
-  Color: amber (--color-action) — neutral urgency, not green
+- Hold timer renders below step strip (in shell):
+  Neutral sunken bar — "Lanes held · MM:SS remaining"
   NOT green — green would imply the booking is confirmed
-  "Hold expires in X:XX" counting down
 - Continue button: enabled only when date + slot both selected
 
 ---
@@ -84,11 +84,12 @@ Never call per-day availability in a loop — one call per date tap.
 ## Step 2 — Package Selection  (/book/package)
 
 ### Package list
-- One card per active package
-- Cards are role-agnostic — PUBLIC packages only
-  CODE_REQUIRED packages hidden (planned — unlocked at Step 4)
-- Currently filtered by partyType from Step 1 (planned removal)
-- No package required to continue — customer can proceed without one
+- **Open bowling is the default** — `packageId` null; no dedicated open-bowling card
+- Hint copy under step title explains lane-only default; optional packages listed below
+- One card per active package **except** the tenant lane-only default row (`isLaneOnlyDefaultPackage`)
+- Package selection is **optional** — Continue enabled with or without a package when hold is valid
+- Tap a selected package again to clear back to open bowling
+- Package cards show neutral inclusion pills on load (`pkg-tag`); locked pills (`pkg-included-tag` + lock) only when that card is selected — per `booking-step2-refined.html` 2a / 2d
 
 ### Package card
 - Layout: package name + price + brief description + "Details" button
@@ -103,11 +104,16 @@ Never call per-day availability in a loop — one call per date tap.
 - "Add this package" button at bottom of sheet
 - Dismiss: swipe down or tap outside
 
-### Price footer
-- Sticky at bottom of page
-- Shows: package name (if selected) + shoe rental estimate + total
-- Updates live as package is selected/deselected
-- "Continue" button: always enabled (package optional)
+### Sticky footer (CTA only)
+- Step 1: inline `<Button>` at bottom of content — no dark footer bar
+- Steps 2–4: dark `BookingFlowFooter` sticky at bottom — **primary CTA only**
+- Steps 2–4: optional **back button below CTA** (ghost, full width) — not in header
+- No line items, subtotals, or totals in the footer — pricing lives in page content
+  (package cards, `OrderSummaryCard` on confirm, success detail rows)
+- Step 4 online: Pay button submits Stripe form via `formId`; optional policy note below CTA
+- Step 4 offline: confirm CTA (no Stripe footer until payment path exists)
+- "Processing…" / loading state on CTA while PaymentIntent is being created
+- Back navigation lives in the footer only (not the header)
 
 ---
 
@@ -144,14 +150,11 @@ Shows once regardless of how many bowlers select "Own shoes"
 Not dismissable (always visible as a reminder)
 Not alarming — info color, not error color
 
-#### Price footer
-- Updates live per shoe selection
-- Line items: one per bowler showing shoe cost or "Own shoes"
-- Subtotal, tax, total
-
-#### Continue button
-- Disabled until all bowlers have a shoe selection
-- Tooltip/note when disabled: "Select shoe size for each bowler"
+### Sticky footer (CTA only)
+- Contextual CTA label (shoe selection progress, contact incomplete, etc.)
+- Disabled until all bowlers have shoe selection + contact complete + valid hold
+- Back button below CTA → Packages
+- Contact form stays expanded while on this step — no auto-collapse to read-only card on email entry
 
 #### BookingContext additions needed
 - shoeSelections: Array<{ bowlerId: string; size: string; cost: number }>
@@ -190,13 +193,12 @@ Not alarming — info color, not error color
 - When Migration 4 completes: this field unlocks CODE_REQUIRED packages
   (may merge with the CODE_REQUIRED field below)
 
-### CODE_REQUIRED package field [PLANNED — Migration 4]
-- "Have a special code?" text link below customer info
-- Expands a code entry field
-- Valid CODE_REQUIRED code: replaces package selection
-  If PAYMENT_OFFLINE: Stripe form hidden, banner shown
-  "Payment will be arranged with the venue"
-- Invalid code: inline error
+### CODE_REQUIRED special access code
+- **Not on package step** — code entry lives on `/book/confirm` only
+- Collapsed **"Have a special code?"** link expands the field (part of payment flow)
+- Auto-expanded when selected package requires a code
+- Valid code: verifies for selected CODE_REQUIRED package, or replaces selection with the unlocked package
+- Payment / Stripe form does not initialize until code is applied when required
 
 ### Stripe payment
 - PaymentIntent created server-side via confirmBooking()
@@ -204,32 +206,36 @@ Not alarming — info color, not error color
 - Never render Stripe form for PAYMENT_OFFLINE bookings
 
 ### Place booking button
-- Label: "Place booking" (with payment)
-- Label: "Confirm booking" (PAYMENT_OFFLINE — no charge now)
+- Label: "Pay $X.XX" or "Try again" (with payment) — amount in CTA label, not footer breakdown
+- Label: "Confirm reservation" (PAYMENT_OFFLINE — no charge now)
 - Disabled until all required fields complete + payment ready
+- Itemized pricing: collapsible `OrderSummaryCard` in page body only
 
 ---
 
 ## Step 5 — Confirmation  (/book/success)
 
+### Chrome
+- Stone conf header (`BookingAppHeader`) — no step indicator, no hold bar
+- Conf A: dismissible green celebration banner ("You're booked!" + email)
+- Conf C (offline/pending): dark "Reservation held" banner instead of celebration
+
 ### Content (top to bottom)
-- Success checkmark animation
-- "Booking confirmed!" headline (--font-display)
-- Confirmation code: large, prominent, bordered box
-- QR code: centered, sized for mobile scanning
-- Venue name + address (from getTenant())
-- Date + time + lane count
-- Package selected
-- Bowler count + shoe rental summary
-- Total paid (formatted from integer cents)
-- Itemized price breakdown (collapsible)
+- Confirmation / reservation code block (centered card)
+- Detail card with icon rows: date & time, booking details, location, amount paid/due
+- Add to calendar (single ICS download — not split Google/Apple buttons)
+- Account creation prompt (signed-out only):
+  Title: "Manage your booking"
+  Body: "Create a free account to cancel or reschedule without calling us."
+  Expanded form OR subdued "Create account →" link after dismiss
+- Venue contact block: "Need to make changes?" + tappable phone
+- Done button → home
 
 ### Account creation prompt
-Below booking details:
-"Want to cancel or reschedule without calling?
-Create a free account — takes 30 seconds."
+Below booking details (signed-out customers only):
+"Manage your booking" / "Create a free account to cancel or reschedule without calling us."
 [Create account]  [Maybe later]
-Subtle styling — not the primary CTA
+Amber tint card on first visit; subdued inline prompt after "Maybe later"
 Only shown when customer is not already signed in
 
 ### Venue contact
@@ -250,25 +256,37 @@ Cancel/reschedule links go to /find-my-booking for guest users.
 ## Global Interaction Rules
 
 ### Hold timer
-- Renders on Step 1 (after slot selected), Step 2, Step 3, Step 4
-- Amber color (--color-action) — neutral urgency
-- Format: "Hold expires in X:XX"
+- Renders on Steps 1–4 after a slot is held (via `BookingFlowShell`)
+- Style: neutral sunken bar (`--surface-sunken`, `--color-border`)
+- Copy: **"Lanes held · MM:SS remaining"**
+- NOT green — green would imply the booking is confirmed
+- NOT amber action-tint — wireframe uses neutral urgency
 - At 0:00: session expired, redirect to /book with toast
   "Your session expired. Please select a new time."
 - Hold timer does NOT appear on /book/success
 
+### Booking flow chrome (`BookingFlowShell`)
+All steps 1–4 share:
+- **Stone chrome header** (`BookingAppHeader`): `--surface-booking-chrome`, venue name, maps address link, Sign in (`--color-booking-chrome-link`)
+- **Step strip**: 4 dots on `--surface-card`; active pill 22px; completed dots at 35% opacity
+- **Hold bar** (above scroll content)
+- **Header back** (steps 3–4 only): removed — use footer back below CTA via `BOOKING_BACK_BY_STEP`
+- Sign in href: `/signin?from={pathname}` (preserve booking return path)
+
+Step 1 uses an inline primary CTA at the bottom of content (no dark footer bar).
+Steps 2–4 use stone sticky `BookingFlowFooter` — **primary CTA + optional secondary back** below; no price lines.
+
 ### Navigation between steps
-- Back navigation: always available via back chevron
+- Back navigation: steps 2–4 via footer back button below CTA; step 1 has no back
 - Back does NOT release the hold (intentional — customer can resume)
 - Hold releases automatically on expiry via lazy cleanup
 - Refreshing the page: session state preserved in BookingContext
   (React state only — not persisted to localStorage)
 
 ### Price footer
-- Sticky bottom on Steps 1–4
-- Not shown on Step 5
-- Always shows current total
-- "Processing..." label while PaymentIntent is being created
+- REMOVED — sticky footers are CTA-only on steps 2–4 (see "Sticky footer (CTA only)" above)
+- Step 1: inline continue button
+- Pricing display: in-content only (`OrderSummaryCard` on confirm; package cards on step 2)
 
 ### Toasts
 - Session expired: dark bg, red X icon, 5s
@@ -292,7 +310,8 @@ If motion is reduced: skip transitions, show final state immediately.
 - Use a modal for package detail — always a bottom sheet
 - Hardcode prices in UI — use calculatePrice() for display; server re-runs at confirm
 - Pass integer cents to Stripe incorrectly (Stripe PaymentIntent uses cents as-is)
-- Show the hold timer in green — amber only
+- Show the hold timer in green — neutral sunken bar only
+- Show price line items in sticky footers — CTA-only footers on steps 2–4
 - Make the marketing consent checkbox default CHECKED
 - Show an account creation prompt to already-signed-in users
 - Render the Stripe form for PAYMENT_OFFLINE bookings

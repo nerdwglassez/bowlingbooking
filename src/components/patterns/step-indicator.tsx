@@ -36,9 +36,9 @@ export const StepIndicator = React.forwardRef<
         const isComplete = step < currentStep
 
         const dotClass = isCurrent
-          ? 'h-2 w-6 shrink-0 rounded-full bg-[var(--color-action)]'
+          ? 'h-2 w-[22px] shrink-0 rounded-[3px] bg-[var(--color-action)]'
           : isComplete
-            ? 'size-2 shrink-0 rounded-full bg-[var(--color-action)]'
+            ? 'size-2 shrink-0 rounded-full bg-[var(--color-action)] opacity-35'
             : 'size-2 shrink-0 rounded-full bg-[var(--color-border-strong)]'
 
         return (

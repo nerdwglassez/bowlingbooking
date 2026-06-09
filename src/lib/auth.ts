@@ -46,6 +46,7 @@ export {
 export { getPostSignInPath, type PostSignInUser } from '@/lib/post-sign-in'
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24
+const REMEMBER_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 const BCRYPT_COST = 12
 
 // Dev-only fallback secret. NEVER used in production (the `secret` resolver
@@ -80,6 +81,7 @@ declare module 'next-auth' {
   interface User {
     role: Role
     tenantId: string | null
+    rememberDevice?: boolean
   }
 }
 
@@ -154,7 +156,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   session: {
     strategy: 'jwt',
-    maxAge: SESSION_MAX_AGE_SECONDS,
+    maxAge: REMEMBER_MAX_AGE_SECONDS,
   },
   pages: {
     signIn: '/signin',
@@ -164,12 +166,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        rememberDevice: { label: 'Remember device', type: 'text' },
       },
       authorize: async (creds) => {
         const email = typeof creds?.email === 'string' ? creds.email : ''
         const password =
           typeof creds?.password === 'string' ? creds.password : ''
-        return verifyCredentials(email, password)
+        const rememberDevice = creds?.rememberDevice === 'true'
+        const user = await verifyCredentials(email, password)
+        if (!user) return null
+        return { ...user, rememberDevice }
       },
     }),
   ],
@@ -179,6 +185,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id ?? token.id
         token.role = user.role
         token.tenantId = user.tenantId ?? null
+        const remember =
+          (user as { rememberDevice?: boolean }).rememberDevice === true
+        const maxAge = remember
+          ? REMEMBER_MAX_AGE_SECONDS
+          : SESSION_MAX_AGE_SECONDS
+        token.exp = Math.floor(Date.now() / 1000) + maxAge
       }
       return token
     },

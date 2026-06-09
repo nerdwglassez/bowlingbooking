@@ -23,7 +23,7 @@ export type PackageCardProps = {
 
 /**
  * Wireframe `booking-step2-refined.html` — tappable card, radio ring, 2-line
- * description, **What's included →** opens the detail sheet.
+ * description, **What's included →**, neutral pills on load; locked pill when selected.
  */
 export function PackageCard({
   pkg,
@@ -34,7 +34,6 @@ export function PackageCard({
 }: PackageCardProps) {
   const { amountCents, clarifier } = getPackageCardPrice(pkg)
   const { neutral, locked } = packageCardTags(pkg)
-  const showTags = neutral.length > 0 || (selected && locked.length > 0)
 
   return (
     <div
@@ -107,16 +106,14 @@ export function PackageCard({
         What&apos;s included →
       </button>
 
-      {showTags ? (
+      {neutral.length > 0 || locked.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {neutral.map((tag) => (
             <PackageCardTag key={tag} label={tag} />
           ))}
-          {selected
-            ? locked.map((tag) => (
-                <PackageCardTag key={tag} label={tag} locked />
-              ))
-            : null}
+          {locked.map((tag) => (
+            <PackageCardTag key={tag} label={tag} locked={selected} />
+          ))}
         </div>
       ) : null}
     </div>

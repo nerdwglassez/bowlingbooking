@@ -42,6 +42,7 @@ export interface Tenant {
   bowlersPerLane: number
   cancellationRefundPercent: number
   config: Record<string, unknown>
+  stripeConnectAccountId?: string | null
 }
 
 // ── User ───────────────────────────────────────────────────

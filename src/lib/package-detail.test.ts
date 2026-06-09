@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   getPackageCardPrice,
+  isLaneOnlyDefaultPackage,
   packageInclusionItems,
   packageInclusionLines,
   packageSummaryTags,
@@ -77,5 +78,29 @@ describe('packageInclusionItems', () => {
       basePkg({ shoesIncluded: true, gameIncluded: true }),
     )
     expect(items.some((item) => item.icon === 'shoes')).toBe(true)
+  })
+})
+
+describe('isLaneOnlyDefaultPackage', () => {
+  it('matches tenant open-bowling default row', () => {
+    expect(
+      isLaneOnlyDefaultPackage(
+        basePkg({
+          name: 'Open Bowling',
+          basePrice: 0,
+          gameIncluded: false,
+          shoesIncluded: false,
+          partyTypes: ['OPEN'],
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  it('does not match priced open packages', () => {
+    expect(
+      isLaneOnlyDefaultPackage(
+        basePkg({ basePrice: 1200, partyTypes: ['OPEN'] }),
+      ),
+    ).toBe(false)
   })
 })

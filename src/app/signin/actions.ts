@@ -13,6 +13,7 @@ import { AuthError, signIn, signOut, verifyCredentials } from '@/lib/auth'
 import { sanitizeSignInFrom } from '@/lib/auth-paths'
 import { getPostSignInPath } from '@/lib/post-sign-in'
 import { hasAuthSecret } from '@/lib/env'
+import { validateSignInCredentials } from '@/lib/sign-in-credentials'
 
 export interface SignInActionResult {
   ok: boolean
@@ -29,8 +30,9 @@ export async function signInAction(
   const from = sanitizeSignInFrom(
     typeof fromRaw === 'string' ? fromRaw : undefined,
   )
+  const rememberDevice = formData.get('rememberDevice') === 'on'
 
-  if (!email || !password) {
+  if (!validateSignInCredentials(email, password)) {
     return { ok: false, error: 'invalid-credentials' }
   }
 
@@ -46,7 +48,12 @@ export async function signInAction(
   const redirectTo = await getPostSignInPath(from, verified)
 
   try {
-    await signIn('credentials', { email, password, redirectTo })
+    await signIn('credentials', {
+      email,
+      password,
+      redirectTo,
+      rememberDevice: rememberDevice ? 'true' : 'false',
+    })
     return { ok: true }
   } catch (err) {
     unstable_rethrow(err)

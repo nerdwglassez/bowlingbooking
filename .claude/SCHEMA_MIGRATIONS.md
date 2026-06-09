@@ -344,3 +344,38 @@ model ClaimToken {
 Depends on: nothing
 Blocks: customer dashboard (/dashboard route; also requires Migration 1)
 
+---
+
+## Migration 9 — TeamInviteToken table (staff invite emails)
+Status: COMPLETE (2026-06-08)
+
+### Why
+Wireframe decision: admin invites staff by email; employee receives a
+magic link (48h TTL) to set their own password. Replaces v1 admin-set
+initial passwords told out of band.
+
+### New model
+```prisma
+model TeamInviteToken {
+  id              String    @id @default(cuid())
+  userId          String
+  invitedByUserId String
+  tokenHash       String    @unique
+  personalMessage String?
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime  @default(now())
+}
+```
+
+### Lifecycle
+1. `createTeamUserAction` creates User with `passwordHash: null` + token
+2. `sendTeamInviteEmail` dispatches link to `/accept-invite?token=…`
+3. `acceptTeamInviteAction` sets password, marks token used
+4. `resendTeamInviteAction` rotates unused tokens for pending users
+
+Pending invite status: staff role + `passwordHash === null`.
+
+Depends on: nothing (PasswordResetToken pattern is independent)
+Blocks: team invite email flow
+

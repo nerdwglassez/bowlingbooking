@@ -3,9 +3,9 @@
 // UserForm — controlled form for create/edit of a team User.
 //
 // Two modes (selected by parent):
-//   - create: shows the initial-password field, requires email + role
-//   - edit: hides the password field; the parent surfaces a separate
-//           "Reset password" affordance via the resetPanel slot.
+//   - create: email + role; invite email sent by server action
+//   - edit: the parent surfaces a separate "Reset password" affordance
+//           via the resetPanel slot.
 //
 // All state lives on the parent page; this pattern just renders the inputs.
 
@@ -20,7 +20,7 @@ export interface UserFormValues {
   name: string
   phone: string
   role: TeamRole
-  initialPassword: string
+  personalMessage: string
 }
 
 export interface UserFormProps {
@@ -129,20 +129,22 @@ export function UserForm({
       {mode === 'create' ? (
         <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
           <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-            Initial password
+            Invitation
           </h2>
           <label className="flex flex-col gap-1 text-sm">
-            <Input
-              type="text"
-              value={values.initialPassword}
-              onChange={(e) => patch({ initialPassword: e.target.value })}
-              minLength={8}
-              required
-              placeholder="At least 8 characters"
+            <span className="text-[var(--color-text-secondary)]">
+              Personal message (optional)
+            </span>
+            <textarea
+              rows={3}
+              value={values.personalMessage}
+              onChange={(e) => patch({ personalMessage: e.target.value })}
+              className="w-full resize-none rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+              placeholder="Welcome to the team!"
             />
             <span className="text-xs text-[var(--color-text-secondary)]">
-              Tell the new team member this password out of band. They can
-              change it after their first sign-in.
+              An invite link will be sent to their email. It expires in 48
+              hours; they set their own password when they accept.
             </span>
           </label>
         </section>
@@ -158,7 +160,7 @@ export function UserForm({
       ) : null}
 
       <Button type="submit" size="lg" fullWidth loading={submitting}>
-        {submitLabel ?? (mode === 'create' ? 'Create team member' : 'Save changes')}
+        {submitLabel ?? (mode === 'create' ? 'Send invite' : 'Save changes')}
       </Button>
     </form>
   )

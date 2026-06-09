@@ -9,9 +9,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 
-export type ToastVariant = 'error'
+export type ToastVariant = 'error' | 'success'
 
 export interface ToastOptions {
   message: string
@@ -47,16 +47,26 @@ function ToastItem({
     }
   }, [toast.durationMs, toast.id, onDismiss])
 
+  const isSuccess = toast.variant === 'success'
+
   return (
     <div
       role="alert"
       className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-solid border-[var(--color-border-strong)] bg-[var(--surface-dark)] px-4 py-3 text-[var(--color-text-inverted)] shadow-[var(--shadow-lg)]"
     >
       <span
-        className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--status-error-bg)] text-[var(--status-error-text)]"
+        className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ${
+          isSuccess
+            ? 'bg-[var(--status-ok-bg)] text-[var(--status-ok-text)]'
+            : 'bg-[var(--status-error-bg)] text-[var(--status-error-text)]'
+        }`}
         aria-hidden
       >
-        <X className="size-3.5" strokeWidth={2.5} />
+        {isSuccess ? (
+          <Check className="size-3.5" strokeWidth={2.5} />
+        ) : (
+          <X className="size-3.5" strokeWidth={2.5} />
+        )}
       </span>
       <p className="min-w-0 flex-1 text-sm leading-snug">{toast.message}</p>
       {toast.dismissible !== false ? (

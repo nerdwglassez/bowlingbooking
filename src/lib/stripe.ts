@@ -257,3 +257,95 @@ export function constructWebhookEvent(
     webhookSecret,
   )
 }
+
+export interface ConnectAccountLinkInput {
+  accountId: string
+  returnUrl: string
+  refreshUrl: string
+}
+
+export interface ConnectAccountLinkResult {
+  url: string
+  mocked: boolean
+}
+
+/** Create a Stripe Connect onboarding or account-update link. */
+export async function createConnectAccountLink(
+  input: ConnectAccountLinkInput,
+): Promise<ConnectAccountLinkResult> {
+  const stripe = getStripe()
+  if (!stripe) {
+    return {
+      url: input.returnUrl,
+      mocked: true,
+    }
+  }
+  const link = await stripe.accountLinks.create({
+    account: input.accountId,
+    return_url: input.returnUrl,
+    refresh_url: input.refreshUrl,
+    type: 'account_onboarding',
+  })
+  if (!link.url) {
+    throw new Error('Stripe did not return an onboarding URL.')
+  }
+  return { url: link.url, mocked: false }
+}
+
+export interface CreateConnectAccountResult {
+  accountId: string
+  mocked: boolean
+}
+
+/** Create a Stripe Connect Express account for a tenant. */
+export async function createConnectExpressAccount(input: {
+  tenantName: string
+  tenantEmail?: string
+}): Promise<CreateConnectAccountResult> {
+  const stripe = getStripe()
+  if (!stripe) {
+    return {
+      accountId: `acct_mock_${Math.random().toString(36).slice(2, 10)}`,
+      mocked: true,
+    }
+  }
+  const account = await stripe.accounts.create({
+    type: 'express',
+    country: 'US',
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+    },
+    business_profile: { name: input.tenantName },
+    ...(input.tenantEmail ? { email: input.tenantEmail } : {}),
+  })
+  return { accountId: account.id, mocked: false }
+}
+
+export interface ConnectAccountStatus {
+  chargesEnabled: boolean
+  payoutsEnabled: boolean
+  detailsSubmitted: boolean
+  mocked: boolean
+}
+
+export async function getConnectAccountStatus(
+  accountId: string,
+): Promise<ConnectAccountStatus> {
+  const stripe = getStripe()
+  if (!stripe) {
+    return {
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+      mocked: true,
+    }
+  }
+  const account = await stripe.accounts.retrieve(accountId)
+  return {
+    chargesEnabled: account.charges_enabled ?? false,
+    payoutsEnabled: account.payouts_enabled ?? false,
+    detailsSubmitted: account.details_submitted ?? false,
+    mocked: false,
+  }
+}

@@ -1,12 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { useBooking } from '@/context/BookingContext'
-import {
-  useLanePricingContext,
-  useTenant,
-} from '@/app/(customer)/book/tenant-provider'
+import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import {
   acquireBookingHold,
   getAvailableDates,
@@ -17,19 +14,14 @@ import {
 } from '@/lib/actions/booking'
 import { BookingCalendar } from '@/components/patterns/booking-calendar'
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
-import { BookingFlowHeader } from '@/components/patterns/booking-flow-header'
+import { BookingFlowShell } from '@/components/patterns/booking-flow-shell'
 import { BowlerCounter } from '@/components/patterns/bowler-counter'
 import { DateStrip } from '@/components/patterns/date-strip'
 import { GroupSizeBanner } from '@/components/patterns/group-size-banner'
-import { HoldTimer } from '@/components/patterns/hold-timer'
-import { StepIndicator } from '@/components/patterns/step-indicator'
 import { TimeSlotGrid } from '@/components/patterns/time-slot-grid'
-import { PriceFooter } from '@/components/patterns/price-footer'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatBowlersLanesDateSummary } from '@/lib/booking-display'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
-import { calculateBookingTotal } from '@/lib/pricing'
 import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
 import type { TimeSlot } from '@/types'
@@ -62,6 +54,7 @@ function WeekStripSkeleton() {
 
 export default function BookStepOnePage() {
   const router = useRouter()
+  const pathname = usePathname()
   const tenant = useTenant()
   const { session, setBowlerCount, setDate, setTimeSlot } = useBooking()
   const [{ year, month }, setCalendarMonth] = useState(initialCalendarMonth)
@@ -184,32 +177,6 @@ export default function BookStepOnePage() {
       ? formatBowlersLanesDateSummary(session.bowlerCount, session.date)
       : 'How many people, and when?'
 
-  const pricingContext = useLanePricingContext({
-    bowlerCount: session.bowlerCount ?? 1,
-    laneCount: session.laneCount ?? 1,
-    startTime: session.startTime,
-    endTime: session.endTime,
-  })
-
-  const pricing = useMemo(() => {
-    return calculateBookingTotal({
-      package: null,
-      bowlerCount: session.bowlerCount ?? 1,
-      laneCount: session.laneCount ?? 1,
-      shoeSelections: [],
-      shoeRentalPriceCents: tenant.shoeRentalPriceCents,
-      laneReservationCents:
-        (session.laneCount ?? 1) * tenant.laneReservationCentsPerLane,
-      pricingContext,
-    })
-  }, [
-    session.bowlerCount,
-    session.laneCount,
-    pricingContext,
-    tenant.shoeRentalPriceCents,
-    tenant.laneReservationCentsPerLane,
-  ])
-
   const canProceedToPackages =
     session.timeSlotId != null &&
     session.holdExpiresAt != null &&
@@ -236,19 +203,14 @@ export default function BookStepOnePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
-      <BookingFlowHeader
-        venueName={tenant.name}
-        address={tenant.address}
-        onSignIn={() => {
-          router.push(STAFF_SIGN_IN_PATH)
-        }}
-      />
-      <StepIndicator currentStep={1} />
-      <HoldTimer
-        expiresAt={session.holdExpiresAt}
-        onExpire={handleHoldExpired}
-      />
+    <BookingFlowShell
+      venueName={tenant.name}
+      address={tenant.address}
+      signInHref={`/signin?from=${encodeURIComponent(pathname)}`}
+      currentStep={1}
+      holdExpiresAt={session.holdExpiresAt}
+      onHoldExpire={handleHoldExpired}
+    >
       <BookingFlowLead
         title="Let's get you bowling"
         subtitle={leadSubtitle}
@@ -345,13 +307,15 @@ export default function BookStepOnePage() {
         )}
       </section>
 
-      <PriceFooter
+      <Button
+        variant="primary"
+        fullWidth
         className="mt-auto"
-        pricing={pricing}
-        ctaLabel={ctaLabel}
-        onCta={handleNext}
-        ctaDisabled={!canProceedToPackages}
-      />
-    </main>
+        onClick={handleNext}
+        disabled={!canProceedToPackages}
+      >
+        {ctaLabel}
+      </Button>
+    </BookingFlowShell>
   )
 }

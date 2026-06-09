@@ -14,9 +14,21 @@ import { revalidatePath } from 'next/cache'
 
 import type { Prisma } from '@prisma/client'
 
+import {
+  dispatchTeamInviteEmail,
+  issueTeamInviteToken,
+} from '@/lib/team-invite-shared'
 import { hashPassword, requireRole, type CurrentUser } from '@/lib/auth'
 import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
+import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
+import { appBaseUrl } from '@/lib/secure-tokens'
+import {
+  createConnectAccountLink,
+  createConnectExpressAccount,
+  getConnectAccountStatus,
+} from '@/lib/stripe'
+import { getTenant } from '@/lib/tenant'
 import { isValidThemeSlug } from '@/lib/themes'
 
 // ── Shared types ──────────────────────────────────────────
@@ -1411,7 +1423,7 @@ export interface CreateUserInput {
   name?: string
   phone?: string
   role: 'STAFF' | 'MANAGER' | 'ADMIN'
-  initialPassword: string
+  personalMessage?: string
 }
 
 function requireCanAssignRole(user: CurrentUser, role: string): void {
@@ -1422,50 +1434,131 @@ function requireCanAssignRole(user: CurrentUser, role: string): void {
   }
 }
 
+interface TeamMutationTarget {
+  id: string
+  tenantId: string
+  role: 'CUSTOMER' | 'STAFF' | 'MANAGER' | 'ADMIN'
+}
+
+async function loadTeamMutationTarget(
+  userId: string,
+): Promise<TeamMutationTarget> {
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, tenantId: true, role: true },
+  })
+  if (!target?.tenantId) {
+    throw new Error('Team user not found.')
+  }
+  return {
+    id: target.id,
+    tenantId: target.tenantId,
+    role: target.role,
+  }
+}
+
+function assertCanMutateTeamUser(
+  actor: CurrentUser,
+  target: TeamMutationTarget,
+): void {
+  if (!actor.tenantId) {
+    throw new Error('Cannot mutate team users without a tenant context.')
+  }
+  if (target.tenantId !== actor.tenantId) {
+    throw new Error('Cannot mutate users outside your tenant.')
+  }
+  if (target.role === 'ADMIN' && actor.role !== 'ADMIN') {
+    throw new Error('Only an ADMIN can modify an ADMIN user.')
+  }
+}
+
+async function requireTeamMutationTarget(
+  actor: CurrentUser,
+  userId: string,
+): Promise<TeamMutationTarget> {
+  const target = await loadTeamMutationTarget(userId)
+  assertCanMutateTeamUser(actor, target)
+  return target
+}
+
 export async function createTeamUserAction(
   input: CreateUserInput,
 ): Promise<{ userId: string; mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
   requireCanAssignRole(user, input.role)
 
+  if (user.tenantId && input.tenantId !== user.tenantId) {
+    throw new Error(
+      'createTeamUserAction: cannot create users outside your tenant.',
+    )
+  }
+
   if (!/.+@.+\..+/.test(input.email)) {
     throw new Error('createTeamUserAction: invalid email')
   }
-  if (input.initialPassword.length < 8) {
-    throw new Error('createTeamUserAction: password must be 8+ characters')
-  }
 
   if (isDevWithoutDb()) {
-    console.log(`[admin] mock team user create by ${user.email}`, {
-      email: input.email,
-      role: input.role,
-    })
+    const mockToken = 'mock_invite_token'
+    const inviteUrl = `${appBaseUrl()}/accept-invite?token=${encodeURIComponent(mockToken)}`
+    console.log(
+      `[admin] mock team user create by ${user.email}`,
+      { email: input.email, role: input.role, inviteUrl },
+    )
     return { userId: `user_mock_${Date.now()}`, mocked: true }
   }
 
-  const hashed = await hashPassword(input.initialPassword)
+  let created: { id: string; email: string; role: typeof input.role }
+  let rawToken: string
 
-  const created = await prisma.$transaction(async (tx) => {
-    const u = await tx.user.create({
-      data: {
-        tenantId: input.tenantId,
-        email: input.email.toLowerCase().trim(),
-        name: input.name?.trim() || null,
-        phone: input.phone?.trim() || null,
-        role: input.role,
-        passwordHash: hashed,
-      },
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.create({
+        data: {
+          tenantId: input.tenantId,
+          email: input.email.toLowerCase().trim(),
+          name: input.name?.trim() || null,
+          phone: input.phone?.trim() || null,
+          role: input.role,
+          passwordHash: null,
+        },
+      })
+      const token = await issueTeamInviteToken(tx, {
+        userId: u.id,
+        invitedByUserId: user.id,
+        personalMessage: input.personalMessage,
+      })
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'TEAM_USER_CREATED',
+          entityType: 'User',
+          entityId: u.id,
+          details: { email: u.email, role: u.role },
+        },
+      })
+      return { u, token }
     })
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'TEAM_USER_CREATED',
-        entityType: 'User',
-        entityId: u.id,
-        details: { email: u.email, role: u.role },
-      },
-    })
-    return u
+    created = {
+      id: result.u.id,
+      email: result.u.email,
+      role: input.role,
+    }
+    rawToken = result.token
+  } catch (err) {
+    if (isUniqueConstraintOnField(err, ['email'])) {
+      throw new Error(
+        'This email is already in use. Team members cannot share an email with a customer account.',
+      )
+    }
+    throw err
+  }
+
+  await dispatchTeamInviteEmail({
+    to: created.email,
+    role: created.role,
+    rawToken,
+    inviterName: user.name,
+    personalMessage: input.personalMessage,
   })
 
   revalidatePath('/admin/team')
@@ -1484,11 +1577,16 @@ export async function updateTeamUserAction(
   input: UpdateUserInput,
 ): Promise<{ mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
-  requireCanAssignRole(user, input.role)
 
   if (input.userId === user.id && input.role !== user.role) {
     throw new Error('updateTeamUserAction: cannot change your own role')
   }
+
+  if (!isDevWithoutDb()) {
+    await requireTeamMutationTarget(user, input.userId)
+  }
+
+  requireCanAssignRole(user, input.role)
 
   if (isDevWithoutDb()) {
     console.log(`[admin] mock team user update by ${user.email}`, input)
@@ -1534,6 +1632,10 @@ export async function resetUserPasswordAction(
     throw new Error('resetUserPasswordAction: password must be 8+ characters')
   }
 
+  if (!isDevWithoutDb()) {
+    await requireTeamMutationTarget(user, input.userId)
+  }
+
   if (isDevWithoutDb()) {
     console.log(`[admin] mock password reset by ${user.email}`, input.userId)
     return { mocked: true }
@@ -1567,6 +1669,10 @@ export async function deactivateTeamUserAction(
 
   if (userId === user.id) {
     throw new Error('deactivateTeamUserAction: cannot deactivate yourself')
+  }
+
+  if (!isDevWithoutDb()) {
+    await requireTeamMutationTarget(user, userId)
   }
 
   if (isDevWithoutDb()) {
@@ -2282,24 +2388,83 @@ function mockPackages(): AdminPackageRow[] {
   ]
 }
 
-/** Stripe Connect onboarding — returns dashboard URL until OAuth is wired. */
+/** Stripe Connect onboarding — OAuth account link for the tenant. */
 export async function getStripeConnectOnboardingUrl(): Promise<{
   url: string | null
   message: string
 }> {
-  await requireRole('ADMIN')
-  const dashboard =
-    process.env.STRIPE_CONNECT_DASHBOARD_URL?.trim() ||
-    'https://dashboard.stripe.com/connect/accounts/overview'
+  const user = await requireRole('ADMIN')
+  const tenant = await getTenant()
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
+    .trim()
+    .replace(/\/$/, '')
+  const returnUrl = `${baseUrl}/staff/settings/integrations?stripe=return`
+  const refreshUrl = `${baseUrl}/staff/settings/integrations?stripe=refresh`
+
   if (!process.env.STRIPE_SECRET_KEY?.trim()) {
     return {
       url: null,
       message: 'Add STRIPE_SECRET_KEY before connecting Stripe.',
     }
   }
+
+  if (isDevWithoutDb()) {
+    return {
+      url: returnUrl,
+      message: 'Mock Connect onboarding (dev without database).',
+    }
+  }
+
+  let accountId = tenant.stripeConnectAccountId?.trim() ?? null
+  if (!accountId) {
+    const created = await createConnectExpressAccount({
+      tenantName: tenant.name,
+      tenantEmail: user.email ?? undefined,
+    })
+    accountId = created.accountId
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: { stripeConnectAccountId: accountId },
+    })
+  }
+
+  const link = await createConnectAccountLink({
+    accountId,
+    returnUrl,
+    refreshUrl,
+  })
+
   return {
-    url: dashboard,
-    message: 'Open Stripe Connect in the Stripe Dashboard to finish account setup.',
+    url: link.url,
+    message: link.mocked
+      ? 'Mock Stripe Connect link opened.'
+      : 'Complete Stripe Connect onboarding in the new tab.',
+  }
+}
+
+export async function getStripeConnectStatus(): Promise<{
+  connected: boolean
+  chargesEnabled: boolean
+  payoutsEnabled: boolean
+  accountId: string | null
+}> {
+  await requireRole('ADMIN')
+  const tenant = await getTenant()
+  const accountId = tenant.stripeConnectAccountId?.trim() ?? null
+  if (!accountId) {
+    return {
+      connected: false,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      accountId: null,
+    }
+  }
+  const status = await getConnectAccountStatus(accountId)
+  return {
+    connected: status.detailsSubmitted,
+    chargesEnabled: status.chargesEnabled,
+    payoutsEnabled: status.payoutsEnabled,
+    accountId,
   }
 }
 

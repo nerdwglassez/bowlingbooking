@@ -1,11 +1,6 @@
 import type { Prisma } from '@prisma/client'
 
-const ACTIVE_BOOKING_STATUSES = [
-  'CONFIRMED',
-  'COMPLETED',
-  'NO_SHOW',
-  'PENDING_PAYMENT',
-] as const
+import { CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
 
 /**
  * Pick lowest-numbered free lanes and persist BookingLane rows for a booking.
@@ -28,7 +23,7 @@ export async function assignBookingLanes(
   const overlapping = await tx.booking.findMany({
     where: {
       tenantId: input.tenantId,
-      status: { in: [...ACTIVE_BOOKING_STATUSES] },
+      status: { in: [...CAPACITY_BOOKING_STATUSES] },
       startTime: { lt: input.endTime },
       endTime: { gt: input.startTime },
       id: { not: input.bookingId },
@@ -66,4 +61,19 @@ export async function assignBookingLanes(
   }
 
   return pickedNumbers
+}
+
+/** Replace persisted lane links after a reschedule or modification. */
+export async function reassignBookingLanes(
+  tx: Prisma.TransactionClient,
+  input: {
+    tenantId: string
+    bookingId: string
+    laneCount: number
+    startTime: Date
+    endTime: Date
+  },
+): Promise<number[]> {
+  await tx.bookingLane.deleteMany({ where: { bookingId: input.bookingId } })
+  return assignBookingLanes(tx, input)
 }

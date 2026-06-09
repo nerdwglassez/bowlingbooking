@@ -50,7 +50,7 @@ Same drift checks as primitives/patterns:
 4. **Tailwind is for layout only.** Spacing, sizing, flex/grid, positioning — fine. Color/font/border utilities are not.
 5. **No `bg-[var(--…)]` on plain `<div>`s.** Use a primitive. If you're styling page chrome (e.g. the booking shell), use `<Card variant="flat">` or `<Card variant="default">` rather than recreating it.
 6. **No font-family declarations.** Headings use native `<h1>`–`<h6>` and inherit from `globals.css`.
-7. **Sticky/fixed positioning lives on the page**, not in patterns. Pages wrap `<PriceFooter>` and similar patterns in their own sticky container.
+7. **Sticky/fixed positioning lives on the page shell**, not in patterns. `BookingFlowShell` places the optional footer slot; patterns render the footer content only.
 8. **Tenant data via `getTenant()`** — never hardcode "Royal Z Lanes", "123 Main St", etc. The first line of any tenant-aware page is usually `const tenant = await getTenant()`.
 9. **Auth checks via `auth()` and `requireRole()`** from `src/lib/auth.ts`. Never read NextAuth session manually.
 10. **Server actions for mutations.** Don't `fetch('/api/...')` from the client when a server action will do.
@@ -87,11 +87,11 @@ Loading states (`loading.tsx`), error boundaries (`error.tsx`), and `not-found.t
 Every booking step page must:
 
 1. Start with `'use client'` (booking pages read/write `BookingContext`).
-2. Compose, in order: `<VenueHeader>` → `<StepIndicator currentStep={N}>` → `<HoldTimer>` → step-specific content → `<PriceFooter>` wrapped in a sticky container.
+2. Wrap content in `<BookingFlowShell>` with `currentStep`, `holdExpiresAt`, `signInHref`, and optional `footer` + `back` (steps 3–4).
 3. Get tenant chrome via the `useTenant()` hook from `src/app/(customer)/book/tenant-provider`. The server-rendered `book/layout.tsx` calls `getTenant()` once and wraps its children in `<TenantProvider value={tenant}>`. Pages never call `getTenant()` directly — that would be a Prisma call from a `'use client'` file (forbidden).
 4. Read booking state via `useBooking()`.
 5. On "Next" CTA, call any required server action, update context, then `router.push('/book/next-step-path')`.
-6. On the back arrow / step-indicator click on a past step, navigate back without losing state (BookingContext lives at the `book/layout.tsx` level so it survives intra-flow navigation).
+6. On header back (steps 3–4), navigate back without losing state (BookingContext lives at the `book/layout.tsx` level so it survives intra-flow navigation).
 
 ---
 
@@ -138,7 +138,7 @@ V1 surface:
 | `getAvailableTimeSlots(tenantId, dateISO, bowlerCount)` | Return time slots for the chosen date | `/book` (after date selected) |
 | `acquireBookingHold({tenantId, startTime, endTime, bowlerCount})` | Create hold; returns `holdId` + `expiresAt` | `/book` time cell select |
 | `releaseBookingHold()` | Release prior hold when switching slots | `/book` |
-| `getPackagesForTenant(tenantId, { packageAccessCode? })` | Fetch PUBLIC + unlocked CODE_REQUIRED packages | `/book/package` |
+| `getPackagesForTenant(tenantId)` | Fetch all active packages (PUBLIC + CODE_REQUIRED) | `/book/package` |
 | `validatePackageAccessCode(tenantId, code)` | Unlock CODE_REQUIRED package | `/book/package` |
 | `confirmBooking(input)` | Create Stripe PaymentIntent; webhook creates Booking | `/book/confirm` |
 | `confirmOfflineBooking(input)` | PAYMENT_OFFLINE → PENDING_PAYMENT (no Stripe) | `/book/confirm` |
@@ -156,7 +156,7 @@ Each of the four booking pages. Read the named wireframe AND the relevant patter
 ### `app/(customer)/book/page.tsx` — Scheduling (wireframe Step 1: bowlers + date + “Choose a time” on one screen)
 **Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1 variants **1a** / **1b** (same route: empty “Choose a time” until a date exists, then `<TimeSlotGrid>` + hold in place).
 **Phase 0:** `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — `<StepIndicator currentStep={1}>`.
-- Compose: `<VenueHeader onSignIn={…}>`, `<StepIndicator currentStep={1}>`, `<HoldTimer expiresAt={session.holdExpiresAt}>` (null until a slot is held), `<BookingFlowLead>` (subtitle `formatBowlersLanesDateSummary` once date is set), `<BowlerCounter>`, `<DateStrip>`, bordered **“Choose a time”** section (muted hint if `!session.date`; else loading / `<TimeSlotGrid>`), `<PriceFooter>` — CTA **“Select a date and time to continue”** until slot + valid hold, then **“Continue to packages →”** → `router.push('/book/package')`.
+- Compose: `<BookingFlowShell currentStep={1}>` + `<BookingFlowLead>` + `<BowlerCounter>` + date/time sections + inline `<Button>` CTA at bottom — **no dark footer bar**. CTA **"Select a date and time to continue"** until slot + valid hold, then **"Continue to packages →"** → `router.push('/book/package')`.
 - State reads/writes: `setBowlerCount`, `setDate`, `setTimeSlot`; session fields as today.
 - Data: `getAvailableDates`, `getAvailableTimeSlots` — DO NOT call Prisma from the client.
 - Slot select: `acquireBookingHold` → `setTimeSlot`; switching slots calls `releaseBookingHold` for the prior id when it changes.
@@ -168,18 +168,18 @@ Redirects to `/book` so old links still work.
 **Wireframe:** `docs/wireframes/customer/booking-step2-refined.html` (and Step 2 block in `booking-step1-2-branded.html`). Lane strip also referenced in `booking-step3-final.html`.
 **Phase 0:** `<StepIndicator currentStep={2}>`. Milestone **3** in the four-dot wireframe has no dedicated URL; confirm uses **4**.
 - Guard: if `!session.timeSlotId`, `redirect('/book')`.
-- Compose: header + `<StepIndicator currentStep={2}>` + `<HoldTimer>` + `<BookingFlowLead title="Choose a package">` + `<PackageListToolbar>` + `<LaneAllocationView>` + `<PackageCard onOpenDetails={…}>` list + `<PackageDetailSheet>` + `<PriceFooter>` (disabled **“Select a package to continue”** until selection + valid hold).
-- Data: `getPackagesForTenant(tenant.id)`.
-- On select: `calculatePrice` → `setPackage(pkg, totalAmount)`.
-- CTA: requires `session.packageId != null` and valid hold. On click, `router.push('/book/confirm')`.
+- Compose: `<BookingFlowShell currentStep={2} footer={<BookingFlowFooter …>}>` + `<BookingFlowLead>` + access code field + `<PackageListToolbar>` + `<PackageCard>` list + `<PackageDetailSheet>`. Footer: **CTA only** — disabled **"Select a package to continue"** until selection + valid hold.
+- CTA: requires `session.packageId != null` and valid hold. On click, `router.push('/book/details')`.
 
-### `app/(customer)/book/confirm/page.tsx` — Step 4 (Customer info + checkout)
+### `app/(customer)/book/details/page.tsx` — Step 3 (Shoe sizing + contact)
+**Wireframe:** `docs/wireframes/customer/booking-step3-dropdown.html`.
+- Guard: if `!session.timeSlotId`, `redirect('/book')`.
+- Compose: `<BookingFlowShell currentStep={3} back={BOOKING_BACK_BY_STEP[3]} footer={<BookingDetailsFooter …>}>` + contact + shoe sections. Footer: contextual CTA only.
+
+### `app/(customer)/book/confirm/page.tsx` — Step 4 (Review + Payment)
 **Wireframe:** `docs/wireframes/customer/booking-step4-confirmation.html`.
-- Guard: if `!session.packageId`, `redirect('/book/package')`.
-- Compose: header + step indicator (currentStep=4) + `<HoldTimer>` + `<BookingSummaryCard>` (read-only summary) + a customer info form (`<Input>`, `<Input>`, `<Input>` for name, email, phone) + `<PriceFooter ctaLabel="Pay & confirm" …>`.
-- The customer form is implemented inline in the page using the Input primitive directly — DO NOT create a new pattern for it; a single-screen form doesn't earn pattern-hood yet.
-- On change of any input, call `setCustomerInfo({ name?, email?, phone? })`.
-- CTA: requires all three fields filled + basic email regex. On click, call `confirmBooking({ tenantId: tenant.id, packageId: session.packageId!, partyType: session.partyType ?? 'OPEN', bowlerCount: session.bowlerCount!, startTime: session.startTime!, endTime: session.endTime!, totalAmount: session.totalAmount!, customerName: session.customerName, customerEmail: session.customerEmail, customerPhone: session.customerPhone })` → on success, `resetSession()` and `router.push('/')`. (Stripe wiring is deferred to Phase 7; v1 inserts the booking directly in CONFIRMED state.)
+- Guard: if missing prereqs, redirect upstream.
+- Compose: `<BookingFlowShell currentStep={4} back={BOOKING_BACK_BY_STEP[4]} footer={<PaymentPriceFooter …>}>` + `<OrderSummaryCard>` (itemized pricing in-content) + consents + Stripe form. Footer: Pay/Confirm CTA only (+ optional policy note).
 
 ---
 
@@ -187,8 +187,10 @@ Redirects to `/book` so old links still work.
 
 ```tsx
 // Patterns
+import { BookingFlowShell } from '@/components/patterns/booking-flow-shell'
+import { BookingAppHeader } from '@/components/patterns/booking-app-header'
+import { BookingFlowFooter } from '@/components/patterns/booking-flow-footer'
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
-import { VenueHeader } from '@/components/patterns/venue-header'
 import { StepIndicator } from '@/components/patterns/step-indicator'
 import { HoldTimer } from '@/components/patterns/hold-timer'
 import { BowlerCounter } from '@/components/patterns/bowler-counter'
@@ -197,9 +199,8 @@ import { TimeSlotGrid } from '@/components/patterns/time-slot-grid'
 import { PackageListToolbar } from '@/components/patterns/package-list-toolbar'
 import { PackageDetailSheet } from '@/components/patterns/package-detail-sheet'
 import { PackageCard } from '@/components/patterns/package-card'
-import { LaneAllocationView } from '@/components/patterns/lane-allocation-view'
-import { BookingSummaryCard } from '@/components/patterns/booking-summary-card'
-import { PriceFooter } from '@/components/patterns/price-footer'
+import { OrderSummaryCard } from '@/components/patterns/order-summary-card'
+import { PaymentPriceFooter } from '@/components/patterns/payment-price-footer'
 import { EmptyState } from '@/components/patterns/empty-state'
 
 // Primitives (sparingly — only when no pattern fits)

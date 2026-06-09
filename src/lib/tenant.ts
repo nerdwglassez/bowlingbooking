@@ -82,6 +82,7 @@ function mapTenant(row: {
   bowlersPerLane: number
   cancellationRefundPercent: number
   config: unknown
+  stripeConnectAccountId?: string | null
 }): Tenant {
   return {
     id: row.id,
@@ -98,6 +99,7 @@ function mapTenant(row: {
     checkInWindowMinutes: row.checkInWindowMinutes,
     bowlersPerLane: row.bowlersPerLane,
     cancellationRefundPercent: row.cancellationRefundPercent,
+    stripeConnectAccountId: row.stripeConnectAccountId ?? null,
     config:
       row.config && typeof row.config === 'object' && !Array.isArray(row.config)
         ? (row.config as Record<string, unknown>)

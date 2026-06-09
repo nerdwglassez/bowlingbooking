@@ -1,16 +1,21 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ChevronRight, Download, Search } from 'lucide-react'
 
+import { BottomSheet } from '@/components/chrome/bottom-sheet'
+import { ContactDetailPanel } from '@/app/(staff)/staff/reports/contacts/[contactId]/contact-detail-panel'
 import { Input } from '@/components/ui/input'
+import { getStaffContactDetail } from '@/lib/actions/staff-reports'
 import {
   contactInitials,
   downloadCsv,
   exportContactsCsv,
   filterContacts,
   formatLastBookingDate,
+  type StaffContactDetail,
   type StaffContactRow,
 } from '@/lib/reports-display'
 
@@ -20,6 +25,7 @@ export type ReportsContactsViewProps = {
   onQueryChange: (value: string) => void
   searchExpanded: boolean
   onSearchExpandedChange: (expanded: boolean) => void
+  tenantId: string
 }
 
 export function ReportsContactsView({
@@ -28,14 +34,45 @@ export function ReportsContactsView({
   onQueryChange,
   searchExpanded,
   onSearchExpandedChange,
+  tenantId,
 }: ReportsContactsViewProps) {
+  const router = useRouter()
   const filtered = useMemo(
     () => filterContacts(contacts, query),
     [contacts, query],
   )
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [detail, setDetail] = useState<StaffContactDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
-  return (
-    <div className="flex flex-col gap-4">
+  useEffect(() => {
+    if (!selectedId) {
+      setDetail(null)
+      return
+    }
+    let cancelled = false
+    setDetailLoading(true)
+    void getStaffContactDetail(tenantId, selectedId).then((row) => {
+      if (!cancelled) {
+        setDetail(row)
+        setDetailLoading(false)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId, tenantId])
+
+  function handleSelect(contactId: string) {
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) {
+      setSelectedId(contactId)
+      return
+    }
+    router.push(`/staff/reports/contacts/${contactId}`)
+  }
+
+  const list = (
+    <div className="flex flex-col gap-4 md:min-w-0 md:flex-1">
       {!searchExpanded && !query ? (
         <button
           type="button"
@@ -83,10 +120,15 @@ export function ReportsContactsView({
           </p>
         ) : (
           filtered.map((contact) => (
-            <Link
+            <button
               key={contact.id}
-              href={`/staff/reports/contacts/${contact.id}`}
-              className="flex items-center gap-3 border-b border-solid border-[var(--color-border)] py-2.5 last:border-0"
+              type="button"
+              onClick={() => handleSelect(contact.id)}
+              className={`flex w-full items-center gap-3 border-b border-solid border-[var(--color-border)] py-2.5 text-left last:border-0 ${
+                selectedId === contact.id
+                  ? 'bg-[color-mix(in_srgb,var(--color-action-subtle)_12%,transparent)]'
+                  : ''
+              }`}
             >
               <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-full)] bg-[var(--surface-raised)] text-xs font-semibold text-[var(--color-text-secondary)]">
                 {contactInitials(contact.name)}
@@ -111,10 +153,10 @@ export function ReportsContactsView({
                 </div>
               </div>
               <ChevronRight
-                className="size-3.5 shrink-0 text-[var(--color-text-muted)]"
+                className="size-3.5 shrink-0 text-[var(--color-text-muted)] md:hidden"
                 aria-hidden
               />
-            </Link>
+            </button>
           ))
         )}
       </div>
@@ -130,5 +172,43 @@ export function ReportsContactsView({
         Export contacts as CSV
       </button>
     </div>
+  )
+
+  return (
+    <>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start">
+        {list}
+        <div className="hidden md:block md:w-[400px] md:shrink-0">
+          {selectedId ? (
+            detailLoading || !detail ? (
+              <p className="py-8 text-sm text-[var(--color-text-secondary)]">
+                Loading contact…
+              </p>
+            ) : (
+              <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--surface-card)] p-4">
+                <ContactDetailPanel contact={detail} compact />
+              </div>
+            )
+          ) : (
+            <p className="py-8 text-sm text-[var(--color-text-muted)]">
+              Select a contact to view details
+            </p>
+          )}
+        </div>
+      </div>
+
+      <BottomSheet
+        open={selectedId != null && detail != null}
+        title={detail?.name ?? 'Contact'}
+        onClose={() => setSelectedId(null)}
+        className="md:hidden"
+      >
+        {detail ? (
+          <div className="p-4 md:hidden">
+            <ContactDetailPanel contact={detail} compact />
+          </div>
+        ) : null}
+      </BottomSheet>
+    </>
   )
 }

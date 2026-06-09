@@ -8,7 +8,11 @@
 
 import { getRateLimitPolicy, isRateLimitEnabled } from '@/lib/env'
 
-export type RateLimitBucket = 'find_booking' | 'booking_ics' | 'promo_validate'
+export type RateLimitBucket =
+  | 'find_booking'
+  | 'booking_ics'
+  | 'promo_validate'
+  | 'password_reset'
 
 export class RateLimitExceededError extends Error {
   readonly retryAfterSec: number

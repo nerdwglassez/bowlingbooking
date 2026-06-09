@@ -207,6 +207,37 @@ describe('calculateBookingTotal — lane strategy', () => {
   })
 })
 
+describe('calculateBookingTotal — shoe selections', () => {
+  it('derives shoe amounts from tenant rate, ignoring tampered client costs', () => {
+    const result = calculateBookingTotal({
+      package: null,
+      bowlerCount: 2,
+      laneCount: 1,
+      shoeRentalPriceCents: 400,
+      laneReservationCents: 1200,
+      shoeSelections: [
+        { bowlerId: '1', size: 'M8', cost: 0 },
+        { bowlerId: '2', size: 'W7', cost: 0 },
+      ],
+    })
+    expect(result.shoeAmount).toBe(800)
+    expect(result.totalAmount).toBe(2000)
+  })
+
+  it('charges zero for own shoes regardless of client cost', () => {
+    const result = calculateBookingTotal({
+      package: null,
+      bowlerCount: 1,
+      laneCount: 1,
+      shoeRentalPriceCents: 400,
+      laneReservationCents: 1200,
+      shoeSelections: [{ bowlerId: '1', size: 'OWN', cost: 999 }],
+    })
+    expect(result.shoeAmount).toBe(0)
+    expect(result.totalAmount).toBe(1200)
+  })
+})
+
 describe('formatPrice', () => {
   it('renders integer cents as USD with two decimals', () => {
     expect(formatPrice(4500)).toBe('$45.00')
