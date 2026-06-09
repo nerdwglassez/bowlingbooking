@@ -3,7 +3,7 @@ import type { Role } from '@/types'
 /** Staff sign-in entry from the customer booking header (not customer auth). */
 export const STAFF_SIGN_IN_PATH = '/signin?from=/staff'
 
-const ALLOWED_SIGN_IN_FROM = /^\/[A-Za-z0-9/_-]*$/
+const ALLOWED_SIGN_IN_FROM = /^\/(?!\/)[A-Za-z0-9/_-]*$/
 
 /** Normalize `from` query / hidden field; invalid values become `/`. */
 export function sanitizeSignInFrom(raw: string | null | undefined): string {

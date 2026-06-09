@@ -32,6 +32,7 @@ import { headers } from 'next/headers'
 import { redirect, unauthorized } from 'next/navigation'
 import { compare, hash } from 'bcryptjs'
 
+import { sanitizeSignInFrom } from '@/lib/auth-paths'
 import { resolveAuthUrlForChecks, warnOnce } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Role } from '@/types'
@@ -303,7 +304,8 @@ async function buildSignInUrl(): Promise<string> {
     // headers() can throw in non-request contexts (e.g. unit tests without
     // a Next.js request scope). Fall back to '/' rather than blow up.
   }
-  if (!from || from === '/' || from === '/signin') return '/signin'
-  const params = new URLSearchParams({ from })
+  const safeFrom = sanitizeSignInFrom(from)
+  if (safeFrom === '/' || safeFrom === '/signin') return '/signin'
+  const params = new URLSearchParams({ from: safeFrom })
   return `/signin?${params.toString()}`
 }
