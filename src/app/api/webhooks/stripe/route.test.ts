@@ -613,6 +613,78 @@ describe('POST /api/webhooks/stripe', () => {
     })
   })
 
+  it('marks refund failed and restores refundable amount on refund.updated failure', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_failed',
+      type: 'refund.updated',
+      data: {
+        object: {
+          id: 're_failed',
+          payment_intent: 'pi_1',
+          amount: 2500,
+          status: 'failed',
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      refundAmount: 4500,
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
+      data: {
+        refundAmount: 2000,
+        refundStatus: 'FAILED',
+        refundedAt: null,
+      },
+    })
+  })
+
+  it('reconciles succeeded refund.updated without cancelling partially refunded bookings', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_ok',
+      type: 'refund.updated',
+      data: {
+        object: {
+          id: 're_ok',
+          payment_intent: 'pi_1',
+          amount: 2000,
+          status: 'succeeded',
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      refundAmount: 2000,
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
+      data: expect.objectContaining({
+        stripeRefundId: 're_ok',
+        refundAmount: 2000,
+        refundStatus: 'SUCCEEDED',
+      }),
+    })
+  })
+
   it('ignores unknown event types but still returns 200', async () => {
     mocks.constructWebhookEventMock.mockReturnValue({
       id: 'evt_x',
