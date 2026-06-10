@@ -12,7 +12,7 @@ Built to be licensed to other bowling alleys (multi-tenant SaaS architecture).
 - TypeScript 5+
 - Tailwind CSS v4 (CSS-first via `@theme`; layout/spacing utilities only — NO color classes; drift sentinel enforces this)
 - Custom 4-layer component system: tokens → `ui/` primitives → `patterns/` → pages (see DESIGN_SYSTEM.md). NOT shadcn/ui directly — primitives are hand-built against the token system. Radix Slot may be used inside primitives for `asChild`.
-- Prisma 6.19 + PostgreSQL (money stored as integer cents — no `Decimal` columns)
+- Prisma 7.8 + PostgreSQL via `@prisma/adapter-pg` (money stored as integer cents — no `Decimal` columns)
 - Stripe (payments) — Stripe API uses cents natively, so no boundary conversion
 - NextAuth v5 / Auth.js (authentication; React 19 compatible) — wrapped in `src/lib/auth.ts`
 - Resend (email automation; Make webhook fallback if needed)

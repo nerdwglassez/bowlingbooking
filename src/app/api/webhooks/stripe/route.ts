@@ -41,7 +41,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import { constructWebhookEvent, createRefund, type Stripe } from '@/lib/stripe'
 import { getContactEmail, getTenant } from '@/lib/tenant'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '@/generated/prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

@@ -193,7 +193,7 @@ The sentinel is the single most important safety mechanism. It only reads, only 
 **Security greps** (also in drift sentinel — see `.claude/contracts/SECURITY.md`):
 - `dangerouslySetInnerHTML`, `eval(`, `new Function(` — banned everywhere
 - Secret `process.env` in `'use client'` files — only `NEXT_PUBLIC_*` / `NODE_ENV`
-- `@/lib/prisma` / `@prisma/client` in app `page.tsx` / route `layout.tsx` — banned
+- `@/lib/prisma` / `@/generated/prisma/client` in app `page.tsx` / route `layout.tsx` — banned
 - **`npm run audit`** — high/critical dependency CVEs fail CI
 
 After sensitive changes (auth, payments, webhooks, new public actions), run **`/security-review`** (`.cursor/skills/security-review/SKILL.md`).

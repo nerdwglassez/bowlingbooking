@@ -6,7 +6,7 @@
 // re-fetching.
 
 import { useMemo, createContext, useContext, type ReactNode } from 'react'
-import type { PricingPeriod } from '@prisma/client'
+import type { PricingPeriod } from '@/generated/prisma/client'
 
 import { buildLanePricingContext } from '@/lib/tenant-pricing'
 import type { LanePricingContext, TenantPricingStrategy } from '@/lib/tenant-pricing'

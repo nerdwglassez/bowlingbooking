@@ -12,7 +12,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import type { Prisma } from '@prisma/client'
+import type { Prisma } from '@/generated/prisma/client'
 
 import {
   dispatchTeamInviteEmail,

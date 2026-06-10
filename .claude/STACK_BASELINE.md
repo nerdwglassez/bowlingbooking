@@ -249,12 +249,14 @@ Then import `globals.css` once in root `layout.tsx`.
 {
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
-    "@prisma/client": "^6.19.3",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "@stripe/react-stripe-js": "^6.3.0",
     "@stripe/stripe-js": "^9.4.0",
     "next": "16.2.6",
     "next-auth": "^5.0.0-beta.31",  // Auth.js v5 — still beta-tagged; stable API
-    "prisma": "^6.19.3",
+    "pg": "^8.16.3",
+    "prisma": "^7.8.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -278,6 +280,15 @@ Then import `globals.css` once in root `layout.tsx`.
 ```
 
 > Note: `next-auth@5.0.0-beta.31` is the current Auth.js v5 channel. API is stable; only the version tag is `beta`. Pin tightly when the next stable lands.
+
+### 8.1 Prisma ORM v7 (2026-05-30)
+
+- **Config:** `prisma.config.ts` at repo root — datasource URL, migrations path, seed script. `schema.prisma` has no `url` field.
+- **Client:** `provider = "prisma-client"`, output `src/generated/prisma` (gitignored; rebuilt via `postinstall` / `prisma generate`).
+- **Imports:** types and `Prisma` namespace from `@/generated/prisma/client`. Runtime singleton via `@/lib/prisma` only.
+- **Adapter:** `@prisma/adapter-pg` + `pg` — `createPrismaClient()` in `src/lib/prisma.ts`. Never `new PrismaClient()` without an adapter.
+- **CI generate:** `prisma.config.ts` uses a placeholder URL when `DATABASE_URL` is unset so `prisma generate` works without a live DB.
+- **Seed:** `npx prisma db seed` — v7 does not auto-seed after `migrate dev`.
 
 ---
 

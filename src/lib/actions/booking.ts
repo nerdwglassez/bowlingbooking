@@ -50,8 +50,8 @@ import {
   buildLanePricingContext,
   resolveStrategyForBooking,
 } from '@/lib/tenant-pricing'
-import { Prisma } from '@prisma/client'
-import type { PricingPeriod } from '@prisma/client'
+import { Prisma } from '@/generated/prisma/client'
+import type { PricingPeriod } from '@/generated/prisma/client'
 import QRCode from 'qrcode'
 import type { Package, PartyType, ShoeSelection, Tenant, TimeSlot } from '@/types'
 

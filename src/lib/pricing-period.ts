@@ -1,4 +1,4 @@
-import type { PricingPeriod } from '@prisma/client'
+import type { PricingPeriod } from '@/generated/prisma/client'
 
 /** Resolve the highest-priority pricing period for a booking start time. */
 export function resolvePricingPeriod(

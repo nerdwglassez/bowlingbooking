@@ -22,7 +22,7 @@ Added to `scripts/drift-check.mjs`:
 - `dangerouslySetInnerHTML` — XSS surface; use text nodes or sanitized HTML only in allowlisted modules
 - `eval(` / `new Function(` — dynamic code execution
 - Secret `process.env` reads in `'use client'` files — only `NEXT_PUBLIC_*` and `NODE_ENV` allowed on the client bundle
-- Direct `@/lib/prisma` / `@prisma/client` imports in `src/app/**/page.tsx` and route `layout.tsx` — pages use server actions / lib helpers
+- Direct `@/lib/prisma` / `@/generated/prisma/client` imports in `src/app/**/page.tsx` and route `layout.tsx` — pages use server actions / lib helpers
 
 Existing chokepoint rules (auth, stripe, bcrypt, resend, sentry) remain unchanged.
 

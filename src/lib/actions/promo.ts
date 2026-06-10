@@ -1,6 +1,6 @@
 'use server'
 
-import type { PromoDiscountType } from '@prisma/client'
+import type { PromoDiscountType } from '@/generated/prisma/client'
 
 import type { PromoValidationResult } from '@/types'
 import { isDevWithoutDb } from '@/lib/env'

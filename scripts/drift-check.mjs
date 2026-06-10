@@ -157,7 +157,8 @@ const CHECKS = [
   },
   {
     name: 'direct prisma import in app page/layout',
-    regex: /from\s+['"](?:@\/lib\/prisma|@prisma\/client)['"]/g,
+    regex:
+      /from\s+['"](?:@\/lib\/prisma|@prisma\/client|@\/generated\/prisma\/client)['"]/g,
     appliesTo: (file) =>
       file.includes('/app/') &&
       (file.endsWith('/page.tsx') || file.endsWith('/layout.tsx')),

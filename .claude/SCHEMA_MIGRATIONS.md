@@ -379,3 +379,28 @@ Pending invite status: staff role + `passwordHash === null`.
 Depends on: nothing (PasswordResetToken pattern is independent)
 Blocks: team invite email flow
 
+---
+
+## Migration 9 — Prisma ORM v7 (infrastructure)
+Status: COMPLETE (2026-05-30)
+
+### Why
+Prisma 7 removes `url` from `schema.prisma`, requires `prisma.config.ts`,
+the `prisma-client` generator with a custom output path, and a driver
+adapter (`@prisma/adapter-pg` + `pg`) for runtime queries.
+
+### Changes
+- Root `prisma.config.ts` — datasource URL, migrations path, seed script
+- `prisma/schema.prisma` — `provider = "prisma-client"`, `output = "../src/generated/prisma"`, no `url` in datasource
+- `src/lib/prisma.ts` — `PrismaPg` adapter + `createPrismaClient()`
+- Imports: `@/generated/prisma/client` (generated on `postinstall` / `prisma generate`)
+- `package.json` — remove v6 pins/overrides; add `dotenv`, `pg`, `@prisma/adapter-pg`
+
+### Code changes required after migration
+- Any new Prisma type imports use `@/generated/prisma/client`, not `@prisma/client`
+- Seed: `npx prisma db seed` (no longer auto-runs after `migrate dev` in v7)
+- CI/Vercel: `postinstall` + `build` must run `prisma generate` before `next build`
+
+Depends on: nothing
+Blocks: nothing (no schema DDL change)
+

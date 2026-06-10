@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Prisma ORM upgraded to **7.8** — `prisma.config.ts`, `prisma-client` generator (`src/generated/prisma`), `@prisma/adapter-pg` + `pg` driver adapter; removed v6 version pins and Dependabot major-ignore rules.
 - Customer booking flow: purple `BookingFlowShell` chrome, 4-step indicator, neutral hold bar, CTA-only sticky footers (no price breakdown in footer).
 - Success page: conf header, dismissible celebration banner, icon detail rows, updated account prompt.
 - Customer dashboard: "Welcome back" greeting, profile icon, featured/secondary card structure per wireframe.

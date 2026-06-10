@@ -4,7 +4,7 @@ import { withSentryConfig } from '@sentry/nextjs'
 
 const nextConfig: NextConfig = {
   // Keep Prisma on the Node runtime with real process.env (not a bundled stub).
-  serverExternalPackages: ['@prisma/client', 'prisma'],
+  serverExternalPackages: ['prisma', '@prisma/adapter-pg', 'pg'],
 }
 
 // Sentry build-time config. When SENTRY_AUTH_TOKEN is unset (dev / preview),

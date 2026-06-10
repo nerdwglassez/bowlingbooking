@@ -12,7 +12,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma } from '@prisma/client'
+import { Prisma } from '@/generated/prisma/client'
 
 import { requireRole, type CurrentUser } from '@/lib/auth'
 import { generateConfirmationCode } from '@/lib/booking-codes'

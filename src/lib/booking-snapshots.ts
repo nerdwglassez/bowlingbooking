@@ -1,4 +1,4 @@
-import type { Tenant as PrismaTenant } from '@prisma/client'
+import type { Tenant as PrismaTenant } from '@/generated/prisma/client'
 
 export interface BookingPolicySnapshot {
   cancellationWindowHours: number

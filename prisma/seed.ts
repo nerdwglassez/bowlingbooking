@@ -8,10 +8,12 @@
  *   npx prisma db seed
  */
 
-import { PartyType, PrismaClient, Role } from '@prisma/client'
 import { hash } from 'bcryptjs'
 
-const prisma = new PrismaClient()
+import { PartyType, Role } from '@/generated/prisma/client'
+import { createPrismaClient } from '@/lib/prisma'
+
+const prisma = createPrismaClient()
 
 const TENANT_SLUG = 'royalz'
 const SEED_ADMIN_BCRYPT_COST = 12

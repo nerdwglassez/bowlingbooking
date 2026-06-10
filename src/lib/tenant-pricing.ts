@@ -1,6 +1,6 @@
 // tenant-pricing.ts — Resolve tenant pricing config + periods for booking totals.
 
-import type { PricingPeriod } from '@prisma/client'
+import type { PricingPeriod } from '@/generated/prisma/client'
 
 import { resolvePricingPeriod } from '@/lib/pricing-period'
 import type { Tenant } from '@/types'

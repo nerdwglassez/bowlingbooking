@@ -16,7 +16,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma } from '@prisma/client'
+import { Prisma } from '@/generated/prisma/client'
 
 import { policySnapshotFromBooking, policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { requireUser } from '@/lib/auth'

@@ -1,6 +1,6 @@
 // pricing-periods-data.ts — Load tenant pricing periods (server-only, no actions).
 
-import type { PricingPeriod } from '@prisma/client'
+import type { PricingPeriod } from '@/generated/prisma/client'
 
 import { isDevWithoutDb } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
