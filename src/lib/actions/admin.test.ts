@@ -188,6 +188,14 @@ function adminUser() {
     tenantId: 't1',
   }
 }
+
+function platformAdminUser() {
+  return {
+    ...adminUser(),
+    tenantId: null,
+  }
+}
+
 function managerUser() {
   return {
     id: 'user_mgr',
@@ -928,7 +936,12 @@ describe('team CRUD', () => {
 })
 
 describe('listAuditLogs', () => {
-  let auditAuthUser: ReturnType<typeof adminUser> | ReturnType<typeof managerUser> | ReturnType<typeof staffUser> | null
+  let auditAuthUser:
+    | ReturnType<typeof adminUser>
+    | ReturnType<typeof platformAdminUser>
+    | ReturnType<typeof managerUser>
+    | ReturnType<typeof staffUser>
+    | null
 
   beforeEach(() => {
     auditAuthUser = adminUser()
@@ -984,6 +997,47 @@ describe('listAuditLogs', () => {
     expect(page.entries[0].userName).toBe('Admin')
     expect(page.entries[0].userEmail).toBe('admin@royalz.local')
     expect(mocks.requireRoleMock).toHaveBeenCalledWith('ADMIN')
+  })
+
+  it('scopes audit rows to the tenant for tenant-bound ADMIN users', async () => {
+    auditAuthUser = adminUser()
+    mocks.auditFindMany.mockResolvedValue([])
+    mocks.auditCount.mockResolvedValue(0)
+
+    await listAuditLogs({})
+
+    const expectedScope = {
+      OR: [
+        { booking: { is: { tenantId: 't1' } } },
+        { user: { is: { tenantId: 't1' } } },
+        { entityType: 'Tenant', entityId: 't1' },
+      ],
+    }
+    expect(mocks.auditFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ AND: [expectedScope] }),
+      }),
+    )
+    expect(mocks.auditCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ AND: [expectedScope] }),
+      }),
+    )
+  })
+
+  it('does not tenant-scope platform ADMIN users without a tenant context', async () => {
+    auditAuthUser = platformAdminUser()
+    mocks.auditFindMany.mockResolvedValue([])
+    mocks.auditCount.mockResolvedValue(0)
+
+    await listAuditLogs({})
+
+    expect(mocks.auditFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} }),
+    )
+    expect(mocks.auditCount).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} }),
+    )
   })
 
   it('returns deterministic mock entries in dev-without-db', async () => {

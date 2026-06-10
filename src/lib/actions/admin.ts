@@ -1832,7 +1832,10 @@ function normalizeAuditPaging(filter: AuditLogFilter): {
   return { page, pageSize }
 }
 
-function buildAuditWhere(filter: AuditLogFilter): Prisma.AuditLogWhereInput {
+function buildAuditWhere(
+  filter: AuditLogFilter,
+  tenantId?: string | null,
+): Prisma.AuditLogWhereInput {
   const where: Prisma.AuditLogWhereInput = {}
   if (filter.action !== undefined && filter.action !== '') {
     where.action = filter.action
@@ -1851,6 +1854,17 @@ function buildAuditWhere(filter: AuditLogFilter): Prisma.AuditLogWhereInput {
     if (filter.endDate !== undefined) {
       where.createdAt.lte = filter.endDate
     }
+  }
+  if (tenantId) {
+    where.AND = [
+      {
+        OR: [
+          { booking: { is: { tenantId } } },
+          { user: { is: { tenantId } } },
+          { entityType: 'Tenant', entityId: tenantId },
+        ],
+      },
+    ]
   }
   return where
 }
@@ -1977,14 +1991,14 @@ function mockAuditLogPage(filter: AuditLogFilter): AuditLogPage {
 export async function listAuditLogs(
   filter: AuditLogFilter,
 ): Promise<AuditLogPage> {
-  await requireRole('ADMIN')
+  const user = await requireRole('ADMIN')
 
   if (isDevWithoutDb()) {
     return mockAuditLogPage(filter)
   }
 
   const { page, pageSize } = normalizeAuditPaging(filter)
-  const where = buildAuditWhere(filter)
+  const where = buildAuditWhere(filter, user.tenantId)
   const skip = (page - 1) * pageSize
 
   const [rows, total] = await Promise.all([
