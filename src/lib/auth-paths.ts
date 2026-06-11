@@ -47,7 +47,6 @@ export function defaultAppPathForRole(role: Role): string {
   switch (role) {
     case 'ADMIN':
     case 'MANAGER':
-      return '/admin'
     case 'STAFF':
       return '/staff'
     default:

@@ -70,12 +70,16 @@ export async function acceptTeamInviteAction(input: {
 export async function resendTeamInviteAction(input: {
   userId: string
   personalMessage?: string | null
-}): Promise<{ mocked: boolean }> {
+}): Promise<{
+  mocked: boolean
+  emailDelivered: boolean
+  inviteUrl?: string
+}> {
   const caller = await requireRole('MANAGER', 'ADMIN')
 
   if (isDevWithoutDb()) {
     console.log(`[admin] mock team invite resend by ${caller.email}`, input.userId)
-    return { mocked: true }
+    return { mocked: true, emailDelivered: false }
   }
 
   const target = await prisma.user.findUnique({
@@ -119,7 +123,7 @@ export async function resendTeamInviteAction(input: {
     return token
   })
 
-  await dispatchTeamInviteEmail({
+  const invite = await dispatchTeamInviteEmail({
     to: target.email,
     role: target.role,
     rawToken,
@@ -129,5 +133,9 @@ export async function resendTeamInviteAction(input: {
 
   revalidatePath('/staff/settings/team')
   revalidatePath('/admin/team')
-  return { mocked: false }
+  return {
+    mocked: false,
+    emailDelivered: invite.emailDelivered,
+    inviteUrl: invite.emailDelivered ? undefined : invite.inviteUrl,
+  }
 }

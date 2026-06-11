@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus } from 'lucide-react'
+import { Plus, UserX } from 'lucide-react'
 
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
+import { PasswordField } from '@/components/patterns/password-field'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +15,7 @@ import type { AdminUserRow } from '@/lib/actions/admin'
 import {
   createTeamUserAction,
   deactivateTeamUserAction,
+  resetUserPasswordAction,
   updateTeamUserAction,
 } from '@/lib/actions/admin'
 import { resendTeamInviteAction } from '@/lib/actions/team-invite'
@@ -55,21 +57,41 @@ function canRemoveTeamMember(
   return true
 }
 
+function canResetTeamPassword(
+  callerRole: CallerRole,
+  target: AdminUserRow,
+  callerId: string,
+): boolean {
+  if (target.id === callerId) return false
+  return canEditTeamMember(callerRole, target)
+}
+
 export function TeamSettingsPanel({
   tenantId,
   users,
   callerRole,
   callerId,
+  initialMemberId,
 }: {
   tenantId: string
   users: AdminUserRow[]
   callerRole: CallerRole
   callerId: string
+  initialMemberId?: string
 }) {
   const router = useRouter()
   const { showToast } = useStaffToast()
   const [inviteOpen, setInviteOpen] = useState(false)
   const [detailUser, setDetailUser] = useState<AdminUserRow | null>(null)
+  const [inviteLinkFallback, setInviteLinkFallback] = useState<string | null>(
+    null,
+  )
+
+  useEffect(() => {
+    if (!initialMemberId) return
+    const match = users.find((u) => u.id === initialMemberId)
+    if (match) setDetailUser(match)
+  }, [initialMemberId, users])
 
   return (
     <>
@@ -129,16 +151,29 @@ export function TeamSettingsPanel({
         tenantId={tenantId}
         callerRole={callerRole}
         onClose={() => setInviteOpen(false)}
-        onSuccess={() => {
+        onSuccess={(result) => {
           setInviteOpen(false)
-          showToast({ message: 'Team member invited', variant: 'success' })
+          if (result.inviteUrl) {
+            setInviteLinkFallback(result.inviteUrl)
+          } else {
+            showToast({ message: 'Invite email sent', variant: 'success' })
+          }
           router.refresh()
         }}
       />
 
+      <InviteLinkFallback
+        inviteUrl={inviteLinkFallback}
+        onClose={() => setInviteLinkFallback(null)}
+      />
+
       <DetailSheet
         open={detailUser != null}
-        user={detailUser}
+        user={
+          detailUser
+            ? (users.find((u) => u.id === detailUser.id) ?? detailUser)
+            : null
+        }
         callerRole={callerRole}
         callerId={callerId}
         onClose={() => setDetailUser(null)}
@@ -147,8 +182,16 @@ export function TeamSettingsPanel({
           showToast({ message: 'Team member updated', variant: 'success' })
           router.refresh()
         }}
-        onResent={() => {
-          showToast({ message: 'Invite resent', variant: 'success' })
+        onResent={(result) => {
+          if (result.inviteUrl) {
+            setInviteLinkFallback(result.inviteUrl)
+          } else {
+            showToast({ message: 'Invite email sent', variant: 'success' })
+          }
+          router.refresh()
+        }}
+        onPasswordReset={() => {
+          showToast({ message: 'Password updated', variant: 'success' })
           router.refresh()
         }}
         onRemoved={() => {
@@ -158,6 +201,51 @@ export function TeamSettingsPanel({
         }}
       />
     </>
+  )
+}
+
+function InviteLinkFallback({
+  inviteUrl,
+  onClose,
+}: {
+  inviteUrl: string | null
+  onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    if (!inviteUrl) return
+    try {
+      await navigator.clipboard.writeText(inviteUrl)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  return (
+    <BottomSheet
+      open={inviteUrl != null}
+      title="Copy invite link"
+      onClose={onClose}
+    >
+      {inviteUrl ? (
+        <div className="flex flex-col gap-3 p-4">
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Email delivery is not configured (<code>RESEND_API_KEY</code>).
+            Share this link with your team member directly — it expires in{' '}
+            <strong>48 hours</strong>.
+          </p>
+          <Input type="url" value={inviteUrl} readOnly />
+          <Button type="button" fullWidth onClick={handleCopy}>
+            {copied ? 'Copied' : 'Copy invite link'}
+          </Button>
+          <Button type="button" variant="secondary" fullWidth onClick={onClose}>
+            Done
+          </Button>
+        </div>
+      ) : null}
+    </BottomSheet>
   )
 }
 
@@ -172,7 +260,7 @@ function InviteSheet({
   tenantId: string
   callerRole: CallerRole
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (result: { inviteUrl?: string }) => void
 }) {
   const [email, setEmail] = useState('')
   const [personalMessage, setPersonalMessage] = useState('')
@@ -184,7 +272,7 @@ function InviteSheet({
     setError(null)
     startTransition(async () => {
       try {
-        await createTeamUserAction({
+        const result = await createTeamUserAction({
           tenantId,
           email,
           role,
@@ -195,7 +283,7 @@ function InviteSheet({
         setEmail('')
         setPersonalMessage('')
         setRole('STAFF')
-        onSuccess()
+        onSuccess({ inviteUrl: result.inviteUrl })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not invite member.')
       }
@@ -274,6 +362,7 @@ function DetailSheet({
   onClose,
   onSaved,
   onResent,
+  onPasswordReset,
   onRemoved,
 }: {
   open: boolean
@@ -282,7 +371,8 @@ function DetailSheet({
   callerId: string
   onClose: () => void
   onSaved: () => void
-  onResent: () => void
+  onResent: (result: { inviteUrl?: string }) => void
+  onPasswordReset: () => void
   onRemoved: () => void
 }) {
   return (
@@ -299,6 +389,7 @@ function DetailSheet({
           callerId={callerId}
           onSaved={onSaved}
           onResent={onResent}
+          onPasswordReset={onPasswordReset}
           onRemoved={onRemoved}
         />
       ) : null}
@@ -312,26 +403,35 @@ function DetailSheetForm({
   callerId,
   onSaved,
   onResent,
+  onPasswordReset,
   onRemoved,
 }: {
   user: AdminUserRow
   callerRole: CallerRole
   callerId: string
   onSaved: () => void
-  onResent: () => void
+  onResent: (result: { inviteUrl?: string }) => void
+  onPasswordReset: () => void
   onRemoved: () => void
 }) {
   const [name, setName] = useState(user.name ?? '')
   const [phone, setPhone] = useState(user.phone ?? '')
   const [role, setRole] = useState<TeamRole>(user.role as TeamRole)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [pending, startTransition] = useTransition()
   const [resendPending, startResend] = useTransition()
+  const [resetPending, startReset] = useTransition()
   const [removePending, startRemove] = useTransition()
   const pendingInvite = !user.hasPassword
   const editable = canEditTeamMember(callerRole, user)
   const removable = canRemoveTeamMember(callerRole, user, callerId)
+  const resettable = canResetTeamPassword(callerRole, user, callerId)
+  const passwordsMatch =
+    newPassword.length >= 8 && newPassword === confirmPassword
 
   function handleSave() {
     if (!editable) return
@@ -356,8 +456,8 @@ function DetailSheetForm({
     setError(null)
     startResend(async () => {
       try {
-        await resendTeamInviteAction({ userId: user.id })
-        onResent()
+        const result = await resendTeamInviteAction({ userId: user.id })
+        onResent({ inviteUrl: result.inviteUrl })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not resend invite.')
       }
@@ -373,6 +473,26 @@ function DetailSheetForm({
         onRemoved()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not remove member.')
+      }
+    })
+  }
+
+  function handleResetPassword() {
+    if (!resettable || !passwordsMatch) return
+    setPasswordError(null)
+    startReset(async () => {
+      try {
+        await resetUserPasswordAction({
+          userId: user.id,
+          newPassword,
+        })
+        setNewPassword('')
+        setConfirmPassword('')
+        onPasswordReset()
+      } catch (err) {
+        setPasswordError(
+          err instanceof Error ? err.message : 'Could not update password.',
+        )
       }
     })
   }
@@ -444,8 +564,132 @@ function DetailSheetForm({
         ) : null}
       </label>
 
+      {resettable ? (
+        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-sunken)] p-4">
+          <h3 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+            {pendingInvite ? 'Set password' : 'Reset password'}
+          </h3>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            {pendingInvite
+              ? 'Set a sign-in password directly instead of waiting for the invite link.'
+              : 'Sets a new sign-in password. Share it with them securely.'}
+          </p>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-[var(--color-text-secondary)]">
+              New password
+            </span>
+            <PasswordField
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-[var(--color-text-secondary)]">
+              Confirm password
+            </span>
+            <PasswordField
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="Re-enter password"
+            />
+          </label>
+          {confirmPassword.length > 0 && newPassword !== confirmPassword ? (
+            <p className="text-xs text-[var(--status-error-text)]">
+              Passwords do not match.
+            </p>
+          ) : null}
+          {passwordError ? (
+            <p className="text-sm text-[var(--status-error-text)]">
+              {passwordError}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            variant="secondary"
+            fullWidth
+            loading={resetPending}
+            disabled={!passwordsMatch}
+            onClick={handleResetPassword}
+          >
+            {pendingInvite ? 'Set password' : 'Update password'}
+          </Button>
+        </div>
+      ) : user.id === callerId ? (
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Change your own password from My profile.
+        </p>
+      ) : null}
+
       {error ? (
         <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+      ) : null}
+
+      {removable ? (
+        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-4">
+          <h3 className="text-xs uppercase tracking-wide text-[var(--status-error-text)]">
+            Account actions
+          </h3>
+          {confirmRemove ? (
+            <>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Remove {displayName} from the team? They will lose staff access
+                immediately. This cannot be undone.
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="danger"
+                  fullWidth
+                  loading={removePending}
+                  onClick={handleRemove}
+                >
+                  Remove from team
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  fullWidth
+                  disabled={removePending}
+                  onClick={() => setConfirmRemove(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--status-error-border)] bg-[var(--surface-elevated)] px-3 py-3 text-left transition-colors hover:bg-[var(--surface-sunken)]"
+              onClick={() => setConfirmRemove(true)}
+            >
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-sm text-[var(--color-text-primary)]">
+                  Remove from team
+                </span>
+                <span className="text-xs text-[var(--color-text-secondary)]">
+                  Blocks sign-in · booking history preserved
+                </span>
+              </div>
+              <UserX
+                className="size-4 shrink-0 text-[var(--status-error-text)]"
+                aria-hidden
+              />
+            </button>
+          )}
+        </div>
+      ) : user.id === callerId ? (
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          You cannot remove your own account from here.
+        </p>
+      ) : user.role === 'ADMIN' && callerRole !== 'ADMIN' ? (
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Only an admin can remove admin accounts.
+        </p>
       ) : null}
 
       {editable && pendingInvite ? (
@@ -464,49 +708,6 @@ function DetailSheetForm({
         <Button type="button" fullWidth loading={pending} onClick={handleSave}>
           Save changes
         </Button>
-      ) : null}
-
-      {removable ? (
-        <div className="mt-2 flex flex-col gap-2 border-t border-solid border-[var(--color-border)] pt-4">
-          {confirmRemove ? (
-            <>
-              <p className="text-sm text-[var(--color-text-secondary)]">
-                Remove {displayName} from the team? They will lose staff access
-                immediately.
-              </p>
-              <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="danger"
-                  fullWidth
-                  loading={removePending}
-                  onClick={handleRemove}
-                >
-                  Revoke access
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  fullWidth
-                  disabled={removePending}
-                  onClick={() => setConfirmRemove(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              fullWidth
-              className="text-[var(--status-error-text)]"
-              onClick={() => setConfirmRemove(true)}
-            >
-              Revoke access
-            </Button>
-          )}
-        </div>
       ) : null}
     </div>
   )

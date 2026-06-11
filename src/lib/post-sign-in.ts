@@ -33,16 +33,27 @@ export async function getPostSignInPath(
   user: PostSignInUser,
 ): Promise<string> {
   const safe = sanitizeSignInFrom(from)
-  if (isBookingSignInFrom(safe) && user.role === 'CUSTOMER') {
-    return safe === '/book' ? '/book' : safe
-  }
-  if (!isGenericSignInFrom(safe)) return safe
+  let path: string
 
-  if (user.role !== 'CUSTOMER') {
-    return resolvePostSignInPath(from, user.role)
+  if (isBookingSignInFrom(safe)) {
+    if (user.role === 'CUSTOMER') {
+      path = safe === '/book' ? '/book' : safe
+    } else {
+      path = resolvePostSignInPath('/staff', user.role)
+    }
+  } else if (!isGenericSignInFrom(safe)) {
+    path = safe
+  } else if (user.role !== 'CUSTOMER') {
+    path = resolvePostSignInPath(from, user.role)
+  } else {
+    path = await findCustomerBookingPath(user)
   }
 
-  return findCustomerBookingPath(user)
+  if (user.role !== 'CUSTOMER' && isBookingSignInFrom(sanitizeSignInFrom(path))) {
+    return resolvePostSignInPath('/staff', user.role)
+  }
+
+  return path
 }
 
 async function findCustomerBookingPath(

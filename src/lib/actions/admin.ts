@@ -812,15 +812,27 @@ export async function deletePricingPeriodAction(
 export async function updateProfileAction(input: {
   name: string
   email: string
-  currentPassword: string
+  currentPassword?: string
   newPassword?: string
 }): Promise<{ mocked: boolean }> {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   const { verifyCredentials, hashPassword } = await import('@/lib/auth')
 
-  const valid = await verifyCredentials(user.email ?? '', input.currentPassword)
-  if (!valid) {
-    throw new Error('Current password is incorrect')
+  const normalizedEmail = input.email.trim().toLowerCase()
+  const sessionEmail = (user.email ?? '').trim().toLowerCase()
+  const emailChanged = normalizedEmail !== sessionEmail
+  const changingPassword = Boolean(input.newPassword?.trim())
+
+  if (emailChanged || changingPassword) {
+    if (!input.currentPassword) {
+      throw new Error(
+        'Current password is required to change your email or password.',
+      )
+    }
+    const valid = await verifyCredentials(user.email ?? '', input.currentPassword)
+    if (!valid) {
+      throw new Error('Current password is incorrect')
+    }
   }
 
   if (input.newPassword && input.newPassword.length < 8) {
@@ -834,7 +846,7 @@ export async function updateProfileAction(input: {
 
   const data: Prisma.UserUpdateInput = {
     name: input.name.trim() || null,
-    email: input.email.trim().toLowerCase(),
+    email: normalizedEmail,
   }
   if (input.newPassword?.trim()) {
     data.passwordHash = await hashPassword(input.newPassword.trim())
@@ -1548,7 +1560,12 @@ async function requireTeamMutationTarget(
 
 export async function createTeamUserAction(
   input: CreateUserInput,
-): Promise<{ userId: string; mocked: boolean }> {
+): Promise<{
+  userId: string
+  mocked: boolean
+  emailDelivered: boolean
+  inviteUrl?: string
+}> {
   const user = await requireRole('MANAGER', 'ADMIN')
   requireCanAssignRole(user, input.role)
 
@@ -1569,7 +1586,12 @@ export async function createTeamUserAction(
       `[admin] mock team user create by ${user.email}`,
       { email: input.email, role: input.role, inviteUrl },
     )
-    return { userId: `user_mock_${Date.now()}`, mocked: true }
+    return {
+      userId: `user_mock_${Date.now()}`,
+      mocked: true,
+      emailDelivered: false,
+      inviteUrl,
+    }
   }
 
   let created: { id: string; email: string; role: typeof input.role }
@@ -1618,7 +1640,7 @@ export async function createTeamUserAction(
     throw err
   }
 
-  await dispatchTeamInviteEmail({
+  const invite = await dispatchTeamInviteEmail({
     to: created.email,
     role: created.role,
     rawToken,
@@ -1628,7 +1650,12 @@ export async function createTeamUserAction(
 
   revalidatePath('/admin/team')
   revalidatePath('/staff/settings/team')
-  return { userId: created.id, mocked: false }
+  return {
+    userId: created.id,
+    mocked: false,
+    emailDelivered: invite.emailDelivered,
+    inviteUrl: invite.emailDelivered ? undefined : invite.inviteUrl,
+  }
 }
 
 export interface UpdateUserInput {
@@ -1693,6 +1720,11 @@ export async function resetUserPasswordAction(
   input: ResetUserPasswordInput,
 ): Promise<{ mocked: boolean }> {
   const user = await requireRole('MANAGER', 'ADMIN')
+
+  if (input.userId === user.id) {
+    throw new Error('resetUserPasswordAction: cannot reset your own password')
+  }
+
   if (input.newPassword.length < 8) {
     throw new Error('resetUserPasswordAction: password must be 8+ characters')
   }
@@ -1724,6 +1756,8 @@ export async function resetUserPasswordAction(
     })
   })
 
+  revalidatePath('/admin/team')
+  revalidatePath('/staff/settings/team')
   revalidatePath(`/admin/team/${input.userId}`)
   return { mocked: false }
 }

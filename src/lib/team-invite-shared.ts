@@ -46,17 +46,22 @@ export async function issueTeamInviteToken(
   return rawToken
 }
 
+export type TeamInviteDispatchResult = {
+  inviteUrl: string
+  emailDelivered: boolean
+}
+
 export async function dispatchTeamInviteEmail(input: {
   to: string
   role: StaffRole
   rawToken: string
   inviterName?: string | null
   personalMessage?: string | null
-}): Promise<void> {
+}): Promise<TeamInviteDispatchResult> {
   const tenant = await getTenant()
   const inviteUrl = `${appBaseUrl()}/accept-invite?token=${encodeURIComponent(input.rawToken)}`
 
-  await sendTeamInviteEmail({
+  const result = await sendTeamInviteEmail({
     to: input.to,
     inviteUrl,
     venueName: tenant.name,
@@ -64,4 +69,6 @@ export async function dispatchTeamInviteEmail(input: {
     inviterName: input.inviterName,
     personalMessage: input.personalMessage,
   })
+
+  return { inviteUrl, emailDelivered: result.delivered }
 }

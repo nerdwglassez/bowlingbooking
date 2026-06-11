@@ -14,6 +14,7 @@ export interface ProfileFormValues {
 
 export interface ProfileFormProps {
   values: ProfileFormValues
+  initialEmail: string
   onChange: (next: ProfileFormValues) => void
   onSubmit: () => void
   error?: string | null
@@ -23,6 +24,7 @@ export interface ProfileFormProps {
 
 export function ProfileForm({
   values,
+  initialEmail,
   onChange,
   onSubmit,
   error,
@@ -32,6 +34,11 @@ export function ProfileForm({
   function patch(update: Partial<ProfileFormValues>) {
     onChange({ ...values, ...update })
   }
+
+  const emailChanged =
+    values.email.trim().toLowerCase() !== initialEmail.trim().toLowerCase()
+  const changingPassword = values.newPassword.length > 0
+  const passwordRequired = emailChanged || changingPassword
 
   return (
     <form
@@ -73,13 +80,14 @@ export function ProfileForm({
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-[var(--color-text-secondary)]">
             Current password
+            {passwordRequired ? null : ' (only if changing email or password)'}
           </span>
           <Input
             type="password"
             value={values.currentPassword}
             onChange={(e) => patch({ currentPassword: e.target.value })}
             autoComplete="current-password"
-            required
+            required={passwordRequired}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -93,17 +101,20 @@ export function ProfileForm({
             autoComplete="new-password"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">
-            Confirm new password
-          </span>
-          <Input
-            type="password"
-            value={values.confirmPassword}
-            onChange={(e) => patch({ confirmPassword: e.target.value })}
-            autoComplete="new-password"
-          />
-        </label>
+        {changingPassword ? (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-[var(--color-text-secondary)]">
+              Confirm new password
+            </span>
+            <Input
+              type="password"
+              value={values.confirmPassword}
+              onChange={(e) => patch({ confirmPassword: e.target.value })}
+              autoComplete="new-password"
+              required
+            />
+          </label>
+        ) : null}
       </section>
 
       {error ? (

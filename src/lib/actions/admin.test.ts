@@ -59,6 +59,7 @@ const mocks = vi.hoisted(() => {
     isDevWithoutDbMock: vi.fn(() => false),
     revalidatePathMock: vi.fn(),
     hashPasswordMock: vi.fn(),
+    verifyCredentialsMock: vi.fn(),
     tenantUpdate,
     tenantFindUnique,
     hoursDeleteMany,
@@ -98,6 +99,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('@/lib/auth', () => ({
   requireRole: mocks.requireRoleMock,
   hashPassword: mocks.hashPasswordMock,
+  verifyCredentials: mocks.verifyCredentialsMock,
 }))
 vi.mock('@/lib/env', () => ({
   isDevWithoutDb: mocks.isDevWithoutDbMock,
@@ -176,6 +178,7 @@ import {
   updatePackageAction,
   updatePromoAction,
   updateTeamUserAction,
+  updateProfileAction,
   updateTenantAction,
 } from './admin'
 
@@ -229,6 +232,7 @@ beforeEach(() => {
   mocks.isDevWithoutDbMock.mockReturnValue(false)
   mocks.requireRoleMock.mockResolvedValue(adminUser())
   mocks.hashPasswordMock.mockResolvedValue('hashed:abc')
+  mocks.verifyCredentialsMock.mockResolvedValue(true)
   mocks.laneCount.mockResolvedValue(12)
   mocks.packageCount.mockResolvedValue(0)
   mocks.userCount.mockResolvedValue(0)
@@ -692,7 +696,7 @@ describe('package CRUD', () => {
 describe('team CRUD', () => {
   beforeEach(() => {
     mocks.getTenantMock.mockResolvedValue({ name: 'Royal Z Lanes' })
-    mocks.sendTeamInviteEmailMock.mockResolvedValue({ id: 'email_1' })
+    mocks.sendTeamInviteEmailMock.mockResolvedValue({ id: 'email_1', delivered: true })
     mocks.teamInviteTokenDeleteMany.mockResolvedValue({ count: 0 })
     mocks.teamInviteTokenCreate.mockResolvedValue({ id: 'invite_1' })
   })
@@ -822,6 +826,18 @@ describe('team CRUD', () => {
     )
   })
 
+  it('resetUserPasswordAction rejects self password reset', async () => {
+    await expect(
+      resetUserPasswordAction({
+        userId: 'user_admin',
+        newPassword: 'longenoughpw',
+      }),
+    ).rejects.toThrow(/your own password/i)
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+    expect(mocks.hashPasswordMock).not.toHaveBeenCalled()
+  })
+
   it('deactivateTeamUserAction demotes to CUSTOMER and nulls password', async () => {
     mocks.userUpdate.mockResolvedValue({})
     mocks.teamInviteTokenDeleteMany.mockResolvedValue({ count: 0 })
@@ -924,6 +940,68 @@ describe('team CRUD', () => {
     )
 
     expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateProfileAction', () => {
+  beforeEach(() => {
+    mocks.requireRoleMock.mockResolvedValue(staffUser())
+    mocks.userUpdate.mockResolvedValue({})
+  })
+
+  it('updates name without current password', async () => {
+    await updateProfileAction({
+      name: 'New Name',
+      email: 'staff@royalz.local',
+    })
+
+    expect(mocks.verifyCredentialsMock).not.toHaveBeenCalled()
+    expect(mocks.userUpdate).toHaveBeenCalledWith({
+      where: { id: 'user_staff' },
+      data: { name: 'New Name', email: 'staff@royalz.local' },
+    })
+  })
+
+  it('requires current password when email changes', async () => {
+    await expect(
+      updateProfileAction({
+        name: 'Staff',
+        email: 'new@royalz.local',
+      }),
+    ).rejects.toThrow(/current password/i)
+
+    expect(mocks.verifyCredentialsMock).not.toHaveBeenCalled()
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
+  it('requires current password when setting a new password', async () => {
+    await expect(
+      updateProfileAction({
+        name: 'Staff',
+        email: 'staff@royalz.local',
+        newPassword: 'newpassword1',
+      }),
+    ).rejects.toThrow(/current password/i)
+
+    expect(mocks.verifyCredentialsMock).not.toHaveBeenCalled()
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
+  it('verifies current password when email changes', async () => {
+    await updateProfileAction({
+      name: 'Staff',
+      email: 'new@royalz.local',
+      currentPassword: 'correct',
+    })
+
+    expect(mocks.verifyCredentialsMock).toHaveBeenCalledWith(
+      'staff@royalz.local',
+      'correct',
+    )
+    expect(mocks.userUpdate).toHaveBeenCalledWith({
+      where: { id: 'user_staff' },
+      data: { name: 'Staff', email: 'new@royalz.local' },
+    })
   })
 })
 

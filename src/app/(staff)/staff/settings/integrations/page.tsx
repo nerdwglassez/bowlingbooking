@@ -30,8 +30,8 @@ export default async function StaffSettingsIntegrationsPage() {
       status: resendConfigured ? 'Connected' : 'Optional · not configured',
       summary: 'Transactional email for confirmations and receipts.',
       detail: resendConfigured
-        ? 'Resend API key is set. Booking confirmations and receipts send through Resend.'
-        : 'Optional: set RESEND_API_KEY to send booking emails. The app still works without email delivery.',
+        ? 'Resend API key is set. Booking confirmations, receipts, and team invite emails send through Resend.'
+        : 'Optional: set RESEND_API_KEY to send booking and team invite emails. Without it, invite links are shown in the app for you to copy manually.',
     },
     {
       key: 'make' as const,

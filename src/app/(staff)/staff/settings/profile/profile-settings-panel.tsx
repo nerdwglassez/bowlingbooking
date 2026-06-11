@@ -37,20 +37,34 @@ export function ProfileSettingsPanel({
 
   function handleSubmit() {
     setError(null)
+    const emailChanged =
+      form.values.email.trim().toLowerCase() !==
+      initial.email.trim().toLowerCase()
+    const changingPassword = form.values.newPassword.length > 0
+
     if (
-      form.values.newPassword &&
+      changingPassword &&
       form.values.newPassword !== form.values.confirmPassword
     ) {
       setError('New passwords do not match.')
       return
     }
+
+    if (
+      (emailChanged || changingPassword) &&
+      !form.values.currentPassword
+    ) {
+      setError('Enter your current password to change email or password.')
+      return
+    }
+
     form.startSaving()
     startTransition(async () => {
       try {
         await updateProfileAction({
           name: form.values.name,
           email: form.values.email,
-          currentPassword: form.values.currentPassword,
+          currentPassword: form.values.currentPassword || undefined,
           newPassword: form.values.newPassword || undefined,
         })
         const cleared = {
@@ -74,6 +88,7 @@ export function ProfileSettingsPanel({
   return (
     <ProfileForm
       values={form.values}
+      initialEmail={initial.email}
       onChange={form.setValues}
       onSubmit={handleSubmit}
       error={error}

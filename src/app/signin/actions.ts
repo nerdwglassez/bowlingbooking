@@ -17,6 +17,7 @@ import { validateSignInCredentials } from '@/lib/sign-in-credentials'
 
 export interface SignInActionResult {
   ok: boolean
+  redirectTo?: string
   error?: 'invalid-credentials' | 'misconfigured' | 'unknown'
 }
 
@@ -51,10 +52,11 @@ export async function signInAction(
     await signIn('credentials', {
       email,
       password,
+      redirect: false,
       redirectTo,
       rememberDevice: rememberDevice ? 'true' : 'false',
     })
-    return { ok: true }
+    return { ok: true, redirectTo }
   } catch (err) {
     unstable_rethrow(err)
     if (err instanceof AuthError) {

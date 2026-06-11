@@ -20,9 +20,9 @@ function resolveResend(): Resend | null {
   if (process.env.NODE_ENV === 'production') return null
   warnOnce(
     'resend-key',
-    'RESEND_API_KEY is not set — booking confirmation emails will be ' +
-      'logged to the server console only. Set RESEND_API_KEY (re_…) before ' +
-      'expecting real delivery.',
+    'RESEND_API_KEY is not set — transactional emails (bookings, team invites) ' +
+      'will be logged to the server console only. Set RESEND_API_KEY (re_…) ' +
+      'before expecting real delivery.',
   )
   return null
 }
@@ -265,7 +265,7 @@ const ROLE_LABELS: Record<TeamInviteEmailArgs['role'], string> = {
 
 export async function sendTeamInviteEmail(
   args: TeamInviteEmailArgs,
-): Promise<{ id: string | null }> {
+): Promise<{ id: string | null; delivered: boolean }> {
   const roleLabel = ROLE_LABELS[args.role]
   const inviterLine = args.inviterName?.trim()
     ? `<p>${escapeHtml(args.inviterName.trim())} invited you to join the team at ${escapeHtml(args.venueName)} as <strong>${escapeHtml(roleLabel)}</strong>.</p>`
@@ -295,7 +295,7 @@ export async function sendTeamInviteEmail(
   const resend = resolveResend()
   if (!resend) {
     console.log(`[email-mock] team invite for ${args.to}: ${args.inviteUrl}`)
-    return { id: null }
+    return { id: null, delivered: false }
   }
 
   const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
@@ -309,7 +309,7 @@ export async function sendTeamInviteEmail(
   if (error) {
     throw new Error(`Resend send failed: ${error.message ?? 'unknown error'}`)
   }
-  return { id: data?.id ?? null }
+  return { id: data?.id ?? null, delivered: true }
 }
 
 export async function sendBookingConfirmation(

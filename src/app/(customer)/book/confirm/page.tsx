@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 import { BookingFlowLead } from '@/components/patterns/booking-flow-lead'
 import { BookingFlowShell } from '@/components/patterns/booking-flow-shell'
@@ -21,6 +21,7 @@ import {
   useLanePricingContext,
   useTenant,
 } from '@/app/(customer)/book/tenant-provider'
+import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import {
   confirmBooking,
@@ -65,7 +66,6 @@ export default function ConfirmBookingPage() {
   } = useBooking()
   const tenant = useTenant()
   const router = useRouter()
-  const pathname = usePathname()
   const { showToast } = useToast()
   const initStarted = useRef(false)
   const [summaryExpanded, setSummaryExpanded] = useState(false)
@@ -380,7 +380,7 @@ export default function ConfirmBookingPage() {
       <BookingFlowShell
         venueName={tenant.name}
         address={tenant.address}
-        signInHref={`/signin?from=${encodeURIComponent(pathname)}`}
+        signInHref={STAFF_SIGN_IN_PATH}
         currentStep={4}
         holdExpiresAt={session.holdExpiresAt}
         onHoldExpire={handleHoldExpired}

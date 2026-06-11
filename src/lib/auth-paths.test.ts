@@ -20,14 +20,14 @@ describe('post-sign-in paths', () => {
   })
 
   it('never resolves bare / to home (uses role default)', () => {
-    expect(resolvePostSignInPath('/', 'ADMIN')).toBe('/admin')
+    expect(resolvePostSignInPath('/', 'ADMIN')).toBe('/staff')
     expect(resolvePostSignInPath('/', 'STAFF')).toBe('/staff')
-    expect(defaultAppPathForRole('MANAGER')).toBe('/admin')
+    expect(defaultAppPathForRole('MANAGER')).toBe('/staff')
   })
 
   it('treats booking header from=/staff as generic for admins', () => {
     expect(isGenericSignInFrom('/staff')).toBe(true)
-    expect(resolvePostSignInPath('/staff', 'ADMIN')).toBe('/admin')
+    expect(resolvePostSignInPath('/staff', 'ADMIN')).toBe('/staff')
     expect(resolvePostSignInPath('/staff', 'STAFF')).toBe('/staff')
   })
 

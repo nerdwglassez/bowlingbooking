@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useActionState, useEffect, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 
 import { Button } from '@/components/ui/button'
@@ -24,12 +25,19 @@ export interface SignInFormProps {
 const initialState: SignInActionResult = { ok: false }
 
 export function SignInForm({ from }: SignInFormProps) {
+  const router = useRouter()
   const [state, formAction] = useActionState(signInAction, initialState)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordVisible, setPasswordVisible] = useState(false)
   const errored = state.error != null
   const canSubmit = isSignInSubmitEnabled(email, password)
+
+  useEffect(() => {
+    if (state.ok && state.redirectTo) {
+      router.replace(state.redirectTo)
+    }
+  }, [state.ok, state.redirectTo, router])
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 import {
   useLanePricingContext,
@@ -17,6 +17,7 @@ import {
 } from '@/components/patterns/shoe-rental-table'
 import { ShoesIncludedNotice } from '@/components/patterns/shoes-included-notice'
 import { OwnShoesNotice } from '@/components/patterns/own-shoes-notice'
+import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { useBooking } from '@/context/BookingContext'
 import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import { formatDetailsStepSubtitle } from '@/lib/booking-display'
@@ -28,7 +29,6 @@ import { useWallClockNow } from '@/lib/use-wall-clock'
 
 export default function BookDetailsPage() {
   const router = useRouter()
-  const pathname = usePathname()
   const tenant = useTenant()
   const {
     session,
@@ -146,7 +146,7 @@ export default function BookDetailsPage() {
     <BookingFlowShell
       venueName={tenant.name}
       address={tenant.address}
-      signInHref={`/signin?from=${encodeURIComponent(pathname)}`}
+      signInHref={STAFF_SIGN_IN_PATH}
       currentStep={3}
       holdExpiresAt={session.holdExpiresAt}
       onHoldExpire={handleHoldExpired}

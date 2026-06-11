@@ -154,7 +154,7 @@ describe('resendTeamInviteAction', () => {
     vi.clearAllMocks()
     mocks.requireRoleMock.mockResolvedValue(adminUser())
     mocks.getTenantMock.mockResolvedValue({ name: 'Royal Z Lanes' })
-    mocks.sendTeamInviteEmailMock.mockResolvedValue({ id: 'email_1' })
+    mocks.sendTeamInviteEmailMock.mockResolvedValue({ id: 'email_1', delivered: true })
     mocks.teamInviteTokenDeleteMany.mockResolvedValue({ count: 1 })
     mocks.teamInviteTokenCreate.mockResolvedValue({ id: 'invite_2' })
   })
@@ -203,5 +203,21 @@ describe('resendTeamInviteAction', () => {
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'TEAM_USER_INVITE_RESENT' }),
     })
+  })
+
+  it('returns inviteUrl when email delivery is not configured', async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_new',
+      email: 'new@example.com',
+      role: 'STAFF',
+      passwordHash: null,
+      tenantId: 't1',
+    })
+    mocks.sendTeamInviteEmailMock.mockResolvedValue({ id: null, delivered: false })
+
+    const result = await resendTeamInviteAction({ userId: 'user_new' })
+
+    expect(result.emailDelivered).toBe(false)
+    expect(result.inviteUrl).toMatch(/\/accept-invite\?token=/)
   })
 })
