@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const paymentUpdateMock = vi.fn()
   const bookingUpdateMock = vi.fn()
+  const bookingFindUniqueMock = vi.fn()
   const auditLogCreateMock = vi.fn()
   const prismaTxStub = {
     payment: { update: paymentUpdateMock },
-    booking: { update: bookingUpdateMock },
+    booking: { findUnique: bookingFindUniqueMock, update: bookingUpdateMock },
     auditLog: { create: auditLogCreateMock },
   }
   return {
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => {
     createRefundMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
     revalidatePathMock: vi.fn(),
-    bookingFindUniqueMock: vi.fn(),
+    bookingFindUniqueMock,
     paymentUpdateMock,
     bookingUpdateMock,
     auditLogCreateMock,

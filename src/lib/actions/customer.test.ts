@@ -93,6 +93,7 @@ function bookingFixture(overrides: Partial<{
   status: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'HOLD'
   isRefunded: boolean
   totalAmount: number
+  payment: { amount: number; stripePaymentIntentId: string | null } | null
 }> = {}) {
   const startHours = overrides.startHoursFromNow ?? 48
   const start = new Date(Date.now() + startHours * 3_600_000)
@@ -115,6 +116,13 @@ function bookingFixture(overrides: Partial<{
     cancellationRefundPercentSnapshot: 100,
     package: { name: 'Classic Bowling' },
     bowlers: [],
+    payment:
+      overrides.payment === undefined
+        ? {
+            amount: overrides.totalAmount ?? 4500,
+            stripePaymentIntentId: 'pi_abc',
+          }
+        : overrides.payment,
   }
 }
 
@@ -302,6 +310,22 @@ describe('cancelBookingAction', () => {
     ).rejects.toThrow(/past/i)
   })
 
+  it('rejects cancellation after the online cancellation window', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(
+      bookingFixture({ startHoursFromNow: 2 }),
+    )
+
+    await expect(
+      cancelBookingAction({
+        email: 'jane@example.com',
+        confirmationCode: 'ABC123',
+      }),
+    ).rejects.toThrow(/cannot be cancelled online/i)
+
+    expect(mocks.paymentFindUnique).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+  })
+
   it('requests Stripe refund before cancelling locally when within window and PI exists', async () => {
     const callOrder: string[] = []
     mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
@@ -459,10 +483,11 @@ describe('cancelBookingAction', () => {
     expect(result.refundPending).toBe(true)
   })
 
-  it('skips Stripe refund + payment update when refund amount is 0', async () => {
-    mocks.bookingFindFirst.mockResolvedValue(
-      bookingFixture({ startHoursFromNow: 2 }), // inside the 24h window
-    )
+  it('skips Stripe refund + payment update when policy refund amount is 0', async () => {
+    mocks.bookingFindFirst.mockResolvedValue({
+      ...bookingFixture(),
+      cancellationRefundPercentSnapshot: 0,
+    })
     mocks.paymentFindUnique.mockResolvedValue({
       id: 'pay_1',
       bookingId: 'bk_1',
@@ -486,8 +511,12 @@ describe('cancelBookingAction', () => {
     expect(mocks.paymentUpdate).not.toHaveBeenCalled()
   })
 
-  it('handles walk-ins (no stripePaymentIntentId) without calling Stripe', async () => {
-    mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
+  it('rejects paid non-Stripe bookings so staff handles manual cancellation/refund', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(
+      bookingFixture({
+        payment: { amount: 4500, stripePaymentIntentId: null },
+      }),
+    )
     mocks.paymentFindUnique.mockResolvedValue({
       id: 'pay_1',
       bookingId: 'bk_1',
@@ -495,12 +524,17 @@ describe('cancelBookingAction', () => {
       amount: 4500,
       status: 'cash',
     })
-    const result = await cancelBookingAction({
-      email: 'jane@example.com',
-      confirmationCode: 'ABC123',
-    })
+
+    await expect(
+      cancelBookingAction({
+        email: 'jane@example.com',
+        confirmationCode: 'ABC123',
+      }),
+    ).rejects.toThrow(/cannot be cancelled online/i)
+
+    expect(mocks.paymentFindUnique).not.toHaveBeenCalled()
     expect(mocks.createRefundMock).not.toHaveBeenCalled()
-    expect(result.refundPending).toBe(false)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
   })
 
   it('returns a mock result in dev-without-db', async () => {

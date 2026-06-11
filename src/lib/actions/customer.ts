@@ -98,6 +98,7 @@ export async function getBookingByLookup(
     include: {
       package: { select: { name: true } },
       bowlers: { orderBy: { index: 'asc' } },
+      payment: { select: { amount: true, stripePaymentIntentId: true } },
     },
   })
   if (!booking) return null
@@ -131,6 +132,11 @@ export async function cancelBookingAction(
   if (booking.isPast) {
     throw new Error('Past bookings cannot be cancelled.')
   }
+  if (!booking.cancellable) {
+    throw new Error(
+      'This booking cannot be cancelled online. Please contact the venue.',
+    )
+  }
 
   if (isDevWithoutDb()) {
     return {
@@ -145,6 +151,13 @@ export async function cancelBookingAction(
   const payment = await prisma.payment.findUnique({
     where: { bookingId: booking.id },
   })
+
+  const paidAmount = payment?.amount ?? booking.totalAmount
+  if (!payment?.stripePaymentIntentId && paidAmount > 0) {
+    throw new Error(
+      'Bookings paid at the venue must be cancelled by staff. Please contact the venue.',
+    )
+  }
 
   if (payment?.refundStatus === 'PENDING') {
     throw new Error('Refund already in progress for this booking.')
@@ -268,6 +281,7 @@ interface BookingRecord {
   cancellationRefundPercentSnapshot: number | null
   package: { name: string } | null
   bowlers?: Array<{ index: number; shoeSize: string | null }>
+  payment?: { amount: number; stripePaymentIntentId: string | null } | null
 }
 
 async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
@@ -289,11 +303,15 @@ async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
   const isPast = b.startTime.getTime() <= now.getTime()
   const withinCancelWindow = now <= cancelCutoff
   const withinRescheduleWindow = now <= rescheduleCutoff
+  const paidAmount = b.payment?.amount ?? b.totalAmount
+  const canCancelOnlinePayment =
+    b.payment?.stripePaymentIntentId != null || paidAmount <= 0
   const cancellable =
     !isPast &&
     b.status === 'CONFIRMED' &&
     !b.isRefunded &&
-    withinCancelWindow
+    withinCancelWindow &&
+    canCancelOnlinePayment
   const reschedulable =
     !isPast &&
     b.status === 'CONFIRMED' &&
