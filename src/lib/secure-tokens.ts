@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 
+import { resolveAppBaseUrl } from '@/lib/env'
+
 export const TOKEN_BYTES = 32
 
 export function hashToken(raw: string): string {
@@ -11,7 +13,5 @@ export function generateRawToken(): string {
 }
 
 export function appBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-    .trim()
-    .replace(/\/$/, '')
+  return resolveAppBaseUrl()
 }

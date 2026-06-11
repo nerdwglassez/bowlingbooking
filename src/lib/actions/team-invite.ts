@@ -74,6 +74,7 @@ export async function resendTeamInviteAction(input: {
   mocked: boolean
   emailDelivered: boolean
   inviteUrl?: string
+  emailError?: string
 }> {
   const caller = await requireRole('MANAGER', 'ADMIN')
 
@@ -137,5 +138,6 @@ export async function resendTeamInviteAction(input: {
     mocked: false,
     emailDelivered: invite.emailDelivered,
     inviteUrl: invite.emailDelivered ? undefined : invite.inviteUrl,
+    emailError: invite.emailDelivered ? undefined : invite.emailError,
   }
 }

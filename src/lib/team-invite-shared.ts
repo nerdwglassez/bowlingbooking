@@ -1,6 +1,7 @@
 import type { Prisma } from '@/generated/prisma/client'
 
 import { sendTeamInviteEmail } from '@/lib/email'
+import { hasResendApiKey } from '@/lib/env'
 import {
   appBaseUrl,
   generateRawToken,
@@ -49,6 +50,8 @@ export async function issueTeamInviteToken(
 export type TeamInviteDispatchResult = {
   inviteUrl: string
   emailDelivered: boolean
+  /** Set when email was not sent (missing Resend key or API rejection). */
+  emailError?: string
 }
 
 export async function dispatchTeamInviteEmail(input: {
@@ -61,14 +64,26 @@ export async function dispatchTeamInviteEmail(input: {
   const tenant = await getTenant()
   const inviteUrl = `${appBaseUrl()}/accept-invite?token=${encodeURIComponent(input.rawToken)}`
 
-  const result = await sendTeamInviteEmail({
-    to: input.to,
-    inviteUrl,
-    venueName: tenant.name,
-    role: input.role,
-    inviterName: input.inviterName,
-    personalMessage: input.personalMessage,
-  })
+  if (!hasResendApiKey()) {
+    return { inviteUrl, emailDelivered: false }
+  }
 
-  return { inviteUrl, emailDelivered: result.delivered }
+  try {
+    const result = await sendTeamInviteEmail({
+      to: input.to,
+      inviteUrl,
+      venueName: tenant.name,
+      role: input.role,
+      inviterName: input.inviterName,
+      personalMessage: input.personalMessage,
+    })
+    return { inviteUrl, emailDelivered: result.delivered }
+  } catch (err) {
+    return {
+      inviteUrl,
+      emailDelivered: false,
+      emailError:
+        err instanceof Error ? err.message : 'Team invite email failed to send.',
+    }
+  }
 }

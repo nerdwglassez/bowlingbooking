@@ -9,14 +9,14 @@
 import { Resend } from 'resend'
 import QRCode from 'qrcode'
 
-import { warnOnce } from '@/lib/env'
+import { hasResendApiKey, warnOnce } from '@/lib/env'
 import { formatPrice } from '@/lib/pricing'
 
 const APP_FROM_DEFAULT = 'Royal Z Lanes <bookings@royalz.local>'
 
 function resolveResend(): Resend | null {
   const key = process.env.RESEND_API_KEY?.trim()
-  if (key) return new Resend(key)
+  if (hasResendApiKey() && key) return new Resend(key)
   if (process.env.NODE_ENV === 'production') return null
   warnOnce(
     'resend-key',

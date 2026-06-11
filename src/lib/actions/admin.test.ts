@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => {
   return {
     requireRoleMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
+    hasResendApiKeyMock: vi.fn(() => true),
     revalidatePathMock: vi.fn(),
     hashPasswordMock: vi.fn(),
     verifyCredentialsMock: vi.fn(),
@@ -103,6 +104,8 @@ vi.mock('@/lib/auth', () => ({
 }))
 vi.mock('@/lib/env', () => ({
   isDevWithoutDb: mocks.isDevWithoutDbMock,
+  hasResendApiKey: mocks.hasResendApiKeyMock,
+  resolveAppBaseUrl: () => 'http://localhost:3000',
   shouldUseDevDbFallback: (err?: unknown) =>
     mocks.isDevWithoutDbMock() ||
     (err !== undefined &&

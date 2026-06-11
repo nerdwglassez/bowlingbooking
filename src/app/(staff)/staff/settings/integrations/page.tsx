@@ -4,6 +4,7 @@ import { unauthorized } from 'next/navigation'
 
 import { SettingsSubpageHeader } from '@/components/patterns/settings-subpage-header'
 import { requireRole } from '@/lib/auth'
+import { hasResendApiKey } from '@/lib/env'
 
 import { IntegrationsSettingsPanel } from './integrations-settings-panel'
 
@@ -12,7 +13,7 @@ export default async function StaffSettingsIntegrationsPage() {
   if (user.role !== 'ADMIN') unauthorized()
 
   const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY?.trim())
-  const resendConfigured = Boolean(process.env.RESEND_API_KEY?.trim())
+  const resendConfigured = hasResendApiKey()
 
   const cards = [
     {

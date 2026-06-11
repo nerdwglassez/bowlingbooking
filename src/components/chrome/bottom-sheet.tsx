@@ -21,6 +21,8 @@ export type BottomSheetProps = {
   title: string
   onClose: () => void
   children: React.ReactNode
+  /** Raise above other sheets when stacked (e.g. invite link over member detail). */
+  elevated?: boolean
 }
 
 export function BottomSheet({
@@ -28,6 +30,7 @@ export function BottomSheet({
   title,
   onClose,
   children,
+  elevated = false,
 }: BottomSheetProps) {
   useEffect(() => {
     if (!open) return
@@ -50,7 +53,12 @@ export function BottomSheet({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-end md:justify-stretch">
+    <div
+      className={cn(
+        'fixed inset-0 flex flex-col justify-end md:items-end md:justify-stretch',
+        elevated ? 'z-[60]' : 'z-50',
+      )}
+    >
       <button
         type="button"
         className="absolute inset-0 bg-[var(--surface-overlay)] sheet-backdrop-in"
@@ -89,7 +97,7 @@ export function BottomSheet({
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-6">
           <h2
             id="bottom-sheet-title"
-            className="text-lg [font-family:var(--font-display)] text-[var(--color-text-primary)]"
+            className="pr-10 text-lg [font-family:var(--font-display)] text-[var(--color-text-primary)]"
           >
             {title}
           </h2>

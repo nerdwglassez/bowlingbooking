@@ -1565,6 +1565,7 @@ export async function createTeamUserAction(
   mocked: boolean
   emailDelivered: boolean
   inviteUrl?: string
+  emailError?: string
 }> {
   const user = await requireRole('MANAGER', 'ADMIN')
   requireCanAssignRole(user, input.role)
@@ -1655,6 +1656,7 @@ export async function createTeamUserAction(
     mocked: false,
     emailDelivered: invite.emailDelivered,
     inviteUrl: invite.emailDelivered ? undefined : invite.inviteUrl,
+    emailError: invite.emailDelivered ? undefined : invite.emailError,
   }
 }
 

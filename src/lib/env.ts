@@ -25,6 +25,25 @@ export function hasDatabaseUrl(): boolean {
   return !!url && REAL_DB_URL_PATTERN.test(url)
 }
 
+/** True when Resend can dispatch transactional email. */
+export function hasResendApiKey(): boolean {
+  return Boolean(process.env['RESEND_API_KEY']?.trim())
+}
+
+/**
+ * Absolute app origin for links in email and invites.
+ * Prefers NEXT_PUBLIC_APP_URL, then auth base URL / Vercel host, then localhost.
+ */
+export function resolveAppBaseUrl(): string {
+  const explicit = process.env['NEXT_PUBLIC_APP_URL']?.trim()
+  if (explicit) return explicit.replace(/\/$/, '')
+
+  const auth = resolveAuthUrlForChecks()
+  if (auth) return auth.replace(/\/$/, '')
+
+  return 'http://localhost:3000'
+}
+
 /** True when Auth.js can sign/verify JWTs (required in production). */
 export function hasAuthSecret(): boolean {
   return Boolean(

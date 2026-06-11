@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => {
     hashPasswordMock,
     requireRoleMock,
     isDevWithoutDbMock: vi.fn(() => false),
+    hasResendApiKeyMock: vi.fn(() => true),
     revalidatePathMock: vi.fn(),
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
@@ -47,6 +48,8 @@ vi.mock('@/lib/auth', () => ({
 }))
 vi.mock('@/lib/env', () => ({
   isDevWithoutDb: mocks.isDevWithoutDbMock,
+  hasResendApiKey: mocks.hasResendApiKeyMock,
+  resolveAppBaseUrl: () => 'http://localhost:3000',
 }))
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
 vi.mock('@/lib/email', () => ({
@@ -152,6 +155,7 @@ describe('acceptTeamInviteAction', () => {
 describe('resendTeamInviteAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.hasResendApiKeyMock.mockReturnValue(true)
     mocks.requireRoleMock.mockResolvedValue(adminUser())
     mocks.getTenantMock.mockResolvedValue({ name: 'Royal Z Lanes' })
     mocks.sendTeamInviteEmailMock.mockResolvedValue({ id: 'email_1', delivered: true })
@@ -206,6 +210,7 @@ describe('resendTeamInviteAction', () => {
   })
 
   it('returns inviteUrl when email delivery is not configured', async () => {
+    mocks.hasResendApiKeyMock.mockReturnValue(false)
     mocks.userFindUnique.mockResolvedValue({
       id: 'user_new',
       email: 'new@example.com',
@@ -213,11 +218,30 @@ describe('resendTeamInviteAction', () => {
       passwordHash: null,
       tenantId: 't1',
     })
-    mocks.sendTeamInviteEmailMock.mockResolvedValue({ id: null, delivered: false })
 
     const result = await resendTeamInviteAction({ userId: 'user_new' })
 
     expect(result.emailDelivered).toBe(false)
     expect(result.inviteUrl).toMatch(/\/accept-invite\?token=/)
+    expect(mocks.sendTeamInviteEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('returns inviteUrl and emailError when Resend rejects the send', async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_new',
+      email: 'new@example.com',
+      role: 'STAFF',
+      passwordHash: null,
+      tenantId: 't1',
+    })
+    mocks.sendTeamInviteEmailMock.mockRejectedValue(
+      new Error('Resend send failed: domain is not verified'),
+    )
+
+    const result = await resendTeamInviteAction({ userId: 'user_new' })
+
+    expect(result.emailDelivered).toBe(false)
+    expect(result.inviteUrl).toMatch(/\/accept-invite\?token=/)
+    expect(result.emailError).toContain('domain is not verified')
   })
 })

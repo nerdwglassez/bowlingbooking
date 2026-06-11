@@ -1,10 +1,59 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  hasResendApiKey,
   isDevWithoutDb,
   isPrismaConnectivityError,
+  resolveAppBaseUrl,
   shouldUseDevDbFallback,
 } from './env'
+
+describe('hasResendApiKey', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('returns true when RESEND_API_KEY is set', () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test_key')
+    expect(hasResendApiKey()).toBe(true)
+  })
+
+  it('returns false when RESEND_API_KEY is missing or blank', () => {
+    vi.stubEnv('RESEND_API_KEY', '')
+    expect(hasResendApiKey()).toBe(false)
+    vi.stubEnv('RESEND_API_KEY', '   ')
+    expect(hasResendApiKey()).toBe(false)
+  })
+})
+
+describe('resolveAppBaseUrl', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('prefers NEXT_PUBLIC_APP_URL when set', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://book.example.com/')
+    vi.stubEnv('AUTH_URL', 'https://auth.example.com')
+    expect(resolveAppBaseUrl()).toBe('https://book.example.com')
+  })
+
+  it('falls back to AUTH_URL then VERCEL_URL', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
+    vi.stubEnv('AUTH_URL', 'https://royalz.example.com/')
+    expect(resolveAppBaseUrl()).toBe('https://royalz.example.com')
+
+    vi.stubEnv('AUTH_URL', '')
+    vi.stubEnv('VERCEL_URL', 'royalz-lanes.vercel.app')
+    expect(resolveAppBaseUrl()).toBe('https://royalz-lanes.vercel.app')
+  })
+
+  it('defaults to localhost when no URL env is set', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
+    vi.stubEnv('AUTH_URL', '')
+    vi.stubEnv('VERCEL_URL', '')
+    expect(resolveAppBaseUrl()).toBe('http://localhost:3000')
+  })
+})
 
 describe('isDevWithoutDb', () => {
   beforeEach(() => {

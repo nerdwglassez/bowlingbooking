@@ -23,6 +23,16 @@ import { resendTeamInviteAction } from '@/lib/actions/team-invite'
 type CallerRole = 'MANAGER' | 'ADMIN'
 type TeamRole = 'STAFF' | 'MANAGER' | 'ADMIN'
 
+type InviteDeliveryResult = {
+  inviteUrl?: string
+  emailError?: string
+}
+
+type InviteLinkFallbackState = {
+  inviteUrl: string
+  emailError?: string
+} | null
+
 const ROLE_VARIANT: Record<
   TeamRole,
   React.ComponentProps<typeof Badge>['variant']
@@ -83,9 +93,29 @@ export function TeamSettingsPanel({
   const { showToast } = useStaffToast()
   const [inviteOpen, setInviteOpen] = useState(false)
   const [detailUser, setDetailUser] = useState<AdminUserRow | null>(null)
-  const [inviteLinkFallback, setInviteLinkFallback] = useState<string | null>(
-    null,
-  )
+  const [inviteLinkFallback, setInviteLinkFallback] =
+    useState<InviteLinkFallbackState>(null)
+
+  function handleInviteDeliveryResult(
+    result: InviteDeliveryResult,
+    closeDetail: boolean,
+  ) {
+    if (result.inviteUrl) {
+      if (closeDetail) setDetailUser(null)
+      setInviteLinkFallback({
+        inviteUrl: result.inviteUrl,
+        emailError: result.emailError,
+      })
+      showToast({
+        message: result.emailError
+          ? 'Could not send invite email — copy the link below.'
+          : 'Copy the invite link below to share manually.',
+        variant: result.emailError ? 'error' : 'success',
+      })
+      return
+    }
+    showToast({ message: 'Invite email sent', variant: 'success' })
+  }
 
   useEffect(() => {
     if (!initialMemberId) return
@@ -153,18 +183,9 @@ export function TeamSettingsPanel({
         onClose={() => setInviteOpen(false)}
         onSuccess={(result) => {
           setInviteOpen(false)
-          if (result.inviteUrl) {
-            setInviteLinkFallback(result.inviteUrl)
-          } else {
-            showToast({ message: 'Invite email sent', variant: 'success' })
-          }
+          handleInviteDeliveryResult(result, false)
           router.refresh()
         }}
-      />
-
-      <InviteLinkFallback
-        inviteUrl={inviteLinkFallback}
-        onClose={() => setInviteLinkFallback(null)}
       />
 
       <DetailSheet
@@ -183,11 +204,7 @@ export function TeamSettingsPanel({
           router.refresh()
         }}
         onResent={(result) => {
-          if (result.inviteUrl) {
-            setInviteLinkFallback(result.inviteUrl)
-          } else {
-            showToast({ message: 'Invite email sent', variant: 'success' })
-          }
+          handleInviteDeliveryResult(result, true)
           router.refresh()
         }}
         onPasswordReset={() => {
@@ -200,18 +217,24 @@ export function TeamSettingsPanel({
           router.refresh()
         }}
       />
+
+      <InviteLinkFallback
+        state={inviteLinkFallback}
+        onClose={() => setInviteLinkFallback(null)}
+      />
     </>
   )
 }
 
 function InviteLinkFallback({
-  inviteUrl,
+  state,
   onClose,
 }: {
-  inviteUrl: string | null
+  state: InviteLinkFallbackState
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const inviteUrl = state?.inviteUrl ?? null
 
   async function handleCopy() {
     if (!inviteUrl) return
@@ -223,19 +246,20 @@ function InviteLinkFallback({
     }
   }
 
+  const message = state?.emailError
+    ? `We could not send the invite email: ${state.emailError} Share this link with your team member directly — it expires in 48 hours.`
+    : 'Email delivery is not configured (RESEND_API_KEY). Share this link with your team member directly — it expires in 48 hours.'
+
   return (
     <BottomSheet
       open={inviteUrl != null}
       title="Copy invite link"
+      elevated
       onClose={onClose}
     >
       {inviteUrl ? (
         <div className="flex flex-col gap-3 p-4">
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Email delivery is not configured (<code>RESEND_API_KEY</code>).
-            Share this link with your team member directly — it expires in{' '}
-            <strong>48 hours</strong>.
-          </p>
+          <p className="text-sm text-[var(--color-text-secondary)]">{message}</p>
           <Input type="url" value={inviteUrl} readOnly />
           <Button type="button" fullWidth onClick={handleCopy}>
             {copied ? 'Copied' : 'Copy invite link'}
@@ -260,7 +284,7 @@ function InviteSheet({
   tenantId: string
   callerRole: CallerRole
   onClose: () => void
-  onSuccess: (result: { inviteUrl?: string }) => void
+  onSuccess: (result: InviteDeliveryResult) => void
 }) {
   const [email, setEmail] = useState('')
   const [personalMessage, setPersonalMessage] = useState('')
@@ -283,7 +307,10 @@ function InviteSheet({
         setEmail('')
         setPersonalMessage('')
         setRole('STAFF')
-        onSuccess({ inviteUrl: result.inviteUrl })
+        onSuccess({
+          inviteUrl: result.inviteUrl,
+          emailError: result.emailError,
+        })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not invite member.')
       }
@@ -371,7 +398,7 @@ function DetailSheet({
   callerId: string
   onClose: () => void
   onSaved: () => void
-  onResent: (result: { inviteUrl?: string }) => void
+  onResent: (result: InviteDeliveryResult) => void
   onPasswordReset: () => void
   onRemoved: () => void
 }) {
@@ -410,7 +437,7 @@ function DetailSheetForm({
   callerRole: CallerRole
   callerId: string
   onSaved: () => void
-  onResent: (result: { inviteUrl?: string }) => void
+  onResent: (result: InviteDeliveryResult) => void
   onPasswordReset: () => void
   onRemoved: () => void
 }) {
@@ -457,7 +484,10 @@ function DetailSheetForm({
     startResend(async () => {
       try {
         const result = await resendTeamInviteAction({ userId: user.id })
-        onResent({ inviteUrl: result.inviteUrl })
+        onResent({
+          inviteUrl: result.inviteUrl,
+          emailError: result.emailError,
+        })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not resend invite.')
       }
