@@ -1,19 +1,21 @@
 import { loadEnvConfig } from '@next/env'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@/generated/prisma/client'
+import { normalizePostgresSslMode } from '@/lib/postgres-url'
 
 // Next/Turbopack may not inject `.env.local` into `process.env` before Prisma
 // initializes. Load env files the same way Next does so DATABASE_URL is present.
 loadEnvConfig(process.cwd())
 
 export function createPrismaClient(): PrismaClient {
-  const connectionString =
+  const rawConnectionString =
     process.env.DATABASE_URL?.trim() ||
     (process.env.NODE_ENV === 'production'
       ? (() => {
           throw new Error('DATABASE_URL is not set')
         })()
       : 'postgresql://localhost:5432/dev_placeholder')
+  const connectionString = normalizePostgresSslMode(rawConnectionString)
 
   const adapter = new PrismaPg({ connectionString })
   return new PrismaClient({

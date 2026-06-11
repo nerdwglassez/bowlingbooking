@@ -6,7 +6,7 @@ import { Plus, UserX } from 'lucide-react'
 
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
-import { PasswordField } from '@/components/patterns/password-field'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -578,7 +578,7 @@ function DetailSheetForm({
             <span className="text-[var(--color-text-secondary)]">
               New password
             </span>
-            <PasswordField
+            <PasswordInput
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               minLength={8}
@@ -590,7 +590,7 @@ function DetailSheetForm({
             <span className="text-[var(--color-text-secondary)]">
               Confirm password
             </span>
-            <PasswordField
+            <PasswordInput
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               minLength={8}

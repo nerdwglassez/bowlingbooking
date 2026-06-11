@@ -9,7 +9,7 @@ Operational steps to take **royalz-lanes** from a fresh `git clone` to **live bo
 | Requirement | Notes |
 |-------------|--------|
 | **Node.js 20+** | Install via your platform or `nvm`. |
-| **PostgreSQL** | Managed Postgres (e.g. **Neon**) is fine. You need a single `DATABASE_URL` connection string. Typical Neon shape: `postgresql://USER:PASSWORD@HOST/DB?sslmode=require` (query params vary; `sslmode=require` is common). |
+| **PostgreSQL** | Managed Postgres (e.g. **Neon**) is fine. You need a single `DATABASE_URL` connection string. Typical Neon shape: `postgresql://USER:PASSWORD@HOST/DB?sslmode=verify-full` (Neon may ship `sslmode=require`; the app normalizes legacy modes at runtime). |
 | **Stripe** | One account with **test** and **live** keys as needed. Live mode for production charges. |
 | **Resend** | Account with a **verified sending domain** (DNS for SPF, DKIM, and return-path as Resend instructs). |
 | **DNS** | Control of the **app hostname** (A/CNAME/ALIAS to your host) and the **mail domain** records Resend requires. |
@@ -191,7 +191,7 @@ The app’s **root layout** calls `getTenant()` on every page. In **production**
 
 1. Open **`https://<your-domain>/api/health`** — expect `{ "ok": true, "tenantSlug": "royalz" }`. A **503** body explains the failure (e.g. tenant not found, Prisma init error).
 2. In **Vercel → Project → Settings → Environment Variables** (Production), set at minimum:
-   - **`DATABASE_URL`** — Neon (or Postgres) connection string with `sslmode=require`
+   - **`DATABASE_URL`** — Neon (or Postgres) connection string with `sslmode=verify-full` (or `require`; normalized automatically)
    - **`DEFAULT_TENANT_SLUG`** — `royalz` (must match `prisma/seed.ts`)
    - **`AUTH_SECRET`** — `npx auth secret`
 3. **Apply schema + seed** against that same database (from your laptop, not on Vercel):
