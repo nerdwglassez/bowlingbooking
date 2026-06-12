@@ -13,6 +13,11 @@ export function sanitizeSignInFrom(raw: string | null | undefined): string {
   return raw
 }
 
+/** Build a sign-in link for the current app path. */
+export function signInPathForPath(pathname: string): string {
+  return `/signin?from=${encodeURIComponent(sanitizeSignInFrom(pathname))}`
+}
+
 /** Entry paths that should not override role-based landing after sign-in. */
 const GENERIC_SIGN_IN_FROM = new Set([
   '/',

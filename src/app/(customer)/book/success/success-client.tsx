@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 
 import { BookingAppHeader } from '@/components/patterns/booking-app-header'
@@ -18,7 +18,7 @@ import {
   claimBookingAccountAction,
   getClaimTokenForBooking,
 } from '@/lib/actions/claim'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { signInPathForPath } from '@/lib/auth-paths'
 import { formatPrice } from '@/lib/pricing'
 
 const POLL_INTERVAL_MS = 800
@@ -95,6 +95,7 @@ function ConfDetailRow({
 
 export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
   const params = useSearchParams()
+  const pathname = usePathname()
   const redirectStatus = params.get('redirect_status')
   const offlineCode = params.get('code')
   const offlineEmail = params.get('email')
@@ -211,7 +212,7 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
       <BookingAppHeader
         venueName={tenant.name}
         address={tenant.address}
-        signInHref={STAFF_SIGN_IN_PATH}
+        signInHref={signInPathForPath(pathname)}
         signedIn={signedIn}
       />
 

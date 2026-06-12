@@ -5,6 +5,7 @@ import {
   isGenericSignInFrom,
   resolvePostSignInPath,
   sanitizeSignInFrom,
+  signInPathForPath,
 } from './auth-paths'
 
 describe('post-sign-in paths', () => {
@@ -33,5 +34,12 @@ describe('post-sign-in paths', () => {
 
   it('defaults customers to find-my-booking', () => {
     expect(defaultAppPathForRole('CUSTOMER')).toBe('/find-my-booking')
+  })
+
+  it('builds a sanitized sign-in URL for the current path', () => {
+    expect(signInPathForPath('/book/confirm')).toBe(
+      '/signin?from=%2Fbook%2Fconfirm',
+    )
+    expect(signInPathForPath('//evil.com')).toBe('/signin?from=%2F')
   })
 })

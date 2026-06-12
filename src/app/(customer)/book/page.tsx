@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useBooking } from '@/context/BookingContext'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { signInPathForPath } from '@/lib/auth-paths'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import {
   acquireBookingHold,
@@ -55,6 +55,7 @@ function WeekStripSkeleton() {
 
 export default function BookStepOnePage() {
   const router = useRouter()
+  const pathname = usePathname()
   const tenant = useTenant()
   const { session, setBowlerCount, setDate, setTimeSlot } = useBooking()
   const [{ year, month }, setCalendarMonth] = useState(initialCalendarMonth)
@@ -206,7 +207,7 @@ export default function BookStepOnePage() {
     <BookingFlowShell
       venueName={tenant.name}
       address={tenant.address}
-      signInHref={STAFF_SIGN_IN_PATH}
+      signInHref={signInPathForPath(pathname)}
       currentStep={1}
       holdExpiresAt={session.holdExpiresAt}
       onHoldExpire={handleHoldExpired}
