@@ -588,7 +588,7 @@ describe('POST /api/webhooks/stripe', () => {
           id: 'ch_2',
           payment_intent: 'pi_1',
           amount_refunded: 2000,
-          refunded: true,
+          refunded: false,
         },
       },
     })
@@ -605,6 +605,57 @@ describe('POST /api/webhooks/stripe', () => {
     expect(res.status).toBe(200)
     expect(mocks.bookingUpdate).not.toHaveBeenCalled()
     expect(mocks.paymentUpdate).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
+      data: expect.objectContaining({
+        refundAmount: 2000,
+        refundStatus: 'SUCCEEDED',
+      }),
+    })
+  })
+
+  it('keeps a partial refund succeeded when charge.refunded follows refund.updated', async () => {
+    mocks.constructWebhookEventMock
+      .mockReturnValueOnce({
+        id: 'evt_refund_updated_partial',
+        type: 'refund.updated',
+        data: {
+          object: {
+            id: 're_partial',
+            payment_intent: 'pi_1',
+            amount: 2000,
+            status: 'succeeded',
+          },
+        },
+      })
+      .mockReturnValueOnce({
+        id: 'evt_charge_refunded_partial',
+        type: 'charge.refunded',
+        data: {
+          object: {
+            id: 'ch_2',
+            payment_intent: 'pi_1',
+            amount_refunded: 2000,
+            refunded: false,
+          },
+        },
+      })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      refundAmount: 2000,
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const updatedRes = await POST(makeRequest('{}') as never)
+    const chargeRes = await POST(makeRequest('{}') as never)
+
+    expect(updatedRes.status).toBe(200)
+    expect(chargeRes.status).toBe(200)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).toHaveBeenLastCalledWith({
       where: { id: 'pay_1' },
       data: expect.objectContaining({
         refundAmount: 2000,
