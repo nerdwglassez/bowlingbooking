@@ -613,7 +613,7 @@ describe('POST /api/webhooks/stripe', () => {
     })
   })
 
-  it('marks refund failed and restores refundable amount on refund.updated failure', async () => {
+  it('restores the prior settled amount when the pending refund.updated attempt fails', async () => {
     mocks.constructWebhookEventMock.mockReturnValue({
       id: 'evt_refund_failed',
       type: 'refund.updated',
@@ -632,6 +632,9 @@ describe('POST /api/webhooks/stripe', () => {
       bookingId: 'bk_1',
       amount: 4500,
       refundAmount: 4500,
+      refundStatus: 'PENDING',
+      refundedAt: new Date('2025-01-01T00:00:00.000Z'),
+      stripeRefundId: 're_failed',
       stripePaymentIntentId: 'pi_1',
       booking: { status: 'CONFIRMED' },
     })
@@ -642,9 +645,51 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.paymentUpdate).toHaveBeenCalledWith({
       where: { id: 'pay_1' },
       data: {
+        stripeRefundId: 're_failed',
         refundAmount: 2000,
-        refundStatus: 'FAILED',
-        refundedAt: null,
+        refundStatus: 'SUCCEEDED',
+        refundedAt: new Date('2025-01-01T00:00:00.000Z'),
+      },
+    })
+  })
+
+  it('does not subtract a failed refund.updated amount from prior settled refunds', async () => {
+    const settledAt = new Date('2025-01-01T00:00:00.000Z')
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_failed_after_partial',
+      type: 'refund.updated',
+      data: {
+        object: {
+          id: 're_failed',
+          payment_intent: 'pi_1',
+          amount: 2500,
+          status: 'failed',
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      refundAmount: 2000,
+      refundStatus: 'SUCCEEDED',
+      refundedAt: settledAt,
+      stripeRefundId: 're_previous',
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
+      data: {
+        stripeRefundId: 're_failed',
+        refundAmount: 2000,
+        refundStatus: 'SUCCEEDED',
+        refundedAt: settledAt,
       },
     })
   })
