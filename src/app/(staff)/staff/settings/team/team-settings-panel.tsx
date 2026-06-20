@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, UserX } from 'lucide-react'
 
@@ -92,16 +92,19 @@ export function TeamSettingsPanel({
   const router = useRouter()
   const { showToast } = useStaffToast()
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [detailUser, setDetailUser] = useState<AdminUserRow | null>(null)
+  const [detailUserId, setDetailUserId] = useState<string | null>(
+    initialMemberId ?? null,
+  )
   const [inviteLinkFallback, setInviteLinkFallback] =
     useState<InviteLinkFallbackState>(null)
+  const detailUser = users.find((u) => u.id === detailUserId) ?? null
 
   function handleInviteDeliveryResult(
     result: InviteDeliveryResult,
     closeDetail: boolean,
   ) {
     if (result.inviteUrl) {
-      if (closeDetail) setDetailUser(null)
+      if (closeDetail) setDetailUserId(null)
       setInviteLinkFallback({
         inviteUrl: result.inviteUrl,
         emailError: result.emailError,
@@ -116,12 +119,6 @@ export function TeamSettingsPanel({
     }
     showToast({ message: 'Invite email sent', variant: 'success' })
   }
-
-  useEffect(() => {
-    if (!initialMemberId) return
-    const match = users.find((u) => u.id === initialMemberId)
-    if (match) setDetailUser(match)
-  }, [initialMemberId, users])
 
   return (
     <>
@@ -144,7 +141,7 @@ export function TeamSettingsPanel({
               <li key={u.id}>
                 <button
                   type="button"
-                  onClick={() => setDetailUser(u)}
+                  onClick={() => setDetailUserId(u.id)}
                   className="flex w-full flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4 text-left transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--surface-sunken)] md:flex-row md:items-center md:justify-between"
                 >
                   <div className="flex flex-col gap-0.5">
@@ -190,16 +187,12 @@ export function TeamSettingsPanel({
 
       <DetailSheet
         open={detailUser != null}
-        user={
-          detailUser
-            ? (users.find((u) => u.id === detailUser.id) ?? detailUser)
-            : null
-        }
+        user={detailUser}
         callerRole={callerRole}
         callerId={callerId}
-        onClose={() => setDetailUser(null)}
+        onClose={() => setDetailUserId(null)}
         onSaved={() => {
-          setDetailUser(null)
+          setDetailUserId(null)
           showToast({ message: 'Team member updated', variant: 'success' })
           router.refresh()
         }}
@@ -212,7 +205,7 @@ export function TeamSettingsPanel({
           router.refresh()
         }}
         onRemoved={() => {
-          setDetailUser(null)
+          setDetailUserId(null)
           showToast({ message: 'Team member removed', variant: 'success' })
           router.refresh()
         }}
