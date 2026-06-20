@@ -6,7 +6,7 @@ import { Plus, UserX } from 'lucide-react'
 
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
-import { PasswordInput } from '@/components/ui/password-input'
+import { PasswordField } from '@/components/patterns/password-field'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -439,6 +439,8 @@ function DetailSheetForm({
   const [role, setRole] = useState<TeamRole>(user.role as TeamRole)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
@@ -601,9 +603,11 @@ function DetailSheetForm({
             <span className="text-[var(--color-text-secondary)]">
               New password
             </span>
-            <PasswordInput
+            <PasswordField
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              visible={showNewPassword}
+              onToggleVisible={() => setShowNewPassword((visible) => !visible)}
               minLength={8}
               autoComplete="new-password"
               placeholder="At least 8 characters"
@@ -613,9 +617,13 @@ function DetailSheetForm({
             <span className="text-[var(--color-text-secondary)]">
               Confirm password
             </span>
-            <PasswordInput
+            <PasswordField
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              visible={showConfirmPassword}
+              onToggleVisible={() =>
+                setShowConfirmPassword((visible) => !visible)
+              }
               minLength={8}
               autoComplete="new-password"
               placeholder="Re-enter password"
