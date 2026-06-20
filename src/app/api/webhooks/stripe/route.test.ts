@@ -632,6 +632,8 @@ describe('POST /api/webhooks/stripe', () => {
       bookingId: 'bk_1',
       amount: 4500,
       refundAmount: 4500,
+      refundStatus: 'PENDING',
+      stripeRefundId: 're_failed',
       stripePaymentIntentId: 'pi_1',
       booking: { status: 'CONFIRMED' },
     })
@@ -647,6 +649,37 @@ describe('POST /api/webhooks/stripe', () => {
         refundedAt: null,
       },
     })
+  })
+
+  it('ignores stale refund.updated failures for a different refund id', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_stale_failed',
+      type: 'refund.updated',
+      data: {
+        object: {
+          id: 're_old_failed',
+          payment_intent: 'pi_1',
+          amount: 2000,
+          status: 'failed',
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      refundAmount: 2000,
+      refundStatus: 'SUCCEEDED',
+      stripeRefundId: 're_settled',
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
   })
 
   it('reconciles succeeded refund.updated without cancelling partially refunded bookings', async () => {
