@@ -16,6 +16,7 @@ import type { Prisma } from '@/generated/prisma/client'
 
 import {
   dispatchTeamInviteEmail,
+  isStaffRole,
   issueTeamInviteToken,
 } from '@/lib/team-invite-shared'
 import { hashPassword, requireRole, type CurrentUser } from '@/lib/auth'
@@ -1543,6 +1544,9 @@ function assertCanMutateTeamUser(
   }
   if (target.tenantId !== actor.tenantId) {
     throw new Error('Cannot mutate users outside your tenant.')
+  }
+  if (!isStaffRole(target.role)) {
+    throw new Error('Cannot mutate users who are not team members.')
   }
   if (target.role === 'ADMIN' && actor.role !== 'ADMIN') {
     throw new Error('Only an ADMIN can modify an ADMIN user.')

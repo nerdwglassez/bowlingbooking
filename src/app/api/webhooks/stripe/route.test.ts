@@ -579,7 +579,7 @@ describe('POST /api/webhooks/stripe', () => {
     })
   })
 
-  it('partial charge.refunded updates payment but leaves booking active', async () => {
+  it('partial charge.refunded succeeds even while Stripe charge.refunded is false', async () => {
     mocks.constructWebhookEventMock.mockReturnValue({
       id: 'evt_refund_partial',
       type: 'charge.refunded',
@@ -588,7 +588,7 @@ describe('POST /api/webhooks/stripe', () => {
           id: 'ch_2',
           payment_intent: 'pi_1',
           amount_refunded: 2000,
-          refunded: true,
+          refunded: false,
         },
       },
     })

@@ -903,6 +903,49 @@ describe('team CRUD', () => {
     expect(mocks.userUpdate).not.toHaveBeenCalled()
   })
 
+  it('updateTeamUserAction rejects CUSTOMER targets', async () => {
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_customer_target', role: 'CUSTOMER' }),
+    )
+
+    await expect(
+      updateTeamUserAction({
+        userId: 'user_customer_target',
+        role: 'STAFF',
+      }),
+    ).rejects.toThrow(/team members/i)
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
+  it('resetUserPasswordAction rejects CUSTOMER targets', async () => {
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_customer_target', role: 'CUSTOMER' }),
+    )
+
+    await expect(
+      resetUserPasswordAction({
+        userId: 'user_customer_target',
+        newPassword: 'longenoughpw',
+      }),
+    ).rejects.toThrow(/team members/i)
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+    expect(mocks.hashPasswordMock).not.toHaveBeenCalled()
+  })
+
+  it('deactivateTeamUserAction rejects CUSTOMER targets', async () => {
+    mocks.userFindUnique.mockResolvedValue(
+      teamTarget({ id: 'user_customer_target', role: 'CUSTOMER' }),
+    )
+
+    await expect(
+      deactivateTeamUserAction('user_customer_target'),
+    ).rejects.toThrow(/team members/i)
+
+    expect(mocks.userUpdate).not.toHaveBeenCalled()
+  })
+
   it('updateTeamUserAction rejects cross-tenant targets', async () => {
     mocks.userFindUnique.mockResolvedValue(
       teamTarget({ id: 'user_other_tenant', tenantId: 't2' }),

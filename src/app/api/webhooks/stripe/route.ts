@@ -605,8 +605,8 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   if (!payment) return
 
   const totalRefunded = charge.amount_refunded ?? 0
-  const succeeded = (charge.refunded ?? false) && totalRefunded > 0
-  const fullyRefunded = succeeded && totalRefunded >= payment.amount
+  const succeeded = totalRefunded > 0
+  const fullyRefunded = totalRefunded >= payment.amount
 
   await prisma.$transaction(async (tx) => {
     await tx.payment.update({
