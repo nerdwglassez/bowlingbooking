@@ -541,6 +541,12 @@ async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
   const status = String(refund.status ?? 'pending')
 
   if (status === 'failed' || status === 'canceled') {
+    if (
+      payment.stripeRefundId !== refund.id ||
+      payment.refundStatus !== 'PENDING'
+    ) {
+      return
+    }
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },

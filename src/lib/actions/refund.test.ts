@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const paymentUpdateMock = vi.fn()
+  const paymentUpdateManyMock = vi.fn()
   const bookingUpdateMock = vi.fn()
   const auditLogCreateMock = vi.fn()
   const prismaTxStub = {
-    payment: { update: paymentUpdateMock },
+    payment: { update: paymentUpdateMock, updateMany: paymentUpdateManyMock },
     booking: { update: bookingUpdateMock },
     auditLog: { create: auditLogCreateMock },
   }
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => {
     revalidatePathMock: vi.fn(),
     bookingFindUniqueMock: vi.fn(),
     paymentUpdateMock,
+    paymentUpdateManyMock,
     bookingUpdateMock,
     auditLogCreateMock,
     transactionMock: vi.fn(
@@ -42,6 +44,7 @@ const {
   isDevWithoutDbMock,
   bookingFindUniqueMock,
   paymentUpdateMock,
+  paymentUpdateManyMock,
   bookingUpdateMock,
   auditLogCreateMock,
   revalidatePathMock,
@@ -247,6 +250,7 @@ describe('manualRefundBookingAction', () => {
       tenantId: 't1',
     })
     bookingFindUniqueMock.mockResolvedValue(baseWalkInBooking)
+    paymentUpdateManyMock.mockResolvedValue({ count: 1 })
   })
 
   it('requires MANAGER or ADMIN role', async () => {
@@ -379,8 +383,14 @@ describe('manualRefundBookingAction', () => {
       method: 'cash',
       notes: 'guest cancelled',
     })
-    expect(paymentUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'pay_w' },
+    expect(paymentUpdateManyMock).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: 'pay_w',
+        bookingId: 'bk_walk',
+        stripePaymentIntentId: null,
+        amount: 5000,
+        refundStatus: { not: 'PENDING' },
+      }),
       data: expect.objectContaining({
         refundAmount: 5000,
         refundStatus: 'SUCCEEDED',
@@ -418,8 +428,12 @@ describe('manualRefundBookingAction', () => {
       amountCents: 2500,
       method: 'check',
     })
-    expect(paymentUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'pay_w' },
+    expect(paymentUpdateManyMock).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: 'pay_w',
+        bookingId: 'bk_walk',
+        stripePaymentIntentId: null,
+      }),
       data: expect.objectContaining({
         refundAmount: 2500,
         refundStatus: 'SUCCEEDED',
@@ -427,6 +441,22 @@ describe('manualRefundBookingAction', () => {
       }),
     })
     expect(bookingUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('aborts manual refund when another write changed the refundable balance', async () => {
+    paymentUpdateManyMock.mockResolvedValueOnce({ count: 0 })
+
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 5000,
+        method: 'cash',
+      }),
+    ).rejects.toThrow(/retry/i)
+
+    expect(bookingUpdateMock).not.toHaveBeenCalled()
+    expect(auditLogCreateMock).not.toHaveBeenCalled()
+    expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 
   it('records method and notes on the audit log details', async () => {

@@ -114,10 +114,21 @@ export async function manualRefundBookingAction(
 
   const newRefundTotal = alreadyRefunded + input.amountCents
   const isFullRefund = newRefundTotal >= collected
+  const refundAmountGuard =
+    alreadyRefunded === 0
+      ? { OR: [{ refundAmount: null }, { refundAmount: 0 }] }
+      : { refundAmount: alreadyRefunded }
 
   await prisma.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
+    const updatedPayment = await tx.payment.updateMany({
+      where: {
+        id: payment.id,
+        bookingId: booking.id,
+        stripePaymentIntentId: null,
+        amount: collected,
+        refundStatus: { not: 'PENDING' },
+        ...refundAmountGuard,
+      },
       data: {
         refundAmount: newRefundTotal,
         refundStatus: 'SUCCEEDED',
@@ -126,6 +137,9 @@ export async function manualRefundBookingAction(
         status: 'refunded_manual',
       },
     })
+    if (updatedPayment.count !== 1) {
+      throw new Error('Refund amount changed; please retry.')
+    }
     if (isFullRefund) {
       await tx.booking.update({
         where: { id: booking.id },
