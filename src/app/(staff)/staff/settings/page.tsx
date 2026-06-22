@@ -19,13 +19,14 @@ export default async function StaffSettingsPage() {
 
   return (
     <>
-      <header className="flex flex-col gap-1">
+      {/* Mobile: grouped drill-down list. Desktop: nav lives in the NavRail. */}
+      <header className="flex flex-col gap-1 md:hidden">
         <h1 className="[font-family:var(--font-display)] text-[22px] text-[var(--color-text-primary)]">
           Settings
         </h1>
       </header>
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 md:hidden">
         {groups.map((group) => (
           <section key={group.label} className="flex flex-col gap-2">
             <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
@@ -54,10 +55,19 @@ export default async function StaffSettingsPage() {
       </div>
 
       {isStaffOnly ? (
-        <p className="text-center text-xs text-[var(--color-text-secondary)]">
+        <p className="text-center text-xs text-[var(--color-text-secondary)] md:hidden">
           Need more access? Contact your venue admin.
         </p>
       ) : null}
+
+      <div className="hidden flex-col gap-2 md:flex">
+        <h1 className="[font-family:var(--font-display)] text-[22px] text-[var(--color-text-primary)]">
+          Settings
+        </h1>
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Choose a section from the menu to get started.
+        </p>
+      </div>
     </>
   )
 }

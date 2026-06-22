@@ -537,9 +537,11 @@ All roles can access.
 ## Global Settings Sub-page Patterns
 
 ### Navigation
-- All settings sub-pages: back chevron "‹ Settings" in header
-- Staff header persistent on all sub-pages
-- Tab bar persistent on all sub-pages
+- Mobile: settings sub-pages show a back chevron "‹ Settings" in header
+- Desktop (`md+`): no back chevron — navigation lives in the NavRail
+  (the "Settings" item expands to its child pages); back chevron is
+  `md:hidden`
+- Tab bar (mobile) / NavRail (desktop) persistent on all sub-pages
 - No breadcrumbs — single level deep (Settings → Sub-page)
 
 ### Save / Discard Pattern
@@ -563,12 +565,24 @@ All roles can access.
 
 ## Desktop Settings Behavior
 
-- Settings root: left sidebar (220px) shows nav, content fills right
-  Like a two-panel settings app (macOS System Settings pattern)
-- Active settings section highlighted in sidebar with amber left border
-- Sub-pages render in the content area without full navigation stack
-- No back button needed on desktop — sidebar is always visible
+Desktop settings navigation lives in the **NavRail**, not in a second
+in-page panel. There is exactly one navigation surface on every viewport.
+
+- The NavRail "Settings" item expands inline while you are within
+  `/staff/settings/*` to reveal the grouped child pages
+  (Venue · Booking · Team · Integrations · Account)
+- Active settings section highlighted in the rail with the amber
+  `--color-action-dark` left border + amber text
+- Collapses back to a single "Settings" link when you leave the section
+- Sub-pages render in the main content area without a separate sidebar
+- No back chevron on desktop — the rail is always visible (back chevron
+  is mobile-only, hidden at `md+`)
+- The settings hub page (`/staff/settings`) shows only a short prompt on
+  desktop ("Choose a section…") — the grouped list is mobile-only
 - Forms expand to use available width up to 640px max
+- Unsaved-changes guard still applies to rail navigation: the guard
+  provider wraps the AppShell so NavRail links are intercepted when a
+  form is dirty
 
 ---
 
@@ -579,7 +593,10 @@ All roles can access.
 - Show items that aren't accessible to the current role
   Hidden entirely, not disabled or grayed
 - Navigate to a new layout for any settings sub-page
-  Standard staff layout + back chevron is correct
+  Standard staff layout + back chevron (mobile) / NavRail (desktop)
+- Render a second in-page settings nav sidebar on desktop
+  Navigation lives in the NavRail — the "Settings" item expands to its
+  child pages. A separate in-page sidebar is double navigation.
 - Put save buttons in the staff header (not a toolbar pattern)
   Save buttons live at the bottom of the form content
 - Send per-field API calls on every input change

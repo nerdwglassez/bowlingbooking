@@ -16,7 +16,7 @@ The Stripe wrapper (`src/lib/stripe.ts`) is the **only** place that imports `str
 | Outbound email + QR rendering | `src/lib/email.ts` | Singleton Resend client + `sendBookingConfirmation` (manage link + optional .ics link). |
 | Booking calendar (.ics) | `src/app/api/bookings/[code]/ics/route.ts` | `GET` with `email` query; delegates lookup to `getBookingByLookup`. |
 | Hold acquisition / release / availability | `src/lib/actions/booking.ts` | `acquireBookingHold`, `releaseBookingHold`, `getAvailableTimeSlots`, `confirmBooking`. |
-| Webhook entrypoint | `src/app/api/webhooks/stripe/route.ts` | Signature verification, idempotency, event routing. ONLY place that creates Booking + Payment rows from Stripe state. |
+| Webhook entrypoint | `src/app/api/webhooks/stripe/route.ts` | Signature verification, idempotency, event routing. Handles `payment_intent.succeeded`, `charge.refunded`, and `refund.updated`; all other types are logged + ignored. ONLY place that creates Booking + Payment rows from Stripe state. |
 | Refund actions | `src/lib/actions/refund.ts` | `refundBookingAction`: Stripe refund + Payment.refundStatus=PENDING + AuditLog; webhook finalizes. `manualRefundBookingAction`: walk-in / no PaymentIntent; writes Payment + Booking + AuditLog in one transaction (no Stripe). Both gated by `requireRole('MANAGER', 'ADMIN')`. |
 
 ---

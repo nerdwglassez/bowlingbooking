@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, UserX } from 'lucide-react'
 
@@ -92,9 +92,25 @@ export function TeamSettingsPanel({
   const router = useRouter()
   const { showToast } = useStaffToast()
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [detailUser, setDetailUser] = useState<AdminUserRow | null>(null)
+  const [detailUser, setDetailUser] = useState<AdminUserRow | null>(
+    () =>
+      (initialMemberId
+        ? users.find((u) => u.id === initialMemberId)
+        : null) ?? null,
+  )
+  // React to a changed deep-link member (?member=…) without an effect.
+  const [lastInitialMemberId, setLastInitialMemberId] =
+    useState(initialMemberId)
   const [inviteLinkFallback, setInviteLinkFallback] =
     useState<InviteLinkFallbackState>(null)
+
+  if (initialMemberId !== lastInitialMemberId) {
+    setLastInitialMemberId(initialMemberId)
+    const match = initialMemberId
+      ? users.find((u) => u.id === initialMemberId)
+      : null
+    if (match) setDetailUser(match)
+  }
 
   function handleInviteDeliveryResult(
     result: InviteDeliveryResult,
@@ -116,12 +132,6 @@ export function TeamSettingsPanel({
     }
     showToast({ message: 'Invite email sent', variant: 'success' })
   }
-
-  useEffect(() => {
-    if (!initialMemberId) return
-    const match = users.find((u) => u.id === initialMemberId)
-    if (match) setDetailUser(match)
-  }, [initialMemberId, users])
 
   return (
     <>

@@ -11,7 +11,7 @@ The auth module (`src/lib/auth.ts`) is the **only** place that touches `next-aut
 | Concern | Module | Notes |
 |---|---|---|
 | NextAuth init, providers, callbacks | `src/lib/auth.ts` | One place. Swapping providers, switching session strategy, or changing the hasher = one-file edit. |
-| Password hashing | `hashPassword()` in `src/lib/auth.ts` | Wraps bcryptjs. Used by seed and (future) admin reset tooling. Not from request handlers. |
+| Password hashing | `hashPassword()` in `src/lib/auth.ts` | Wraps bcryptjs. Used by seed, the password-reset flow (`resetPasswordAction`), and accept-invite. Not called inline from request handlers — only via those server actions. |
 | Credentials verification | `verifyCredentials(email, password)` in `src/lib/auth.ts` | Used by the Credentials provider's `authorize` AND by the `/signin` server action when it bypasses NextAuth. |
 | Current-user resolution | `getCurrentUser()` in `src/lib/auth.ts` | Reads the session, returns a plain object. Never re-queries the DB. |
 | Auth requirement (any user) | `requireUser(currentPath?)` in `src/lib/auth.ts` | Redirects to `/signin?from=…`. Returns the user. |
@@ -19,6 +19,8 @@ The auth module (`src/lib/auth.ts`) is the **only** place that touches `next-aut
 | Sign-in surface | `src/app/signin/page.tsx` (Phase 6b) | The only place the user authenticates. Calls `signIn('credentials', …)`. |
 | Auth HTTP handlers | `src/app/api/auth/[...nextauth]/route.ts` | Exports `GET` / `POST` from `handlers` in `src/lib/auth.ts`. Required for sessions. |
 | Sign-out surface | Sign-out server action (Phase 6b) | Calls `signOut()`. |
+| Password reset | `src/lib/actions/password-reset.ts` + `src/app/reset-password/page.tsx` | Token-based, single-use (`PasswordResetToken`, 1h TTL). `requestPasswordResetAction` (rate-limited, never leaks account existence) emails a link; `resetPasswordAction` validates the hashed token and calls `hashPassword`. NOT a NextAuth provider. |
+| Team invite (set password) | `src/lib/actions/team-invite.ts` + `/accept-invite` | Admin-issued single-use email token (`TeamInviteToken`, 48h TTL) so a pending user sets their first password. Custom token flow, NOT a NextAuth Email/magic-link provider. |
 
 ---
 
@@ -30,7 +32,7 @@ The auth module (`src/lib/auth.ts`) is the **only** place that touches `next-aut
 4. **Password verification for sessions goes through `signIn('credentials', …)` → `authorize` → `verifyCredentials`.** The `/signin` server action may call `verifyCredentials` **once before** `signIn` solely to resolve a role-aware `redirectTo` (`resolvePostSignInPath`). It must not set cookies or skip `signIn`; `authorize` remains the session source of truth (and performs the bcrypt check again).
 5. **Don't trust `email` casing.** `verifyCredentials` lowercases the input. User records store the lowercase email.
 6. **Don't catch `redirect()` / `unauthorized()`.** They throw a Next.js framework signal; catching turns the redirect into a 500. Let them propagate.
-7. **No password reset, magic link, or OAuth in v1.** Adding any of these requires updating this contract first, then adding the provider in `src/lib/auth.ts` only.
+7. **No OAuth and no passwordless (NextAuth Email/magic-link) *sign-in* in v1.** Adding either requires updating this contract first, then adding the provider in `src/lib/auth.ts` only. (Password reset and team-invite "set your password" links DO exist — but they are custom single-use token flows in `src/lib/actions/*`, not NextAuth providers, and never create a session by themselves. The user still signs in via Credentials afterward.)
 8. **DATABASE_URL is required** for `/signin` and any route gated by `requireUser` / `requireRole`. The customer booking flow's dev-DB fallback (`src/lib/env.ts`) does NOT cover auth. Agents building staff/admin must run a real Postgres.
 
 ---
@@ -137,7 +139,7 @@ export async function signOutAction() {
 After changes touching `src/lib/auth.ts`, route group layouts, sign-in/out pages, or the User schema:
 
 ```bash
-npm run verify   # tsc + eslint + drift + tests
+npm run verify   # tsc + eslint + drift + audit + tests
 ```
 
 Manual checks for staff/admin work:
@@ -153,10 +155,14 @@ The `/signin` page itself must render without a session (no infinite redirect).
 
 ---
 
-## 7. Future expansions (don't do these in Phase 6)
+## 7. Future expansions (not built yet)
 
 - **Customer accounts.** Adds a customer-facing `/account` surface, "remember me" cookie, optional Google OAuth. New providers go in `src/lib/auth.ts`; the role enum already has `CUSTOMER`.
-- **Magic-link / Email provider.** Adds `VerificationToken` model to Prisma. Doesn't require switching off JWT.
+- **Passwordless sign-in (NextAuth Email/magic-link provider).** Sign in *without a password* via emailed link. Adds `VerificationToken` model to Prisma. Doesn't require switching off JWT. Distinct from the existing password-reset and team-invite token flows, which still end in a Credentials sign-in.
 - **OAuth (Google, Apple).** Adds `Account` model. Optionally enables database sessions for instant revocation.
 - **Instant role revocation.** Either move to `session.strategy: 'database'` (requires Prisma adapter + Account/Session tables) OR maintain a "revoked-at" timestamp on User and check it in the `jwt` callback.
-- **Password reset.** Email-based flow with single-use tokens. Schedule for Phase 8 alongside admin user management.
+
+### Already shipped (formerly listed here)
+
+- **Password reset** — token-based, single-use (`PasswordResetToken`, 1h TTL). See `src/lib/actions/password-reset.ts` and `/reset-password`.
+- **Team invites** — admin-issued single-use email tokens (`TeamInviteToken`, 48h TTL). See `src/lib/actions/team-invite.ts` and `/accept-invite`.

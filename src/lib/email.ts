@@ -9,10 +9,12 @@
 import { Resend } from 'resend'
 import QRCode from 'qrcode'
 
-import { hasResendApiKey, warnOnce } from '@/lib/env'
+import {
+  hasResendApiKey,
+  resolveResendFromEmail,
+  warnOnce,
+} from '@/lib/env'
 import { formatPrice } from '@/lib/pricing'
-
-const APP_FROM_DEFAULT = 'Royal Z Lanes <bookings@royalz.local>'
 
 function resolveResend(): Resend | null {
   const key = process.env.RESEND_API_KEY?.trim()
@@ -191,7 +193,7 @@ export async function sendBookingCancellation(
     )
     return { id: null }
   }
-  const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
+  const from = resolveResendFromEmail()
   const { data, error } = await resend.emails.send({
     from,
     to: args.customerEmail,
@@ -234,7 +236,7 @@ export async function sendPasswordResetEmail(
     return { id: null }
   }
 
-  const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
+  const from = resolveResendFromEmail()
   const { data, error } = await resend.emails.send({
     from,
     to: args.to,
@@ -298,7 +300,7 @@ export async function sendTeamInviteEmail(
     return { id: null, delivered: false }
   }
 
-  const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
+  const from = resolveResendFromEmail()
   const { data, error } = await resend.emails.send({
     from,
     to: args.to,
@@ -329,7 +331,7 @@ export async function sendBookingConfirmation(
     return { id: null }
   }
 
-  const from = process.env.RESEND_FROM_EMAIL?.trim() || APP_FROM_DEFAULT
+  const from = resolveResendFromEmail()
   const replyTo = args.replyTo?.trim()
   const { data, error } = await resend.emails.send({
     from,

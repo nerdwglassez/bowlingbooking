@@ -13,6 +13,7 @@
 
 import { Button } from '@/components/ui/button'
 import { NavRail } from '@/components/chrome/nav-rail'
+import { SettingsSectionProviders } from '@/components/chrome/settings-section-providers'
 import { signOutAction } from '@/app/signin/actions'
 import { formatStaffRole } from '@/lib/staff-nav'
 import type { Role } from '@/types'
@@ -56,16 +57,18 @@ export function AppShell({
   )
 
   return (
-    <div className="min-h-dvh bg-[var(--surface-ground)] pb-16 md:pb-0 md:pl-64">
-      <NavRail
-        role={user.role}
-        brand={brand}
-        footer={footer}
-      />
-      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 md:py-8">
-        {children}
-      </main>
-    </div>
+    <SettingsSectionProviders>
+      <div className="min-h-dvh bg-[var(--surface-ground)] pb-16 md:pb-0 md:pl-64">
+        <NavRail
+          role={user.role}
+          brand={brand}
+          footer={footer}
+        />
+        <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 md:py-8">
+          {children}
+        </main>
+      </div>
+    </SettingsSectionProviders>
   )
 }
 

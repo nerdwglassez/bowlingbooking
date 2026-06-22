@@ -1,5 +1,11 @@
 'use client'
 
+// Drift exception: primitives are normally Server-Component-safe (no
+// 'use client'). This one is the documented exception — the show/hide toggle
+// must flip the <input type> between "password" and "text", which pure CSS
+// (peer-checked) cannot do, so it needs a client hook. See the matching
+// allowance in scripts/drift-check.mjs.
+
 import { Eye, EyeOff } from 'lucide-react'
 import * as React from 'react'
 

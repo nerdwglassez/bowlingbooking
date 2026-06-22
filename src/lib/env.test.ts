@@ -3,8 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   hasResendApiKey,
   isDevWithoutDb,
+  isPlausibleResendFrom,
   isPrismaConnectivityError,
   resolveAppBaseUrl,
+  resolveResendFromEmail,
+  RESEND_SANDBOX_FROM,
   shouldUseDevDbFallback,
 } from './env'
 
@@ -23,6 +26,62 @@ describe('hasResendApiKey', () => {
     expect(hasResendApiKey()).toBe(false)
     vi.stubEnv('RESEND_API_KEY', '   ')
     expect(hasResendApiKey()).toBe(false)
+  })
+})
+
+describe('isPlausibleResendFrom', () => {
+  it('accepts verified-domain style addresses', () => {
+    expect(isPlausibleResendFrom('Royal Z Lanes <bookings@royalz.com>')).toBe(
+      true,
+    )
+    expect(isPlausibleResendFrom('onboarding@resend.dev')).toBe(true)
+  })
+
+  it('rejects placeholder and Vercel-host misconfigurations', () => {
+    expect(isPlausibleResendFrom('Royal Z Lanes <bookings@royalz.local>')).toBe(
+      false,
+    )
+    expect(
+      isPlausibleResendFrom(
+        'Royal Z Lanes <bookings@bowlingbookingv2.vercel.app>',
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('resolveResendFromEmail', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  it('uses RESEND_FROM_EMAIL when plausible', () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv('RESEND_FROM_EMAIL', 'Royal Z Lanes <bookings@royalz.com>')
+    expect(resolveResendFromEmail()).toBe(
+      'Royal Z Lanes <bookings@royalz.com>',
+    )
+  })
+
+  it('falls back to Resend sandbox when from is invalid but API key is set', () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv(
+      'RESEND_FROM_EMAIL',
+      'Royal Z Lanes <bookings@bowlingbookingv2.vercel.app>',
+    )
+    expect(resolveResendFromEmail()).toBe(RESEND_SANDBOX_FROM)
+  })
+
+  it('uses mock from when Resend is not configured', () => {
+    vi.stubEnv('RESEND_API_KEY', '')
+    vi.stubEnv('RESEND_FROM_EMAIL', '')
+    expect(resolveResendFromEmail()).toBe(
+      'Royal Z Lanes <bookings@royalz.local>',
+    )
   })
 })
 

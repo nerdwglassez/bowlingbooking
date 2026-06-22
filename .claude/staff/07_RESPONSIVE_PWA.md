@@ -167,18 +167,25 @@ Never a bottom sheet at > 1024px.
 
 ## Settings Tab: Desktop
 
-Two-panel layout (macOS System Settings pattern):
+Single navigation surface — settings nav lives in the **NavRail**, not a
+second in-page panel. (Avoids the double-navigation that a separate
+in-page sidebar creates next to the rail.)
 
-- Left: settings nav list (230px)
-  Groups and items from root settings page
-  Active item: amber left border 2px + amber text
-  Background: --staff-nav
-- Right: settings sub-page content (fills remaining width)
-  Max content width: 640px, centered in right column
-  Back button not needed — left nav is always visible
+- The NavRail "Settings" item expands inline while within
+  `/staff/settings/*` to reveal grouped child pages
+  Groups: Venue · Booking · Team · Integrations · Account
+  Active child: amber left border (--color-action-dark) + amber text
+  Background: --surface-card (the rail's own surface)
+- Collapses to a single "Settings" link when you leave the section
+- Content: settings sub-page fills the main content area
+  Max content width: 640px
+  No back chevron on desktop — the rail is always visible
+- The settings hub page shows only a short prompt on desktop; the
+  grouped drill-down list is mobile-only
 
-Sub-pages render inline in right column without route navigation.
-No back-and-forth navigation stack — always one click from left nav.
+Sub-pages render in the main content area. Navigation is always one click
+from the rail. The unsaved-changes guard wraps the AppShell, so rail
+navigation is intercepted when a form is dirty.
 
 ---
 
@@ -355,5 +362,8 @@ All animations respect prefers-reduced-motion:
   Two separate manifests required for two separate installable apps
 - Use different breakpoints than 640px and 1024px
 - Remove touch target minimums on desktop — 44px still applies
+- Render a second in-page settings nav sidebar on desktop
+  Settings navigation lives in the NavRail (the "Settings" item expands
+  to its child pages) — a separate in-page sidebar is double navigation
 - Build the desktop settings as a stack of pages
-  Desktop settings is a two-panel layout, not a navigation stack
+  Desktop navigates via the rail, not a back-and-forth page stack

@@ -63,7 +63,14 @@ const CHECKS = [
   {
     name: "'use client' in a primitive",
     regex: /^['"]use client['"]/gm,
-    appliesTo: (file) => file.includes('/components/ui/'),
+    // password-input.tsx is the ONE exception: a show/hide toggle must flip
+    // the <input type> between "password" and "text", which is impossible with
+    // pure CSS (peer-checked can't change an attribute). The visibility toggle
+    // therefore requires a client-side hook. Kept in ui/ as the canonical
+    // password field primitive used by sign-in and settings forms.
+    appliesTo: (file) =>
+      file.includes('/components/ui/') &&
+      !file.endsWith('src/components/ui/password-input.tsx'),
     hint: 'Primitives must work in Server Components. Use the peer + peer-checked CSS pattern for state, not React hooks.',
   },
   {

@@ -9,8 +9,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { LucideIcon } from 'lucide-react'
 
-import { getStaffNavItems } from '@/lib/staff-nav'
+import { getSettingsGroups, getStaffNavItems } from '@/lib/staff-nav'
 import type { Role } from '@/types'
+
+const SETTINGS_HREF = '/staff/settings'
 
 export interface NavRailItem {
   href: string
@@ -52,14 +54,17 @@ export function NavRail({ role, brand, footer }: NavRailProps) {
           </div>
         ) : null}
         <ul className="flex flex-1 flex-col gap-1 p-3">
-          {items.map((item) => (
-            <li key={item.href}>
-              <NavRailItemLink
-                item={item}
-                active={isNavItemActive(item, pathname)}
-              />
-            </li>
-          ))}
+          {items.map((item) => {
+            const active = isNavItemActive(item, pathname)
+            return (
+              <li key={item.href}>
+                <NavRailItemLink item={item} active={active} />
+                {item.href === SETTINGS_HREF && active ? (
+                  <SettingsSubNav role={role} pathname={pathname} />
+                ) : null}
+              </li>
+            )
+          })}
         </ul>
         {footer ? (
           <div className="border-t border-solid border-[var(--color-border)] p-3">
@@ -110,6 +115,53 @@ function NavRailItemLink({
         </span>
       ) : null}
     </Link>
+  )
+}
+
+function SettingsSubNav({
+  role,
+  pathname,
+}: {
+  role: Role
+  pathname: string
+}) {
+  const groups = getSettingsGroups(role)
+
+  return (
+    <div className="mt-1 ml-3 flex flex-col gap-3 border-l border-solid border-[var(--color-border)] pl-3">
+      {groups.map((group) => {
+        const navigable = group.items.filter((item) => item.href)
+        if (navigable.length === 0) return null
+
+        return (
+          <div key={group.label} className="flex flex-col gap-0.5">
+            <p className="px-2 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+              {group.label}
+            </p>
+            <ul className="flex flex-col gap-0.5">
+              {navigable.map((item) => {
+                const href = item.href as string
+                const active =
+                  pathname === href ||
+                  (href !== SETTINGS_HREF && pathname.startsWith(href))
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      aria-current={active ? 'page' : undefined}
+                      data-active={active ? '' : undefined}
+                      className="block rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--color-text-primary)] data-[active]:border-l-2 data-[active]:border-[var(--color-action-dark)] data-[active]:bg-[var(--surface-sunken)] data-[active]:pl-[calc(0.5rem-2px)] data-[active]:text-[var(--color-action-dark)]"
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

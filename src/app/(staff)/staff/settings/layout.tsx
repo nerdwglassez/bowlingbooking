@@ -1,32 +1,14 @@
-// Settings section layout — desktop sidebar + staff toasts for all sub-pages.
+// Settings section layout — content wrapper. Navigation for settings lives in
+// the NavRail (desktop sidebar) and the hub drill-down list (mobile). Unsaved-
+// changes guard + form context are provided by AppShell so the NavRail links
+// participate in the guard.
 
 export const dynamic = 'force-dynamic'
 
-import { SettingsSectionProviders } from '@/components/chrome/settings-section-providers'
-import { SettingsLayout } from '@/components/patterns/settings-layout'
-import { getSettingsHubMeta } from '@/lib/actions/admin'
-import { requireRole } from '@/lib/auth'
-import { getSettingsGroups, toSettingsSidebarGroups } from '@/lib/staff-nav'
-import { getTenant } from '@/lib/tenant'
-
-export default async function StaffSettingsLayout({
+export default function StaffSettingsLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
-  const tenant = await getTenant()
-  const meta = await getSettingsHubMeta(tenant.id)
-  const groups = getSettingsGroups(user.role, meta)
-
-  return (
-    <SettingsSectionProviders>
-      <SettingsLayout
-        groups={toSettingsSidebarGroups(groups)}
-        venueName={tenant.name}
-      >
-        {children}
-      </SettingsLayout>
-    </SettingsSectionProviders>
-  )
+  return <div className="min-w-0 md:max-w-[640px]">{children}</div>
 }

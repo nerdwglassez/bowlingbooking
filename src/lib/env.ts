@@ -30,6 +30,53 @@ export function hasResendApiKey(): boolean {
   return Boolean(process.env['RESEND_API_KEY']?.trim())
 }
 
+/** Resend sandbox sender — works with any API key before a domain is verified. */
+export const RESEND_SANDBOX_FROM = 'onboarding@resend.dev'
+
+const NON_SENDABLE_FROM_DOMAINS = new Set(['royalz.local'])
+
+function extractEmailAddress(from: string): string | null {
+  const trimmed = from.trim()
+  const bracketed = trimmed.match(/<([^>]+)>/)
+  const email = (bracketed?.[1] ?? trimmed).trim()
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
+}
+
+/** True when From looks like a deliverable Resend identity (not a placeholder or site URL). */
+export function isPlausibleResendFrom(from: string): boolean {
+  const email = extractEmailAddress(from)
+  if (!email) return false
+  const domain = email.split('@')[1]?.toLowerCase() ?? ''
+  if (NON_SENDABLE_FROM_DOMAINS.has(domain)) return false
+  // Common misconfig: using the Vercel deployment host as the mail domain.
+  if (domain.endsWith('.vercel.app')) return false
+  return true
+}
+
+/**
+ * From header for Resend sends. Uses RESEND_FROM_EMAIL when it is a real mailbox
+ * on a verified domain; otherwise falls back to Resend's sandbox sender when an
+ * API key is present (see resend.com onboarding).
+ */
+export function resolveResendFromEmail(): string {
+  const configured = process.env['RESEND_FROM_EMAIL']?.trim()
+  if (configured && isPlausibleResendFrom(configured)) return configured
+
+  if (hasResendApiKey()) {
+    if (configured) {
+      warnOnce(
+        'resend-from',
+        `RESEND_FROM_EMAIL is not a verified Resend sender (${configured}) — ` +
+          `using ${RESEND_SANDBOX_FROM}. Verify a domain at https://resend.com/domains ` +
+          'and set RESEND_FROM_EMAIL to an address on that domain.',
+      )
+    }
+    return RESEND_SANDBOX_FROM
+  }
+
+  return 'Royal Z Lanes <bookings@royalz.local>'
+}
+
 /**
  * Absolute app origin for links in email and invites.
  * Prefers NEXT_PUBLIC_APP_URL, then auth base URL / Vercel host, then localhost.
