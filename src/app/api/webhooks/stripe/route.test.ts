@@ -588,7 +588,7 @@ describe('POST /api/webhooks/stripe', () => {
           id: 'ch_2',
           payment_intent: 'pi_1',
           amount_refunded: 2000,
-          refunded: true,
+          refunded: false,
         },
       },
     })
