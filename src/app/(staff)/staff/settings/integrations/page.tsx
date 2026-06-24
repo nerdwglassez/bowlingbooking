@@ -4,7 +4,7 @@ import { unauthorized } from 'next/navigation'
 
 import { SettingsSubpageHeader } from '@/components/patterns/settings-subpage-header'
 import { requireRole } from '@/lib/auth'
-import { hasResendApiKey } from '@/lib/env'
+import { hasProductionResendSender, hasResendApiKey } from '@/lib/env'
 
 import { IntegrationsSettingsPanel } from './integrations-settings-panel'
 
@@ -13,7 +13,8 @@ export default async function StaffSettingsIntegrationsPage() {
   if (user.role !== 'ADMIN') unauthorized()
 
   const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY?.trim())
-  const resendConfigured = hasResendApiKey()
+  const resendApiKeyConfigured = hasResendApiKey()
+  const resendConfigured = hasProductionResendSender()
 
   const cards = [
     {
@@ -28,11 +29,17 @@ export default async function StaffSettingsIntegrationsPage() {
     {
       key: 'resend' as const,
       title: 'Resend',
-      status: resendConfigured ? 'Connected' : 'Optional · not configured',
+      status: resendConfigured
+        ? 'Connected'
+        : resendApiKeyConfigured
+          ? 'Action required'
+          : 'Optional · not configured',
       summary: 'Transactional email for confirmations and receipts.',
       detail: resendConfigured
         ? 'Resend API key is set. Booking confirmations, receipts, and team invite emails send through Resend.'
-        : 'Optional: set RESEND_API_KEY to send booking and team invite emails. Without it, invite links are shown in the app for you to copy manually.',
+        : resendApiKeyConfigured
+          ? 'Resend API key is set, but RESEND_FROM_EMAIL must be an address on a verified Resend domain before customer emails can send.'
+          : 'Optional: set RESEND_API_KEY and a verified RESEND_FROM_EMAIL sender to send booking and team invite emails. Without it, invite links are shown in the app for you to copy manually.',
     },
     {
       key: 'make' as const,

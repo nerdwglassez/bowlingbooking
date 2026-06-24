@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  hasProductionResendSender,
   hasResendApiKey,
   isDevWithoutDb,
   isPlausibleResendFrom,
@@ -34,13 +35,13 @@ describe('isPlausibleResendFrom', () => {
     expect(isPlausibleResendFrom('Royal Z Lanes <bookings@royalz.com>')).toBe(
       true,
     )
-    expect(isPlausibleResendFrom('onboarding@resend.dev')).toBe(true)
   })
 
-  it('rejects placeholder and Vercel-host misconfigurations', () => {
+  it('rejects placeholder, sandbox, and Vercel-host misconfigurations', () => {
     expect(isPlausibleResendFrom('Royal Z Lanes <bookings@royalz.local>')).toBe(
       false,
     )
+    expect(isPlausibleResendFrom('onboarding@resend.dev')).toBe(false)
     expect(
       isPlausibleResendFrom(
         'Royal Z Lanes <bookings@bowlingbookingv2.vercel.app>',
@@ -67,7 +68,8 @@ describe('resolveResendFromEmail', () => {
     )
   })
 
-  it('falls back to Resend sandbox when from is invalid but API key is set', () => {
+  it('falls back to Resend sandbox outside production when from is invalid but API key is set', () => {
+    vi.stubEnv('NODE_ENV', 'development')
     vi.stubEnv('RESEND_API_KEY', 're_test')
     vi.stubEnv(
       'RESEND_FROM_EMAIL',
@@ -76,12 +78,40 @@ describe('resolveResendFromEmail', () => {
     expect(resolveResendFromEmail()).toBe(RESEND_SANDBOX_FROM)
   })
 
+  it('rejects Resend sandbox sender in production', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv('RESEND_FROM_EMAIL', RESEND_SANDBOX_FROM)
+    expect(() => resolveResendFromEmail()).toThrow(
+      /verified Resend domain in production/,
+    )
+  })
+
   it('uses mock from when Resend is not configured', () => {
     vi.stubEnv('RESEND_API_KEY', '')
     vi.stubEnv('RESEND_FROM_EMAIL', '')
     expect(resolveResendFromEmail()).toBe(
       'Royal Z Lanes <bookings@royalz.local>',
     )
+  })
+})
+
+describe('hasProductionResendSender', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('requires both API key and verified-domain style sender', () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv('RESEND_FROM_EMAIL', 'Royal Z Lanes <bookings@royalz.com>')
+    expect(hasProductionResendSender()).toBe(true)
+
+    vi.stubEnv('RESEND_FROM_EMAIL', RESEND_SANDBOX_FROM)
+    expect(hasProductionResendSender()).toBe(false)
+
+    vi.stubEnv('RESEND_API_KEY', '')
+    vi.stubEnv('RESEND_FROM_EMAIL', 'Royal Z Lanes <bookings@royalz.com>')
+    expect(hasProductionResendSender()).toBe(false)
   })
 })
 

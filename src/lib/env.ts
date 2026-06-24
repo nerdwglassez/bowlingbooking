@@ -30,10 +30,11 @@ export function hasResendApiKey(): boolean {
   return Boolean(process.env['RESEND_API_KEY']?.trim())
 }
 
-/** Resend sandbox sender — works with any API key before a domain is verified. */
+/** Resend sandbox sender — restricted to testing emails sent to the account owner. */
 export const RESEND_SANDBOX_FROM = 'onboarding@resend.dev'
 
 const NON_SENDABLE_FROM_DOMAINS = new Set(['royalz.local'])
+const MOCK_RESEND_FROM = 'Royal Z Lanes <bookings@royalz.local>'
 
 function extractEmailAddress(from: string): string | null {
   const trimmed = from.trim()
@@ -42,39 +43,58 @@ function extractEmailAddress(from: string): string | null {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
 }
 
-/** True when From looks like a deliverable Resend identity (not a placeholder or site URL). */
-export function isPlausibleResendFrom(from: string): boolean {
+function getEmailDomain(from: string): string | null {
   const email = extractEmailAddress(from)
-  if (!email) return false
-  const domain = email.split('@')[1]?.toLowerCase() ?? ''
+  return email?.split('@')[1]?.toLowerCase() ?? null
+}
+
+/** True when From looks like a deliverable Resend identity (not a placeholder, sandbox sender, or site URL). */
+export function isPlausibleResendFrom(from: string): boolean {
+  const domain = getEmailDomain(from)
+  if (!domain) return false
   if (NON_SENDABLE_FROM_DOMAINS.has(domain)) return false
+  // Resend's own domain is test-only and cannot reach normal customer inboxes.
+  if (domain === 'resend.dev') return false
   // Common misconfig: using the Vercel deployment host as the mail domain.
   if (domain.endsWith('.vercel.app')) return false
   return true
 }
 
+/** True when production has both an API key and a sendable From identity. */
+export function hasProductionResendSender(): boolean {
+  const configured = process.env['RESEND_FROM_EMAIL']?.trim()
+  return Boolean(hasResendApiKey() && configured && isPlausibleResendFrom(configured))
+}
+
 /**
  * From header for Resend sends. Uses RESEND_FROM_EMAIL when it is a real mailbox
- * on a verified domain; otherwise falls back to Resend's sandbox sender when an
- * API key is present (see resend.com onboarding).
+ * on a verified domain. In local/dev, an API key without a verified sender falls
+ * back to Resend's sandbox sender for account-owner test sends. Production fails
+ * fast instead because the sandbox sender cannot reach normal customer inboxes.
  */
 export function resolveResendFromEmail(): string {
   const configured = process.env['RESEND_FROM_EMAIL']?.trim()
   if (configured && isPlausibleResendFrom(configured)) return configured
 
   if (hasResendApiKey()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'RESEND_FROM_EMAIL must be set to an address on a verified Resend domain in production. ' +
+          `Do not use ${RESEND_SANDBOX_FROM}; it can only send testing emails to the Resend account owner.`,
+      )
+    }
     if (configured) {
       warnOnce(
         'resend-from',
         `RESEND_FROM_EMAIL is not a verified Resend sender (${configured}) — ` +
-          `using ${RESEND_SANDBOX_FROM}. Verify a domain at https://resend.com/domains ` +
+          `using ${RESEND_SANDBOX_FROM} for local testing. Verify a domain at https://resend.com/domains ` +
           'and set RESEND_FROM_EMAIL to an address on that domain.',
       )
     }
     return RESEND_SANDBOX_FROM
   }
 
-  return 'Royal Z Lanes <bookings@royalz.local>'
+  return MOCK_RESEND_FROM
 }
 
 /**
