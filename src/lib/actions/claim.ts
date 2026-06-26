@@ -39,18 +39,30 @@ export async function claimBookingAccountAction(
   }
 
   const email = claim.email.trim().toLowerCase()
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  })
+  if (existingUser) {
+    throw new Error(
+      'An account already exists for this email. Sign in to manage bookings.',
+    )
+  }
   const passwordHash = await hashPassword(input.password)
 
   await prisma.$transaction(async (tx) => {
-    const user = await tx.user.upsert({
+    const existingUserInTransaction = await tx.user.findUnique({
       where: { email },
-      update: {
-        name: input.name?.trim() || undefined,
-        passwordHash,
-        role: 'CUSTOMER',
-        tenantId: claim.tenantId,
-      },
-      create: {
+      select: { id: true },
+    })
+    if (existingUserInTransaction) {
+      throw new Error(
+        'An account already exists for this email. Sign in to manage bookings.',
+      )
+    }
+
+    const user = await tx.user.create({
+      data: {
         email,
         name: input.name?.trim() || null,
         passwordHash,
@@ -74,10 +86,24 @@ export async function claimBookingAccountAction(
 
 export async function getClaimTokenForBooking(
   bookingId: string,
+  email: string,
+  confirmationCode: string,
 ): Promise<string | null> {
   if (isDevWithoutDb()) return 'mock-claim-token'
-  const row = await prisma.claimToken.findUnique({
-    where: { bookingId },
+  const normalizedEmail = email.trim().toLowerCase()
+  const normalizedCode = confirmationCode.trim().toUpperCase()
+  if (!bookingId || !normalizedEmail || !normalizedCode) return null
+
+  const row = await prisma.claimToken.findFirst({
+    where: {
+      bookingId,
+      booking: {
+        is: {
+          confirmationCode: normalizedCode,
+          customerEmail: { equals: normalizedEmail, mode: 'insensitive' },
+        },
+      },
+    },
     select: { token: true, claimedAt: true, expiresAt: true },
   })
   if (!row || row.claimedAt != null || row.expiresAt <= new Date()) {

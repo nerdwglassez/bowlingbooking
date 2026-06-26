@@ -2,7 +2,7 @@
 
 // staff-reports.ts — Manager+ analytics and contacts for /staff/reports.
 
-import { requireRole } from '@/lib/auth'
+import { requireRole, type CurrentUser } from '@/lib/auth'
 import { shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import {
@@ -34,6 +34,19 @@ type AnalyticsBookingRow = {
   package: { id: string; name: string }
   payment: { status: string } | null
   promoCode: { code: string } | null
+}
+
+function assertStaffReportsTenantAccess(
+  user: CurrentUser,
+  tenantId: string | null | undefined,
+  action: string,
+): void {
+  if (!tenantId) {
+    throw new Error(`${action}: tenant not found.`)
+  }
+  if (user.tenantId && tenantId !== user.tenantId) {
+    throw new Error(`${action}: cannot access resources outside your tenant.`)
+  }
 }
 
 function isCapturedPayment(
@@ -419,7 +432,8 @@ export async function getStaffAnalyticsSummary(
   customStart?: string,
   customEnd?: string,
 ): Promise<StaffAnalyticsSummary> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffReportsTenantAccess(user, tenantId, 'getStaffAnalyticsSummary')
   const period = normalizeStaffReportsPeriod(periodInput)
 
   if (shouldUseDevDbFallback()) {
@@ -461,7 +475,8 @@ export async function getStaffAnalyticsSummary(
 export async function listStaffContacts(
   tenantId: string,
 ): Promise<StaffContactRow[]> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffReportsTenantAccess(user, tenantId, 'listStaffContacts')
 
   if (shouldUseDevDbFallback()) {
     return MOCK_CONTACTS
@@ -514,7 +529,8 @@ export async function getStaffContactDetail(
   tenantId: string,
   contactId: string,
 ): Promise<StaffContactDetail | null> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffReportsTenantAccess(user, tenantId, 'getStaffContactDetail')
 
   if (shouldUseDevDbFallback()) {
     return mockContactDetail(contactId)

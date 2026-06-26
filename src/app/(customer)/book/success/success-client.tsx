@@ -182,7 +182,11 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
     setClaimError(null)
     setClaimPending(true)
     try {
-      const token = await getClaimTokenForBooking(booking.id)
+      const token = await getClaimTokenForBooking(
+        booking.id,
+        booking.customerEmail,
+        booking.confirmationCode,
+      )
       if (!token) {
         throw new Error(
           'Account link is not ready yet — check your email shortly.',

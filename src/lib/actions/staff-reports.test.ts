@@ -39,6 +39,7 @@ describe('staff-reports actions', () => {
       id: 'u1',
       role: 'MANAGER',
       email: 'mgr@test.com',
+      tenantId: 't1',
     })
     mocks.isDevWithoutDbMock.mockReturnValue(true)
   })
@@ -66,5 +67,27 @@ describe('staff-reports actions', () => {
     const detail = await getStaffContactDetail('t1', id)
     expect(detail?.name).toBe('Jordan Rivera')
     expect(detail?.history.length).toBeGreaterThan(1)
+  })
+
+  it('rejects analytics access outside the caller tenant', async () => {
+    await expect(getStaffAnalyticsSummary('t2', 'month')).rejects.toThrow(
+      'getStaffAnalyticsSummary: cannot access resources outside your tenant.',
+    )
+    expect(mocks.bookingFindMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects contact list access outside the caller tenant', async () => {
+    await expect(listStaffContacts('t2')).rejects.toThrow(
+      'listStaffContacts: cannot access resources outside your tenant.',
+    )
+    expect(mocks.bookingFindMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects contact detail access outside the caller tenant', async () => {
+    const id = contactIdFromEmail('jordan@acmecorp.com')
+    await expect(getStaffContactDetail('t2', id)).rejects.toThrow(
+      'getStaffContactDetail: cannot access resources outside your tenant.',
+    )
+    expect(mocks.bookingFindMany).not.toHaveBeenCalled()
   })
 })
