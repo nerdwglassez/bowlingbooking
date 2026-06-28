@@ -102,6 +102,14 @@ export async function resendTeamInviteAction(input: {
     throw new Error('resendTeamInviteAction: cannot resend outside your tenant.')
   }
 
+  if (!caller.tenantId) {
+    throw new Error('resendTeamInviteAction: cannot resend without a tenant context.')
+  }
+
+  if (target.role === 'ADMIN' && caller.role !== 'ADMIN') {
+    throw new Error('Only an ADMIN can resend an ADMIN invite.')
+  }
+
   if (target.passwordHash) {
     throw new Error('resendTeamInviteAction: this team member has already accepted their invite.')
   }
