@@ -3,8 +3,9 @@
 // Responsibilities (in order):
 //   1. Verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET.
 //   2. Insert the event into the StripeEvent table for idempotency. A unique
-//      conflict on `id` means we've already processed this event successfully —
-//      return 200 without re-running side effects.
+//      conflict on `id` normally means we've already processed this event
+//      successfully, but paid booking finalization replays if no Payment row
+//      exists yet so a stale marker cannot strand a captured charge.
 //   3. Switch on event type:
 //        - payment_intent.succeeded → create Booking from the intent's
 //          metadata, delete the matching BookingHold, send confirmation email.
@@ -199,6 +200,16 @@ async function clearStripeEventForRetry(eventId: string): Promise<void> {
   }
 }
 
+async function duplicatePaymentIntentAlreadyFinalized(
+  intent: Stripe.PaymentIntent,
+): Promise<boolean> {
+  const existingPayment = await prisma.payment.findUnique({
+    where: { stripePaymentIntentId: intent.id },
+    select: { id: true },
+  })
+  return existingPayment != null
+}
+
 function isFinalizeCapacityError(err: unknown): boolean {
   if (!(err instanceof Error)) return false
   return (
@@ -231,10 +242,9 @@ async function handlePaymentIntentSucceeded(
     intent.metadata as Record<string, string> | null,
   )
   if (!metadata) {
-    console.warn(
-      `[stripe-webhook] payment_intent.succeeded missing/invalid metadata: ${intent.id}`,
+    throw new Error(
+      `payment_intent.succeeded missing/invalid booking metadata: ${intent.id}`,
     )
-    return
   }
 
   const existingPayment = await prisma.payment.findUnique({
@@ -465,6 +475,14 @@ async function handlePaymentIntentSucceeded(
       if (retryable) {
         continue
       }
+      if (
+        isUniqueConstraintOnField(err, [
+          'stripe_payment_intent_id',
+          'stripePaymentIntentId',
+        ])
+      ) {
+        return
+      }
       if (isFinalizeCapacityError(err)) {
         await refundCapturedPaymentWhenFinalizeFails(intent, metadata)
         return
@@ -541,6 +559,13 @@ async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
   const status = String(refund.status ?? 'pending')
 
   if (status === 'failed' || status === 'canceled') {
+    if (
+      payment.stripeRefundId !== refund.id ||
+      payment.refundStatus !== 'PENDING'
+    ) {
+      return
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
@@ -605,7 +630,7 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   if (!payment) return
 
   const totalRefunded = charge.amount_refunded ?? 0
-  const succeeded = (charge.refunded ?? false) && totalRefunded > 0
+  const succeeded = totalRefunded > 0
   const fullyRefunded = succeeded && totalRefunded >= payment.amount
 
   await prisma.$transaction(async (tx) => {
@@ -657,7 +682,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const fresh = await recordStripeEvent(event)
   if (!fresh) {
-    return NextResponse.json({ received: true, duplicate: true })
+    if (event.type === 'payment_intent.succeeded') {
+      const intent = event.data.object as Stripe.PaymentIntent
+      if (!(await duplicatePaymentIntentAlreadyFinalized(intent))) {
+        console.warn(
+          `[stripe-webhook] replaying duplicate payment_intent.succeeded without Payment row: ${intent.id}`,
+        )
+      } else {
+        return NextResponse.json({ received: true, duplicate: true })
+      }
+    } else {
+      return NextResponse.json({ received: true, duplicate: true })
+    }
   }
 
   try {

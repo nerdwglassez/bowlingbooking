@@ -462,15 +462,35 @@ describe('POST /api/webhooks/stripe', () => {
     })
   })
 
-  it('returns duplicate:true on Stripe event re-delivery', async () => {
+  it('returns duplicate:true on Stripe event re-delivery after payment finalization', async () => {
     mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
     mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
+    mocks.paymentFindUnique.mockResolvedValue({ id: 'pay_existing' })
 
     const res = await POST(makeRequest('{}') as never)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ received: true, duplicate: true })
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('replays duplicate payment_intent.succeeded when no Payment row exists', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
+    mocks.paymentFindUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(200)
+    expect(mocks.bookingCreate).toHaveBeenCalled()
+    expect(mocks.paymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bookingId: 'bk_1',
+        stripePaymentIntentId: 'pi_1',
+      }),
+    })
+    warn.mockRestore()
   })
 
   it('retries finalize when confirmation_code collides (P2002)', async () => {
@@ -525,18 +545,21 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
   })
 
-  it('returns 200 but skips processing on malformed metadata', async () => {
+  it('clears the event marker and returns 500 on malformed payment metadata', async () => {
     mocks.constructWebhookEventMock.mockReturnValue({
       id: 'evt_2',
       type: 'payment_intent.succeeded',
       data: { object: { id: 'pi_2', amount: 100, metadata: { foo: 'bar' } } },
     })
     mocks.stripeEventCreate.mockResolvedValue({})
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     const res = await POST(makeRequest('{}') as never)
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(500)
     expect(mocks.bookingCreate).not.toHaveBeenCalled()
-    warn.mockRestore()
+    expect(mocks.stripeEventDeleteMany).toHaveBeenCalledWith({
+      where: { id: 'evt_2' },
+    })
+    err.mockRestore()
   })
 
   it('reconciles refund status on charge.refunded', async () => {
@@ -588,7 +611,7 @@ describe('POST /api/webhooks/stripe', () => {
           id: 'ch_2',
           payment_intent: 'pi_1',
           amount_refunded: 2000,
-          refunded: true,
+          refunded: false,
         },
       },
     })
@@ -632,6 +655,8 @@ describe('POST /api/webhooks/stripe', () => {
       bookingId: 'bk_1',
       amount: 4500,
       refundAmount: 4500,
+      refundStatus: 'PENDING',
+      stripeRefundId: 're_failed',
       stripePaymentIntentId: 'pi_1',
       booking: { status: 'CONFIRMED' },
     })
@@ -647,6 +672,38 @@ describe('POST /api/webhooks/stripe', () => {
         refundedAt: null,
       },
     })
+  })
+
+  it('ignores failed refund.updated for stale refund ids', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_stale_failed',
+      type: 'refund.updated',
+      data: {
+        object: {
+          id: 're_stale_failed',
+          payment_intent: 'pi_1',
+          amount: 2500,
+          status: 'failed',
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      refundAmount: 2000,
+      refundStatus: 'SUCCEEDED',
+      stripeRefundId: 're_prior_success',
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+
+    expect(res.status).toBe(200)
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
   })
 
   it('reconciles succeeded refund.updated without cancelling partially refunded bookings', async () => {

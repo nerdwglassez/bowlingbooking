@@ -87,6 +87,16 @@ function adminUser() {
   }
 }
 
+function managerUser() {
+  return {
+    id: 'user_manager',
+    email: 'manager@royalz.local',
+    name: 'Shift Manager',
+    role: 'MANAGER' as const,
+    tenantId: 't1',
+  }
+}
+
 describe('acceptTeamInviteAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -174,6 +184,25 @@ describe('resendTeamInviteAction', () => {
     await expect(
       resendTeamInviteAction({ userId: 'user_new' }),
     ).rejects.toThrow(/already accepted/i)
+  })
+
+  it('rejects manager resend attempts for pending admin invites', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_admin_pending',
+      email: 'pending-admin@example.com',
+      role: 'ADMIN',
+      passwordHash: null,
+      tenantId: 't1',
+    })
+
+    await expect(
+      resendTeamInviteAction({ userId: 'user_admin_pending' }),
+    ).rejects.toThrow(/Only an ADMIN can modify an ADMIN user/i)
+
+    expect(mocks.teamInviteTokenDeleteMany).not.toHaveBeenCalled()
+    expect(mocks.teamInviteTokenCreate).not.toHaveBeenCalled()
+    expect(mocks.sendTeamInviteEmailMock).not.toHaveBeenCalled()
   })
 
   it('rotates token and sends invite email for pending user', async () => {

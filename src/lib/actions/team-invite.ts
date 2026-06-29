@@ -102,6 +102,10 @@ export async function resendTeamInviteAction(input: {
     throw new Error('resendTeamInviteAction: cannot resend outside your tenant.')
   }
 
+  if (target.role === 'ADMIN' && caller.role !== 'ADMIN') {
+    throw new Error('Only an ADMIN can modify an ADMIN user.')
+  }
+
   if (target.passwordHash) {
     throw new Error('resendTeamInviteAction: this team member has already accepted their invite.')
   }
