@@ -541,13 +541,24 @@ async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
   const status = String(refund.status ?? 'pending')
 
   if (status === 'failed' || status === 'canceled') {
+    if (
+      payment.refundStatus !== 'PENDING' ||
+      payment.stripeRefundId !== refund.id
+    ) {
+      return
+    }
+    const restoredRefundAmount = Math.max(
+      0,
+      (payment.refundAmount ?? 0) - refundAmount,
+    )
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
-          refundAmount: Math.max(0, (payment.refundAmount ?? 0) - refundAmount),
-          refundStatus: 'FAILED',
-          refundedAt: null,
+          stripeRefundId: null,
+          refundAmount: restoredRefundAmount,
+          refundStatus: restoredRefundAmount > 0 ? 'SUCCEEDED' : 'FAILED',
+          ...(restoredRefundAmount > 0 ? {} : { refundedAt: null }),
         },
       })
     })
@@ -555,12 +566,25 @@ async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
   }
 
   if (status !== 'succeeded') {
+    if (
+      payment.refundStatus !== 'PENDING' ||
+      payment.stripeRefundId !== refund.id
+    ) {
+      return
+    }
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
         data: { refundStatus: 'PENDING' },
       })
     })
+    return
+  }
+
+  if (
+    payment.refundStatus === 'PENDING' &&
+    payment.stripeRefundId !== refund.id
+  ) {
     return
   }
 
@@ -605,7 +629,7 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   if (!payment) return
 
   const totalRefunded = charge.amount_refunded ?? 0
-  const succeeded = (charge.refunded ?? false) && totalRefunded > 0
+  const succeeded = totalRefunded > 0
   const fullyRefunded = succeeded && totalRefunded >= payment.amount
 
   await prisma.$transaction(async (tx) => {
