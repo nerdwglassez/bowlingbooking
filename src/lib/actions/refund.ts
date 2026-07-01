@@ -208,28 +208,38 @@ export async function refundBookingAction(
     throw new Error('Refund amount must be at least 1 cent')
   }
 
+  const requestedRefundTotal = alreadyRefunded + amount
   const refund = await createRefund({
     paymentIntentId: payment.stripePaymentIntentId,
     amountCents: amount,
     reason: input.reason,
-    idempotencyKey: `booking-refund:${booking.id}:${alreadyRefunded + amount}`,
+    idempotencyKey: `booking-refund:${booking.id}:${requestedRefundTotal}`,
     metadata: {
       bookingId: booking.id,
       requestedBy: user.id,
+      cumulativeRefundAmount: String(requestedRefundTotal),
     },
   })
 
+  let settledBeforePendingWrite = false
   await prisma.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
+    const result = await tx.payment.updateMany({
+      where: {
+        id: payment.id,
+        NOT: {
+          refundStatus: 'SUCCEEDED',
+          refundAmount: { gte: requestedRefundTotal },
+        },
+      },
       data: {
         stripeRefundId: refund.id,
-        refundAmount: alreadyRefunded + amount,
+        refundAmount: requestedRefundTotal,
         refundStatus: 'PENDING',
         refundReason: input.notes ?? input.reason ?? null,
         refundedBy: user.id,
       },
     })
+    settledBeforePendingWrite = result.count === 0
     await tx.auditLog.create({
       data: {
         bookingId: booking.id,
@@ -252,7 +262,7 @@ export async function refundBookingAction(
 
   return {
     refundId: refund.id,
-    status: 'PENDING',
+    status: settledBeforePendingWrite ? 'SUCCEEDED' : 'PENDING',
     amountCents: amount,
     mocked: refund.mocked,
   }
