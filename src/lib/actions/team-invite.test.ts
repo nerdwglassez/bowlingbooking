@@ -87,6 +87,16 @@ function adminUser() {
   }
 }
 
+function managerUser() {
+  return {
+    id: 'user_manager',
+    email: 'manager@royalz.local',
+    name: 'Manager',
+    role: 'MANAGER' as const,
+    tenantId: 't1',
+  }
+}
+
 describe('acceptTeamInviteAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -243,5 +253,25 @@ describe('resendTeamInviteAction', () => {
     expect(result.emailDelivered).toBe(false)
     expect(result.inviteUrl).toMatch(/\/accept-invite\?token=/)
     expect(result.emailError).toContain('domain is not verified')
+  })
+
+  it('prevents managers from resending pending ADMIN invites', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.hasResendApiKeyMock.mockReturnValue(false)
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_admin_pending',
+      email: 'pending-admin@example.com',
+      role: 'ADMIN',
+      passwordHash: null,
+      tenantId: 't1',
+    })
+
+    await expect(
+      resendTeamInviteAction({ userId: 'user_admin_pending' }),
+    ).rejects.toThrow(/Only an ADMIN can modify an ADMIN user/)
+
+    expect(mocks.teamInviteTokenDeleteMany).not.toHaveBeenCalled()
+    expect(mocks.teamInviteTokenCreate).not.toHaveBeenCalled()
+    expect(mocks.sendTeamInviteEmailMock).not.toHaveBeenCalled()
   })
 })
