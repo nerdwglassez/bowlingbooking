@@ -588,7 +588,7 @@ describe('POST /api/webhooks/stripe', () => {
           id: 'ch_2',
           payment_intent: 'pi_1',
           amount_refunded: 2000,
-          refunded: true,
+          refunded: false,
         },
       },
     })
@@ -613,7 +613,7 @@ describe('POST /api/webhooks/stripe', () => {
     })
   })
 
-  it('marks refund failed and restores refundable amount on refund.updated failure', async () => {
+  it('restores settled partial refund state when the current refund.updated attempt fails', async () => {
     mocks.constructWebhookEventMock.mockReturnValue({
       id: 'evt_refund_failed',
       type: 'refund.updated',
@@ -631,7 +631,10 @@ describe('POST /api/webhooks/stripe', () => {
       id: 'pay_1',
       bookingId: 'bk_1',
       amount: 4500,
+      stripeRefundId: 're_failed',
       refundAmount: 4500,
+      refundStatus: 'PENDING',
+      refundedAt: new Date('2026-01-01T00:00:00.000Z'),
       stripePaymentIntentId: 'pi_1',
       booking: { status: 'CONFIRMED' },
     })
@@ -643,10 +646,41 @@ describe('POST /api/webhooks/stripe', () => {
       where: { id: 'pay_1' },
       data: {
         refundAmount: 2000,
-        refundStatus: 'FAILED',
-        refundedAt: null,
+        refundStatus: 'SUCCEEDED',
+        refundedAt: new Date('2026-01-01T00:00:00.000Z'),
       },
     })
+  })
+
+  it('ignores stale failed refund.updated events for older refund ids', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_failed_stale',
+      type: 'refund.updated',
+      data: {
+        object: {
+          id: 're_stale_failed',
+          payment_intent: 'pi_1',
+          amount: 2500,
+          status: 'failed',
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      stripeRefundId: 're_settled',
+      refundAmount: 2000,
+      refundStatus: 'SUCCEEDED',
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
   })
 
   it('reconciles succeeded refund.updated without cancelling partially refunded bookings', async () => {
