@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
   const userFindUnique = vi.fn()
   const teamInviteTokenDeleteMany = vi.fn()
   const teamInviteTokenCreate = vi.fn()
+  const passwordResetTokenDeleteMany = vi.fn()
   const auditCreate = vi.fn()
   const sendTeamInviteEmailMock = vi.fn()
   const getTenantMock = vi.fn()
@@ -49,6 +50,9 @@ const mocks = vi.hoisted(() => {
     teamInviteToken: {
       deleteMany: teamInviteTokenDeleteMany,
       create: teamInviteTokenCreate,
+    },
+    passwordResetToken: {
+      deleteMany: passwordResetTokenDeleteMany,
     },
     auditLog: { create: auditCreate },
     booking: { findMany: bookingFindMany },
@@ -81,6 +85,7 @@ const mocks = vi.hoisted(() => {
     userFindUnique,
     teamInviteTokenDeleteMany,
     teamInviteTokenCreate,
+    passwordResetTokenDeleteMany,
     auditCreate,
     sendTeamInviteEmailMock,
     getTenantMock,
@@ -270,6 +275,9 @@ beforeEach(() => {
         teamInviteToken: {
           deleteMany: mocks.teamInviteTokenDeleteMany,
           create: mocks.teamInviteTokenCreate,
+        },
+        passwordResetToken: {
+          deleteMany: mocks.passwordResetTokenDeleteMany,
         },
         auditLog: { create: mocks.auditCreate },
         booking: { findMany: mocks.bookingFindMany },
@@ -815,6 +823,9 @@ describe('team CRUD', () => {
     })
     expect(mocks.hashPasswordMock).toHaveBeenCalledWith('longenoughpw')
     expect(mocks.teamInviteTokenDeleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_1' },
+    })
+    expect(mocks.passwordResetTokenDeleteMany).toHaveBeenCalledWith({
       where: { userId: 'user_1' },
     })
     expect(mocks.userUpdate).toHaveBeenCalledWith({

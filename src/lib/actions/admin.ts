@@ -1744,6 +1744,7 @@ export async function resetUserPasswordAction(
 
   await prisma.$transaction(async (tx) => {
     await tx.teamInviteToken.deleteMany({ where: { userId: input.userId } })
+    await tx.passwordResetToken.deleteMany({ where: { userId: input.userId } })
     await tx.user.update({
       where: { id: input.userId },
       data: { passwordHash: hashed },
