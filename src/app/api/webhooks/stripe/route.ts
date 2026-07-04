@@ -27,7 +27,7 @@ import {
 } from '@/lib/booking-metadata'
 import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { sendBookingConfirmation } from '@/lib/email'
-import { isDevWithoutDb } from '@/lib/env'
+import { isDevWithoutDb, resolveAppBaseUrl } from '@/lib/env'
 import { assignBookingLanes } from '@/lib/lane-assignment'
 import {
   findOverlappingBlockedSlots,
@@ -46,22 +46,16 @@ import { Prisma } from '@/generated/prisma/client'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function appBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-    .trim()
-    .replace(/\/$/, '')
-}
-
 function buildManageUrl(confirmationCode: string, email: string): string {
-  return `${appBaseUrl()}/find-my-booking/${confirmationCode}?email=${encodeURIComponent(email)}`
+  return `${resolveAppBaseUrl()}/find-my-booking/${confirmationCode}?email=${encodeURIComponent(email)}`
 }
 
 function buildDashboardUrl(): string {
-  return `${appBaseUrl()}/dashboard`
+  return `${resolveAppBaseUrl()}/dashboard`
 }
 
 function buildIcsUrl(confirmationCode: string, email: string): string {
-  return `${appBaseUrl()}/api/bookings/${encodeURIComponent(confirmationCode)}/ics?email=${encodeURIComponent(email)}`
+  return `${resolveAppBaseUrl()}/api/bookings/${encodeURIComponent(confirmationCode)}/ics?email=${encodeURIComponent(email)}`
 }
 
 interface BookingMetadata {
@@ -605,8 +599,8 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   if (!payment) return
 
   const totalRefunded = charge.amount_refunded ?? 0
-  const succeeded = (charge.refunded ?? false) && totalRefunded > 0
-  const fullyRefunded = succeeded && totalRefunded >= payment.amount
+  const succeeded = totalRefunded > 0
+  const fullyRefunded = totalRefunded >= payment.amount
 
   await prisma.$transaction(async (tx) => {
     await tx.payment.update({

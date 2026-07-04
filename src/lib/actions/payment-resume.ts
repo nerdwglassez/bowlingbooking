@@ -7,7 +7,7 @@ import {
   verifyPaymentResumeToken,
 } from '@/lib/payment-resume-token'
 import { requireRole } from '@/lib/auth'
-import { isDevWithoutDb } from '@/lib/env'
+import { isDevWithoutDb, resolveAppBaseUrl } from '@/lib/env'
 
 export interface CreatePaymentResumeLinkResult {
   url: string
@@ -34,9 +34,8 @@ export async function createPaymentResumeLink(
 
   if (isDevWithoutDb()) {
     const token = signPaymentResumeToken(trimmed)
-    const base = process.env['NEXT_PUBLIC_APP_URL']?.trim() || 'http://localhost:3000'
     return {
-      url: `${base.replace(/\/$/, '')}/book/resume-payment?t=${encodeURIComponent(token)}`,
+      url: `${resolveAppBaseUrl()}/book/resume-payment?t=${encodeURIComponent(token)}`,
       expiresAt: paymentResumeExpiresAt(),
       paymentIntentId: trimmed,
       amountCents: 4500,
@@ -47,9 +46,8 @@ export async function createPaymentResumeLink(
 
   const intent = await retrievePaymentIntent(trimmed)
   const token = signPaymentResumeToken(intent.id)
-  const base = process.env['NEXT_PUBLIC_APP_URL']?.trim() || 'http://localhost:3000'
   return {
-    url: `${base.replace(/\/$/, '')}/book/resume-payment?t=${encodeURIComponent(token)}`,
+    url: `${resolveAppBaseUrl()}/book/resume-payment?t=${encodeURIComponent(token)}`,
     expiresAt: paymentResumeExpiresAt(),
     paymentIntentId: intent.id,
     amountCents: intent.amount,

@@ -102,7 +102,10 @@ vi.mock('@/lib/stripe', () => ({
   constructWebhookEvent: mocks.constructWebhookEventMock,
   createRefund: mocks.createRefundMock,
 }))
-vi.mock('@/lib/env', () => ({ isDevWithoutDb: mocks.isDevWithoutDbMock }))
+vi.mock('@/lib/env', () => ({
+  isDevWithoutDb: mocks.isDevWithoutDbMock,
+  resolveAppBaseUrl: () => 'https://book.example.com',
+}))
 vi.mock('@/lib/tenant', () => ({
   getTenant: mocks.getTenantMock,
   getContactEmail: vi.fn(() => null),
@@ -287,7 +290,14 @@ describe('POST /api/webhooks/stripe', () => {
       where: { id: 'hold_1' },
     })
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'jane@example.com' }),
+      expect.objectContaining({
+        to: 'jane@example.com',
+        manageUrl:
+          'https://book.example.com/find-my-booking/ABC123?email=jane%40example.com',
+        dashboardUrl: 'https://book.example.com/dashboard',
+        icsUrl:
+          'https://book.example.com/api/bookings/ABC123/ics?email=jane%40example.com',
+      }),
     )
   })
 
@@ -588,7 +598,7 @@ describe('POST /api/webhooks/stripe', () => {
           id: 'ch_2',
           payment_intent: 'pi_1',
           amount_refunded: 2000,
-          refunded: true,
+          refunded: false,
         },
       },
     })

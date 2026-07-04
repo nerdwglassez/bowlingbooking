@@ -19,7 +19,12 @@ import {
   issueTeamInviteToken,
 } from '@/lib/team-invite-shared'
 import { hashPassword, requireRole, type CurrentUser } from '@/lib/auth'
-import { isDevWithoutDb, shouldUseDevDbFallback, warnOnce } from '@/lib/env'
+import {
+  isDevWithoutDb,
+  resolveAppBaseUrl,
+  shouldUseDevDbFallback,
+  warnOnce,
+} from '@/lib/env'
 import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 import { appBaseUrl } from '@/lib/secure-tokens'
@@ -2500,9 +2505,7 @@ export async function getStripeConnectOnboardingUrl(): Promise<{
 }> {
   const user = await requireRole('ADMIN')
   const tenant = await getTenant()
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-    .trim()
-    .replace(/\/$/, '')
+  const baseUrl = resolveAppBaseUrl()
   const returnUrl = `${baseUrl}/staff/settings/integrations?stripe=return`
   const refreshUrl = `${baseUrl}/staff/settings/integrations?stripe=refresh`
 
