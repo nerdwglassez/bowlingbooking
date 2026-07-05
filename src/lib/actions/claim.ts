@@ -39,25 +39,30 @@ export async function claimBookingAccountAction(
   }
 
   const email = claim.email.trim().toLowerCase()
-  const passwordHash = await hashPassword(input.password)
 
   await prisma.$transaction(async (tx) => {
-    const user = await tx.user.upsert({
+    const existingUser = await tx.user.findUnique({
       where: { email },
-      update: {
-        name: input.name?.trim() || undefined,
-        passwordHash,
-        role: 'CUSTOMER',
-        tenantId: claim.tenantId,
-      },
-      create: {
-        email,
-        name: input.name?.trim() || null,
-        passwordHash,
-        role: 'CUSTOMER',
-        tenantId: claim.tenantId,
-      },
+      select: { id: true, role: true },
     })
+
+    if (existingUser && existingUser.role !== 'CUSTOMER') {
+      throw new Error('This account link cannot be used for a team account.')
+    }
+
+    const user = existingUser
+      ? { id: existingUser.id }
+      : await tx.user.create({
+        data: {
+          email,
+          name: input.name?.trim() || null,
+          passwordHash: await hashPassword(input.password),
+          role: 'CUSTOMER',
+          tenantId: claim.tenantId,
+        },
+        select: { id: true },
+      })
+
     await tx.booking.update({
       where: { id: claim.bookingId },
       data: { userId: user.id },
@@ -70,18 +75,4 @@ export async function claimBookingAccountAction(
 
   revalidatePath('/dashboard')
   return { ok: true, signInEmail: email }
-}
-
-export async function getClaimTokenForBooking(
-  bookingId: string,
-): Promise<string | null> {
-  if (isDevWithoutDb()) return 'mock-claim-token'
-  const row = await prisma.claimToken.findUnique({
-    where: { bookingId },
-    select: { token: true, claimedAt: true, expiresAt: true },
-  })
-  if (!row || row.claimedAt != null || row.expiresAt <= new Date()) {
-    return null
-  }
-  return row.token
 }

@@ -29,7 +29,7 @@ import {
   findOverlappingBlockedSlots,
   sumReservedLanesIncludingBlocks,
 } from '@/lib/blocked-lanes'
-import { reassignBookingLanes } from '@/lib/lane-assignment'
+import { assignBookingLanes, reassignBookingLanes } from '@/lib/lane-assignment'
 import { getLaneCount, CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
 import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import type { Tenant } from '@/types'
@@ -609,8 +609,14 @@ export async function createWalkInBooking(
           throw new Error('Selected time is no longer available.')
         }
 
-        if (input.laneNumbers?.length) {
-          if (input.laneNumbers.length !== laneCount) {
+        const requestedLaneNumbers = input.laneNumbers ?? []
+        const uniqueRequestedLaneNumbers = new Set(requestedLaneNumbers)
+        if (uniqueRequestedLaneNumbers.size !== requestedLaneNumbers.length) {
+          throw new Error('Selected lanes must be unique.')
+        }
+
+        if (requestedLaneNumbers.length) {
+          if (requestedLaneNumbers.length !== laneCount) {
             throw new Error('Lane count does not match party size.')
           }
           const laneRows = await tx.lane.findMany({
@@ -641,7 +647,7 @@ export async function createWalkInBooking(
               occupied.add(link.lane.number)
             }
           }
-          for (const number of input.laneNumbers) {
+          for (const number of requestedLaneNumbers) {
             if (!activeNumbers.includes(number)) {
               throw new Error('Selected lane is not available.')
             }
@@ -683,11 +689,12 @@ export async function createWalkInBooking(
           },
         })
 
-        if (input.laneNumbers?.length) {
+        let assignedLaneNumbers: number[]
+        if (requestedLaneNumbers.length) {
           const laneRows = await tx.lane.findMany({
             where: {
               tenantId: input.tenantId,
-              number: { in: input.laneNumbers },
+              number: { in: requestedLaneNumbers },
             },
             select: { id: true },
           })
@@ -696,6 +703,15 @@ export async function createWalkInBooking(
               data: { bookingId: created.id, laneId: lane.id },
             })
           }
+          assignedLaneNumbers = requestedLaneNumbers
+        } else {
+          assignedLaneNumbers = await assignBookingLanes(tx, {
+            tenantId: input.tenantId,
+            bookingId: created.id,
+            laneCount,
+            startTime: input.startTime,
+            endTime: input.endTime,
+          })
         }
 
         if (input.totalAmount > 0) {
@@ -719,7 +735,7 @@ export async function createWalkInBooking(
             details: {
               paymentMethod: input.paymentMethod,
               source: bookingSource,
-              laneNumbers: input.laneNumbers ?? [],
+              laneNumbers: assignedLaneNumbers,
             },
           },
         })
