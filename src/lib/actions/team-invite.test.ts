@@ -176,6 +176,31 @@ describe('resendTeamInviteAction', () => {
     ).rejects.toThrow(/already accepted/i)
   })
 
+  it('rejects when a manager resends an admin invite', async () => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_manager',
+      email: 'manager@royalz.local',
+      name: 'Floor Manager',
+      role: 'MANAGER',
+      tenantId: 't1',
+    })
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_admin',
+      email: 'admin@example.com',
+      role: 'ADMIN',
+      passwordHash: null,
+      tenantId: 't1',
+    })
+
+    await expect(
+      resendTeamInviteAction({ userId: 'user_admin' }),
+    ).rejects.toThrow(/Only an ADMIN can modify an ADMIN user/i)
+
+    expect(mocks.teamInviteTokenDeleteMany).not.toHaveBeenCalled()
+    expect(mocks.teamInviteTokenCreate).not.toHaveBeenCalled()
+    expect(mocks.sendTeamInviteEmailMock).not.toHaveBeenCalled()
+  })
+
   it('rotates token and sends invite email for pending user', async () => {
     mocks.userFindUnique.mockResolvedValue({
       id: 'user_new',
