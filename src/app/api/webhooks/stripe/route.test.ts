@@ -588,7 +588,7 @@ describe('POST /api/webhooks/stripe', () => {
           id: 'ch_2',
           payment_intent: 'pi_1',
           amount_refunded: 2000,
-          refunded: true,
+          refunded: false,
         },
       },
     })
@@ -632,6 +632,8 @@ describe('POST /api/webhooks/stripe', () => {
       bookingId: 'bk_1',
       amount: 4500,
       refundAmount: 4500,
+      refundStatus: 'PENDING',
+      stripeRefundId: 're_failed',
       stripePaymentIntentId: 'pi_1',
       booking: { status: 'CONFIRMED' },
     })
@@ -642,11 +644,42 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.paymentUpdate).toHaveBeenCalledWith({
       where: { id: 'pay_1' },
       data: {
+        stripeRefundId: null,
         refundAmount: 2000,
-        refundStatus: 'FAILED',
-        refundedAt: null,
+        refundStatus: 'SUCCEEDED',
       },
     })
+  })
+
+  it('ignores stale failed refund.updated events for prior refund ids', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_stale_failed',
+      type: 'refund.updated',
+      data: {
+        object: {
+          id: 're_old_failed',
+          payment_intent: 'pi_1',
+          amount: 2000,
+          status: 'failed',
+        },
+      },
+    })
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      amount: 4500,
+      refundAmount: 3500,
+      refundStatus: 'PENDING',
+      stripeRefundId: 're_current_pending',
+      stripePaymentIntentId: 'pi_1',
+      booking: { status: 'CONFIRMED' },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
   })
 
   it('reconciles succeeded refund.updated without cancelling partially refunded bookings', async () => {
@@ -668,6 +701,8 @@ describe('POST /api/webhooks/stripe', () => {
       bookingId: 'bk_1',
       amount: 4500,
       refundAmount: 2000,
+      refundStatus: 'PENDING',
+      stripeRefundId: 're_ok',
       stripePaymentIntentId: 'pi_1',
       booking: { status: 'CONFIRMED' },
     })
