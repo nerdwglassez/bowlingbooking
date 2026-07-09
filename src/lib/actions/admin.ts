@@ -852,10 +852,20 @@ export async function updateProfileAction(input: {
     data.passwordHash = await hashPassword(input.newPassword.trim())
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data,
-  })
+  if (changingPassword) {
+    await prisma.$transaction(async (tx) => {
+      await tx.passwordResetToken.deleteMany({ where: { userId: user.id } })
+      await tx.user.update({
+        where: { id: user.id },
+        data,
+      })
+    })
+  } else {
+    await prisma.user.update({
+      where: { id: user.id },
+      data,
+    })
+  }
 
   revalidatePath('/staff/settings/profile')
   return { mocked: false }
@@ -1744,6 +1754,7 @@ export async function resetUserPasswordAction(
 
   await prisma.$transaction(async (tx) => {
     await tx.teamInviteToken.deleteMany({ where: { userId: input.userId } })
+    await tx.passwordResetToken.deleteMany({ where: { userId: input.userId } })
     await tx.user.update({
       where: { id: input.userId },
       data: { passwordHash: hashed },
@@ -1788,6 +1799,7 @@ export async function deactivateTeamUserAction(
   // because Booking rows reference them via Booking.userId.
   await prisma.$transaction(async (tx) => {
     await tx.teamInviteToken.deleteMany({ where: { userId } })
+    await tx.passwordResetToken.deleteMany({ where: { userId } })
     await tx.user.update({
       where: { id: userId },
       data: { role: 'CUSTOMER', passwordHash: null },

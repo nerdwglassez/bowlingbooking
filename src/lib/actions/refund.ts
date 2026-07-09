@@ -216,12 +216,19 @@ export async function refundBookingAction(
     metadata: {
       bookingId: booking.id,
       requestedBy: user.id,
+      cumulativeRefundAmount: String(alreadyRefunded + amount),
     },
   })
 
   await prisma.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
+    await tx.payment.updateMany({
+      where: {
+        id: payment.id,
+        NOT: {
+          refundStatus: 'SUCCEEDED',
+          refundAmount: { gte: alreadyRefunded + amount },
+        },
+      },
       data: {
         stripeRefundId: refund.id,
         refundAmount: alreadyRefunded + amount,

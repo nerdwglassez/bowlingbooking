@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
   const userFindUnique = vi.fn()
   const teamInviteTokenDeleteMany = vi.fn()
   const teamInviteTokenCreate = vi.fn()
+  const passwordResetTokenDeleteMany = vi.fn()
   const auditCreate = vi.fn()
   const sendTeamInviteEmailMock = vi.fn()
   const getTenantMock = vi.fn()
@@ -49,6 +50,9 @@ const mocks = vi.hoisted(() => {
     teamInviteToken: {
       deleteMany: teamInviteTokenDeleteMany,
       create: teamInviteTokenCreate,
+    },
+    passwordResetToken: {
+      deleteMany: passwordResetTokenDeleteMany,
     },
     auditLog: { create: auditCreate },
     booking: { findMany: bookingFindMany },
@@ -81,6 +85,7 @@ const mocks = vi.hoisted(() => {
     userFindUnique,
     teamInviteTokenDeleteMany,
     teamInviteTokenCreate,
+    passwordResetTokenDeleteMany,
     auditCreate,
     sendTeamInviteEmailMock,
     getTenantMock,
@@ -270,6 +275,9 @@ beforeEach(() => {
         teamInviteToken: {
           deleteMany: mocks.teamInviteTokenDeleteMany,
           create: mocks.teamInviteTokenCreate,
+        },
+        passwordResetToken: {
+          deleteMany: mocks.passwordResetTokenDeleteMany,
         },
         auditLog: { create: mocks.auditCreate },
         booking: { findMany: mocks.bookingFindMany },
@@ -817,6 +825,9 @@ describe('team CRUD', () => {
     expect(mocks.teamInviteTokenDeleteMany).toHaveBeenCalledWith({
       where: { userId: 'user_1' },
     })
+    expect(mocks.passwordResetTokenDeleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_1' },
+    })
     expect(mocks.userUpdate).toHaveBeenCalledWith({
       where: { id: 'user_1' },
       data: { passwordHash: 'hashed:abc' },
@@ -846,6 +857,9 @@ describe('team CRUD', () => {
     mocks.teamInviteTokenDeleteMany.mockResolvedValue({ count: 0 })
     await deactivateTeamUserAction('user_someone_else')
     expect(mocks.teamInviteTokenDeleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_someone_else' },
+    })
+    expect(mocks.passwordResetTokenDeleteMany).toHaveBeenCalledWith({
       where: { userId: 'user_someone_else' },
     })
     expect(mocks.userUpdate).toHaveBeenCalledWith({
@@ -1004,6 +1018,31 @@ describe('updateProfileAction', () => {
     expect(mocks.userUpdate).toHaveBeenCalledWith({
       where: { id: 'user_staff' },
       data: { name: 'Staff', email: 'new@royalz.local' },
+    })
+  })
+
+  it('invalidates outstanding reset links when changing own password', async () => {
+    await updateProfileAction({
+      name: 'Staff',
+      email: 'staff@royalz.local',
+      currentPassword: 'correct',
+      newPassword: 'newpassword1',
+    })
+
+    expect(mocks.verifyCredentialsMock).toHaveBeenCalledWith(
+      'staff@royalz.local',
+      'correct',
+    )
+    expect(mocks.passwordResetTokenDeleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_staff' },
+    })
+    expect(mocks.userUpdate).toHaveBeenCalledWith({
+      where: { id: 'user_staff' },
+      data: {
+        name: 'Staff',
+        email: 'staff@royalz.local',
+        passwordHash: 'hashed:abc',
+      },
     })
   })
 })

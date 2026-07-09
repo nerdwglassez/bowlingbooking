@@ -27,7 +27,7 @@ import {
 } from '@/lib/booking-metadata'
 import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { sendBookingConfirmation } from '@/lib/email'
-import { isDevWithoutDb } from '@/lib/env'
+import { isDevWithoutDb, resolveAppBaseUrl } from '@/lib/env'
 import { assignBookingLanes } from '@/lib/lane-assignment'
 import {
   findOverlappingBlockedSlots,
@@ -47,9 +47,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function appBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-    .trim()
-    .replace(/\/$/, '')
+  return resolveAppBaseUrl()
 }
 
 function buildManageUrl(confirmationCode: string, email: string): string {
@@ -541,13 +539,24 @@ async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
   const status = String(refund.status ?? 'pending')
 
   if (status === 'failed' || status === 'canceled') {
+    if (
+      payment.stripeRefundId !== refund.id ||
+      payment.refundStatus !== 'PENDING'
+    ) {
+      return
+    }
+    const rolledBackAmount = Math.max(
+      0,
+      (payment.refundAmount ?? 0) - refundAmount,
+    )
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
-          refundAmount: Math.max(0, (payment.refundAmount ?? 0) - refundAmount),
-          refundStatus: 'FAILED',
-          refundedAt: null,
+          stripeRefundId: null,
+          refundAmount: rolledBackAmount,
+          refundStatus: rolledBackAmount > 0 ? 'SUCCEEDED' : 'FAILED',
+          refundedAt: rolledBackAmount > 0 ? payment.refundedAt : null,
         },
       })
     })
@@ -605,7 +614,7 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   if (!payment) return
 
   const totalRefunded = charge.amount_refunded ?? 0
-  const succeeded = (charge.refunded ?? false) && totalRefunded > 0
+  const succeeded = totalRefunded > 0
   const fullyRefunded = succeeded && totalRefunded >= payment.amount
 
   await prisma.$transaction(async (tx) => {

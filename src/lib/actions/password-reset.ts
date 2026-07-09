@@ -90,8 +90,8 @@ export async function resetPasswordAction(input: {
       where: { id: row.userId },
       data: { passwordHash: hashed },
     })
-    await tx.passwordResetToken.update({
-      where: { id: row.id },
+    await tx.passwordResetToken.updateMany({
+      where: { userId: row.userId, usedAt: null },
       data: { usedAt: new Date() },
     })
     await tx.auditLog.create({

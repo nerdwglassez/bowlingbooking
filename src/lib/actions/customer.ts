@@ -180,6 +180,7 @@ export async function cancelBookingAction(
       metadata: {
         bookingId: booking.id,
         source: 'customer_self_service',
+        cumulativeRefundAmount: String(totalRefundAmount),
       },
     })
     stripeRefundId = refund.id
@@ -193,14 +194,18 @@ export async function cancelBookingAction(
       where: { id: booking.id },
       data: {
         status: 'CANCELLED',
-        // isRefunded is set by the charge.refunded webhook for Stripe refunds.
-        isRefunded: false,
         cancellationReason: 'CUSTOMER_REQUEST',
       },
     })
     if (shouldRefund && payment && stripeRefundId) {
-      await tx.payment.update({
-        where: { id: payment.id },
+      await tx.payment.updateMany({
+        where: {
+          id: payment.id,
+          NOT: {
+            refundStatus: 'SUCCEEDED',
+            refundAmount: { gte: totalRefundAmount },
+          },
+        },
         data: {
           stripeRefundId,
           refundStatus: 'PENDING',

@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const paymentUpdateMock = vi.fn()
+  const paymentUpdateManyMock = vi.fn()
   const bookingUpdateMock = vi.fn()
   const auditLogCreateMock = vi.fn()
   const prismaTxStub = {
-    payment: { update: paymentUpdateMock },
+    payment: { update: paymentUpdateMock, updateMany: paymentUpdateManyMock },
     booking: { update: bookingUpdateMock },
     auditLog: { create: auditLogCreateMock },
   }
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => {
     revalidatePathMock: vi.fn(),
     bookingFindUniqueMock: vi.fn(),
     paymentUpdateMock,
+    paymentUpdateManyMock,
     bookingUpdateMock,
     auditLogCreateMock,
     transactionMock: vi.fn(
@@ -42,6 +44,7 @@ const {
   isDevWithoutDbMock,
   bookingFindUniqueMock,
   paymentUpdateMock,
+  paymentUpdateManyMock,
   bookingUpdateMock,
   auditLogCreateMock,
   revalidatePathMock,
@@ -138,6 +141,7 @@ describe('refundBookingAction', () => {
         metadata: expect.objectContaining({
           bookingId: 'bk_1',
           requestedBy: 'user_admin',
+          cumulativeRefundAmount: '5000',
         }),
       }),
     )
@@ -157,8 +161,14 @@ describe('refundBookingAction', () => {
       reason: 'requested_by_customer',
       notes: 'guest left venue early',
     })
-    expect(paymentUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'pay_1' },
+    expect(paymentUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: 'pay_1',
+        NOT: {
+          refundStatus: 'SUCCEEDED',
+          refundAmount: { gte: 2500 },
+        },
+      },
       data: expect.objectContaining({
         stripeRefundId: 're_1',
         refundAmount: 2500,
@@ -203,8 +213,14 @@ describe('refundBookingAction', () => {
     expect(createRefundMock).toHaveBeenCalledWith(
       expect.objectContaining({ amountCents: 1500 }),
     )
-    expect(paymentUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'pay_1' },
+    expect(paymentUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: 'pay_1',
+        NOT: {
+          refundStatus: 'SUCCEEDED',
+          refundAmount: { gte: 3500 },
+        },
+      },
       data: expect.objectContaining({ refundAmount: 3500 }),
     })
   })
