@@ -9,13 +9,12 @@ import { hashToken } from '@/lib/secure-tokens'
 import {
   dispatchTeamInviteEmail,
   isStaffRole,
-  type StaffRole,
   issueTeamInviteToken,
 } from '@/lib/team-invite-shared'
 
 function assertCanResendTeamInvite(
   caller: Awaited<ReturnType<typeof requireRole>>,
-  target: { tenantId: string | null; role: StaffRole },
+  target: { tenantId: string | null; role: string },
 ): void {
   if (!caller.tenantId) {
     throw new Error('resendTeamInviteAction: missing tenant context.')
