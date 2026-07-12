@@ -9,8 +9,24 @@ import { hashToken } from '@/lib/secure-tokens'
 import {
   dispatchTeamInviteEmail,
   isStaffRole,
+  type StaffRole,
   issueTeamInviteToken,
 } from '@/lib/team-invite-shared'
+
+function assertCanResendTeamInvite(
+  caller: Awaited<ReturnType<typeof requireRole>>,
+  target: { tenantId: string | null; role: StaffRole },
+): void {
+  if (!caller.tenantId) {
+    throw new Error('resendTeamInviteAction: missing tenant context.')
+  }
+  if (target.tenantId !== caller.tenantId) {
+    throw new Error('resendTeamInviteAction: cannot resend outside your tenant.')
+  }
+  if (target.role === 'ADMIN' && caller.role !== 'ADMIN') {
+    throw new Error('Only an ADMIN can modify an ADMIN user.')
+  }
+}
 
 export async function acceptTeamInviteAction(input: {
   token: string
@@ -98,9 +114,7 @@ export async function resendTeamInviteAction(input: {
     throw new Error('resendTeamInviteAction: user is not a team member.')
   }
 
-  if (caller.tenantId && target.tenantId !== caller.tenantId) {
-    throw new Error('resendTeamInviteAction: cannot resend outside your tenant.')
-  }
+  assertCanResendTeamInvite(caller, target)
 
   if (target.passwordHash) {
     throw new Error('resendTeamInviteAction: this team member has already accepted their invite.')

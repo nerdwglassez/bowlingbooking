@@ -87,6 +87,16 @@ function adminUser() {
   }
 }
 
+function managerUser() {
+  return {
+    id: 'user_manager',
+    email: 'manager@royalz.local',
+    name: 'Shift Manager',
+    role: 'MANAGER' as const,
+    tenantId: 't1',
+  }
+}
+
 describe('acceptTeamInviteAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -207,6 +217,26 @@ describe('resendTeamInviteAction', () => {
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'TEAM_USER_INVITE_RESENT' }),
     })
+  })
+
+  it('rejects MANAGER resending a pending ADMIN invite', async () => {
+    mocks.requireRoleMock.mockResolvedValue(managerUser())
+    mocks.userFindUnique.mockResolvedValue({
+      id: 'user_admin_target',
+      email: 'target-admin@example.com',
+      role: 'ADMIN',
+      passwordHash: null,
+      tenantId: 't1',
+    })
+
+    await expect(
+      resendTeamInviteAction({ userId: 'user_admin_target' }),
+    ).rejects.toThrow(/ADMIN/)
+
+    expect(mocks.teamInviteTokenDeleteMany).not.toHaveBeenCalled()
+    expect(mocks.teamInviteTokenCreate).not.toHaveBeenCalled()
+    expect(mocks.sendTeamInviteEmailMock).not.toHaveBeenCalled()
+    expect(mocks.auditCreate).not.toHaveBeenCalled()
   })
 
   it('returns inviteUrl when email delivery is not configured', async () => {
