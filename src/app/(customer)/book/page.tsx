@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useBooking } from '@/context/BookingContext'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { bookingSignInPath } from '@/lib/auth-paths'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import {
   acquireBookingHold,
@@ -206,7 +206,7 @@ export default function BookStepOnePage() {
     <BookingFlowShell
       venueName={tenant.name}
       address={tenant.address}
-      signInHref={STAFF_SIGN_IN_PATH}
+      signInHref={bookingSignInPath('/book')}
       currentStep={1}
       holdExpiresAt={session.holdExpiresAt}
       onHoldExpire={handleHoldExpired}

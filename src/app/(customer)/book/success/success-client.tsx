@@ -18,7 +18,7 @@ import {
   claimBookingAccountAction,
   getClaimTokenForBooking,
 } from '@/lib/actions/claim'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { bookingSignInPath } from '@/lib/auth-paths'
 import { formatPrice } from '@/lib/pricing'
 
 const POLL_INTERVAL_MS = 800
@@ -211,7 +211,7 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
       <BookingAppHeader
         venueName={tenant.name}
         address={tenant.address}
-        signInHref={STAFF_SIGN_IN_PATH}
+        signInHref={bookingSignInPath('/book/success')}
         signedIn={signedIn}
       />
 

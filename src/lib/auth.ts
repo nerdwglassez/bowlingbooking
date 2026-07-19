@@ -38,11 +38,11 @@ import { prisma } from '@/lib/prisma'
 import type { Role } from '@/types'
 
 export {
+  bookingSignInPath,
   defaultAppPathForRole,
   isGenericSignInFrom,
   resolvePostSignInPath,
   sanitizeSignInFrom,
-  STAFF_SIGN_IN_PATH,
 } from '@/lib/auth-paths'
 export { getPostSignInPath, type PostSignInUser } from '@/lib/post-sign-in'
 

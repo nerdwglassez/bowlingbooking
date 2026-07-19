@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  bookingSignInPath,
   defaultAppPathForRole,
   isGenericSignInFrom,
   resolvePostSignInPath,
@@ -29,6 +30,23 @@ describe('post-sign-in paths', () => {
     expect(isGenericSignInFrom('/staff')).toBe(true)
     expect(resolvePostSignInPath('/staff', 'ADMIN')).toBe('/staff')
     expect(resolvePostSignInPath('/staff', 'STAFF')).toBe('/staff')
+  })
+
+  it('builds sign-in links that preserve the current booking step', () => {
+    expect(bookingSignInPath('/book')).toBe('/signin?from=/book')
+    expect(bookingSignInPath('/book/package')).toBe(
+      '/signin?from=/book/package',
+    )
+    expect(bookingSignInPath('/book/details')).toBe(
+      '/signin?from=/book/details',
+    )
+    expect(bookingSignInPath('/book/confirm')).toBe(
+      '/signin?from=/book/confirm',
+    )
+  })
+
+  it('does not build booking sign-in links from unsafe paths', () => {
+    expect(bookingSignInPath('//evil.com')).toBe('/signin?from=/book')
   })
 
   it('defaults customers to find-my-booking', () => {
