@@ -98,8 +98,12 @@ export async function resendTeamInviteAction(input: {
     throw new Error('resendTeamInviteAction: user is not a team member.')
   }
 
-  if (caller.tenantId && target.tenantId !== caller.tenantId) {
+  if (!caller.tenantId || target.tenantId !== caller.tenantId) {
     throw new Error('resendTeamInviteAction: cannot resend outside your tenant.')
+  }
+
+  if (target.role === 'ADMIN' && caller.role !== 'ADMIN') {
+    throw new Error('Only an ADMIN can modify an ADMIN user.')
   }
 
   if (target.passwordHash) {
