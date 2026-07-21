@@ -111,9 +111,7 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
   const { resetSession } = useBooking()
   const [booking, setBooking] = useState<BookingSummary | null>(null)
   const [pollExhausted, setPollExhausted] = useState(false)
-  const [showAccountPrompt, setShowAccountPrompt] = useState(
-    !signedIn && Boolean(claimToken),
-  )
+  const showAccountPrompt = !signedIn && Boolean(claimToken)
   const [accountExpanded, setAccountExpanded] = useState(true)
 
   const authFailed = redirectStatus === 'failed'
