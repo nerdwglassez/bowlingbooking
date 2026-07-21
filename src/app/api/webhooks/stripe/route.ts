@@ -60,6 +60,19 @@ function buildDashboardUrl(): string {
   return `${appBaseUrl()}/dashboard`
 }
 
+function buildClaimUrl(
+  confirmationCode: string,
+  email: string,
+  token: string,
+): string {
+  const params = new URLSearchParams({
+    code: confirmationCode,
+    email,
+    claim_token: token,
+  })
+  return `${appBaseUrl()}/book/success?${params.toString()}`
+}
+
 function buildIcsUrl(confirmationCode: string, email: string): string {
   return `${appBaseUrl()}/api/bookings/${encodeURIComponent(confirmationCode)}/ics?email=${encodeURIComponent(email)}`
 }
@@ -264,6 +277,7 @@ async function handlePaymentIntentSucceeded(
   }
 
   let booking: FinalizedBooking | null = null
+  let claimToken: string | null = null
 
   for (let attempt = 0; attempt < BOOKING_FINALIZE_MAX_RETRIES; attempt++) {
     const confirmationCode = generateConfirmationCode()
@@ -416,14 +430,16 @@ async function handlePaymentIntentSucceeded(
           })
 
           const claimExpiresAt = new Date(now.getTime() + 24 * 3_600_000)
-          await tx.claimToken.create({
+          const claim = await tx.claimToken.create({
             data: {
               bookingId: created.id,
               tenantId: metadata.tenantId,
               email: metadata.customerEmail.toLowerCase(),
               expiresAt: claimExpiresAt,
             },
+            select: { token: true },
           })
+          claimToken = claim.token
 
           if (promoCodeId != null) {
             await tx.auditLog.create({
@@ -505,6 +521,13 @@ async function handlePaymentIntentSucceeded(
           metadata.customerEmail,
         ),
         dashboardUrl: buildDashboardUrl(),
+        claimUrl: claimToken
+          ? buildClaimUrl(
+              booking.confirmationCode,
+              metadata.customerEmail,
+              claimToken,
+            )
+          : undefined,
         icsUrl: buildIcsUrl(
           booking.confirmationCode,
           metadata.customerEmail,

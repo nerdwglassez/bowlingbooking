@@ -204,7 +204,10 @@ beforeEach(() => {
     cancellationRefundPercent: 100,
     config: {},
   })
-  mocks.claimTokenCreate.mockResolvedValue({ id: 'claim_1' })
+  mocks.claimTokenCreate.mockResolvedValue({
+    id: 'claim_1',
+    token: 'claim-token',
+  })
   mocks.bookingBowlerCreateMany.mockResolvedValue({ count: 0 })
   mocks.bookingLaneCreate.mockResolvedValue({})
   mocks.packageFindFirst.mockResolvedValue({ name: 'Classic Bowling' })
@@ -286,8 +289,19 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.bookingHoldDeleteMany).toHaveBeenCalledWith({
       where: { id: 'hold_1' },
     })
+    expect(mocks.claimTokenCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        bookingId: 'bk_1',
+        email: 'jane@example.com',
+      }),
+      select: { token: true },
+    })
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'jane@example.com' }),
+      expect.objectContaining({
+        to: 'jane@example.com',
+        claimUrl:
+          'http://localhost:3000/book/success?code=ABC123&email=jane%40example.com&claim_token=claim-token',
+      }),
     )
   })
 
