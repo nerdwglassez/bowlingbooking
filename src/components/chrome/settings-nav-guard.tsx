@@ -42,6 +42,7 @@ export function SettingsNavGuard({ children }: { children: ReactNode }) {
           if (!anchor || !dirty) return
           const href = anchor.getAttribute('href')
           if (
+            !href ||
             !shouldGuardSettingsNavigation(
               href,
               anchor.hasAttribute('data-primary-navigation'),
