@@ -6,6 +6,17 @@ import { useState, type ReactNode } from 'react'
 import { SettingsUnsavedDialog } from '@/components/patterns/settings-unsaved-dialog'
 import { useSettingsFormContext } from '@/lib/settings-form-context'
 
+export function shouldGuardSettingsNavigation(
+  href: string | null,
+  primaryNavigation: boolean,
+): boolean {
+  if (!href) return false
+  return (
+    href.startsWith('/staff/settings') ||
+    (primaryNavigation && href.startsWith('/staff'))
+  )
+}
+
 export function SettingsNavGuard({ children }: { children: ReactNode }) {
   const router = useRouter()
   const { dirty, saving, requestSave } = useSettingsFormContext()
@@ -30,7 +41,14 @@ export function SettingsNavGuard({ children }: { children: ReactNode }) {
           const anchor = target.closest('a[href]') as HTMLAnchorElement | null
           if (!anchor || !dirty) return
           const href = anchor.getAttribute('href')
-          if (!href?.startsWith('/staff/settings')) return
+          if (
+            !shouldGuardSettingsNavigation(
+              href,
+              anchor.hasAttribute('data-primary-navigation'),
+            )
+          ) {
+            return
+          }
           const path =
             href.startsWith('http') || typeof window === 'undefined'
               ? href

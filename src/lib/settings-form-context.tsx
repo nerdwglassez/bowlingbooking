@@ -91,6 +91,9 @@ export function useSettingsFormReporter(
 
   useEffect(() => {
     registerSaveHandler(() => onSaveRef.current())
-    return () => registerSaveHandler(null)
-  }, [registerSaveHandler])
+    return () => {
+      registerSaveHandler(null)
+      setFormState({ dirty: false, saving: false })
+    }
+  }, [registerSaveHandler, setFormState])
 }

@@ -102,6 +102,7 @@ function NavRailItemLink({
       href={item.href}
       aria-current={active ? 'page' : undefined}
       data-active={active ? '' : undefined}
+      data-primary-navigation
       className="group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--color-text-primary)] data-[active]:border-l-2 data-[active]:border-[var(--color-action-dark)] data-[active]:bg-[var(--surface-sunken)] data-[active]:pl-[calc(0.75rem-2px)] data-[active]:text-[var(--color-action-dark)]"
     >
       <Icon
@@ -178,6 +179,7 @@ function NavRailTabLink({
       href={item.href}
       aria-current={active ? 'page' : undefined}
       data-active={active ? '' : undefined}
+      data-primary-navigation
       className="relative flex flex-1 flex-col items-center gap-1 py-3 text-xs text-[var(--color-text-muted)] data-[active]:text-[var(--color-action-dark)]"
     >
       {active ? (
