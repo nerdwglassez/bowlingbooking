@@ -90,10 +90,8 @@ export async function resetPasswordAction(input: {
       where: { id: row.userId },
       data: { passwordHash: hashed },
     })
-    await tx.passwordResetToken.update({
-      where: { id: row.id },
-      data: { usedAt: new Date() },
-    })
+    // Consume this token and drop any siblings so they cannot be reused.
+    await tx.passwordResetToken.deleteMany({ where: { userId: row.userId } })
     await tx.auditLog.create({
       data: {
         userId: row.userId,
