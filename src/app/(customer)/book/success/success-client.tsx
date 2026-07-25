@@ -14,10 +14,7 @@ import {
   getBookingByPaymentIntentId,
   type BookingSummary,
 } from '@/lib/actions/booking'
-import {
-  claimBookingAccountAction,
-  getClaimTokenForBooking,
-} from '@/lib/actions/claim'
+import { claimBookingAccountAction } from '@/lib/actions/claim'
 import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { formatPrice } from '@/lib/pricing'
 
@@ -99,6 +96,7 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
   const offlineCode = params.get('code')
   const offlineEmail = params.get('email')
   const offlinePending = params.get('pending') === '1'
+  const claimToken = params.get('claim_token')
   const paymentIntentId =
     params.get('payment_intent') ?? params.get('payment_intent_client_secret')
   const [claimPassword, setClaimPassword] = useState('')
@@ -113,7 +111,8 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
   const { resetSession } = useBooking()
   const [booking, setBooking] = useState<BookingSummary | null>(null)
   const [pollExhausted, setPollExhausted] = useState(false)
-  const [showAccountPrompt, setShowAccountPrompt] = useState(!signedIn)
+  // Claim capability is email-held via claim_token — never fetch by booking id.
+  const showAccountPrompt = !signedIn && Boolean(claimToken)
   const [accountExpanded, setAccountExpanded] = useState(true)
 
   const authFailed = redirectStatus === 'failed'
@@ -182,14 +181,13 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
     setClaimError(null)
     setClaimPending(true)
     try {
-      const token = await getClaimTokenForBooking(booking.id)
-      if (!token) {
+      if (!claimToken) {
         throw new Error(
-          'Account link is not ready yet — check your email shortly.',
+          'Use the account link from your confirmation email to create an account.',
         )
       }
       await claimBookingAccountAction({
-        token,
+        token: claimToken,
         password: claimPassword,
         name: booking.customerEmail.split('@')[0],
       })
