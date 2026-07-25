@@ -102,6 +102,12 @@ export async function resendTeamInviteAction(input: {
     throw new Error('resendTeamInviteAction: cannot resend outside your tenant.')
   }
 
+  // MANAGER must never receive or rotate ADMIN invite tokens (fallback URL
+  // is returned when Resend delivery fails).
+  if (target.role === 'ADMIN' && caller.role !== 'ADMIN') {
+    throw new Error('Only an ADMIN can modify an ADMIN user.')
+  }
+
   if (target.passwordHash) {
     throw new Error('resendTeamInviteAction: this team member has already accepted their invite.')
   }
