@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
   const bookingFindMany = vi.fn()
   const bookingHoldFindMany = vi.fn()
   const laneCount = vi.fn()
+  const assignBookingLanesMock = vi.fn()
   const reassignBookingLanesMock = vi.fn()
   const txStub = {
     booking: {
@@ -54,6 +55,7 @@ const mocks = vi.hoisted(() => {
     tenantFindUniqueOrThrow,
     packageFindFirst,
     bookingHoldFindMany,
+    assignBookingLanesMock,
     reassignBookingLanesMock,
     txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
@@ -75,6 +77,7 @@ vi.mock('@/lib/env', async (importOriginal) => {
 })
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
 vi.mock('@/lib/lane-assignment', () => ({
+  assignBookingLanes: mocks.assignBookingLanesMock,
   reassignBookingLanes: mocks.reassignBookingLanesMock,
 }))
 vi.mock('@/lib/prisma', () => ({
@@ -159,6 +162,7 @@ beforeEach(() => {
   mocks.blockedSlotFindMany.mockResolvedValue([])
   mocks.bookingUpdateMany.mockResolvedValue({ count: 1 })
   mocks.blockDeleteMany.mockResolvedValue({ count: 1 })
+  mocks.assignBookingLanesMock.mockResolvedValue([1])
   mocks.reassignBookingLanesMock.mockResolvedValue([1])
 })
 
@@ -421,11 +425,24 @@ describe('createWalkInBooking', () => {
         paymentMethod: 'card_at_counter',
       }),
     })
+    expect(mocks.assignBookingLanesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: 't1',
+        bookingId: 'bk_1',
+        laneCount: 2,
+        startTime: start,
+        endTime: end,
+      }),
+    )
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         bookingId: 'bk_1',
         userId: 'user_staff',
         action: 'BOOKING_WALK_IN_CREATED',
+        details: expect.objectContaining({
+          laneNumbers: [1],
+        }),
       }),
     })
     expect(mocks.packageFindFirst).toHaveBeenCalledWith(
