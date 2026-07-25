@@ -46,6 +46,8 @@ export interface BookingConfirmationArgs {
   manageUrl?: string
   /** Optional absolute URL to /dashboard for signed-in customers. */
   dashboardUrl?: string
+  /** Optional email-held link for creating a customer account. */
+  claimUrl?: string
   /** Optional absolute URL to /api/bookings/[code]/ics?email=… */
   icsUrl?: string
   /** Venue contact email for customer replies (from settings). */
@@ -85,6 +87,9 @@ function renderHtml(
     args.dashboardUrl
       ? `<p><a href="${escapeHtml(args.dashboardUrl)}" style="color:#0066cc">Open your account dashboard</a></p>`
       : '',
+    args.claimUrl
+      ? `<p><a href="${escapeHtml(args.claimUrl)}" style="color:#0066cc">Create an account to manage future bookings</a></p>`
+      : '',
     args.icsUrl
       ? `<p><a href="${escapeHtml(args.icsUrl)}" style="color:#0066cc">Add to your calendar</a></p>`
       : '',
@@ -106,6 +111,7 @@ function renderText(args: BookingConfirmationArgs): string {
     '',
     args.manageUrl ? `Manage booking (cancel/reschedule): ${args.manageUrl}` : '',
     args.dashboardUrl ? `Dashboard: ${args.dashboardUrl}` : '',
+    args.claimUrl ? `Create account: ${args.claimUrl}` : '',
     args.icsUrl ? `Add to calendar: ${args.icsUrl}` : '',
     `${args.venueAddress} · ${args.venuePhone}`,
     'Show this confirmation at check-in.',
