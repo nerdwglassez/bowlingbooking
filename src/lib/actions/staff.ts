@@ -29,7 +29,7 @@ import {
   findOverlappingBlockedSlots,
   sumReservedLanesIncludingBlocks,
 } from '@/lib/blocked-lanes'
-import { reassignBookingLanes } from '@/lib/lane-assignment'
+import { assignBookingLanes, reassignBookingLanes } from '@/lib/lane-assignment'
 import { getLaneCount, CAPACITY_BOOKING_STATUSES } from '@/lib/lane-logic'
 import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import type { Tenant } from '@/types'
@@ -683,19 +683,31 @@ export async function createWalkInBooking(
           },
         })
 
+        let assignedLaneNumbers: number[] = []
         if (input.laneNumbers?.length) {
           const laneRows = await tx.lane.findMany({
             where: {
               tenantId: input.tenantId,
               number: { in: input.laneNumbers },
             },
-            select: { id: true },
+            select: { id: true, number: true },
           })
           for (const lane of laneRows) {
             await tx.bookingLane.create({
               data: { bookingId: created.id, laneId: lane.id },
             })
           }
+          assignedLaneNumbers = laneRows.map((lane) => lane.number)
+        } else {
+          // Always persist physical lane rows so cockpit/schedule timelines
+          // and later lane assignment cannot double-book.
+          assignedLaneNumbers = await assignBookingLanes(tx, {
+            tenantId: input.tenantId,
+            bookingId: created.id,
+            laneCount,
+            startTime: input.startTime,
+            endTime: input.endTime,
+          })
         }
 
         if (input.totalAmount > 0) {
@@ -719,7 +731,7 @@ export async function createWalkInBooking(
             details: {
               paymentMethod: input.paymentMethod,
               source: bookingSource,
-              laneNumbers: input.laneNumbers ?? [],
+              laneNumbers: assignedLaneNumbers,
             },
           },
         })
