@@ -18,11 +18,105 @@
 //   2  → script error (e.g. invalid args, missing files)
 // ============================================================
 
-import { readFile } from 'node:fs/promises'
-import { glob } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { argv, exit } from 'node:process'
 
 const DEFAULT_GLOBS = ['src/**/*.{ts,tsx}']
+
+/**
+ * Node 20 CI does not expose `fs.promises.glob` (Node 22+). Walk the tree and
+ * match the small set of globs this script actually uses.
+ */
+function globToRegExp(pattern) {
+  let i = 0
+  let out = '^'
+  while (i < pattern.length) {
+    const c = pattern[i]
+    if (c === '*' && pattern[i + 1] === '*') {
+      if (pattern[i + 2] === '/') {
+        out += '(?:.*/)?'
+        i += 3
+        continue
+      }
+      out += '.*'
+      i += 2
+      continue
+    }
+    if (c === '*') {
+      out += '[^/]*'
+      i += 1
+      continue
+    }
+    if (c === '?') {
+      out += '[^/]'
+      i += 1
+      continue
+    }
+    if (c === '{') {
+      const end = pattern.indexOf('}', i)
+      if (end === -1) {
+        out += '\\{'
+        i += 1
+        continue
+      }
+      const alts = pattern
+        .slice(i + 1, end)
+        .split(',')
+        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      out += `(?:${alts.join('|')})`
+      i = end + 1
+      continue
+    }
+    if (/[.+^${}()|[\]\\]/.test(c)) out += `\\${c}`
+    else out += c
+    i += 1
+  }
+  out += '$'
+  return new RegExp(out)
+}
+
+async function walkFiles(dir) {
+  const out = []
+  const entries = await readdir(dir, { withFileTypes: true })
+  for (const entry of entries) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      out.push(...(await walkFiles(full)))
+    } else if (entry.isFile()) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+async function expandGlobs(patterns) {
+  const files = new Set()
+  const matchers = patterns.map(globToRegExp)
+  // Collect candidate roots from the first path segment of each pattern.
+  const roots = new Set(
+    patterns.map((pattern) => {
+      const slash = pattern.search(/[/*?{]/)
+      return slash === -1 ? pattern : pattern.slice(0, slash) || '.'
+    }),
+  )
+  for (const root of roots) {
+    let candidates
+    try {
+      candidates = await walkFiles(root)
+    } catch (err) {
+      if (err && err.code === 'ENOENT') continue
+      throw err
+    }
+    for (const file of candidates) {
+      const normalized = file.split('\\').join('/')
+      if (matchers.some((re) => re.test(normalized))) {
+        files.add(normalized)
+      }
+    }
+  }
+  return [...files].sort()
+}
 
 const CHECKS = [
   {
@@ -172,16 +266,6 @@ const CHECKS = [
     hint: 'Pages/layouts must use server actions or lib helpers — never import Prisma directly.',
   },
 ]
-
-async function expandGlobs(patterns) {
-  const files = new Set()
-  for (const pattern of patterns) {
-    for await (const file of glob(pattern)) {
-      files.add(file)
-    }
-  }
-  return [...files].sort()
-}
 
 /**
  * Strip JS/TS comments by replacing comment ranges with spaces. Preserves
