@@ -20,8 +20,11 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { Prisma } from '@/generated/prisma/client'
+
 import { requireRole } from '@/lib/auth'
 import { isDevWithoutDb } from '@/lib/env'
+import { isSerializableConflict } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 import { createRefund } from '@/lib/stripe'
 
@@ -42,6 +45,7 @@ export interface RefundBookingResult {
 
 const REFUND_AUDIT_ACTION = 'BOOKING_REFUND_REQUESTED'
 const MANUAL_REFUND_AUDIT_ACTION = 'BOOKING_MANUAL_REFUND'
+const MANUAL_REFUND_MAX_ATTEMPTS = 3
 
 export interface ManualRefundBookingInput {
   bookingId: string
@@ -60,6 +64,9 @@ export interface ManualRefundBookingResult {
 /**
  * Records a cash-at-counter / non-Stripe refund for walk-ins. Mutually
  * exclusive with `refundBookingAction` (Stripe). MANAGER+ only.
+ *
+ * Remaining balance is re-read inside a serializable transaction so concurrent
+ * manager double-submits cannot over-refund or clobber totals.
  */
 export async function manualRefundBookingAction(
   input: ManualRefundBookingInput,
@@ -74,86 +81,105 @@ export async function manualRefundBookingAction(
     }
   }
 
-  const booking = await prisma.booking.findUnique({
-    where: { id: input.bookingId },
-    include: { payment: true },
-  })
-  if (!booking) throw new Error('Booking not found')
-  if (!user.tenantId || booking.tenantId !== user.tenantId) {
-    throw new Error('Booking not found')
-  }
-  if (booking.isRefunded) {
-    throw new Error('Booking already fully refunded')
-  }
-  const payment = booking.payment
-  if (!payment) {
-    throw new Error('No payment recorded for this booking')
-  }
-  if (payment.stripePaymentIntentId) {
-    throw new Error('Use the Stripe refund flow for this booking')
-  }
-  if (payment.refundStatus === 'PENDING') {
-    throw new Error('Refund already in progress for this booking')
-  }
-
-  const collected = payment.amount
-  const alreadyRefunded = payment.refundAmount ?? 0
-  const remaining = collected - alreadyRefunded
-  if (remaining <= 0) {
-    throw new Error('Booking already fully refunded')
-  }
-
   if (!Number.isFinite(input.amountCents) || input.amountCents < 1) {
     throw new Error('Refund amount must be at least 1 cent')
   }
-  if (input.amountCents > remaining) {
-    throw new Error(
-      `Refund amount must be between 1 and ${remaining} cents`,
-    )
+
+  let bookingId = input.bookingId
+
+  for (let attempt = 1; attempt <= MANUAL_REFUND_MAX_ATTEMPTS; attempt++) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          const booking = await tx.booking.findUnique({
+            where: { id: input.bookingId },
+            include: { payment: true },
+          })
+          if (!booking) throw new Error('Booking not found')
+          if (!user.tenantId || booking.tenantId !== user.tenantId) {
+            throw new Error('Booking not found')
+          }
+          if (booking.isRefunded) {
+            throw new Error('Booking already fully refunded')
+          }
+          const payment = booking.payment
+          if (!payment) {
+            throw new Error('No payment recorded for this booking')
+          }
+          if (payment.stripePaymentIntentId) {
+            throw new Error('Use the Stripe refund flow for this booking')
+          }
+          if (payment.refundStatus === 'PENDING') {
+            throw new Error('Refund already in progress for this booking')
+          }
+
+          const collected = payment.amount
+          const alreadyRefunded = payment.refundAmount ?? 0
+          const remaining = collected - alreadyRefunded
+          if (remaining <= 0) {
+            throw new Error('Booking already fully refunded')
+          }
+          if (input.amountCents > remaining) {
+            throw new Error(
+              `Refund amount must be between 1 and ${remaining} cents`,
+            )
+          }
+
+          const newRefundTotal = alreadyRefunded + input.amountCents
+          const isFullRefund = newRefundTotal >= collected
+          bookingId = booking.id
+
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: {
+              refundAmount: newRefundTotal,
+              refundStatus: 'SUCCEEDED',
+              refundReason: input.notes ?? input.method,
+              refundedBy: user.id,
+              status: 'refunded_manual',
+            },
+          })
+          if (isFullRefund) {
+            await tx.booking.update({
+              where: { id: booking.id },
+              data: {
+                isRefunded: true,
+                ...(booking.status !== 'CANCELLED'
+                  ? { status: 'CANCELLED' }
+                  : {}),
+              },
+            })
+          }
+          await tx.auditLog.create({
+            data: {
+              bookingId: booking.id,
+              userId: user.id,
+              action: MANUAL_REFUND_AUDIT_ACTION,
+              entityType: 'Booking',
+              entityId: booking.id,
+              details: {
+                method: input.method,
+                amount: input.amountCents,
+                notes: input.notes ?? null,
+              },
+            },
+          })
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+      break
+    } catch (err) {
+      if (
+        isSerializableConflict(err) &&
+        attempt < MANUAL_REFUND_MAX_ATTEMPTS
+      ) {
+        continue
+      }
+      throw err
+    }
   }
 
-  const newRefundTotal = alreadyRefunded + input.amountCents
-  const isFullRefund = newRefundTotal >= collected
-
-  await prisma.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
-      data: {
-        refundAmount: newRefundTotal,
-        refundStatus: 'SUCCEEDED',
-        refundReason: input.notes ?? input.method,
-        refundedBy: user.id,
-        status: 'refunded_manual',
-      },
-    })
-    if (isFullRefund) {
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: {
-          isRefunded: true,
-          ...(booking.status !== 'CANCELLED'
-            ? { status: 'CANCELLED' }
-            : {}),
-        },
-      })
-    }
-    await tx.auditLog.create({
-      data: {
-        bookingId: booking.id,
-        userId: user.id,
-        action: MANUAL_REFUND_AUDIT_ACTION,
-        entityType: 'Booking',
-        entityId: booking.id,
-        details: {
-          method: input.method,
-          amount: input.amountCents,
-          notes: input.notes ?? null,
-        },
-      },
-    })
-  })
-
-  revalidatePath(`/staff/bookings/${booking.id}`)
+  revalidatePath(`/staff/bookings/${bookingId}`)
   revalidatePath('/staff')
 
   return {
@@ -208,23 +234,33 @@ export async function refundBookingAction(
     throw new Error('Refund amount must be at least 1 cent')
   }
 
+  const totalRefundAmount = alreadyRefunded + amount
+
   const refund = await createRefund({
     paymentIntentId: payment.stripePaymentIntentId,
     amountCents: amount,
     reason: input.reason,
-    idempotencyKey: `booking-refund:${booking.id}:${alreadyRefunded + amount}`,
+    idempotencyKey: `booking-refund:${booking.id}:${totalRefundAmount}`,
     metadata: {
       bookingId: booking.id,
       requestedBy: user.id,
+      cumulativeRefundAmount: String(totalRefundAmount),
     },
   })
 
   await prisma.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
+    // Do not downgrade a webhook that already settled this cumulative amount.
+    await tx.payment.updateMany({
+      where: {
+        id: payment.id,
+        NOT: {
+          refundStatus: 'SUCCEEDED',
+          refundAmount: { gte: totalRefundAmount },
+        },
+      },
       data: {
         stripeRefundId: refund.id,
-        refundAmount: alreadyRefunded + amount,
+        refundAmount: totalRefundAmount,
         refundStatus: 'PENDING',
         refundReason: input.notes ?? input.reason ?? null,
         refundedBy: user.id,
@@ -240,6 +276,7 @@ export async function refundBookingAction(
         details: {
           stripeRefundId: refund.id,
           amount,
+          cumulativeRefundAmount: totalRefundAmount,
           reason: input.reason ?? null,
           notes: input.notes ?? null,
         },
