@@ -60,6 +60,19 @@ function buildDashboardUrl(): string {
   return `${appBaseUrl()}/dashboard`
 }
 
+function buildClaimUrl(
+  confirmationCode: string,
+  email: string,
+  token: string,
+): string {
+  const params = new URLSearchParams({
+    code: confirmationCode,
+    email,
+    claim_token: token,
+  })
+  return `${appBaseUrl()}/book/success?${params.toString()}`
+}
+
 function buildIcsUrl(confirmationCode: string, email: string): string {
   return `${appBaseUrl()}/api/bookings/${encodeURIComponent(confirmationCode)}/ics?email=${encodeURIComponent(email)}`
 }
@@ -264,6 +277,7 @@ async function handlePaymentIntentSucceeded(
   }
 
   let booking: FinalizedBooking | null = null
+  let claimToken: string | null = null
 
   for (let attempt = 0; attempt < BOOKING_FINALIZE_MAX_RETRIES; attempt++) {
     const confirmationCode = generateConfirmationCode()
@@ -416,14 +430,16 @@ async function handlePaymentIntentSucceeded(
           })
 
           const claimExpiresAt = new Date(now.getTime() + 24 * 3_600_000)
-          await tx.claimToken.create({
+          const claim = await tx.claimToken.create({
             data: {
               bookingId: created.id,
               tenantId: metadata.tenantId,
               email: metadata.customerEmail.toLowerCase(),
               expiresAt: claimExpiresAt,
             },
+            select: { token: true },
           })
+          claimToken = claim.token
 
           if (promoCodeId != null) {
             await tx.auditLog.create({
@@ -505,6 +521,13 @@ async function handlePaymentIntentSucceeded(
           metadata.customerEmail,
         ),
         dashboardUrl: buildDashboardUrl(),
+        claimUrl: claimToken
+          ? buildClaimUrl(
+              booking.confirmationCode,
+              metadata.customerEmail,
+              claimToken,
+            )
+          : undefined,
         icsUrl: buildIcsUrl(
           booking.confirmationCode,
           metadata.customerEmail,
@@ -539,15 +562,28 @@ async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
 
   const refundAmount = refund.amount ?? 0
   const status = String(refund.status ?? 'pending')
+  const isCurrentPendingRefund =
+    payment.stripeRefundId === refund.id && payment.refundStatus === 'PENDING'
 
   if (status === 'failed' || status === 'canceled') {
+    // Ignore stale failures from older refund attempts so settled partial
+    // totals are not corrupted.
+    if (!isCurrentPendingRefund) {
+      return
+    }
+
+    const restoredRefundAmount = Math.max(
+      0,
+      (payment.refundAmount ?? 0) - refundAmount,
+    )
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
-          refundAmount: Math.max(0, (payment.refundAmount ?? 0) - refundAmount),
-          refundStatus: 'FAILED',
-          refundedAt: null,
+          stripeRefundId: null,
+          refundAmount: restoredRefundAmount,
+          refundStatus: restoredRefundAmount > 0 ? 'SUCCEEDED' : 'FAILED',
+          refundedAt: restoredRefundAmount > 0 ? payment.refundedAt : null,
         },
       })
     })
@@ -555,12 +591,23 @@ async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
   }
 
   if (status !== 'succeeded') {
+    if (!isCurrentPendingRefund) {
+      return
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
         data: { refundStatus: 'PENDING' },
       })
     })
+    return
+  }
+
+  if (
+    payment.refundStatus === 'PENDING' &&
+    payment.stripeRefundId !== refund.id
+  ) {
     return
   }
 
@@ -605,7 +652,8 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   if (!payment) return
 
   const totalRefunded = charge.amount_refunded ?? 0
-  const succeeded = (charge.refunded ?? false) && totalRefunded > 0
+  // Stripe keeps Charge.refunded=false until the charge is fully refunded.
+  const succeeded = totalRefunded > 0
   const fullyRefunded = succeeded && totalRefunded >= payment.amount
 
   await prisma.$transaction(async (tx) => {

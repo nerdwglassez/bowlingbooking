@@ -131,6 +131,9 @@ export async function cancelBookingAction(
   if (booking.isPast) {
     throw new Error('Past bookings cannot be cancelled.')
   }
+  if (!booking.cancellable) {
+    throw new Error('This booking is outside the online cancellation window.')
+  }
 
   if (isDevWithoutDb()) {
     return {
@@ -180,6 +183,7 @@ export async function cancelBookingAction(
       metadata: {
         bookingId: booking.id,
         source: 'customer_self_service',
+        cumulativeRefundAmount: String(totalRefundAmount),
       },
     })
     stripeRefundId = refund.id
@@ -193,14 +197,19 @@ export async function cancelBookingAction(
       where: { id: booking.id },
       data: {
         status: 'CANCELLED',
-        // isRefunded is set by the charge.refunded webhook for Stripe refunds.
-        isRefunded: false,
         cancellationReason: 'CUSTOMER_REQUEST',
       },
     })
     if (shouldRefund && payment && stripeRefundId) {
-      await tx.payment.update({
-        where: { id: payment.id },
+      // Do not downgrade a webhook that already settled this cumulative amount.
+      await tx.payment.updateMany({
+        where: {
+          id: payment.id,
+          NOT: {
+            refundStatus: 'SUCCEEDED',
+            refundAmount: { gte: totalRefundAmount },
+          },
+        },
         data: {
           stripeRefundId,
           refundStatus: 'PENDING',
@@ -261,6 +270,7 @@ interface BookingRecord {
   customerName: string
   customerEmail: string
   status: CustomerBookingDetail['status']
+  source?: 'ONLINE' | 'WALK_IN' | 'PHONE'
   isRefunded: boolean
   cancellationWindowHoursSnapshot: number | null
   rescheduleWindowHoursSnapshot: number | null
@@ -289,7 +299,10 @@ async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
   const isPast = b.startTime.getTime() <= now.getTime()
   const withinCancelWindow = now <= cancelCutoff
   const withinRescheduleWindow = now <= rescheduleCutoff
+  // Walk-in/phone bookings have no online Stripe refund path — staff only.
+  const isOnlineBooking = b.source == null || b.source === 'ONLINE'
   const cancellable =
+    isOnlineBooking &&
     !isPast &&
     b.status === 'CONFIRMED' &&
     !b.isRefunded &&
@@ -299,7 +312,7 @@ async function decorate(b: BookingRecord): Promise<CustomerBookingDetail> {
     b.status === 'CONFIRMED' &&
     !b.isRefunded &&
     withinRescheduleWindow
-  const     refundIfCancelled =
+  const refundIfCancelled =
     cancellable
       ? Math.floor(
           (b.totalAmount * policy.cancellationRefundPercent) / 100,
