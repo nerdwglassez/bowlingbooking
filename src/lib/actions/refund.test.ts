@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const paymentUpdateMock = vi.fn()
+  const paymentUpdateManyMock = vi.fn()
   const bookingUpdateMock = vi.fn()
+  const bookingFindUniqueMock = vi.fn()
   const auditLogCreateMock = vi.fn()
   const prismaTxStub = {
-    payment: { update: paymentUpdateMock },
-    booking: { update: bookingUpdateMock },
+    payment: { update: paymentUpdateMock, updateMany: paymentUpdateManyMock },
+    booking: { update: bookingUpdateMock, findUnique: bookingFindUniqueMock },
     auditLog: { create: auditLogCreateMock },
   }
   return {
@@ -14,13 +16,16 @@ const mocks = vi.hoisted(() => {
     createRefundMock: vi.fn(),
     isDevWithoutDbMock: vi.fn(() => false),
     revalidatePathMock: vi.fn(),
-    bookingFindUniqueMock: vi.fn(),
+    bookingFindUniqueMock,
     paymentUpdateMock,
+    paymentUpdateManyMock,
     bookingUpdateMock,
     auditLogCreateMock,
     transactionMock: vi.fn(
-      async (fn: (tx: typeof prismaTxStub) => Promise<unknown>) =>
-        fn(prismaTxStub),
+      async (
+        fn: (tx: typeof prismaTxStub) => Promise<unknown>,
+        _opts?: unknown,
+      ) => fn(prismaTxStub),
     ),
   }
 })
@@ -42,9 +47,11 @@ const {
   isDevWithoutDbMock,
   bookingFindUniqueMock,
   paymentUpdateMock,
+  paymentUpdateManyMock,
   bookingUpdateMock,
   auditLogCreateMock,
   revalidatePathMock,
+  transactionMock,
 } = mocks
 
 import { manualRefundBookingAction, refundBookingAction } from './refund'
@@ -138,6 +145,7 @@ describe('refundBookingAction', () => {
         metadata: expect.objectContaining({
           bookingId: 'bk_1',
           requestedBy: 'user_admin',
+          cumulativeRefundAmount: '5000',
         }),
       }),
     )
@@ -157,8 +165,14 @@ describe('refundBookingAction', () => {
       reason: 'requested_by_customer',
       notes: 'guest left venue early',
     })
-    expect(paymentUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'pay_1' },
+    expect(paymentUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: 'pay_1',
+        NOT: {
+          refundStatus: 'SUCCEEDED',
+          refundAmount: { gte: 2500 },
+        },
+      },
       data: expect.objectContaining({
         stripeRefundId: 're_1',
         refundAmount: 2500,
@@ -203,10 +217,33 @@ describe('refundBookingAction', () => {
     expect(createRefundMock).toHaveBeenCalledWith(
       expect.objectContaining({ amountCents: 1500 }),
     )
-    expect(paymentUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'pay_1' },
+    expect(paymentUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: 'pay_1',
+        NOT: {
+          refundStatus: 'SUCCEEDED',
+          refundAmount: { gte: 3500 },
+        },
+      },
       data: expect.objectContaining({ refundAmount: 3500 }),
     })
+  })
+
+  it('does not downgrade webhook-settled SUCCEEDED totals to PENDING', async () => {
+    paymentUpdateManyMock.mockResolvedValue({ count: 0 })
+    await refundBookingAction({ bookingId: 'bk_1', amountCents: 2500 })
+    expect(paymentUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          NOT: {
+            refundStatus: 'SUCCEEDED',
+            refundAmount: { gte: 2500 },
+          },
+        }),
+      }),
+    )
+    // Audit still records the Stripe request even if the pending write no-ops.
+    expect(auditLogCreateMock).toHaveBeenCalled()
   })
 
   it('throws when nothing remains to refund', async () => {
@@ -293,7 +330,7 @@ describe('manualRefundBookingAction', () => {
       mocked: true,
     })
     expect(bookingFindUniqueMock).not.toHaveBeenCalled()
-    expect(mocks.transactionMock).not.toHaveBeenCalled()
+    expect(transactionMock).not.toHaveBeenCalled()
   })
 
   it('throws if booking is not found', async () => {
@@ -379,6 +416,10 @@ describe('manualRefundBookingAction', () => {
       method: 'cash',
       notes: 'guest cancelled',
     })
+    expect(transactionMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ isolationLevel: 'Serializable' }),
+    )
     expect(paymentUpdateMock).toHaveBeenCalledWith({
       where: { id: 'pay_w' },
       data: expect.objectContaining({
@@ -429,6 +470,57 @@ describe('manualRefundBookingAction', () => {
     expect(bookingUpdateMock).not.toHaveBeenCalled()
   })
 
+  it('re-reads remaining balance inside the transaction (concurrent-safe)', async () => {
+    bookingFindUniqueMock.mockResolvedValue({
+      ...baseWalkInBooking,
+      payment: {
+        ...baseWalkInBooking.payment,
+        refundAmount: 3000,
+        refundStatus: 'SUCCEEDED',
+      },
+    })
+    await expect(
+      manualRefundBookingAction({
+        bookingId: 'bk_walk',
+        amountCents: 2500,
+        method: 'cash',
+      }),
+    ).rejects.toThrow(/between 1 and 2000/)
+    expect(paymentUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('retries serializable conflicts then succeeds', async () => {
+    transactionMock
+      .mockRejectedValueOnce({ code: 'P2034' })
+      .mockImplementationOnce(
+        async (
+          fn: (tx: {
+            payment: { update: typeof paymentUpdateMock }
+            booking: {
+              update: typeof bookingUpdateMock
+              findUnique: typeof bookingFindUniqueMock
+            }
+            auditLog: { create: typeof auditLogCreateMock }
+          }) => Promise<unknown>,
+        ) =>
+          fn({
+            payment: { update: paymentUpdateMock },
+            booking: {
+              update: bookingUpdateMock,
+              findUnique: bookingFindUniqueMock,
+            },
+            auditLog: { create: auditLogCreateMock },
+          }),
+      )
+    await manualRefundBookingAction({
+      bookingId: 'bk_walk',
+      amountCents: 100,
+      method: 'cash',
+    })
+    expect(transactionMock).toHaveBeenCalledTimes(2)
+    expect(paymentUpdateMock).toHaveBeenCalled()
+  })
+
   it('records method and notes on the audit log details', async () => {
     await manualRefundBookingAction({
       bookingId: 'bk_walk',
@@ -447,11 +539,11 @@ describe('manualRefundBookingAction', () => {
     })
   })
 
-  it('revalidates staff booking detail and staff home', async () => {
+  it('revalidates staff booking paths', async () => {
     await manualRefundBookingAction({
       bookingId: 'bk_walk',
-      amountCents: 1,
-      method: 'comp',
+      amountCents: 100,
+      method: 'cash',
     })
     expect(revalidatePathMock).toHaveBeenCalledWith('/staff/bookings/bk_walk')
     expect(revalidatePathMock).toHaveBeenCalledWith('/staff')
