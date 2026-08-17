@@ -23,6 +23,8 @@
 //
 // All monetary amounts in args/returns are integer cents.
 
+import { createHash } from 'node:crypto'
+
 import { validatePromoCode } from '@/lib/actions/promo'
 import { generateConfirmationCode } from '@/lib/booking-codes'
 import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
@@ -59,6 +61,29 @@ const HOLD_TIMEOUT_MINS_DEFAULT = 10
 const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
 
 import { loadPricingPeriodsForTenant } from '@/lib/pricing-periods-data'
+
+/**
+ * Stripe rejects reuse of an idempotency key with different parameters.
+ * The confirm page recreates the PaymentIntent when promo/package/addons
+ * change, so the key must fingerprint amount + metadata — not just holdId.
+ */
+function paymentIntentIdempotencyKey(
+  holdId: string,
+  amountCents: number,
+  metadata: Record<string, string>,
+): string {
+  const canonical = JSON.stringify({
+    amountCents,
+    metadata: Object.keys(metadata)
+      .sort()
+      .map((key) => [key, metadata[key]]),
+  })
+  const digest = createHash('sha256')
+    .update(canonical)
+    .digest('hex')
+    .slice(0, 32)
+  return `booking-hold:${holdId}:${digest}`
+}
 
 function lanePricingContextForHold(
   tenant: Awaited<ReturnType<typeof getTenant>>,
@@ -891,7 +916,11 @@ export async function confirmBooking(
     customerEmail: input.customerEmail,
     description: `Booking for ${bowlerCount} bowlers`,
     metadata,
-    idempotencyKey: `booking-hold:${input.holdId}`,
+    idempotencyKey: paymentIntentIdempotencyKey(
+      input.holdId,
+      chargeCents,
+      metadata,
+    ),
   })
 
   return {

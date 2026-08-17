@@ -548,7 +548,7 @@ describe('confirmBooking', () => {
       expect.objectContaining({
         amountCents: 4500,
         customerEmail: 'jane@example.com',
-        idempotencyKey: 'booking-hold:h1',
+        idempotencyKey: expect.stringMatching(/^booking-hold:h1:[a-f0-9]{32}$/),
         metadata: expect.objectContaining({
           holdId: 'h1',
           tenantId: 't1',
@@ -769,6 +769,64 @@ describe('confirmBooking', () => {
         }),
       }),
     )
+  })
+
+  it('reuses the Stripe idempotency key for identical confirm retries', async () => {
+    const input = {
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_classic',
+      partyType: 'OPEN' as const,
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+    }
+    await confirmBooking(input)
+    await confirmBooking(input)
+    const keys = mocks.createPaymentIntentMock.mock.calls.map(
+      (call) => call[0]?.idempotencyKey,
+    )
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatch(/^booking-hold:h1:[a-f0-9]{32}$/)
+    expect(keys[1]).toBe(keys[0])
+  })
+
+  it('uses a new Stripe idempotency key when promo changes the charge', async () => {
+    const base = {
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_classic',
+      partyType: 'OPEN' as const,
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+    }
+    await confirmBooking(base)
+    mocks.validatePromoCodeMock.mockResolvedValue({
+      code: 'save10',
+      description: null,
+      discountType: 'FIXED',
+      discountValue: 500,
+      discountCents: 500,
+    })
+    await confirmBooking({ ...base, promoCode: 'SAVE10' })
+    const keys = mocks.createPaymentIntentMock.mock.calls.map(
+      (call) => call[0]?.idempotencyKey,
+    )
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatch(/^booking-hold:h1:[a-f0-9]{32}$/)
+    expect(keys[1]).toMatch(/^booking-hold:h1:[a-f0-9]{32}$/)
+    expect(keys[1]).not.toBe(keys[0])
   })
 })
 
