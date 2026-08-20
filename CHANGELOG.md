@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stripe `payment_intent.succeeded` retries now replay booking finalization when the event was recorded but no Payment row exists, so a webhook timeout cannot capture a payment without creating the reservation.
 - Confirmation email used venue name instead of package name.
 - Online checkout failed when optional package add-ons were selected.
 - `maxOnlineBowlers` tenant setting ignored on booking Step 1 UI.
