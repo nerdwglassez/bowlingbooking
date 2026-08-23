@@ -165,9 +165,17 @@ export async function cancelBookingAction(
     throw new Error('This booking is already fully refunded.')
   }
 
+  // Policy amount is the lifetime cap, not a per-request grant. A prior
+  // staff partial or a webhook that settled the first cancel attempt
+  // (after the local CANCELLED write failed) must not trigger another
+  // full policy payout on retry.
+  const remainingPolicyRefund = Math.max(
+    booking.refundIfCancelled - alreadyRefunded,
+    0,
+  )
   const refundAmount =
-    booking.refundIfCancelled > 0 && payment?.stripePaymentIntentId
-      ? Math.min(booking.refundIfCancelled, refundableBalance)
+    remainingPolicyRefund > 0 && payment?.stripePaymentIntentId
+      ? Math.min(remainingPolicyRefund, refundableBalance)
       : 0
   const totalRefundAmount = alreadyRefunded + refundAmount
   const shouldRefund = refundAmount > 0 && payment?.stripePaymentIntentId != null
