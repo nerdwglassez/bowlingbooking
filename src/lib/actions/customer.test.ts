@@ -436,6 +436,69 @@ describe('cancelBookingAction', () => {
     expect(mocks.bookingUpdate).not.toHaveBeenCalled()
   })
 
+  it('does not issue a second policy refund after a settled partial cancel', async () => {
+    mocks.bookingFindFirst.mockResolvedValue({
+      ...bookingFixture({ totalAmount: 4500 }),
+      cancellationRefundPercentSnapshot: 50,
+    })
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      status: 'succeeded',
+      refundStatus: 'SUCCEEDED',
+      refundAmount: 2250,
+    })
+
+    const result = await cancelBookingAction({
+      email: 'jane@example.com',
+      confirmationCode: 'ABC123',
+    })
+
+    expect(mocks.createRefundMock).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdateMany).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: {
+        status: 'CANCELLED',
+        cancellationReason: 'CUSTOMER_REQUEST',
+      },
+    })
+    expect(result.refundAmountCents).toBe(0)
+    expect(result.refundPending).toBe(false)
+  })
+
+  it('refunds only the remaining policy amount after a smaller staff partial', async () => {
+    mocks.bookingFindFirst.mockResolvedValue({
+      ...bookingFixture({ totalAmount: 4500 }),
+      cancellationRefundPercentSnapshot: 50,
+    })
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      status: 'succeeded',
+      refundStatus: 'SUCCEEDED',
+      refundAmount: 1000,
+    })
+
+    const result = await cancelBookingAction({
+      email: 'jane@example.com',
+      confirmationCode: 'ABC123',
+    })
+
+    expect(mocks.createRefundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountCents: 1250,
+        idempotencyKey: 'customer-cancel-refund:bk_1:2250',
+      }),
+    )
+    expect(result.refundAmountCents).toBe(1250)
+    expect(result.refundPending).toBe(true)
+  })
+
   it('limits customer refunds to the remaining Stripe balance', async () => {
     mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
     mocks.paymentFindUnique.mockResolvedValue({
