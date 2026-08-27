@@ -629,4 +629,74 @@ describe('rescheduleDashboardBookingAction', () => {
 
     expect(mocks.reassignBookingLanesMock).toHaveBeenCalled()
   })
+
+  it('keeps the original paid duration when the client sends a longer end', async () => {
+    const start = new Date(Date.now() + 48 * 3_600_000)
+    const end = new Date(start.getTime() + 3_600_000)
+    const newStart = new Date(start.getTime() + 24 * 3_600_000)
+    const stretchedEnd = new Date(newStart.getTime() + 4 * 3_600_000)
+    const expectedEnd = new Date(newStart.getTime() + 3_600_000)
+
+    mocks.bookingFindFirst.mockResolvedValue({
+      id: 'bk_1',
+      tenantId: 't1',
+      status: 'CONFIRMED',
+      isRefunded: false,
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime: start,
+      endTime: end,
+      rescheduleWindowHoursSnapshot: 24,
+      bowlersPerLaneSnapshot: 6,
+    })
+
+    await rescheduleDashboardBookingAction({
+      bookingId: 'bk_1',
+      startTime: newStart,
+      endTime: stretchedEnd,
+    })
+
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: {
+        startTime: newStart,
+        endTime: expectedEnd,
+        laneCount: 1,
+      },
+    })
+    expect(mocks.reassignBookingLanesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        startTime: newStart,
+        endTime: expectedEnd,
+      }),
+    )
+  })
+
+  it('rejects a new start time in the past', async () => {
+    const start = new Date(Date.now() + 48 * 3_600_000)
+    const end = new Date(start.getTime() + 3_600_000)
+
+    mocks.bookingFindFirst.mockResolvedValue({
+      id: 'bk_1',
+      tenantId: 't1',
+      status: 'CONFIRMED',
+      isRefunded: false,
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime: start,
+      endTime: end,
+      rescheduleWindowHoursSnapshot: 24,
+      bowlersPerLaneSnapshot: 6,
+    })
+
+    await expect(
+      rescheduleDashboardBookingAction({
+        bookingId: 'bk_1',
+        startTime: new Date(Date.now() - 3_600_000),
+        endTime: new Date(Date.now()),
+      }),
+    ).rejects.toThrow(/future/i)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+  })
 })

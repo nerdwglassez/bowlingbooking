@@ -397,6 +397,26 @@ export async function cancelDashboardBookingAction(
   })
 }
 
+function asRescheduleDate(value: Date | string, label: string): Date {
+  const parsed = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid ${label}.`)
+  }
+  return parsed
+}
+
+function endTimePreservingDuration(
+  newStart: Date,
+  originalStart: Date,
+  originalEnd: Date,
+): Date {
+  const durationMs = originalEnd.getTime() - originalStart.getTime()
+  if (durationMs <= 0) {
+    throw new Error('Booking duration is invalid.')
+  }
+  return new Date(newStart.getTime() + durationMs)
+}
+
 export async function rescheduleDashboardBookingAction(input: {
   bookingId: string
   startTime: Date
@@ -406,9 +426,8 @@ export async function rescheduleDashboardBookingAction(input: {
   if (user.role !== 'CUSTOMER') {
     throw new Error('Only customer accounts can reschedule from the dashboard.')
   }
-  if (input.endTime <= input.startTime) {
-    throw new Error('End time must be after start time.')
-  }
+
+  const requestedStart = asRescheduleDate(input.startTime, 'start time')
 
   const email = user.email?.trim().toLowerCase()
   const booking = await prisma.booking.findFirst({
@@ -427,6 +446,9 @@ export async function rescheduleDashboardBookingAction(input: {
   ) {
     throw new Error('Only active bookings can be rescheduled.')
   }
+  if (booking.isRefunded) {
+    throw new Error('Refunded bookings cannot be rescheduled.')
+  }
 
   const tenant = await getTenant()
   const policy = policySnapshotFromBooking(booking, policySnapshotFromTenantRow(tenant))
@@ -437,8 +459,17 @@ export async function rescheduleDashboardBookingAction(input: {
   if (now > cutoff) {
     throw new Error('Reschedule window has passed for this booking.')
   }
+  if (requestedStart.getTime() <= now.getTime()) {
+    throw new Error('New start time must be in the future.')
+  }
 
-  assertBookingDurationWithinLimits(tenant, input.startTime, input.endTime)
+  // Paid duration is not client-controlled — only the window may move.
+  const requestedEnd = endTimePreservingDuration(
+    requestedStart,
+    booking.startTime,
+    booking.endTime,
+  )
+  assertBookingDurationWithinLimits(tenant, requestedStart, requestedEnd)
 
   const bowlersPerLane =
     booking.bowlersPerLaneSnapshot ?? tenant.bowlersPerLane
@@ -462,14 +493,23 @@ export async function rescheduleDashboardBookingAction(input: {
       ) {
         throw new Error('Only active bookings can be rescheduled.')
       }
+      if (live.isRefunded) {
+        throw new Error('Refunded bookings cannot be rescheduled.')
+      }
+
+      const endTime = endTimePreservingDuration(
+        requestedStart,
+        live.startTime,
+        live.endTime,
+      )
 
       const overlapping = await tx.booking.findMany({
         where: {
           tenantId: live.tenantId,
           status: { in: [...CAPACITY_BOOKING_STATUSES] },
           id: { not: live.id },
-          startTime: { lt: input.endTime },
-          endTime: { gt: input.startTime },
+          startTime: { lt: endTime },
+          endTime: { gt: requestedStart },
         },
         select: { startTime: true, endTime: true, laneCount: true },
       })
@@ -477,8 +517,8 @@ export async function rescheduleDashboardBookingAction(input: {
         where: {
           tenantId: live.tenantId,
           expiresAt: { gt: now },
-          startTime: { lt: input.endTime },
-          endTime: { gt: input.startTime },
+          startTime: { lt: endTime },
+          endTime: { gt: requestedStart },
         },
         select: { startTime: true, endTime: true, laneCount: true },
       })
@@ -488,14 +528,14 @@ export async function rescheduleDashboardBookingAction(input: {
       const blocks = await findOverlappingBlockedSlots(
         tx,
         live.tenantId,
-        input.startTime,
-        input.endTime,
+        requestedStart,
+        endTime,
       )
       const reserved = sumReservedLanesIncludingBlocks(
         [...overlapping, ...activeHolds],
         blocks,
-        input.startTime,
-        input.endTime,
+        requestedStart,
+        endTime,
         totalLanes,
       )
       if (totalLanes - reserved < laneCount) {
@@ -505,8 +545,8 @@ export async function rescheduleDashboardBookingAction(input: {
       await tx.booking.update({
         where: { id: live.id },
         data: {
-          startTime: input.startTime,
-          endTime: input.endTime,
+          startTime: requestedStart,
+          endTime,
           laneCount,
         },
       })
@@ -515,8 +555,8 @@ export async function rescheduleDashboardBookingAction(input: {
         tenantId: live.tenantId,
         bookingId: live.id,
         laneCount,
-        startTime: input.startTime,
-        endTime: input.endTime,
+        startTime: requestedStart,
+        endTime,
       })
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

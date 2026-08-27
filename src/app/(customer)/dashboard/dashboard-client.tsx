@@ -141,10 +141,22 @@ export function DashboardClient({
     setRescheduleTarget(row)
   }
 
+  function handleRescheduleStartChange(value: string) {
+    setDraftStart(value)
+    if (!rescheduleTarget) return
+    const start = new Date(value)
+    if (Number.isNaN(start.getTime())) return
+    const durationMs =
+      rescheduleTarget.endTime.getTime() - rescheduleTarget.startTime.getTime()
+    setDraftEnd(toDatetimeLocal(new Date(start.getTime() + durationMs)))
+  }
+
   function handleRescheduleSave() {
     if (!rescheduleTarget) return
     const start = new Date(draftStart)
-    const end = new Date(draftEnd)
+    const durationMs =
+      rescheduleTarget.endTime.getTime() - rescheduleTarget.startTime.getTime()
+    const end = new Date(start.getTime() + durationMs)
     setError(null)
     startTransition(async () => {
       try {
@@ -307,7 +319,7 @@ export function DashboardClient({
             <Input
               type="datetime-local"
               value={draftStart}
-              onChange={(e) => setDraftStart(e.target.value)}
+              onChange={(e) => handleRescheduleStartChange(e.target.value)}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -317,9 +329,13 @@ export function DashboardClient({
             <Input
               type="datetime-local"
               value={draftEnd}
-              onChange={(e) => setDraftEnd(e.target.value)}
+              disabled
+              readOnly
             />
           </label>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Booking length stays the same.
+          </p>
           {error ? (
             <p className="text-xs text-[var(--status-error-text)]">{error}</p>
           ) : null}
