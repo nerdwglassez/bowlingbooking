@@ -103,6 +103,18 @@ const DATE_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
 })
 
+const SLOT_ALREADY_STARTED_MESSAGE =
+  'That time slot has already started. Pick a later time.'
+
+function assertOnlineSlotHasNotStarted(
+  startTime: Date,
+  now: Date = new Date(),
+): void {
+  if (startTime.getTime() <= now.getTime()) {
+    throw new Error(SLOT_ALREADY_STARTED_MESSAGE)
+  }
+}
+
 export async function getAvailableDates(
   tenantId: string,
   days: number = 7,
@@ -196,9 +208,12 @@ function enrichTimeSlotAvailability(
   laneCount: number,
   totalLanes: number,
   reservedLanes: number,
+  now: Date,
 ): TimeSlot {
   const freeLanes = Math.max(0, totalLanes - reservedLanes)
-  const available = totalLanes > 0 && freeLanes >= laneCount
+  const slotInFuture = slot.startTime.getTime() > now.getTime()
+  const available =
+    slotInFuture && totalLanes > 0 && freeLanes >= laneCount
   const spotsRemaining = available ? Math.floor(freeLanes / laneCount) : 0
   return {
     ...slot,
@@ -243,6 +258,7 @@ export async function getAvailableTimeSlots(
   const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
   const slotDurationHours = await resolveSlotDurationHours(tenantId)
   const slots = buildMockSlotsFor(dateISO, slotDurationHours)
+  const now = new Date()
 
   if (isDevWithoutDb()) {
     return slots.map((slot) => {
@@ -253,6 +269,7 @@ export async function getAvailableTimeSlots(
         laneCount,
         MOCK_TOTAL_LANES_DEV,
         reserved,
+        now,
       )
     })
   }
@@ -301,7 +318,13 @@ export async function getAvailableTimeSlots(
       slot.endTime,
       totalLanes,
     )
-    return enrichTimeSlotAvailability(slot, laneCount, totalLanes, reserved)
+    return enrichTimeSlotAvailability(
+      slot,
+      laneCount,
+      totalLanes,
+      reserved,
+      now,
+    )
   })
 }
 
@@ -374,6 +397,7 @@ export async function acquireBookingHold(
   ) {
     throw new Error('Invalid booking time slot.')
   }
+  assertOnlineSlotHasNotStarted(input.startTime)
 
   const tenant = await getTenant()
   if (!isDevWithoutDb() && tenant.id !== input.tenantId) {
