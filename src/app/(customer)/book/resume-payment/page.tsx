@@ -7,6 +7,7 @@ import { VenueHeader } from '@/components/patterns/venue-header'
 import { PaymentForm } from '@/app/(customer)/book/confirm/payment-form'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import { getResumePaymentClientSecret } from '@/lib/actions/payment-resume'
+import { withPaymentIntentQuery } from '@/lib/payment-success-url'
 
 export default function ResumePaymentPage() {
   const searchParams = useSearchParams()
@@ -91,12 +92,15 @@ function ResumePaymentLoader({ token }: { token: string }) {
           amountCents={amountCents}
           returnUrl={
             returnUrl
-              ? `${returnUrl}?payment_intent=${encodeURIComponent(paymentIntentId)}`
+              ? withPaymentIntentQuery(returnUrl, paymentIntentId)
               : ''
           }
           onMockConfirm={() => {
             if (typeof window !== 'undefined') {
-              window.location.href = `${returnUrl}?payment_intent=${encodeURIComponent(paymentIntentId)}`
+              window.location.href = withPaymentIntentQuery(
+                returnUrl,
+                paymentIntentId,
+              )
             }
           }}
         />

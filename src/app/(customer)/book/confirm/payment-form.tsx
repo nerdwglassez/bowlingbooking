@@ -15,6 +15,7 @@ import {
   paymentErrorMessage,
   requiresActionMessage,
 } from '@/lib/payment-errors'
+import { withPaymentIntentQuery } from '@/lib/payment-success-url'
 
 import { StripePaymentShell } from '@/components/patterns/payment-checkout-chrome'
 
@@ -101,7 +102,15 @@ async function runHandleNextAction(
   }
   const status = paymentIntent?.status
   if (status === 'succeeded' || status === 'processing') {
-    window.location.href = returnUrl
+    const intentId =
+      typeof paymentIntent === 'object' && paymentIntent.id
+        ? paymentIntent.id
+        : ''
+    window.location.href = withPaymentIntentQuery(
+      returnUrl,
+      intentId,
+      window.location.origin,
+    )
     return { type: 'redirect' }
   }
   if (status === 'requires_action') {
@@ -163,7 +172,11 @@ async function confirmStripePayment(
   }
 
   if (pi.status === 'succeeded' || pi.status === 'processing') {
-    window.location.href = returnUrl
+    window.location.href = withPaymentIntentQuery(
+      returnUrl,
+      pi.id,
+      window.location.origin,
+    )
     return { type: 'redirect' }
   }
 
