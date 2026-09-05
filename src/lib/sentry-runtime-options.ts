@@ -27,11 +27,7 @@ export function getSentrySharedInitOptions(dsn: string | undefined) {
     enabled: Boolean(dsn),
     sendDefaultPii: false as const,
     tracesSampler: sentryTracesSampler,
-    beforeSend(event: Parameters<typeof applyObservabilityTags>[0]) {
-      return applyObservabilityTags(event)
-    },
-    beforeSendTransaction(event: Parameters<typeof applyObservabilityTags>[0]) {
-      return applyObservabilityTags(event)
-    },
+    beforeSend: applyObservabilityTags,
+    beforeSendTransaction: applyObservabilityTags,
   }
 }

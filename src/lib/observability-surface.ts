@@ -22,8 +22,11 @@ export function isStaffObservabilityName(name: string): boolean {
   return observabilitySurfaceFromPath(name) === 'staff'
 }
 
+/** Matches Sentry Primitive without importing the SDK (drift chokepoint). */
+type Primitive = number | string | boolean | bigint | symbol | null | undefined
+
 type TaggableEvent = {
-  tags?: Record<string, string>
+  tags?: Record<string, Primitive>
   transaction?: string
   request?: { url?: string }
 }

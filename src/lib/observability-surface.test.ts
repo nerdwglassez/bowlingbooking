@@ -49,6 +49,7 @@ describe('applyObservabilityTags', () => {
   it('does not tag customer events', () => {
     const event = applyObservabilityTags({
       request: { url: 'https://example.test/book' },
+      tags: undefined,
     })
     expect(event.tags).toBeUndefined()
   })
