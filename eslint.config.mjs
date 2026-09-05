@@ -43,9 +43,9 @@ const eslintConfig = defineConfig([
             'Tailwind color utilities are banned. Use design tokens via component primitives (src/components/ui/). See .claude/DESIGN_SYSTEM.md.',
         },
         {
-          selector: "JSXAttribute[name.name='className'] Literal[value=/\\bdark:/]",
+          selector: "JSXAttribute[name.name='className'] Literal[value=/@media\\s*\\(\\s*prefers-color-scheme/]",
           message:
-            'Tailwind dark: prefix is banned. Theming flows through data-theme + CSS variables (see src/lib/theme.ts).',
+            'prefers-color-scheme theming is banned. Use data-theme; Untitled dark: is remapped to [data-theme=dark] in globals.css.',
         },
         {
           selector: "Literal[value=/#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?\\b/][value!=/^#$/]",
@@ -82,6 +82,13 @@ const eslintConfig = defineConfig([
     'next-env.d.ts',
     'docs/wireframes/**',
     '**/*.css',
+    // Untitled UI CLI output — do not rewrite vendor components to satisfy app lint.
+    'src/components/base/**',
+    'src/components/application/**',
+    'src/components/foundations/**',
+    'src/components/shared-assets/**',
+    'src/hooks/use-breakpoint.ts',
+    'src/hooks/use-resize-observer.ts',
   ]),
 ])
 

@@ -1,22 +1,11 @@
 'use client'
 
-// RefundPanel — client island for the booking detail page.
-//
-// Renders a button that opens an inline confirmation form. On submit, calls
-// refundBookingAction (Stripe) or manualRefundBookingAction (walk-in) based
-// on isManual. The server actions enforce MANAGER/ADMIN; this UI only hides
-// the affordance for STAFF.
-//
-// Partial refunds: enter a smaller value (cents) than the max. The server
-// clamps / validates against the collected payment amount.
-
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
-import { Card, CardBody } from '@/components/ui/card'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
 import { formatPrice } from '@/lib/pricing'
 import {
   manualRefundBookingAction,
@@ -29,6 +18,9 @@ interface RefundPanelProps {
   isManual: boolean
 }
 
+const CARD =
+  'rounded-xl bg-primary p-4 shadow-xs ring-1 ring-secondary ring-inset'
+
 export function RefundPanel({
   bookingId,
   amountCents,
@@ -40,32 +32,31 @@ export function RefundPanel({
   const [reason, setReason] = useState<
     'requested_by_customer' | 'duplicate' | 'fraudulent'
   >('requested_by_customer')
-  const [method, setMethod] = useState<
-    'cash' | 'check' | 'comp' | 'other'
-  >('cash')
+  const [method, setMethod] = useState<'cash' | 'check' | 'comp' | 'other'>(
+    'cash',
+  )
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, startTransition] = useTransition()
 
   if (!open) {
     return (
-      <Card>
-        <CardBody className="flex flex-col gap-3 text-sm md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-              Manager actions
-            </h2>
-            <p className="text-[var(--color-text-secondary)]">
-              {isManual
-                ? 'Record a manual refund for this walk-in payment.'
-                : 'Issue a refund via Stripe. Webhook confirms the final status.'}
-            </p>
-          </div>
-          <Button variant="danger" onClick={() => setOpen(true)}>
-            {isManual ? 'Manual refund' : 'Refund booking'}
-          </Button>
-        </CardBody>
-      </Card>
+      <div className={`${CARD} flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-sm font-semibold text-primary">Manager actions</h2>
+          <p className="text-sm text-tertiary">
+            {isManual
+              ? 'Record a manual refund for this walk-in payment.'
+              : 'Issue a refund via Stripe. Webhook confirms the final status.'}
+          </p>
+        </div>
+        <Button
+          color="primary-destructive"
+          onClick={() => setOpen(true)}
+        >
+          {isManual ? 'Manual refund' : 'Refund booking'}
+        </Button>
+      </div>
     )
   }
 
@@ -105,91 +96,73 @@ export function RefundPanel({
   }
 
   return (
-    <Card>
-      <CardBody>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 text-sm">
-          <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-            {isManual ? 'Manual refund (walk-in)' : 'Refund booking'}
-          </h2>
-          <label className="flex flex-col gap-1">
-            <span className="text-[var(--color-text-secondary)]">
-              Amount (cents) · max {formatPrice(amountCents)}
-            </span>
-            <Input
-              type="number"
-              min={1}
-              max={amountCents}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-            />
-          </label>
-          {isManual ? (
-            <label className="flex flex-col gap-1">
-              <span className="text-[var(--color-text-secondary)]">Method</span>
-              <Select
-                value={method}
-                onChange={(e) =>
-                  setMethod(e.target.value as typeof method)
-                }
-              >
-                <option value="cash">Cash</option>
-                <option value="check">Check</option>
-                <option value="comp">Comp</option>
-                <option value="other">Other</option>
-              </Select>
-            </label>
-          ) : (
-            <label className="flex flex-col gap-1">
-              <span className="text-[var(--color-text-secondary)]">Reason</span>
-              <Select
-                value={reason}
-                onChange={(e) =>
-                  setReason(e.target.value as typeof reason)
-                }
-              >
-                <option value="requested_by_customer">
-                  Requested by customer
-                </option>
-                <option value="duplicate">Duplicate</option>
-                <option value="fraudulent">Fraudulent</option>
-              </Select>
-            </label>
-          )}
-          <label className="flex flex-col gap-1">
-            <span className="text-[var(--color-text-secondary)]">
-              Internal notes
-            </span>
-            <Input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional — visible to staff only"
-            />
-          </label>
-          {isManual ? (
-            <p className="text-[var(--color-text-secondary)]">
-              This records a manual refund. No Stripe API call is made.
-            </p>
-          ) : null}
-          {error ? (
-            <p className="text-[var(--status-error-text)]">{error}</p>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setOpen(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="danger" loading={submitting}>
-              {isManual ? 'Confirm manual refund' : 'Confirm refund'}
-            </Button>
-          </div>
-        </form>
-      </CardBody>
-    </Card>
+    <div className={CARD}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <h2 className="text-sm font-semibold text-primary">
+          {isManual ? 'Manual refund (walk-in)' : 'Refund booking'}
+        </h2>
+        <Input
+          type="number"
+          label={`Amount (cents) · max ${formatPrice(amountCents)}`}
+          value={amount}
+          onChange={setAmount}
+          hint={`Enter an amount between 1 and ${amountCents} cents.`}
+          isRequired
+        />
+        {isManual ? (
+          <NativeSelect
+            label="Method"
+            value={method}
+            onChange={(e) => setMethod(e.target.value as typeof method)}
+            options={[
+              { label: 'Cash', value: 'cash' },
+              { label: 'Check', value: 'check' },
+              { label: 'Comp', value: 'comp' },
+              { label: 'Other', value: 'other' },
+            ]}
+          />
+        ) : (
+          <NativeSelect
+            label="Reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value as typeof reason)}
+            options={[
+              { label: 'Requested by customer', value: 'requested_by_customer' },
+              { label: 'Duplicate', value: 'duplicate' },
+              { label: 'Fraudulent', value: 'fraudulent' },
+            ]}
+          />
+        )}
+        <Input
+          label="Internal notes"
+          value={notes}
+          onChange={setNotes}
+          placeholder="Optional — visible to staff only"
+        />
+        {isManual ? (
+          <p className="text-sm text-tertiary">
+            This records a manual refund. No Stripe API call is made.
+          </p>
+        ) : null}
+        {error ? <p className="text-sm text-error-primary">{error}</p> : null}
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            color="tertiary"
+            onClick={() => setOpen(false)}
+            isDisabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            color="primary-destructive"
+            isLoading={submitting}
+          >
+            {isManual ? 'Confirm manual refund' : 'Confirm refund'}
+          </Button>
+        </div>
+      </form>
+    </div>
   )
 }

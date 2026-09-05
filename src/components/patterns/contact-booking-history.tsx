@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -13,6 +13,7 @@ import {
 export type ContactBookingHistoryProps = {
   items: StaffContactHistoryItem[]
   hiddenCount?: number
+  onSelectBooking: (bookingId: string) => void
 }
 
 function statusVariant(
@@ -46,6 +47,7 @@ function statusLabel(status: StaffContactHistoryStatus): string {
 export function ContactBookingHistory({
   items,
   hiddenCount = 0,
+  onSelectBooking,
 }: ContactBookingHistoryProps) {
   return (
     <>
@@ -53,34 +55,41 @@ export function ContactBookingHistory({
         Booking history
       </div>
       {items.map((item) => (
-        <Link
+        <button
           key={item.bookingId}
-          href={`/staff/bookings/${item.bookingId}`}
-          className="block border-b border-solid border-[var(--color-border)] py-2.5 last:border-0"
+          type="button"
+          onClick={() => onSelectBooking(item.bookingId)}
+          className="flex w-full items-start gap-2 border-b border-solid border-[var(--color-border)] py-2.5 text-left last:border-0"
         >
-          <div className="mb-1 flex items-start justify-between gap-2">
-            <span className="text-[13px] font-medium text-[var(--color-text-primary)]">
-              {formatHistoryDate(item.startTime)}
-            </span>
-            <span className="font-[family-name:var(--font-display)] text-sm text-[var(--color-action-dark)]">
-              {formatMetricMoney(item.amountCents)}
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <span className="text-[13px] font-medium text-[var(--color-text-primary)]">
+                {formatHistoryDate(item.startTime)}
+              </span>
+              <span className="font-[family-name:var(--font-display)] text-sm text-[var(--color-action-dark)]">
+                {formatMetricMoney(item.amountCents)}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
+                {item.bowlerCount} bowlers
+              </span>
+              <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
+                {item.packageName}
+              </span>
+              <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
+                {item.laneLabel}
+              </span>
+              <Badge variant={statusVariant(item.status)} className="text-[9px]">
+                {statusLabel(item.status)}
+              </Badge>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-              {item.bowlerCount} bowlers
-            </span>
-            <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-              {item.packageName}
-            </span>
-            <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-              {item.laneLabel}
-            </span>
-            <Badge variant={statusVariant(item.status)} className="text-[9px]">
-              {statusLabel(item.status)}
-            </Badge>
-          </div>
-        </Link>
+          <ChevronRight
+            className="mt-0.5 size-3.5 shrink-0 text-[var(--color-text-muted)]"
+            aria-hidden
+          />
+        </button>
       ))}
       {hiddenCount > 0 ? (
         <p className="py-2.5 text-center text-[11px] text-[var(--color-text-muted)]">

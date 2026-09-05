@@ -18,104 +18,22 @@
 //   2  → script error (e.g. invalid args, missing files)
 // ============================================================
 
-import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { glob } from 'node:fs/promises'
 import { argv, exit } from 'node:process'
 
 const DEFAULT_GLOBS = ['src/**/*.{ts,tsx}']
 
-/**
- * Node 20 CI does not expose `fs.promises.glob` (Node 22+). Walk the tree and
- * match the small set of globs this script actually uses.
- */
-function globToRegExp(pattern) {
-  let i = 0
-  let out = '^'
-  while (i < pattern.length) {
-    const c = pattern[i]
-    if (c === '*' && pattern[i + 1] === '*') {
-      if (pattern[i + 2] === '/') {
-        out += '(?:.*/)?'
-        i += 3
-        continue
-      }
-      out += '.*'
-      i += 2
-      continue
-    }
-    if (c === '*') {
-      out += '[^/]*'
-      i += 1
-      continue
-    }
-    if (c === '?') {
-      out += '[^/]'
-      i += 1
-      continue
-    }
-    if (c === '{') {
-      const end = pattern.indexOf('}', i)
-      if (end === -1) {
-        out += '\\{'
-        i += 1
-        continue
-      }
-      const alts = pattern
-        .slice(i + 1, end)
-        .split(',')
-        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-      out += `(?:${alts.join('|')})`
-      i = end + 1
-      continue
-    }
-    if (/[.+^${}()|[\]\\]/.test(c)) out += `\\${c}`
-    else out += c
-    i += 1
-  }
-  out += '$'
-  return new RegExp(out)
-}
-
-async function walkFiles(dir) {
-  const out = []
-  const entries = await readdir(dir, { withFileTypes: true })
-  for (const entry of entries) {
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      out.push(...(await walkFiles(full)))
-    } else if (entry.isFile()) {
-      out.push(full)
-    }
-  }
-  return out
-}
-
-async function expandGlobs(patterns) {
-  const files = new Set()
-  const matchers = patterns.map(globToRegExp)
-  // Collect candidate roots from the first path segment of each pattern.
-  const roots = new Set(
-    patterns.map((pattern) => {
-      const slash = pattern.search(/[/*?{]/)
-      return slash === -1 ? pattern : pattern.slice(0, slash) || '.'
-    }),
+/** Untitled CLI trees — vendor SVG fills and demo hex. Do not rewrite. */
+function isUntitledVendor(file) {
+  return (
+    file.includes('src/components/base/') ||
+    file.includes('src/components/application/') ||
+    file.includes('src/components/foundations/') ||
+    file.includes('src/components/shared-assets/') ||
+    file.endsWith('src/hooks/use-breakpoint.ts') ||
+    file.endsWith('src/hooks/use-resize-observer.ts')
   )
-  for (const root of roots) {
-    let candidates
-    try {
-      candidates = await walkFiles(root)
-    } catch (err) {
-      if (err && err.code === 'ENOENT') continue
-      throw err
-    }
-    for (const file of candidates) {
-      const normalized = file.split('\\').join('/')
-      if (matchers.some((re) => re.test(normalized))) {
-        files.add(normalized)
-      }
-    }
-  }
-  return [...files].sort()
 }
 
 const CHECKS = [
@@ -133,20 +51,24 @@ const CHECKS = [
     // because most clients (Gmail, Outlook, Apple Mail) strip CSS variables.
     // src/lib/themes.ts holds swatchHex metadata for the admin theme picker only.
     appliesTo: (file) =>
-      !file.endsWith('src/lib/email.ts') && !file.endsWith('src/lib/themes.ts'),
-    hint: 'Use semantic CSS variables (var(--color-*), var(--surface-*), var(--status-*)) instead.',
+      !file.endsWith('src/lib/email.ts') &&
+      !file.endsWith('src/lib/themes.ts') &&
+      !isUntitledVendor(file),
+    hint: 'Use semantic CSS variables (var(--color-*), var(--surface-*), var(--status-*)) instead. Untitled CLI files under base/application/foundations may contain vendor SVG fills.',
   },
   {
     name: 'tailwind color utilities',
     regex: /\b(bg|text|border|ring|fill|stroke)-(amber|stone|slate|zinc|red|green|blue|yellow|orange|emerald|sky|indigo|violet|fuchsia|pink|rose|gray|neutral)-[0-9]+\b/g,
-    appliesTo: () => true,
-    hint: 'Use bg-[var(--token)] / text-[var(--token)] etc., NEVER raw palette utilities.',
+    appliesTo: (file) => !isUntitledVendor(file),
+    hint: 'Use Untitled semantic utilities (bg-brand-solid, text-secondary) or var(--token). Untitled CLI files under base/application/foundations are exempt.',
   },
   {
-    name: 'dark: prefix',
-    regex: /(?:^|[\s"'`])dark:[A-Za-z]/g,
+    name: 'dark: prefix unbound',
+    // Allowed when @custom-variant dark is wired to [data-theme="dark"] in globals.css.
+    // Still ban media-query style usage documentation claiming prefers-color-scheme.
+    regex: /@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)/g,
     appliesTo: () => true,
-    hint: 'Theming uses data-theme on <html>. Tailwind dark: prefix is banned.',
+    hint: 'Do not use prefers-color-scheme for theming. Use data-theme + Untitled dark: variant.',
   },
   {
     name: 'direct --palette-* token use',
@@ -157,15 +79,9 @@ const CHECKS = [
   {
     name: "'use client' in a primitive",
     regex: /^['"]use client['"]/gm,
-    // password-input.tsx is the ONE exception: a show/hide toggle must flip
-    // the <input type> between "password" and "text", which is impossible with
-    // pure CSS (peer-checked can't change an attribute). The visibility toggle
-    // therefore requires a client-side hook. Kept in ui/ as the canonical
-    // password field primitive used by sign-in and settings forms.
-    appliesTo: (file) =>
-      file.includes('/components/ui/') &&
-      !file.endsWith('src/components/ui/password-input.tsx'),
-    hint: 'Primitives must work in Server Components. Use the peer + peer-checked CSS pattern for state, not React hooks.',
+    // Untitled / React Aria ui/ may use client. Keep this check disabled for ui/.
+    appliesTo: () => false,
+    hint: 'Untitled ui/ may use client for React Aria.',
   },
   {
     name: 'inline lane-count math',
@@ -266,6 +182,29 @@ const CHECKS = [
     hint: 'Pages/layouts must use server actions or lib helpers — never import Prisma directly.',
   },
 ]
+
+/** Temporary customer-booking shims. New files under ui/ must be re-exports, not new primitives. */
+const UI_SHIM_ALLOWLIST = new Set([
+  'src/components/ui/badge.tsx',
+  'src/components/ui/button.tsx',
+  'src/components/ui/card.tsx',
+  'src/components/ui/checkbox.tsx',
+  'src/components/ui/input.tsx',
+  'src/components/ui/password-input.tsx',
+  'src/components/ui/select.tsx',
+  'src/components/ui/skeleton.tsx',
+  'src/components/ui/toggle.tsx',
+])
+
+async function expandGlobs(patterns) {
+  const files = new Set()
+  for (const pattern of patterns) {
+    for await (const file of glob(pattern)) {
+      files.add(file)
+    }
+  }
+  return [...files].sort()
+}
 
 /**
  * Strip JS/TS comments by replacing comment ranges with spaces. Preserves
@@ -507,6 +446,25 @@ const SECRET_ENV_ACCESS =
     }
   }
 
+  for (const file of files) {
+    const normalized = file.replaceAll('\\', '/')
+    if (!normalized.includes('src/components/ui/')) continue
+    if (UI_SHIM_ALLOWLIST.has(normalized)) continue
+    failures++
+    const key = 'new file under src/components/ui/'
+    if (!failedChecks.has(key)) {
+      failedChecks.set(key, {
+        hint: 'Layer 2 lives in base/application/foundations. ui/ is a temporary shim allowlist — add Untitled via CLI, not a new ui/ primitive.',
+        hits: [],
+      })
+    }
+    failedChecks.get(key).hits.push({
+      file,
+      line: 1,
+      match: '(not in UI_SHIM_ALLOWLIST)',
+    })
+  }
+
   if (failures === 0) {
     console.log('PASS: drift sentinel — all checks clean')
     for (const check of CHECKS) {
@@ -515,6 +473,7 @@ const SECRET_ENV_ACCESS =
     console.log('  - route-group layout guards: ok')
     console.log("  - non-async exports in 'use server' files: ok")
     console.log('  - client secret env access: ok')
+    console.log('  - ui/ shim allowlist: ok')
     exit(0)
   }
 

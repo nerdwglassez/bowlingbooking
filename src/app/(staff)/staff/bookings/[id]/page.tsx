@@ -1,14 +1,7 @@
-// /staff/bookings/[id] — booking detail page.
-//
-// Server Component. Looks up the booking via getBookingDetail (staff-gated).
-// Renders detail card + a RefundPanel client component that's only included
-// when the current user is MANAGER or ADMIN (refundBookingAction enforces
-// the same check on its side; this is just UI gating, not the real guard).
-
 import { notFound } from 'next/navigation'
 
-import { Badge } from '@/components/ui/badge'
-import { Card, CardBody } from '@/components/ui/card'
+import { Badge } from '@/components/base/badges/badges'
+import { StaffPageHeader } from '@/components/chrome/staff-page-header'
 import { getCurrentUser } from '@/lib/auth'
 import { getBookingDetail } from '@/lib/actions/staff'
 import { formatPrice } from '@/lib/pricing'
@@ -28,8 +21,20 @@ const TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
 })
 
+const CARD =
+  'rounded-xl bg-primary p-4 shadow-xs ring-1 ring-secondary ring-inset'
+
 type PageProps = {
   params: Promise<{ id: string }>
+}
+
+function statusColor(
+  status: string,
+): 'gray' | 'success' | 'error' | 'warning' {
+  if (status === 'CONFIRMED') return 'success'
+  if (status === 'CANCELLED') return 'error'
+  if (status === 'NO_SHOW') return 'warning'
+  return 'gray'
 }
 
 export default async function StaffBookingDetailPage({ params }: PageProps) {
@@ -42,137 +47,113 @@ export default async function StaffBookingDetailPage({ params }: PageProps) {
 
   return (
     <>
-      <header className="flex flex-col gap-1">
-        <span className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Booking · {booking.confirmationCode}
-        </span>
-        <h1 className="text-2xl">{booking.customerName}</h1>
-      </header>
+      <StaffPageHeader
+        title={booking.customerName}
+        subtitle={`Booking · ${booking.confirmationCode}`}
+      />
 
-      <Card>
-        <CardBody className="flex flex-col gap-3 text-sm">
-          <DetailRow label="When">
-            <span className="text-[var(--color-text-primary)]">
-              {DATE_FORMATTER.format(booking.startTime)} ·{' '}
-              {TIME_FORMATTER.format(booking.startTime)} –{' '}
-              {TIME_FORMATTER.format(booking.endTime)}
-            </span>
+      <section className={`${CARD} flex flex-col gap-3 text-sm`}>
+        <DetailRow label="When">
+          <span className="text-primary">
+            {DATE_FORMATTER.format(booking.startTime)} ·{' '}
+            {TIME_FORMATTER.format(booking.startTime)} –{' '}
+            {TIME_FORMATTER.format(booking.endTime)}
+          </span>
+        </DetailRow>
+        <DetailRow label="Bowlers">
+          {booking.bowlerCount} bowler
+          {booking.bowlerCount === 1 ? '' : 's'} on {booking.laneCount} lane
+          {booking.laneCount === 1 ? '' : 's'}
+        </DetailRow>
+        <DetailRow label="Package">{booking.packageName}</DetailRow>
+        <DetailRow label="Party type">{booking.partyType}</DetailRow>
+        <DetailRow label="Source">
+          <Badge
+            size="sm"
+            type="pill-color"
+            color={booking.source === 'WALK_IN' ? 'brand' : 'gray'}
+          >
+            {booking.source}
+          </Badge>
+        </DetailRow>
+        <DetailRow label="Status">
+          <Badge
+            size="sm"
+            type="pill-color"
+            color={statusColor(booking.status)}
+          >
+            {booking.isRefunded ? 'Refunded' : booking.status}
+          </Badge>
+        </DetailRow>
+        {booking.notes ? (
+          <DetailRow label="Notes">{booking.notes}</DetailRow>
+        ) : null}
+        {booking.shoeSizes.length > 0 ? (
+          <DetailRow label="Shoe sizes">
+            {booking.shoeSizes.join(', ')}
           </DetailRow>
-          <DetailRow label="Bowlers">
-            {booking.bowlerCount} bowler
-            {booking.bowlerCount === 1 ? '' : 's'} on {booking.laneCount} lane
-            {booking.laneCount === 1 ? '' : 's'}
-          </DetailRow>
-          <DetailRow label="Package">{booking.packageName}</DetailRow>
-          <DetailRow label="Party type">{booking.partyType}</DetailRow>
-          <DetailRow label="Source">
-            <Badge variant={booking.source === 'WALK_IN' ? 'info' : 'default'}>
-              {booking.source}
-            </Badge>
-          </DetailRow>
-          <DetailRow label="Status">
-            <Badge
-              variant={
-                booking.status === 'CONFIRMED'
-                  ? 'ok'
-                  : booking.status === 'CANCELLED'
-                    ? 'error'
-                    : booking.status === 'NO_SHOW'
-                      ? 'warning'
-                      : 'default'
-              }
-            >
-              {booking.isRefunded ? 'REFUNDED' : booking.status}
-            </Badge>
-          </DetailRow>
-          {booking.notes ? (
-            <DetailRow label="Notes">{booking.notes}</DetailRow>
-          ) : null}
-          {booking.shoeSizes.length > 0 ? (
-            <DetailRow label="Shoe sizes">
-              {booking.shoeSizes.join(', ')}
-            </DetailRow>
-          ) : null}
-        </CardBody>
-      </Card>
+        ) : null}
+      </section>
 
-      <Card>
-        <CardBody className="flex flex-col gap-3 text-sm">
-          <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-            Staff actions
-          </h2>
-          <StaffBookingOpsPanel
-            bookingId={booking.id}
-            status={booking.status}
-            checkedInAt={booking.checkedInAt}
-          />
-        </CardBody>
-      </Card>
+      <section className={`${CARD} flex flex-col gap-3 text-sm`}>
+        <h2 className="text-sm font-semibold text-primary">Staff actions</h2>
+        <StaffBookingOpsPanel
+          bookingId={booking.id}
+          status={booking.status}
+          checkedInAt={booking.checkedInAt}
+        />
+      </section>
 
-      <Card>
-        <CardBody className="flex flex-col gap-3 text-sm">
-          <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-            Customer
-          </h2>
-          <DetailRow label="Email">{booking.customerEmail}</DetailRow>
-          {booking.customerPhone ? (
-            <DetailRow label="Phone">{booking.customerPhone}</DetailRow>
-          ) : null}
-        </CardBody>
-      </Card>
+      <section className={`${CARD} flex flex-col gap-3 text-sm`}>
+        <h2 className="text-sm font-semibold text-primary">Customer</h2>
+        <DetailRow label="Email">{booking.customerEmail}</DetailRow>
+        {booking.customerPhone ? (
+          <DetailRow label="Phone">{booking.customerPhone}</DetailRow>
+        ) : null}
+      </section>
 
-      <Card>
-        <CardBody className="flex flex-col gap-3 text-sm">
-          <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-            Payment
-          </h2>
-          <DetailRow label="Total">
-            <span className="text-[var(--color-text-primary)]">
-              {formatPrice(booking.totalAmount)}
-            </span>
-          </DetailRow>
-          {booking.payment ? (
-            <>
-              <DetailRow label="Status">{booking.payment.status}</DetailRow>
-              {booking.payment.stripePaymentIntentId ? (
-                <DetailRow label="Stripe intent">
-                  <code className="text-xs">
-                    {booking.payment.stripePaymentIntentId}
-                  </code>
-                </DetailRow>
-              ) : (
-                <DetailRow label="Stripe">
-                  <span className="text-[var(--color-text-secondary)]">
-                    Walk-in / not via Stripe
-                  </span>
-                </DetailRow>
-              )}
-              {booking.payment.refundStatus !== 'NONE' ? (
-                <DetailRow label="Refund">
-                  <Badge
-                    variant={
-                      booking.payment.refundStatus === 'SUCCEEDED'
-                        ? 'ok'
-                        : booking.payment.refundStatus === 'FAILED'
-                          ? 'error'
-                          : 'warning'
-                    }
-                  >
-                    {booking.payment.refundStatus}
-                  </Badge>{' '}
-                  {booking.payment.refundAmount != null
-                    ? formatPrice(booking.payment.refundAmount)
-                    : null}
-                </DetailRow>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-[var(--color-text-secondary)]">
-              No payment recorded (comp).
-            </p>
-          )}
-        </CardBody>
-      </Card>
+      <section className={`${CARD} flex flex-col gap-3 text-sm`}>
+        <h2 className="text-sm font-semibold text-primary">Payment</h2>
+        <DetailRow label="Total">
+          <span className="text-primary">{formatPrice(booking.totalAmount)}</span>
+        </DetailRow>
+        {booking.payment ? (
+          <>
+            <DetailRow label="Status">{booking.payment.status}</DetailRow>
+            {booking.payment.stripePaymentIntentId ? (
+              <DetailRow label="Stripe intent">
+                <code className="text-xs">{booking.payment.stripePaymentIntentId}</code>
+              </DetailRow>
+            ) : (
+              <DetailRow label="Stripe">
+                <span className="text-tertiary">Walk-in / not via Stripe</span>
+              </DetailRow>
+            )}
+            {booking.payment.refundStatus !== 'NONE' ? (
+              <DetailRow label="Refund">
+                <Badge
+                  size="sm"
+                  type="pill-color"
+                  color={
+                    booking.payment.refundStatus === 'SUCCEEDED'
+                      ? 'success'
+                      : booking.payment.refundStatus === 'FAILED'
+                        ? 'error'
+                        : 'warning'
+                  }
+                >
+                  {booking.payment.refundStatus}
+                </Badge>{' '}
+                {booking.payment.refundAmount != null
+                  ? formatPrice(booking.payment.refundAmount)
+                  : null}
+              </DetailRow>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-tertiary">No payment recorded (comp).</p>
+        )}
+      </section>
 
       {canRefund &&
       booking.payment &&
@@ -182,8 +163,7 @@ export default async function StaffBookingDetailPage({ params }: PageProps) {
           key={`${booking.id}:${booking.payment.amount - (booking.payment.refundAmount ?? 0)}`}
           bookingId={booking.id}
           amountCents={
-            booking.payment.amount -
-            (booking.payment.refundAmount ?? 0)
+            booking.payment.amount - (booking.payment.refundAmount ?? 0)
           }
           isManual={!booking.payment.stripePaymentIntentId}
         />
@@ -201,8 +181,8 @@ function DetailRow({
 }) {
   return (
     <div className="flex justify-between gap-3">
-      <span className="text-[var(--color-text-secondary)]">{label}</span>
-      <span className="text-right">{children}</span>
+      <span className="text-tertiary">{label}</span>
+      <span className="text-right text-primary">{children}</span>
     </div>
   )
 }

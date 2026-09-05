@@ -9,22 +9,26 @@ import {
   type ProfileFormValues,
 } from '@/components/patterns/profile-form'
 import { updateProfileAction } from '@/lib/actions/admin'
+import { joinDisplayName, splitDisplayName } from '@/lib/display-name'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
+import { formatStaffRole } from '@/lib/staff-nav'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
+import type { Role } from '@/types'
 
 export function ProfileSettingsPanel({
   initial,
 }: {
-  initial: { name: string; email: string }
+  initial: { name: string; email: string; role: Role }
 }) {
   const router = useRouter()
   const { showToast } = useStaffToast()
+  const split = splitDisplayName(initial.name)
   const form = useSettingsFormState<ProfileFormValues>({
-    name: initial.name,
+    firstName: split.firstName,
+    lastName: split.lastName,
     email: initial.email,
     currentPassword: '',
     newPassword: '',
-    confirmPassword: '',
   })
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
@@ -43,14 +47,6 @@ export function ProfileSettingsPanel({
     const changingPassword = form.values.newPassword.length > 0
 
     if (
-      changingPassword &&
-      form.values.newPassword !== form.values.confirmPassword
-    ) {
-      setError('New passwords do not match.')
-      return
-    }
-
-    if (
       (emailChanged || changingPassword) &&
       !form.values.currentPassword
     ) {
@@ -62,7 +58,10 @@ export function ProfileSettingsPanel({
     startTransition(async () => {
       try {
         await updateProfileAction({
-          name: form.values.name,
+          name: joinDisplayName(
+            form.values.firstName,
+            form.values.lastName,
+          ),
           email: form.values.email,
           currentPassword: form.values.currentPassword || undefined,
           newPassword: form.values.newPassword || undefined,
@@ -71,7 +70,6 @@ export function ProfileSettingsPanel({
           ...form.values,
           currentPassword: '',
           newPassword: '',
-          confirmPassword: '',
         }
         form.setValues(cleared)
         form.commitBaseline(cleared)
@@ -88,9 +86,11 @@ export function ProfileSettingsPanel({
   return (
     <ProfileForm
       values={form.values}
+      roleLabel={formatStaffRole(initial.role)}
       initialEmail={initial.email}
       onChange={form.setValues}
       onSubmit={handleSubmit}
+      onCancel={form.resetToBaseline}
       error={error}
       dirty={form.dirty}
       phase={form.phase}

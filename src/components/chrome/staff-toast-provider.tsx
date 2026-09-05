@@ -9,7 +9,10 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { Check, X } from 'lucide-react'
+import { AlertCircle, CheckCircle } from '@untitledui/icons'
+
+import { CloseButton } from '@/components/base/buttons/close-button'
+import { FeaturedIcon } from '@/components/foundations/featured-icon/featured-icon'
 
 export type StaffToastVariant = 'success' | 'error'
 
@@ -59,32 +62,25 @@ function ToastItem({
   return (
     <div
       role="alert"
-      className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-solid border-[var(--color-border-strong)] bg-[var(--surface-elevated)] px-4 py-3 text-[var(--color-text-primary)] shadow-[var(--shadow-lg)]"
+      className="relative flex gap-3 rounded-xl border border-primary bg-primary_alt p-4 shadow-xs"
     >
-      <span
-        className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ${
-          isSuccess
-            ? 'bg-[var(--status-ok-bg)] text-[var(--status-ok-text)]'
-            : 'bg-[var(--status-error-bg)] text-[var(--status-error-text)]'
-        }`}
-        aria-hidden
-      >
-        {isSuccess ? (
-          <Check className="size-3.5" strokeWidth={2.5} />
-        ) : (
-          <X className="size-3.5" strokeWidth={2.5} />
-        )}
-      </span>
-      <p className="min-w-0 flex-1 text-sm leading-snug">{toast.message}</p>
+      <FeaturedIcon
+        icon={isSuccess ? CheckCircle : AlertCircle}
+        color={isSuccess ? 'success' : 'error'}
+        theme="outline"
+        size="md"
+      />
+      <p className="min-w-0 flex-1 pr-8 text-sm font-semibold text-secondary">
+        {toast.message}
+      </p>
       {toast.dismissible !== false ? (
-        <button
-          type="button"
-          className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-          aria-label="Dismiss"
-          onClick={() => onDismiss(toast.id)}
-        >
-          <X className="size-4" />
-        </button>
+        <CloseButton
+          size="sm"
+          slot={null}
+          label="Dismiss"
+          className="absolute top-2 right-2"
+          onPress={() => onDismiss(toast.id)}
+        />
       ) : null}
     </div>
   )
@@ -105,7 +101,7 @@ export function StaffToastProvider({ children }: { children: ReactNode }) {
     <StaffToastContext.Provider value={{ showToast }}>
       {children}
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 z-[100] flex flex-col items-center gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))] md:inset-x-auto md:right-0 md:items-end"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[100] flex flex-col items-center gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:inset-x-auto lg:right-0 lg:items-end"
         aria-live="polite"
       >
         {toasts.map((toast) => (

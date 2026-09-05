@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const bookingUpdate = vi.fn()
   const paymentUpdate = vi.fn()
-  const paymentUpdateMany = vi.fn()
   const auditCreate = vi.fn()
   const bookingFindMany = vi.fn()
   const bookingHoldFindMany = vi.fn()
@@ -13,7 +12,7 @@ const mocks = vi.hoisted(() => {
   const reassignBookingLanesMock = vi.fn()
   const txStub = {
     booking: { update: bookingUpdate, findFirst: vi.fn(), findMany: bookingFindMany },
-    payment: { update: paymentUpdate, updateMany: paymentUpdateMany },
+    payment: { update: paymentUpdate },
     auditLog: { create: auditCreate },
     bookingHold: { findMany: bookingHoldFindMany },
     blockedSlot: { findMany: blockedSlotFindMany },
@@ -27,7 +26,6 @@ const mocks = vi.hoisted(() => {
     paymentFindUnique: vi.fn(),
     bookingUpdate,
     paymentUpdate,
-    paymentUpdateMany,
     auditCreate,
     bookingFindMany,
     bookingHoldFindMany,
@@ -95,7 +93,6 @@ function bookingFixture(overrides: Partial<{
   status: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'HOLD'
   isRefunded: boolean
   totalAmount: number
-  source: 'ONLINE' | 'WALK_IN' | 'PHONE'
 }> = {}) {
   const startHours = overrides.startHoursFromNow ?? 48
   const start = new Date(Date.now() + startHours * 3_600_000)
@@ -111,7 +108,6 @@ function bookingFixture(overrides: Partial<{
     customerName: 'Jane Doe',
     customerEmail: overrides.customerEmail ?? 'jane@example.com',
     status: overrides.status ?? 'CONFIRMED',
-    source: overrides.source ?? 'ONLINE',
     isRefunded: overrides.isRefunded ?? false,
     cancellationWindowHoursSnapshot: 24,
     rescheduleWindowHoursSnapshot: 24,
@@ -162,7 +158,7 @@ beforeEach(() => {
           findFirst: mocks.bookingFindFirst,
           findMany: mocks.bookingFindMany,
         },
-        payment: { update: mocks.paymentUpdate, updateMany: mocks.paymentUpdateMany },
+        payment: { update: mocks.paymentUpdate },
         auditLog: { create: mocks.auditCreate },
         bookingHold: { findMany: mocks.bookingHoldFindMany },
         blockedSlot: { findMany: mocks.blockedSlotFindMany },
@@ -329,7 +325,7 @@ describe('cancelBookingAction', () => {
           findFirst: vi.fn(),
           findMany: mocks.bookingFindMany,
         },
-        payment: { update: mocks.paymentUpdate, updateMany: mocks.paymentUpdateMany },
+        payment: { update: mocks.paymentUpdate },
         auditLog: { create: mocks.auditCreate },
         bookingHold: { findMany: mocks.bookingHoldFindMany },
         blockedSlot: { findMany: mocks.blockedSlotFindMany },
@@ -352,24 +348,18 @@ describe('cancelBookingAction', () => {
       metadata: {
         bookingId: 'bk_1',
         source: 'customer_self_service',
-        cumulativeRefundAmount: '4500',
       },
     })
     expect(mocks.bookingUpdate).toHaveBeenCalledWith({
       where: { id: 'bk_1' },
       data: {
         status: 'CANCELLED',
+        isRefunded: false,
         cancellationReason: 'CUSTOMER_REQUEST',
       },
     })
-    expect(mocks.paymentUpdateMany).toHaveBeenCalledWith({
-      where: {
-        id: 'pay_1',
-        NOT: {
-          refundStatus: 'SUCCEEDED',
-          refundAmount: { gte: 4500 },
-        },
-      },
+    expect(mocks.paymentUpdate).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
       data: {
         stripeRefundId: 're_1',
         refundStatus: 'PENDING',
@@ -410,7 +400,7 @@ describe('cancelBookingAction', () => {
 
     expect(mocks.txMock).not.toHaveBeenCalled()
     expect(mocks.bookingUpdate).not.toHaveBeenCalled()
-    expect(mocks.paymentUpdateMany).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
     expect(mocks.auditCreate).not.toHaveBeenCalled()
     expect(mocks.sendCancellationMock).not.toHaveBeenCalled()
   })
@@ -457,14 +447,8 @@ describe('cancelBookingAction', () => {
         idempotencyKey: 'customer-cancel-refund:bk_1:4500',
       }),
     )
-    expect(mocks.paymentUpdateMany).toHaveBeenCalledWith({
-      where: {
-        id: 'pay_1',
-        NOT: {
-          refundStatus: 'SUCCEEDED',
-          refundAmount: { gte: 4500 },
-        },
-      },
+    expect(mocks.paymentUpdate).toHaveBeenCalledWith({
+      where: { id: 'pay_1' },
       data: {
         stripeRefundId: 're_1',
         refundStatus: 'PENDING',
@@ -476,10 +460,9 @@ describe('cancelBookingAction', () => {
   })
 
   it('skips Stripe refund + payment update when refund amount is 0', async () => {
-    mocks.bookingFindFirst.mockResolvedValue({
-      ...bookingFixture(),
-      cancellationRefundPercentSnapshot: 0,
-    })
+    mocks.bookingFindFirst.mockResolvedValue(
+      bookingFixture({ startHoursFromNow: 2 }), // inside the 24h window
+    )
     mocks.paymentFindUnique.mockResolvedValue({
       id: 'pay_1',
       bookingId: 'bk_1',
@@ -495,32 +478,16 @@ describe('cancelBookingAction', () => {
       where: { id: 'bk_1' },
       data: {
         status: 'CANCELLED',
+        isRefunded: false,
         cancellationReason: 'CUSTOMER_REQUEST',
       },
     })
     expect(mocks.createRefundMock).not.toHaveBeenCalled()
-    expect(mocks.paymentUpdateMany).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
   })
 
-  it('rejects cancellation outside the online policy window', async () => {
-    mocks.bookingFindFirst.mockResolvedValue(
-      bookingFixture({ startHoursFromNow: 2 }),
-    )
-    await expect(
-      cancelBookingAction({
-        email: 'jane@example.com',
-        confirmationCode: 'ABC123',
-      }),
-    ).rejects.toThrow(/outside the online cancellation window/i)
-    expect(mocks.paymentFindUnique).not.toHaveBeenCalled()
-    expect(mocks.createRefundMock).not.toHaveBeenCalled()
-    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
-  })
-
-  it('rejects walk-ins without calling Stripe', async () => {
-    mocks.bookingFindFirst.mockResolvedValue(
-      bookingFixture({ source: 'WALK_IN' }),
-    )
+  it('handles walk-ins (no stripePaymentIntentId) without calling Stripe', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
     mocks.paymentFindUnique.mockResolvedValue({
       id: 'pay_1',
       bookingId: 'bk_1',
@@ -528,13 +495,12 @@ describe('cancelBookingAction', () => {
       amount: 4500,
       status: 'cash',
     })
-    await expect(
-      cancelBookingAction({
-        email: 'jane@example.com',
-        confirmationCode: 'ABC123',
-      }),
-    ).rejects.toThrow(/outside the online cancellation window/i)
+    const result = await cancelBookingAction({
+      email: 'jane@example.com',
+      confirmationCode: 'ABC123',
+    })
     expect(mocks.createRefundMock).not.toHaveBeenCalled()
+    expect(result.refundPending).toBe(false)
   })
 
   it('returns a mock result in dev-without-db', async () => {

@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus } from '@untitledui/icons'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/base/badges/badges'
+import { Button } from '@/components/base/buttons/button'
 import type { AdminPackageRow } from '@/lib/actions/admin'
 import { formatPrice } from '@/lib/pricing'
 
@@ -34,17 +34,14 @@ export function PackagesSettingsPanel({
     <div className="flex flex-col gap-4">
       {canEdit ? (
         <div className="flex justify-end">
-          <Button asChild size="sm">
-            <Link href="/staff/settings/packages/new">
-              <Plus className="size-4" aria-hidden />
-              New package
-            </Link>
+          <Button href="/staff/settings/packages/new" size="sm" iconLeading={Plus}>
+            New package
           </Button>
         </div>
       ) : null}
 
       <div
-        className="flex gap-1 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-sunken)] p-1"
+        className="flex gap-1 rounded-xl border border-solid border-secondary bg-secondary p-1"
         role="tablist"
       >
         <TabButton
@@ -60,7 +57,7 @@ export function PackagesSettingsPanel({
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-[var(--color-text-secondary)]">
+        <p className="text-sm text-tertiary">
           No {tab === 'PUBLIC' ? 'public' : 'code-gated'} packages yet.
         </p>
       ) : (
@@ -91,10 +88,10 @@ function TabButton({
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={`flex-1 rounded-[var(--radius-sm)] px-3 py-2 text-xs font-medium transition-colors ${
+      className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
         active
-          ? 'bg-[var(--surface-elevated)] text-[var(--color-text-primary)] shadow-[var(--shadow-sm)]'
-          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+          ? 'bg-primary text-primary shadow-xs'
+          : 'text-tertiary hover:text-primary'
       }`}
     >
       {label}
@@ -112,44 +109,50 @@ function PackageCard({
   const codeGated = pkg.accessType === 'CODE_REQUIRED'
   const inner = (
     <div
-      className={`flex flex-col gap-2 rounded-[var(--radius-md)] border border-solid bg-[var(--surface-elevated)] p-4 transition-colors md:flex-row md:items-center md:justify-between ${
+      className={`flex flex-col gap-2 rounded-xl border border-solid bg-primary p-4 transition-colors md:flex-row md:items-center md:justify-between ${
         codeGated
-          ? 'border-[color-mix(in_srgb,var(--color-action)_35%,var(--color-border))]'
-          : 'border-[var(--color-border)]'
-      } ${canEdit ? 'hover:border-[var(--color-border-strong)] hover:bg-[var(--surface-sunken)]' : ''}`}
+          ? 'ring-1 ring-brand'
+          : 'border-secondary'
+      } ${canEdit ? 'hover:border-secondary hover:bg-secondary' : ''}`}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
           <span
             className={`size-2 shrink-0 rounded-full ${
               pkg.active
-                ? 'bg-[var(--status-ok-text)]'
+                ? 'bg-success-solid'
                 : 'bg-[var(--color-text-secondary)]'
             }`}
             aria-hidden
           />
-          <h2 className="truncate text-sm font-medium text-[var(--color-text-primary)]">
+          <h2 className="truncate text-sm font-medium text-primary">
             {pkg.name}
           </h2>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {pkg.partyTypes.map((pt) => (
-            <Badge key={pt} variant="default">
-              {pt}
-            </Badge>
-          ))}
-          {codeGated && pkg.codeString ? (
-            <Badge variant="info">{pkg.codeString}</Badge>
-          ) : null}
-          {!pkg.active ? <Badge variant="default">Archived</Badge> : null}
+            {pkg.partyTypes.map((pt) => (
+              <Badge key={pt} size="sm" color="gray" type="modern">
+                {pt}
+              </Badge>
+            ))}
+            {codeGated && pkg.codeString ? (
+              <Badge size="sm" color="brand" type="pill-color">
+                {pkg.codeString}
+              </Badge>
+            ) : null}
+            {!pkg.active ? (
+              <Badge size="sm" color="gray" type="pill-color">
+                Archived
+              </Badge>
+            ) : null}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        <span className="text-sm [font-family:var(--font-display)] text-[var(--color-action)]">
+        <span className="text-sm [font-family:var(--font-display)] text-brand-secondary">
           {formatPrice(pkg.basePrice)}
         </span>
         {canEdit ? (
-          <span className="text-xs text-[var(--color-text-secondary)]">Edit</span>
+          <span className="text-xs text-tertiary">Edit</span>
         ) : null}
       </div>
     </div>

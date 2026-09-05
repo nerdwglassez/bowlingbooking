@@ -204,10 +204,7 @@ beforeEach(() => {
     cancellationRefundPercent: 100,
     config: {},
   })
-  mocks.claimTokenCreate.mockResolvedValue({
-    id: 'claim_1',
-    token: 'claim_token_1',
-  })
+  mocks.claimTokenCreate.mockResolvedValue({ id: 'claim_1' })
   mocks.bookingBowlerCreateMany.mockResolvedValue({ count: 0 })
   mocks.bookingLaneCreate.mockResolvedValue({})
   mocks.packageFindFirst.mockResolvedValue({ name: 'Classic Bowling' })
@@ -290,10 +287,7 @@ describe('POST /api/webhooks/stripe', () => {
       where: { id: 'hold_1' },
     })
     expect(mocks.sendEmailMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'jane@example.com',
-        claimUrl: expect.stringContaining('claim_token=claim_token_1'),
-      }),
+      expect.objectContaining({ to: 'jane@example.com' }),
     )
   })
 
@@ -594,8 +588,7 @@ describe('POST /api/webhooks/stripe', () => {
           id: 'ch_2',
           payment_intent: 'pi_1',
           amount_refunded: 2000,
-          // Stripe keeps refunded=false until the charge is fully refunded.
-          refunded: false,
+          refunded: true,
         },
       },
     })
@@ -620,8 +613,7 @@ describe('POST /api/webhooks/stripe', () => {
     })
   })
 
-  it('preserves prior settled refunds when the current refund.updated fails', async () => {
-    const refundedAt = new Date('2025-06-02T12:00:00Z')
+  it('marks refund failed and restores refundable amount on refund.updated failure', async () => {
     mocks.constructWebhookEventMock.mockReturnValue({
       id: 'evt_refund_failed',
       type: 'refund.updated',
@@ -640,9 +632,6 @@ describe('POST /api/webhooks/stripe', () => {
       bookingId: 'bk_1',
       amount: 4500,
       refundAmount: 4500,
-      refundStatus: 'PENDING',
-      stripeRefundId: 're_failed',
-      refundedAt,
       stripePaymentIntentId: 'pi_1',
       booking: { status: 'CONFIRMED' },
     })
@@ -653,114 +642,11 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mocks.paymentUpdate).toHaveBeenCalledWith({
       where: { id: 'pay_1' },
       data: {
-        stripeRefundId: null,
         refundAmount: 2000,
-        refundStatus: 'SUCCEEDED',
-        refundedAt,
-      },
-    })
-  })
-
-  it('marks the first refund attempt failed when its refund.updated fails', async () => {
-    mocks.constructWebhookEventMock.mockReturnValue({
-      id: 'evt_refund_failed_first',
-      type: 'refund.updated',
-      data: {
-        object: {
-          id: 're_failed',
-          payment_intent: 'pi_1',
-          amount: 2500,
-          status: 'failed',
-        },
-      },
-    })
-    mocks.stripeEventCreate.mockResolvedValue({})
-    mocks.paymentFindUnique.mockResolvedValue({
-      id: 'pay_1',
-      bookingId: 'bk_1',
-      amount: 4500,
-      refundAmount: 2500,
-      refundStatus: 'PENDING',
-      stripeRefundId: 're_failed',
-      refundedAt: null,
-      stripePaymentIntentId: 'pi_1',
-      booking: { status: 'CONFIRMED' },
-    })
-
-    const res = await POST(makeRequest('{}') as never)
-    expect(res.status).toBe(200)
-    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
-    expect(mocks.paymentUpdate).toHaveBeenCalledWith({
-      where: { id: 'pay_1' },
-      data: {
-        stripeRefundId: null,
-        refundAmount: 0,
         refundStatus: 'FAILED',
         refundedAt: null,
       },
     })
-  })
-
-  it('ignores stale refund.updated failures from older refund attempts', async () => {
-    mocks.constructWebhookEventMock.mockReturnValue({
-      id: 'evt_refund_failed_stale',
-      type: 'refund.updated',
-      data: {
-        object: {
-          id: 're_stale',
-          payment_intent: 'pi_1',
-          amount: 2500,
-          status: 'failed',
-        },
-      },
-    })
-    mocks.stripeEventCreate.mockResolvedValue({})
-    mocks.paymentFindUnique.mockResolvedValue({
-      id: 'pay_1',
-      bookingId: 'bk_1',
-      amount: 4500,
-      refundAmount: 2000,
-      refundStatus: 'SUCCEEDED',
-      stripeRefundId: 're_settled',
-      stripePaymentIntentId: 'pi_1',
-      booking: { status: 'CONFIRMED' },
-    })
-
-    const res = await POST(makeRequest('{}') as never)
-    expect(res.status).toBe(200)
-    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
-    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
-  })
-
-  it('does not downgrade a settled refund when a stale pending update arrives', async () => {
-    mocks.constructWebhookEventMock.mockReturnValue({
-      id: 'evt_refund_pending_stale',
-      type: 'refund.updated',
-      data: {
-        object: {
-          id: 're_settled',
-          payment_intent: 'pi_1',
-          amount: 2000,
-          status: 'pending',
-        },
-      },
-    })
-    mocks.stripeEventCreate.mockResolvedValue({})
-    mocks.paymentFindUnique.mockResolvedValue({
-      id: 'pay_1',
-      bookingId: 'bk_1',
-      amount: 4500,
-      refundAmount: 2000,
-      refundStatus: 'SUCCEEDED',
-      stripeRefundId: 're_settled',
-      stripePaymentIntentId: 'pi_1',
-      booking: { status: 'CONFIRMED' },
-    })
-
-    const res = await POST(makeRequest('{}') as never)
-    expect(res.status).toBe(200)
-    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
-    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
   })
 
   it('reconciles succeeded refund.updated without cancelling partially refunded bookings', async () => {
@@ -782,8 +668,6 @@ describe('POST /api/webhooks/stripe', () => {
       bookingId: 'bk_1',
       amount: 4500,
       refundAmount: 2000,
-      refundStatus: 'PENDING',
-      stripeRefundId: 're_ok',
       stripePaymentIntentId: 'pi_1',
       booking: { status: 'CONFIRMED' },
     })

@@ -8,7 +8,7 @@ import { BookingModifySheet } from '@/components/chrome/booking-modify-sheet'
 import type { StaffBookingDetail } from '@/lib/actions/staff'
 import { getBookingDetail } from '@/lib/actions/staff'
 
-function BookingDetailLoader({
+export function BookingDetailLoader({
   bookingId,
   canRefund,
   onModify,
@@ -42,7 +42,9 @@ function BookingDetailLoader({
   }
   if (!booking) {
     return (
-      <p className="text-sm text-[var(--color-text-secondary)]">Loading…</p>
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        Loading booking…
+      </p>
     )
   }
 

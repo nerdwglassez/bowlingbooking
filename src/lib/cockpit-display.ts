@@ -13,7 +13,6 @@ export type CockpitLaneState = CockpitLaneCard['state']
 export type CockpitSubview = 'overview' | 'lanes'
 export type CockpitTimeWindow = 2 | 4 | 8 | 'day'
 
-export const COCKPIT_SUBVIEW_STORAGE_KEY = 'cockpit_subview'
 export const COCKPIT_LATE_GRACE_MS = 5 * 60_000
 
 export type TimelineBlockState = 'occupied' | 'upcoming' | 'completed'
@@ -178,6 +177,33 @@ export function buildCockpitStats(
     done,
     late: lateBookings.length,
   }
+}
+
+export type CockpitHourlyPoint = {
+  hour: string
+  count: number
+}
+
+/** Remaining-day booking counts by hour from the cockpit snapshot. */
+export function buildCockpitHourlyBookings(
+  bookings: CockpitBookingRow[],
+  now: Date,
+): CockpitHourlyPoint[] {
+  const hourFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric' })
+  const points: CockpitHourlyPoint[] = []
+  for (let hour = now.getHours(); hour < 24; hour++) {
+    const slotStart = new Date(now)
+    slotStart.setHours(hour, 0, 0, 0)
+    const slotEnd = new Date(slotStart.getTime() + 3_600_000)
+    const count = bookings.filter(
+      (booking) =>
+        booking.status !== 'CANCELLED' &&
+        booking.startTime < slotEnd &&
+        booking.endTime > slotStart,
+    ).length
+    points.push({ hour: hourFmt.format(slotStart), count })
+  }
+  return points
 }
 
 /** Context bar date — wireframe "Sat May 10". */
@@ -540,17 +566,25 @@ export function formatLateMeta(
 }
 
 /** Header clock line — wireframe "Saturday · 2:14 PM". */
-export function formatCockpitClock(now: Date): string {
-  const day = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(now)
-  const time = new Intl.DateTimeFormat('en-US', {
+export function formatCockpitClock(now: Date, timeZone?: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
     hour: 'numeric',
     minute: '2-digit',
-  }).format(now)
-  return `${day} · ${time}`
+    hour12: true,
+    ...(timeZone ? { timeZone } : {}),
+  }).formatToParts(now)
+  const day = parts.find((p) => p.type === 'weekday')?.value ?? ''
+  const hour = parts.find((p) => p.type === 'hour')?.value ?? ''
+  const minute = parts.find((p) => p.type === 'minute')?.value ?? ''
+  const dayPeriod = (parts.find((p) => p.type === 'dayPeriod')?.value ?? '')
+    .replace(/\s/g, '')
+    .toUpperCase()
+  return `${day} · ${hour}:${minute} ${dayPeriod}`
 }
 
-export function buildCockpitClockLine(now = new Date()): string {
-  return formatCockpitClock(now)
+export function buildCockpitClockLine(now = new Date(), timeZone?: string): string {
+  return formatCockpitClock(now, timeZone)
 }
 
 export { HOUR_ONLY, MINUTE_ONLY }

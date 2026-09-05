@@ -1,10 +1,11 @@
+/**
+ * Compatibility shim. New staff code should import from
+ * `@/components/base/toggle/toggle`.
+ */
+
 import * as React from 'react'
 
-function cn(
-  ...inputs: Array<string | undefined | null | false>
-): string {
-  return inputs.filter(Boolean).join(' ')
-}
+import { cx } from '@/lib/cx'
 
 export type ToggleProps = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
@@ -14,10 +15,13 @@ export type ToggleProps = Omit<
 }
 
 export const Toggle = React.forwardRef<HTMLInputElement, ToggleProps>(
-  function Toggle({ className, label, disabled, role = 'switch', ...inputProps }, ref) {
+  function Toggle(
+    { className, label, disabled, role = 'switch', ...inputProps },
+    ref,
+  ) {
     return (
       <label
-        className={cn(
+        className={cx(
           'inline-flex shrink-0 cursor-pointer items-center gap-2',
           'has-[:disabled]:cursor-not-allowed',
           className,
@@ -29,7 +33,7 @@ export const Toggle = React.forwardRef<HTMLInputElement, ToggleProps>(
           role={role}
           disabled={disabled}
           aria-disabled={disabled ? true : undefined}
-          className={cn(
+          className={cx(
             'peer sr-only',
             'disabled:pointer-events-none',
             'aria-disabled:pointer-events-none',
@@ -37,30 +41,25 @@ export const Toggle = React.forwardRef<HTMLInputElement, ToggleProps>(
           {...inputProps}
         />
         <span
-          className={cn(
+          className={cx(
             'relative h-6 w-11 shrink-0 rounded-full',
-            'bg-[var(--surface-sunken)] transition-colors duration-150',
-            'peer-checked:bg-[var(--color-action)]',
-            'peer-focus-visible:outline-none peer-focus-visible:ring-2',
-            'peer-focus-visible:ring-[var(--color-border-strong)] peer-focus-visible:ring-offset-2',
-            'peer-focus-visible:ring-offset-[var(--surface-ground)]',
-            'peer-disabled:cursor-not-allowed peer-disabled:opacity-35',
+            'bg-tertiary transition-colors duration-150',
+            'peer-checked:bg-brand-solid',
+            'peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand',
+            'peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
             'peer-checked:[&>span]:translate-x-5',
           )}
           aria-hidden
         >
           <span
-            className={cn(
+            className={cx(
               'pointer-events-none absolute left-0.5 top-0.5 size-5 translate-x-0 rounded-full',
-              'bg-[var(--surface-card)] shadow-[var(--shadow-sm)]',
-              'transition-transform duration-150',
+              'bg-white shadow-sm transition-transform duration-150',
             )}
           />
         </span>
         {label != null && label !== false ? (
-          <span className="min-w-0 text-sm [font-family:var(--font-body)] text-[var(--color-text-primary)]">
-            {label}
-          </span>
+          <span className="min-w-0 text-sm text-secondary">{label}</span>
         ) : null}
       </label>
     )

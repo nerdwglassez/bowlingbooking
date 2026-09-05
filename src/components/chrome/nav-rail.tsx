@@ -1,196 +1,297 @@
 'use client'
 
-// NavRail — primary navigation for the staff/admin shells.
+// NavRail — Untitled-shaped staff sidebar (280px, hamburger < lg).
 //
-// Active highlight uses `usePathname()` so client-side navigations update
-// immediately. (Server `x-pathname` in layouts can lag behind soft nav.)
+// Composes NavItemBase collapsible summaries with Next.js Link so client
+// routing is preserved. Do not mount SidebarNavigationSimple wholesale
+// (Untitled logo, ⌘K, dummy account). Accordion sections open one at a time.
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import type { LucideIcon } from 'lucide-react'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { useState, type FC, type ReactNode, type SVGProps } from 'react'
+import { ChevronDown } from '@untitledui/icons'
 
-import { getSettingsGroups, getStaffNavItems } from '@/lib/staff-nav'
+import { StaffMobileHeader } from '@/components/chrome/staff-mobile-header'
+import { StaffNavAccountCard } from '@/components/chrome/staff-nav-account-card'
+import { cx } from '@/lib/cx'
+import {
+  findOpenStaffNavSection,
+  getStaffNavTree,
+  staffNavLocation,
+  type StaffNavItem,
+  type StaffNavLeaf,
+  type StaffNavNode,
+} from '@/lib/staff-nav'
 import type { Role } from '@/types'
 
-const SETTINGS_HREF = '/staff/settings'
+export const STAFF_SIDEBAR_WIDTH_PX = 280
 
-export interface NavRailItem {
-  href: string
-  label: string
-  icon: LucideIcon
-  /** Optional small number/dot rendered next to the label. */
+export type StaffNavIcon = FC<SVGProps<SVGSVGElement>>
+
+export interface NavRailItem extends StaffNavItem {
   badge?: number | null
-  /** Custom active matcher; defaults to href prefix matching. */
-  isActive?: (currentPath: string) => boolean
 }
 
 export interface NavRailProps {
   role: Role
-  /** Brand label rendered at the top of the sidebar. */
-  brand?: React.ReactNode
-  /** Slot rendered at the bottom of the sidebar (e.g. user card + sign out). */
-  footer?: React.ReactNode
+  brand?: ReactNode
+  user: { email: string | null; name?: string | null; role: Role }
+  venueName: string
 }
 
-export function isNavItemActive(item: NavRailItem, currentPath: string): boolean {
-  if (item.isActive) return item.isActive(currentPath)
-  if (item.href === currentPath) return true
-  return currentPath.startsWith(item.href + '/')
-}
+const NAV_ITEM_ROOT =
+  'group/item relative flex max-h-9 w-full cursor-pointer items-center rounded-md bg-primary outline-focus-ring transition duration-100 ease-linear select-none hover:bg-primary_hover focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2'
+const NAV_ITEM_SELECTED = 'bg-secondary hover:bg-secondary_hover'
 
-export function NavRail({ role, brand, footer }: NavRailProps) {
+export function NavRail({ role, brand, user, venueName }: NavRailProps) {
   const pathname = usePathname()
-  const items = getStaffNavItems(role)
+  const searchParams = useSearchParams()
+  const search = searchParams.toString()
+  const path = staffNavLocation(pathname, search ? `?${search}` : '')
+  const tree = getStaffNavTree(role)
+  const mainItems = tree.filter((node) => node.placement === 'main')
+  const footerItems = tree.filter((node) => node.placement === 'footer')
+  const routeSection = findOpenStaffNavSection(role, path)
+  const sectionKey = `${role}:${path}`
+  const [openSection, setOpenSection] = useState<string | null>(routeSection)
+  const [trackedSectionKey, setTrackedSectionKey] = useState(sectionKey)
+
+  if (trackedSectionKey !== sectionKey) {
+    setTrackedSectionKey(sectionKey)
+    setOpenSection(routeSection)
+  }
+
+  const sidebarProps = {
+    brand,
+    mainItems,
+    footerItems,
+    path,
+    openSection,
+    onOpenSection: setOpenSection,
+    user,
+    venueName,
+  }
 
   return (
     <>
-      <nav
-        aria-label="Primary"
-        className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-solid border-[var(--color-border)] bg-[var(--surface-card)] md:flex"
-      >
-        {brand ? (
-          <div className="border-b border-solid border-[var(--color-border)] px-5 py-4">
-            {brand}
-          </div>
-        ) : null}
-        <ul className="flex flex-1 flex-col gap-1 p-3">
-          {items.map((item) => {
-            const active = isNavItemActive(item, pathname)
-            return (
-              <li key={item.href}>
-                <NavRailItemLink item={item} active={active} />
-                {item.href === SETTINGS_HREF && active ? (
-                  <SettingsSubNav role={role} pathname={pathname} />
-                ) : null}
-              </li>
-            )
-          })}
-        </ul>
-        {footer ? (
-          <div className="border-t border-solid border-[var(--color-border)] p-3">
-            {footer}
-          </div>
-        ) : null}
-      </nav>
-
-      <nav
-        aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-20 flex border-t border-solid border-[var(--color-border)] bg-[var(--surface-card)] md:hidden"
-      >
-        {items.map((item) => (
-          <NavRailTabLink
-            key={item.href}
-            item={item}
-            active={isNavItemActive(item, pathname)}
-          />
-        ))}
-      </nav>
+      <StaffMobileHeader brand={brand}>
+        <StaffSidebarBody {...sidebarProps} />
+      </StaffMobileHeader>
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex">
+        <StaffSidebarBody {...sidebarProps} />
+      </div>
     </>
   )
 }
 
-function NavRailItemLink({
-  item,
+function StaffSidebarBody({
+  brand,
+  mainItems,
+  footerItems,
+  path,
+  openSection,
+  onOpenSection,
+  user,
+  venueName,
+}: {
+  brand?: ReactNode
+  mainItems: StaffNavNode[]
+  footerItems: StaffNavNode[]
+  path: string
+  openSection: string | null
+  onOpenSection: (id: string | null) => void
+  user: { email: string | null; name?: string | null; role: Role }
+  venueName: string
+}) {
+  return (
+    <aside
+      style={{ '--width': `${STAFF_SIDEBAR_WIDTH_PX}px` } as React.CSSProperties}
+      className="flex h-full w-full max-w-full flex-col justify-between overflow-auto border-r border-secondary bg-primary pt-4 lg:w-(--width) lg:pt-5"
+    >
+      <div className="flex flex-col gap-5 px-4 lg:px-5">
+        {brand ? <div className="min-w-0">{brand}</div> : null}
+      </div>
+
+      <nav aria-label="Primary" className="flex-1">
+        <ul className="flex flex-col px-4 pt-5">
+          {mainItems.map((node) => (
+            <StaffNavNodeRow
+              key={node.id}
+              node={node}
+              path={path}
+              open={openSection === node.id}
+              onToggle={() =>
+                onOpenSection(openSection === node.id ? null : node.id)
+              }
+            />
+          ))}
+        </ul>
+      </nav>
+
+      <div className="mt-auto flex flex-col gap-3 px-4 py-4 lg:py-5">
+        {footerItems.length > 0 ? (
+          <ul className="flex flex-col">
+            {footerItems.map((node) => (
+              <li key={node.id} className="py-px">
+                <StaffNavLink
+                  href={node.href ?? '#'}
+                  label={node.label}
+                  icon={node.icon}
+                  active={Boolean(node.isActive?.(path))}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <StaffNavAccountCard
+          name={user.name}
+          email={user.email}
+          role={user.role}
+          venueName={venueName}
+        />
+      </div>
+    </aside>
+  )
+}
+
+function StaffNavNodeRow({
+  node,
+  path,
+  open,
+  onToggle,
+}: {
+  node: StaffNavNode
+  path: string
+  open: boolean
+  onToggle: () => void
+}) {
+  if (node.items?.length) {
+    const sectionCurrent = node.items.some((child) => child.isActive(path))
+    const Icon = node.icon
+    return (
+      <li className="py-0.25">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className={cx(
+            'p-2',
+            NAV_ITEM_ROOT,
+            sectionCurrent && !open && NAV_ITEM_SELECTED,
+          )}
+        >
+          <Icon
+            aria-hidden="true"
+            className={cx(
+              'mr-2 size-5 shrink-0 text-fg-quaternary transition-inherit-all group-hover/item:text-fg-quaternary_hover',
+              sectionCurrent && !open && 'text-fg-quaternary_hover',
+            )}
+          />
+          <span
+            className={cx(
+              'flex-1 truncate text-left text-sm font-semibold text-secondary transition-inherit-all group-hover/item:text-secondary_hover',
+              sectionCurrent && !open && 'text-secondary_hover',
+            )}
+          >
+            {node.label}
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className={cx(
+              'ml-3 size-4 shrink-0 stroke-[2.5px] text-fg-quaternary transition duration-100',
+              open && '-scale-y-100',
+            )}
+          />
+        </button>
+        {open ? (
+          <ul className="pb-1">
+            {node.items.map((child) => (
+              <li key={child.href} className="py-0.25">
+                <StaffNavChildLink child={child} path={path} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </li>
+    )
+  }
+
+  if (!node.href) return null
+
+  return (
+    <li className="py-px">
+      <StaffNavLink
+        href={node.href}
+        label={node.label}
+        icon={node.icon}
+        active={Boolean(node.isActive?.(path))}
+      />
+    </li>
+  )
+}
+
+function StaffNavLink({
+  href,
+  label,
+  icon: Icon,
   active,
 }: {
-  item: NavRailItem
+  href: string
+  label: string
+  icon: StaffNavIcon
   active: boolean
 }) {
-  const Icon = item.icon
   return (
     <Link
-      href={item.href}
+      href={href}
       aria-current={active ? 'page' : undefined}
-      data-active={active ? '' : undefined}
-      className="group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--color-text-primary)] data-[active]:border-l-2 data-[active]:border-[var(--color-action-dark)] data-[active]:bg-[var(--surface-sunken)] data-[active]:pl-[calc(0.75rem-2px)] data-[active]:text-[var(--color-action-dark)]"
+      className={cx('p-2', NAV_ITEM_ROOT, active && NAV_ITEM_SELECTED)}
     >
       <Icon
-        className="size-4 shrink-0 opacity-35 group-data-[active]:opacity-100"
-        aria-hidden
+        aria-hidden="true"
+        className={cx(
+          'mr-2 size-5 shrink-0 text-fg-quaternary transition-inherit-all group-hover/item:text-fg-quaternary_hover',
+          active && 'text-fg-quaternary_hover',
+        )}
       />
-      <span className="flex-1">{item.label}</span>
-      {typeof item.badge === 'number' && item.badge > 0 ? (
-        <span className="rounded-full bg-[var(--color-action)] px-2 text-[11px] font-semibold text-[var(--color-text-on-action)]">
-          {item.badge}
-        </span>
-      ) : null}
+      <span
+        className={cx(
+          'flex-1 truncate text-sm font-semibold text-secondary transition-inherit-all group-hover/item:text-secondary_hover',
+          active && 'text-secondary_hover',
+        )}
+      >
+        {label}
+      </span>
     </Link>
   )
 }
 
-function SettingsSubNav({
-  role,
-  pathname,
+function StaffNavChildLink({
+  child,
+  path,
 }: {
-  role: Role
-  pathname: string
+  child: StaffNavLeaf
+  path: string
 }) {
-  const groups = getSettingsGroups(role)
-
-  return (
-    <div className="mt-1 ml-3 flex flex-col gap-3 border-l border-solid border-[var(--color-border)] pl-3">
-      {groups.map((group) => {
-        const navigable = group.items.filter((item) => item.href)
-        if (navigable.length === 0) return null
-
-        return (
-          <div key={group.label} className="flex flex-col gap-0.5">
-            <p className="px-2 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-              {group.label}
-            </p>
-            <ul className="flex flex-col gap-0.5">
-              {navigable.map((item) => {
-                const href = item.href as string
-                const active =
-                  pathname === href ||
-                  (href !== SETTINGS_HREF && pathname.startsWith(href))
-                return (
-                  <li key={href}>
-                    <Link
-                      href={href}
-                      aria-current={active ? 'page' : undefined}
-                      data-active={active ? '' : undefined}
-                      className="block rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--color-text-primary)] data-[active]:border-l-2 data-[active]:border-[var(--color-action-dark)] data-[active]:bg-[var(--surface-sunken)] data-[active]:pl-[calc(0.5rem-2px)] data-[active]:text-[var(--color-action-dark)]"
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function NavRailTabLink({
-  item,
-  active,
-}: {
-  item: NavRailItem
-  active: boolean
-}) {
-  const Icon = item.icon
+  const active = child.isActive(path)
   return (
     <Link
-      href={item.href}
+      href={child.href}
       aria-current={active ? 'page' : undefined}
-      data-active={active ? '' : undefined}
-      className="relative flex flex-1 flex-col items-center gap-1 py-3 text-xs text-[var(--color-text-muted)] data-[active]:text-[var(--color-action-dark)]"
+      className={cx(
+        'py-2 pr-3 pl-10',
+        NAV_ITEM_ROOT,
+        active && NAV_ITEM_SELECTED,
+      )}
     >
-      {active ? (
-        <span
-          className="absolute inset-x-0 top-0 mx-auto h-0.5 w-5 rounded-full bg-[var(--color-action-dark)]"
-          aria-hidden
-        />
-      ) : null}
-      <Icon
-        className={`size-5 ${active ? 'opacity-100' : 'opacity-35'}`}
-        aria-hidden
-      />
-      <span>{item.label}</span>
+      <span
+        className={cx(
+          'flex-1 truncate text-sm font-semibold text-secondary transition-inherit-all group-hover/item:text-secondary_hover',
+          active && 'text-secondary_hover',
+        )}
+      >
+        {child.label}
+      </span>
     </Link>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/base/buttons/button'
 import { createPaymentResumeLink } from '@/lib/actions/payment-resume'
 
 export function StaffPaymentResumeButton({
@@ -38,29 +38,31 @@ export function StaffPaymentResumeButton({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-sunken)] p-3">
-      <p className="text-xs text-[var(--color-text-secondary)]">
+    <div className="flex flex-col gap-3 rounded-xl bg-secondary p-4 ring-1 ring-secondary ring-inset">
+      <p className="text-sm text-tertiary">
         Payment incomplete — generate a customer link to finish checkout.
       </p>
-      {error ? (
-        <p className="text-xs text-[var(--status-error-text)]">{error}</p>
-      ) : null}
+      {error ? <p className="text-sm text-error-primary">{error}</p> : null}
       {url ? (
-        <p className="break-all text-xs text-[var(--color-text-primary)]">
-          {url}
-        </p>
+        <p className="break-all text-sm text-primary">{url}</p>
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           size="sm"
-          loading={pending}
+          color="primary"
+          isLoading={pending}
           onClick={handleGenerate}
         >
           {url ? 'Regenerate link' : 'Resend payment link'}
         </Button>
         {url ? (
-          <Button type="button" size="sm" variant="secondary" onClick={() => void handleCopy()}>
+          <Button
+            type="button"
+            size="sm"
+            color="secondary"
+            onClick={() => void handleCopy()}
+          >
             Copy link
           </Button>
         ) : null}

@@ -1,6 +1,6 @@
 # Patterns Contract
 
-Source of truth for **every file under `src/components/patterns/`**. Agents building patterns MUST read this file, the primitives contract (`.claude/contracts/PRIMITIVES.md`), and at least one existing primitive (`src/components/ui/button.tsx`) before writing code.
+Source of truth for **every file under `src/components/patterns/`**. Agents building patterns MUST read this file, `.claude/contracts/UNTITLED.md`, `.claude/contracts/PRIMITIVES.md`, and an installed Untitled primitive under `src/components/base/` before writing code.
 
 A **pattern** is one named visual concept composed of primitives plus business-logic helpers from `src/lib/`. Patterns are the only place that:
 - Compose primitives together with layout rules.
@@ -14,15 +14,15 @@ Patterns NEVER define their own colors, fonts, shadows, or borders — those liv
 ## 1. Layer rules
 
 ```
-tokens → primitives (ui/) → patterns (this layer) → pages
+tokens → Untitled base/application → patterns (this layer) → pages
 ```
 
 A pattern can import:
-- Any primitive from `src/components/ui/*`.
+- Untitled components from `src/components/base/*` and `src/components/application/*`.
+- Temporary shims from `src/components/ui/*` only for unreworked customer surfaces.
 - Any pure helper from `src/lib/*` (lane-logic, pricing, theme, etc.).
 - Types from `src/types`.
 - React.
-- `@radix-ui/react-slot` — but only if the pattern itself benefits from `asChild`. Most patterns won't.
 
 A pattern can NOT import:
 - Other patterns (no pattern-of-patterns). If two patterns share structure, lift that structure into a primitive or accept it via children/props.
@@ -38,8 +38,8 @@ Same drift constraints as primitives:
 
 1. **No raw hex colors.** Use `var(--token)` references or — preferably — let primitives carry the color. If your pattern is reaching for `bg-[var(--surface-card)]` directly, ask whether a `<Card>` would be a better wrapper.
 2. **No Tailwind color utilities.** No `bg-amber-500`, `text-stone-700`, etc.
-3. **No `dark:` prefix.** Same theming model — `data-theme` swap, primitives handle it.
-4. **Tailwind is for layout only.** `flex`, `grid`, `gap`, `p-*`, `mx-*`, sizing, positioning — all fine. Color/font/border utilities are not.
+3. **`dark:` is allowed** only because `@custom-variant dark` maps to `[data-theme="dark"]`. Never `prefers-color-scheme`.
+4. **Tailwind is for layout plus Untitled semantic color utilities** (`bg-brand-solid`, `text-secondary`, …). No raw palette utilities (`bg-amber-500`).
 5. **No `bg-[var(--…)]` on plain `<div>`s** when a primitive exists. If the visual is a card, use `<Card>`. If it's a badge, use `<Badge>`. If it's a button, use `<Button>`. Only reach for `var(--…)` arbitrary classes when no primitive matches and you've documented why in a code comment.
 6. **No font-family declarations.** Primitives set `--font-body` / `--font-display`. Pattern-level headings (h1–h6) inherit via the global CSS in `src/app/globals.css`. Use the existing `h2 / h3 / h4` tags rather than `<div className="text-lg font-semibold">`.
 7. **All stateful patterns must be CONTROLLED.** Accept `value` (or `selectedId` / `bowlerCount` / similar) and `onChange` props. NEVER own state internally with `useState`. The booking page (Phase 5) owns the form state via `BookingContext`; patterns are dumb renderers + event emitters.
@@ -75,17 +75,17 @@ Same drift constraints as primitives:
 
 ## 5. Per-pattern scope notes
 
-Each of the six patterns in the current batch. Read the named wireframe AND the existing primitives + lib helpers before starting your file.
+Each of the six patterns in the current batch. Read FIGMA.md / UNTITLED.md / the Figma frame AND Untitled primitives + lib helpers before starting your file.
 
 ### `step-indicator.tsx` — `StepIndicator`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (top of phone — 4 dots). Milestone semantics: `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — scheduling on **`/book`** uses **1**, packages **`/book/package`** uses **2**, confirm **`/book/confirm`** uses **4** (milestone 3 has no URL in v1).
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step1-2-branded.html` (header — 4 dots). Milestone semantics: `.claude/specs/customer/PHASE_0_BOOKING_WIREFRAMES.md` — scheduling on **`/book`** uses **1**, packages **`/book/package`** uses **2**, confirm **`/book/confirm`** uses **4** (milestone 3 has no URL in v1).
 - Props: `currentStep: 1 | 2 | 3 | 4`, `totalSteps?: number` (default 4), `className?: string`.
 - Visual: row of round dots with `gap-2`. Active dot: `bg-[var(--color-action)]`, larger (w-6 vs w-2). Completed dots: `bg-[var(--color-action)]` regular size. Future dots: `bg-[var(--color-border-strong)]`.
 - ARIA: render as `<ol aria-label="Booking progress">` with `<li>` children. Active item has `aria-current="step"`.
 - Server-safe. No `'use client'`. No state.
 
 ### `bowler-counter.tsx` — `BowlerCounter`
-**Wireframe:** `docs/wireframes/customer/booking-step1.html` (− / count / + in Bowlers section).
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step1.html` (− / count / + in Bowlers section).
 - Props: `value: number`, `onChange: (next: number) => void`, `min?: number` (default 1), `max?: number` (default 18, the venue's max online), `className?: string`.
 - Visual: − Button (ghost, size sm) + a large number (h2 or h1, font-display) + + Button. Below, render the lane-count caption: call `formatLaneRequirementLine(value)` from `src/lib/lane-logic.ts` (wireframe: “N lane(s) required”). Append `· max ${max} online` when `value === max`.
 - If `value === max`, the + button is disabled. If `value === min`, the − button is disabled.
@@ -93,14 +93,14 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - Use the `<Button>` primitive. NO custom `<button>`s.
 
 ### `date-strip.tsx` — `DateStrip`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (horizontal scrolling row of day chips in Step 1).
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step1-2-branded.html` (horizontal scrolling row of day chips in Step 1).
 - Props: `dates: Array<{ date: string /* YYYY-MM-DD */; weekday: string /* "Mon" */; day: number /* 12 */; available: boolean }>`, `selectedDate: string | null`, `onSelect: (date: string) => void`, `className?: string`.
 - Visual: horizontal `flex gap-2 overflow-x-auto` row. Each chip is a `<Button>` primitive — `variant="secondary"` unselected, `variant="primary"` when `selectedDate === date.date`. Unavailable dates render as ghost-variant buttons with `disabled`. Inside the button, two lines: weekday (small caps, text-xs) and day number (font-display, text-lg).
 - `'use client'`.
 - ARIA: `<div role="listbox" aria-label="Choose a date">` with `<Button role="option" aria-selected={...}>`.
 
 ### `time-slot-grid.tsx` — `TimeSlotGrid`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1b time grid on **`/book`** inside the “Choose a time” section.
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step1-2-branded.html` — Step 1b time grid on **`/book`** inside the “Choose a time” section.
 **Domain:** `.claude/BOOKING_DOMAIN.md` — Availability logic; each slot exposes `lanesFree` and `spotsRemaining` from `getAvailableTimeSlots`.
 - Props: `slots: TimeSlot[]` (from `@/types`), `selectedSlotId: string | null`, `onSelect: (slot: TimeSlot) => void`, `className?: string`.
 - Visual: `grid grid-cols-3 gap-2 sm:grid-cols-4`. Each cell is a `<Button>`: `variant="ghost"` + `disabled` when `!slot.available`; `variant="primary"` if selected; else `variant="secondary"`. Taller cells (`!h-auto min-h-[4.25rem]`) stack **time** (formatted `h:mm a` via `Intl`) and a second line from `formatTimeSlotAvailabilityCaption` in `@/lib/booking-display` — **Open**, **N left**, **Full**, or **✓ Held** for the selected slot (wireframe Step 1b).
@@ -108,37 +108,47 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - ARIA: `<div role="radiogroup" aria-label="Choose a time">`; each option may set `aria-label` including the availability line.
 
 ### `booking-flow-lead.tsx` — `BookingFlowLead`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (`step-title` + `step-sub`); same structure on package step in `booking-step2-refined.html`.
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step1-2-branded.html` (`step-title` + `step-sub`); same structure on package step in `booking-step2-refined.html`.
 - Props: `title: string`, `subtitle: string`, `className?: string`.
 - Title uses `font-family: var(--font-display)`; subtitle is body text with `--color-text-secondary`.
 - `'use client'`.
 
 ### `package-list-toolbar.tsx` — `PackageListToolbar`
-**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html` — results count + Sort & Filter control (sheet wiring deferred).
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step2-refined.html` — results count + Sort & Filter control (sheet wiring deferred).
 - Props: `resultCount: number`, `className?: string`.
 - `'use client'`.
 
 ### `package-card.tsx` — `PackageCard`
-**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html` — list cards (2a): name, party `<Badge>`, **From** + `formatPrice(basePrice)`, `line-clamp-3` description, **What's included →** ghost link (wireframe `.read-more`: 11px, `color-action`), neutral tag row via `packageSummaryTags` + `<Badge variant="default">`, footer **Select** / **Selected**.
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step2-refined.html` — list cards (2a): name, party `<Badge>`, **From** + `formatPrice(basePrice)`, `line-clamp-3` description, **What's included →** ghost link (wireframe `.read-more`: 11px, `color-action`), neutral tag row via `packageSummaryTags` + `<Badge variant="default">`, footer **Select** / **Selected**.
 **Lib:** `@/lib/package-detail` for tag strings; inclusion copy for the sheet lives in `packageInclusionLines`.
 - Props: `pkg`, `selected`, `onSelect(pkg)`, **`onOpenDetails(pkg)`** (required on `/book/package`).
 - `'use client'`.
 
 ### `package-detail-sheet.tsx` — `PackageDetailSheet`
-**Wireframe:** `booking-step2-refined.html` variant **2c** — bottom sheet: handle, title, From price, full description, **What's included** + bullets from `packageInclusionLines`, **Select this package** + **Close**; backdrop click and `Escape` call `onClose`.
+**Visual:** Figma frame TBD. Historical: `booking-step2-refined.html` variant **2c** — bottom sheet: handle, title, From price, full description, **What's included** + bullets from `packageInclusionLines`, **Select this package** + **Close**; backdrop click and `Escape` call `onClose`.
 - Props: `pkg: Package | null`, `open`, `onClose`, `onSelectThisPackage(pkg)`.
 - Overlay `bg-[var(--surface-overlay)]`; panel uses `--surface-card`, `--color-border`, `--shadow-xl`.
 - `'use client'`.
 
 ### `venue-header.tsx` — `VenueHeader`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (top of phone — venue name + address + sign-in button).
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step1-2-branded.html` (header — venue name + address + sign-in button).
 - Props: `venueName: string`, `address: string`, `signedIn?: boolean`, `onSignIn?: () => void`, `signInLabel?: string` (default "Sign in"), `className?: string`.
 - Structure: `<header className="flex items-center justify-between gap-3">`. Left side: a column with venue name (h2 or h3, default heading style) and address as `<p className="text-sm text-[var(--color-text-secondary)]">`. Right side: a `<Button variant="ghost" size="sm">` for sign-in if `!signedIn && onSignIn`, otherwise render nothing.
 - DO NOT hardcode any tenant text. `venueName`, `address`, and the optional user state all come in via props. (The calling page resolves these from `getTenant()` / `auth()`.)
 - `'use client'` so callers can pass a click handler — small cost, broad reuse.
 
+### `sign-in-screen.tsx` — `SignInScreen`
+**Visual:** FIGMA.md Sign-in row (Untitled split quote image). Form column + hero from `lg` (`rounded-l-[80px]`). Mobile is stacked form only (top-aligned).
+- Props: `venueName: string`, `year: number`, `children` (the credentials form).
+- Omit Untitled dummy chrome (logo wordmark, Google, Sign up, carousel arrows). Tenant initial + name from props.
+- Page wraps with `SignInThemeScope` (`data-theme="light"` + `data-app="staff"`).
+
+### `booking-app-header.tsx` — `BookingAppHeader`
+- Props: `venueName`, `address`, optional `signInHref`, `showSignIn` (default false), `signedIn`.
+- Sign in link renders only when `showSignIn && !signedIn && signInHref`. Checkout is the only booking caller (`CHECKOUT_SIGN_IN_PATH`).
+
 ### `hold-timer.tsx` — `HoldTimer`
-**Wireframe:** `docs/wireframes/customer/booking-step1-2-branded.html` (hold bar in Step 1; package list in `booking-step2-refined.html` also shows hold).
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step1-2-branded.html` (hold bar in Step 1; package list in `booking-step2-refined.html` also shows hold).
 - Props: `expiresAt: Date | null`, `onExpire?: () => void`, `className?: string`.
 - When `expiresAt` is null, render a passive “Select a time to hold your lanes” pill in `--surface-sunken` / `--color-text-secondary`.
 - When `expiresAt` is in the future, render a live pill showing `Lanes held · m:ss remaining`. Background: `--status-warning-bg` if less than 2 minutes, otherwise `--status-ok-bg`. Text uses the matching status `--*-text` token.
@@ -147,7 +157,7 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - `'use client'`.
 
 ### `lane-allocation-view.tsx` — `LaneAllocationView`
-**Wireframe:** `docs/wireframes/customer/booking-step3-final.html` (lane visualization showing N lanes assigned).
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step3-final.html` (lane visualization showing N lanes assigned).
 - Props: `bowlerCount: number`, `className?: string`.
 - Compute `laneCount = getLaneCount(bowlerCount)` from `@/lib/lane-logic`. Render summary text via `getLaneAssignmentSummary(bowlerCount)`.
 - Display: a small horizontal stack — render `laneCount` lane tiles styled with `bg-[var(--color-action)]` text-on-action, each labeled "Lane 1", "Lane 2", … Below the tiles, render the summary text.
@@ -155,7 +165,7 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - Server-safe. NO `'use client'`. No state.
 
 ### `booking-summary-card.tsx` — `BookingSummaryCard`
-**Wireframe:** `docs/wireframes/customer/booking-step4-confirmation.html` and `customer-dashboard.html`.
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step4-confirmation.html` and `customer-dashboard.html`.
 - Props:
   - `dateLabel: string` — pre-formatted, e.g. "Saturday, Jan 18"
   - `timeLabel: string` — pre-formatted, e.g. "8:00pm – 10:00pm"
@@ -175,7 +185,7 @@ Each of the six patterns in the current batch. Read the named wireframe AND the 
 - Server-safe. No state.
 
 ### `booking-flow-footer.tsx` — `BookingFlowFooter`
-**Wireframe:** `docs/wireframes/customer/booking-step2-refined.html`, `booking-step3-dropdown.html`, `booking-step4-confirmation.html` (sticky bottom bar).
+**Visual:** Figma frame TBD. Historical: `docs/wireframes/customer/booking-step2-refined.html`, `booking-step3-dropdown.html`, `booking-step4-confirmation.html` (sticky bottom bar).
 - Props: `ctaLabel: string`, `onCta?: () => void`, `ctaDisabled?: boolean`, `ctaLoading?: boolean`, `ctaFormId?: string` (submit external form), `note?: string`, `className?: string`.
 - Visual: dark `--surface-dark` footer with full-width primary CTA only. **No line items or totals** — pricing belongs in page content (`OrderSummaryCard`, package cards).
 - Optional `note` below CTA (e.g. cancellation policy on confirm step).

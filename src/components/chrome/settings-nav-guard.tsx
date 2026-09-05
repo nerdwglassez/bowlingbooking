@@ -1,16 +1,34 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { SettingsUnsavedDialog } from '@/components/patterns/settings-unsaved-dialog'
 import { useSettingsFormContext } from '@/lib/settings-form-context'
 
 export function SettingsNavGuard({ children }: { children: ReactNode }) {
   const router = useRouter()
-  const { dirty, saving, requestSave } = useSettingsFormContext()
+  const { dirty, saving, requestSave, registerNavigateHandler } =
+    useSettingsFormContext()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [pendingHref, setPendingHref] = useState<string | null>(null)
+  const dirtyRef = useRef(dirty)
+
+  useEffect(() => {
+    dirtyRef.current = dirty
+  }, [dirty])
+
+  useEffect(() => {
+    registerNavigateHandler((href: string) => {
+      if (!dirtyRef.current) {
+        router.push(href)
+        return
+      }
+      setPendingHref(href)
+      setDialogOpen(true)
+    })
+    return () => registerNavigateHandler(null)
+  }, [registerNavigateHandler, router])
 
   function requestNavigate(href: string) {
     if (!dirty) {

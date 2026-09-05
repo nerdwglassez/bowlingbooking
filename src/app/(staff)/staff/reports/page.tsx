@@ -48,6 +48,7 @@ export default async function StaffReportsPage({ searchParams }: PageProps) {
       analytics={analytics}
       contacts={contacts}
       tenantId={tenant.id}
+      bowlersPerLane={tenant.bowlersPerLane}
     />
   )
 }

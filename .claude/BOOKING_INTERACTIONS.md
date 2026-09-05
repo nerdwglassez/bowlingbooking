@@ -260,18 +260,17 @@ Cancel/reschedule links go to /find-my-booking for guest users.
 - Style: neutral sunken bar (`--surface-sunken`, `--color-border`)
 - Copy: **"Lanes held · MM:SS remaining"**
 - NOT green — green would imply the booking is confirmed
-- NOT amber action-tint — wireframe uses neutral urgency
+- NOT amber action-tint — neutral urgency (Figma may refine)
 - At 0:00: session expired, redirect to /book with toast
   "Your session expired. Please select a new time."
 - Hold timer does NOT appear on /book/success
 
 ### Booking flow chrome (`BookingFlowShell`)
 All steps 1–4 share:
-- **Stone chrome header** (`BookingAppHeader`): `--surface-booking-chrome`, venue name, maps address link, Sign in (`--color-booking-chrome-link`)
+- **Stone chrome header** (`BookingAppHeader`): `--surface-booking-chrome`, venue name, maps address link. **Sign in** (`--color-booking-chrome-link`) only on step 4 (`/book/confirm`) via `showSignIn` + `CHECKOUT_SIGN_IN_PATH` (`/signin?from=/book/confirm`). Hidden on steps 1–3 and `/book/success`. Customers return to checkout; staff still land in `/staff` (`getPostSignInPath`).
 - **Step strip**: 4 dots on `--surface-card`; active pill 22px; completed dots at 35% opacity
 - **Hold bar** (above scroll content)
 - **Header back** (steps 3–4 only): removed — use footer back below CTA via `BOOKING_BACK_BY_STEP`
-- Sign in href: `/signin?from={pathname}` (preserve booking return path)
 
 Step 1 uses an inline primary CTA at the bottom of content (no dark footer bar).
 Steps 2–4 use stone sticky `BookingFlowFooter` — **primary CTA + optional secondary back** below; no price lines.

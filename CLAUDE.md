@@ -16,13 +16,20 @@ versions. Read node_modules/next/dist/docs/ before writing any Next.js code.
 Heed all deprecation notices.
 
 @.cursorrules
-Coding standards, token usage rules, component folder structure, button
-variants, Shadcn rules, venue constant rules. Auto-loaded by Cursor but
-read again whenever you are uncertain about a pattern.
+Coding standards, token usage rules, Untitled folder structure, venue constant
+rules. Auto-loaded by Cursor but read again whenever you are uncertain about a
+pattern.
 
 @.claude/DESIGN_SYSTEM.md
-Visual token system, component layers, dark mode rules, Tailwind v4 policy,
-typography, radius, shadows. Read this before touching any component or style.
+Visual system: Untitled theme.css + Layer 2 (`base/` / `application/`), dark mode
+via data-theme. Staff follows the device scheme (Untitled purple via `data-app="staff"`); customer light = amber until `/book` is redesigned.
+
+@.claude/contracts/FIGMA.md
+Figma visual SoT. Required before implementing UI from design.
+
+@.claude/contracts/UNTITLED.md
+Untitled MCP/CLI install, native folders, ui/ sunset. Required before adding
+components.
 
 @.claude/BOOKING_INTERACTIONS.md
 Customer booking flow UX: hold timer, step transitions, price footer,
@@ -32,7 +39,9 @@ Read before building any customer booking step.
 @.claude/STAFF_INTERACTIONS.md
 Staff/admin global rules: AppShell + NavRail, sheets vs panels, dark theme,
 route group architecture. Read before building any staff or admin surface.
-Also load the relevant .claude/staff/0N_*.md for the surface at hand.
+Also load the relevant .claude/staff/0N_*.md **and the Figma URL** (FIGMA.md)
+for the surface at hand. Do not implement from docs/wireframes HTML when a
+Figma frame exists.
 
 ---
 
@@ -71,15 +80,11 @@ Walk-in source, booking status, refund rules, staff server actions.
 @.claude/contracts/STAFF.md
 File locations, layout auth gating, pattern vs chrome rules.
 
-Load **one** section file for the surface at hand:
+Load **one** section file for the surface at hand (plus Figma URL from FIGMA.md):
 @.claude/staff/01_COCKPIT_OVERVIEW.md — cockpit, booking detail, check-in
 @.claude/staff/02_LANES_WALKIN.md — lanes sub-view, walk-in
 @.claude/staff/03_MODIFICATION.md — modification, cancel
 @.claude/staff/04_SCHEDULE.md — schedule, lane blocking
-
-@docs/wireframes/staff/staff-app-cockpit.html
-@docs/wireframes/staff/walkin-booking-flow.html
-@docs/wireframes/staff/schedule-calendar-blocking.html
 
 ---
 
@@ -90,11 +95,8 @@ Global admin chrome (same shell as staff).
 
 @.claude/staff/06_SETTINGS.md
 @.claude/contracts/ADMIN.md
-@docs/wireframes/admin/settings-packages-unified.html
-@docs/wireframes/admin/settings-booking-policies.html
-@docs/wireframes/admin/settings-venue-details.html
-@docs/wireframes/admin/settings-integrations.html
-@docs/wireframes/admin/settings-promo-codes.html
+Visual SoT: Figma frame URL in FIGMA.md. Direct Figma layout (two-column on `lg+`,
+same AppShell padding as other staff pages). Historical HTML under docs/wireframes/admin/ is not visual SoT.
 
 ---
 
@@ -118,15 +120,13 @@ ever change per tenant. No component files change for a rebrand.
 
 ---
 
-## WIREFRAME REFERENCE
+## FIGMA REFERENCE
 
-Always check docs/wireframes/ for the screen you are building.
-Open the HTML file in a browser — it is the visual and state spec.
-Wireframes use the same token system as production code.
+Visual source of truth is **Figma** (paste a frame URL with node-id). Follow
+`.claude/contracts/FIGMA.md` and `.claude/contracts/UNTITLED.md`. Layer 2 is
+**Untitled UI React** (`base/` / `application/`). Load `.cursor/skills/untitled-figma/SKILL.md`.
 
-  docs/wireframes/customer/    booking steps, dashboard, cancel/reschedule
-  docs/wireframes/staff/       cockpit, walk-in, schedule, reports
-  docs/wireframes/admin/       all settings screens
+  docs/wireframes/  — historical only; do not implement from when Figma exists
 
 ---
 
@@ -135,7 +135,7 @@ Wireframes use the same token system as production code.
 Bowling alley lane reservation system. Family business, built to license to
 other venues. Two experiences: customer booking flow and staff/admin app.
 
-Tech stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · Shadcn/ui ·
+Tech stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · Untitled UI React ·
 Prisma + PostgreSQL · Stripe · NextAuth v5 · Resend · Vitest
 
 Venue constants — NEVER hardcode, always import from lib/venue.ts:
@@ -160,5 +160,7 @@ Run `/security-review` before merging auth, payment, webhook, or new public serv
   .claude/staff/0N_*.md                  Staff surface-specific interaction specs
   .claude/CUSTOMER_DASHBOARD.md          Customer post-booking dashboard (target design)
   .claude/SCHEMA_MIGRATIONS.md           Planned Prisma migrations — gates Part 2 features
+  .claude/contracts/FIGMA.md             Figma visual SoT + frame URL table
+  .claude/contracts/UNTITLED.md          Untitled MCP/CLI + native folders
   .claude/contracts/*.md                 Surface-specific contracts (PAYMENTS, STAFF, SECURITY, etc.)
-  docs/wireframes/                       HTML wireframes organized by experience
+  docs/wireframes/                       Historical HTML — not visual SoT when Figma exists

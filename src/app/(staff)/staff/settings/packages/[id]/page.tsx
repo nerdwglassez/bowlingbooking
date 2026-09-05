@@ -20,11 +20,7 @@ export default async function StaffSettingsEditPackagePage({ params }: PageProps
 
   return (
     <>
-      <SettingsSubpageHeader
-        title={pkg.name}
-        backHref="/staff/settings/packages"
-        backLabel="Packages"
-      />
+      <SettingsSubpageHeader title={pkg.name} />
       <PackageEditor
         mode="edit"
         tenantId={tenant.id}

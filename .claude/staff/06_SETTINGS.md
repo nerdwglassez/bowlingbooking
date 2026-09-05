@@ -4,18 +4,21 @@
 # Prerequisite: STAFF_INTERACTIONS.md (global architecture)
 # Domain:       BOOKING_DOMAIN.md (Tenant, Package, promo — Part 1 + Part 2)
 # Code contract: contracts/ADMIN.md
-# Wireframes:    docs/wireframes/admin/settings-venue-details.html,
-#                docs/wireframes/admin/settings-booking-policies.html,
-#                docs/wireframes/admin/settings-packages-unified.html,
-#                docs/wireframes/admin/settings-integrations.html,
-#                docs/wireframes/admin/admin-settings-refined.html
+# Visual: FIGMA.md employee frame table.
+#          Section switcher https://www.figma.com/design/NYFCT7CV3I6j68xggeHuYi/booking_v3?node-id=120-12428
+#          Profile desktop https://www.figma.com/design/NYFCT7CV3I6j68xggeHuYi/booking_v3?node-id=109-3465
+#          Profile mobile  https://www.figma.com/design/NYFCT7CV3I6j68xggeHuYi/booking_v3?node-id=115-8694
+#          Venue desktop   https://www.figma.com/design/NYFCT7CV3I6j68xggeHuYi/booking_v3?node-id=115-7420
+#          Hours desktop   https://www.figma.com/design/NYFCT7CV3I6j68xggeHuYi/booking_v3?node-id=115-6744
+#          Other settings interiors TBD. Historical HTML under docs/wireframes/ is not visual SoT.
+# Colors: Untitled semantic utilities (theme.css). Do not introduce --staff-* tokens.
 # Build status:  Partial — canonical routes under `/staff/settings/*` (Connect OAuth open)
 
 | Route | Status |
 |-------|--------|
-| `/staff/settings` hub | Built |
-| `/staff/settings/venue` | Built (ADMIN) |
-| `/staff/settings/hours` | Built (lane sync + bowlers/lane) |
+| `/staff/settings` | Redirects to `/staff/settings/profile` |
+| `/staff/settings/venue` | Built (ADMIN). Figma interior ready — FIGMA.md Venue desktop |
+| `/staff/settings/hours` | Built (lane sync + bowlers/lane). Figma interior ready — FIGMA.md Hours desktop |
 | `/staff/settings/pricing` | Built (PricingPeriod CRUD) |
 | `/staff/settings/policies` | Built (wireframe policy rows) |
 | `/staff/settings/packages` | Built (Public / Code-gated tabs) |
@@ -28,83 +31,61 @@
 
 ## CRITICAL: Settings Is Tab 5, Not a Separate App
 
-Settings shares the same layout, header, and tab bar as
-Cockpit, Schedule, Reports, and Team.
+Settings shares the same AppShell as Overview, Scheduling, Reporting, and Contacts.
+The rail Settings item stays a single footer link — section switcher is in-page:
 
-Settings sub-pages use standard back-chevron navigation:
-  Staff header shows: "‹ Settings" on the left + page title centered
-  Tab bar remains visible on all settings sub-pages
+  Desktop (`lg+`): Untitled underline tabs (`type="underline"` `size="sm"`)
+  under the "Settings" heading — Figma
+  https://www.figma.com/design/NYFCT7CV3I6j68xggeHuYi/booking_v3?node-id=120-12428
+  Same AppShell padding as other staff pages (16px / 32px); no back links;
+  footer CTAs `w-full lg:w-auto`. Omit ⌘K / search from that frame.
+  label + description left / controls right with a divider per section.
+  Below `lg`: stack label above fields. Select for section switcher (`max-width: 1023px`).
+  AppShell: hamburger `< lg`, 280px sidebar on `lg+` (no bottom tabs).
   All sub-pages live under app/staff/settings/[section]/page.tsx
+  `/staff/settings` redirects to `/staff/settings/profile`
 
 Never build settings as a separate layout or portal.
 
 ---
 
-## Settings Root Page (/staff/settings)
+## Settings section switcher
 
-### Page Structure
-```
-Staff header (persistent — venue name + role badge)
-Page title "Settings"
-Grouped settings list
-Tab bar (persistent)
-```
+Tab / Select order (role-filtered; hide items the role cannot access):
 
-### Settings Groups and Items
+Profile → Venue info → Operating hours → Pricing → Packages →
+Booking policies → Team → Integrations
 
-**Group: Venue** (Admin only)
-- Venue info → "Name, address, contact details"
-- Operating hours → "Open · close · lanes"
-- Pricing → "Strategy · rates · overrides"
+**Group: Venue** (Admin only except hours)
+- Venue info — ADMIN
+- Operating hours — all roles (STAFF view only)
+- Pricing — ADMIN + MANAGER
 
-**Group: Booking** (Admin + Manager)
-- Packages → "X public · X code-gated"
-- Booking policies → "Hold time · cancellation window"
+**Group: Booking**
+- Packages — all roles (STAFF view only)
+- Booking policies — ADMIN + MANAGER
 
-**Group: Team** (Admin only)
-- Team → "X staff members"
+**Group: Team** (Admin + Manager)
+- Team
 
 **Group: Integrations** (Admin only)
-- Integrations → status summary e.g. "Stripe connected · Make error"
-  Status shown inline on the root item — no tapping required
-  to see connection health at a glance
+- Integrations
 
-**Group: Account** (all roles)
-- My profile → "Name · email · password"
-- Sign out → red tint treatment (see below)
-
-### Settings Item Anatomy
-Each item:
-- Icon container: 32×32px, --radius-md, --staff-card-raised bg, 16px SVG icon
-- Label: 13px, 500 weight, --staff-text-primary
-- Sub-label: 11px, --staff-text-muted, margin-top 1px
-- Chevron: › right side, --staff-text-muted, 12px
-- Background: --staff-card, --radius-md, 1px --staff-border
-- Padding: 12px 14px
-- Tap: navigates to sub-page
-
-### Sign Out Item
-- Border: rgba(239,68,68,0.15)
-- Icon container: rgba(239,68,68,0.08) bg
-- Icon: door/exit SVG, #F87171 stroke
-- Label: "Sign out" in #FCA5A5
-- No sub-label, no chevron
-- Tap: confirmation sheet "Sign out of Royal Z Staff?" · "Sign out" + "Cancel"
+**Account**
+- Profile — all roles (first tab)
+- Sign out — desktop: AppShell footer; mobile: last Select option
+  Confirmation sheet "Sign out of {venue}?" · "Sign out" + "Cancel"
 
 ### Role-Based Visibility
 Items not available to a role are hidden entirely — not disabled.
 
 Staff role sees:
-  Account: My profile, Sign out only
-  Venue: Operating hours (view only, see below)
-  Booking: Packages (view only)
-  "Need more access? Contact your venue admin." note at bottom
+  Profile, Operating hours (view only), Packages (view only), Sign out (mobile Select)
+  (No Venue info, Pricing, policies, Team, Integrations)
 
 Manager role sees:
-  Venue: Operating hours (edit), Pricing (edit)
-  Booking: Packages (edit), Booking policies (edit)
-  Account: My profile, Sign out
-  (No Team, no Integrations)
+  Profile, Operating hours, Pricing, Packages, Booking policies, Team, Sign out
+  (No Venue info, Integrations)
 
 Admin sees everything.
 
@@ -120,10 +101,15 @@ Admin sees everything.
 
 Admin only. Manager and Staff: hidden from settings list.
 
+Visual SoT: Figma Settings/Venue (Desktop) in FIGMA.md. Reuse the layout
+section switcher. Restyle to label-left / field-right rows + Cancel/Save
+like Profile. Omit Country (no Tenant column). Do not copy Untitled ⌘K /
+dashboard chrome.
+
 ### Page Title Area
 - Title: "Venue info" (--font-display, 22px)
 - Sub-title: "Shown to customers in the booking app, emails, and confirmations."
-  (12px, --staff-text-muted)
+  (12px, text-tertiary)
 
 ### Form Sections
 
@@ -144,15 +130,15 @@ Admin only. Manager and Staff: hidden from settings list.
   Note: "Reply-to address for all booking confirmation emails."
 
 ### Form Field Styling
-- Label: 10px uppercase, --staff-text-muted, 5px bottom margin
-- Input: --staff-card bg, border 1.5px --staff-border-strong, --radius-md
-- Padding: 11px 13px, font 13px, --staff-text-primary
-- Filled state: border --staff-border-strong (no color change — always styled)
-- Focus: border --staff-action, subtle glow
-- Note text below field: 10px, --staff-text-muted, 4px top margin
+- Label: 10px uppercase, text-tertiary, 5px bottom margin
+- Input: bg-primary bg, border 1.5px border-primary, --radius-md
+- Padding: 11px 13px, font 13px, text-primary
+- Filled state: border border-primary (no color change — always styled)
+- Focus: border bg-brand-solid / text-brand-secondary, subtle glow
+- Note text below field: 10px, text-tertiary, 4px top margin
 
 ### Save Button
-- Full width, --staff-action bg, white text, 13px 600 weight
+- Full width, bg-brand-solid / text-brand-secondary bg, white text, 13px 600 weight
 - Label: "Save venue info"
 - Disabled until any field changes
 - Dynamic label: "Save venue info" → "Saving…" → "Saved" (auto-revert 2s)
@@ -163,6 +149,12 @@ Admin only. Manager and Staff: hidden from settings list.
 ## Operating Hours Sub-page (/staff/settings/hours)
 
 Admin and Manager can edit. Staff: view only.
+
+Visual SoT: Figma Settings/Operating Hours (Desktop) in FIGMA.md. Reuse the
+layout section switcher. Restyle weekly day checkboxes + From/To, lane
+configuration, and booking duration to the split-row pattern. The frame’s
+City/State/Zip under Lane Configuration is a Venue copy — do not add address
+fields here. Cancel + Save. Do not copy Untitled ⌘K / dashboard chrome.
 
 ### Page Title Area
 - Title: "Operating hours"
@@ -176,10 +168,10 @@ One row per day of the week (Sun → Sat).
 [Day label] [Open time] [–] [Close time] [Open/Closed toggle]
 ```
 
-- Day label: 3-letter abbreviation, 13px, 500 weight, --staff-text-primary, min-width 36px
-- Time inputs: styled time fields, --staff-card bg, --radius-md
+- Day label: 3-letter abbreviation, 13px, 500 weight, text-primary, min-width 36px
+- Time inputs: styled time fields, bg-primary bg, --radius-md
   Format: 24h internally, displayed as 12h
-- Separator: "–" between times, --staff-text-muted
+- Separator: "–" between times, text-tertiary
 - Toggle: small inline toggle (not the full iOS-style)
   Open state: --palette-green-500 (green)
   Closed state: --palette-stone-700 (muted)
@@ -188,13 +180,13 @@ One row per day of the week (Sun → Sat).
 **Closed day state:**
 - Time inputs: disabled, pointer-events none, 40% opacity
 - "Closed" label: --status-error-text-dark color (red tint)
-- Day label: --staff-text-muted at 60% opacity
+- Day label: text-tertiary at 60% opacity
 
 ### Copy Hours Helper
 - Appears between the hours table and lane config divider
 - Row: descriptive text + "Apply" button
-- Text: "Apply Mon–Thu hours to all weekdays" (11px, --staff-text-muted)
-- Button: "Apply" — --staff-action text, no border, text button
+- Text: "Apply Mon–Thu hours to all weekdays" (11px, text-tertiary)
+- Button: "Apply" — bg-brand-solid / text-brand-secondary text, no border, text button
 - Reduces repetitive input for days with identical hours
 
 ### Lane Configuration (on same page)
@@ -204,9 +196,9 @@ operationally related to when lanes are available.
 **Total lanes:**
 - Row: label + sub + stepper
 - Label: "Total lanes" (13px, 500 weight)
-- Sub: "Physical lanes available" (10px, --staff-text-muted)
+- Sub: "Physical lanes available" (10px, text-tertiary)
 - Stepper: [−] [value] [+]
-  Buttons: 28×28px, --radius-sm, --staff-card-raised
+  Buttons: 28×28px, --radius-sm, bg-secondary
   Value: --font-display, 17px, min-width 24px centered
 
 **Max bowlers per lane:**
@@ -217,7 +209,7 @@ operationally related to when lanes are available.
 **Booking duration range:**
 - Two dropdowns side by side: "Min duration" + "Max duration"
 - Options: 30 min, 1 hr, 1.5 hr, 2 hr, etc.
-- Dropdown: --staff-card bg, --radius-md, custom chevron
+- Dropdown: bg-primary bg, --radius-md, custom chevron
 
 ### Save Button
 - Label: "Save hours"
@@ -233,7 +225,7 @@ Admin only. Pricing moved under Venue group (not standalone).
 Section label: "Pricing strategy"
 
 **Strategy dropdown (compact):**
-- Full width select styled as --staff-card bg, --radius-md
+- Full width select styled as bg-primary bg, --radius-md
 - Options:
   "Per person · per hour"
   "Per lane · per hour"
@@ -244,9 +236,9 @@ Section label: "Pricing strategy"
 - Background: rgba(245,158,11,0.06), border rgba(245,158,11,0.15), --radius-md
 - Formula line: monospace, 12px, --status-warning-text-dark
   e.g. "price = bowlers × hours × rate"
-- Example line: 11px, --staff-text-muted
+- Example line: 11px, text-tertiary
   e.g. "6 bowlers · 2 hrs at $8.50 → $102.00"
-  Calculated amount: --staff-action color
+  Calculated amount: bg-brand-solid / text-brand-secondary color
 - Updates when strategy changes
 
 ### Default Rate
@@ -258,27 +250,27 @@ Section label: "Pricing strategy"
 ### Shoe Rental
 - Row: label + sub + $ input
 - Label: "Rental price" (13px)
-- Sub: "Per person · charged separately from lane rate" (10px, --staff-text-muted)
+- Sub: "Per person · charged separately from lane rate" (10px, text-tertiary)
 - Input: compact, right-aligned
 
 ### Rate Overrides (Priority-based)
 Section label: "Rate overrides"
-Description: "Override periods replace the default rate. Higher priority periods win when dates overlap." (11px, --staff-text-muted)
+Description: "Override periods replace the default rate. Higher priority periods win when dates overlap." (11px, text-tertiary)
 
 **Override period row:**
 - Color dot (8px circle, distinct color per period)
-- Period name: 13px, 600 weight, --staff-text-primary
-- Priority badge: "Priority N" — 9px, --staff-card-raised bg, small padding
+- Period name: 13px, 600 weight, text-primary
+- Priority badge: Untitled Badge `size="sm" type="modern"`
   (Only Admin sees priority ordering — Managers see periods without reordering)
-- Period detail: 11px, --staff-text-muted "Fri–Sun · 5:00 PM – close"
-- Rate: --font-display, 14px, --staff-action, right side
-- Chevron: › right, --staff-text-muted
+- Period detail: 11px, text-tertiary "Fri–Sun · 5:00 PM – close"
+- Rate: --font-display, 14px, bg-brand-solid / text-brand-secondary, right side
+- Chevron: › right, text-tertiary
 - Tap: opens period edit sheet
 
 **Add rate override button:**
-- Dashed border style (1.5px dashed --staff-border-strong)
+- Dashed border style (1.5px dashed border-primary)
 - + icon + "Add rate override" label
-- --staff-text-muted color
+- text-tertiary color
 - Tap: opens period creation sheet
 
 **Period creation/edit sheet:**
@@ -304,23 +296,23 @@ a separate entity — everything is a Package with an access type.
 
 **Access type filter tabs:**
 - Two tabs: "Public" | "Code-gated"
-- Active tab: --staff-action border-bottom 2px, --staff-action text
-- Inactive: --staff-text-muted
+- Active tab: bg-brand-solid / text-brand-secondary border-bottom 2px, bg-brand-solid / text-brand-secondary text
+- Inactive: text-tertiary
 
 **Package card:**
-- --staff-card bg, --radius-lg, 1px --staff-border
+- bg-primary bg, --radius-lg, 1px border-secondary
 - Code-gated packages: purple-tint border rgba(168,85,247,0.2)
 - Top row: package name (13px, 600 weight) + status dot (6px circle)
   Active: --palette-green-500
-  Inactive: --staff-border-strong
-- Description: 12px, --staff-text-muted, line-height 1.5
+  Inactive: border-primary
+- Description: 12px, text-tertiary, line-height 1.5
 - Tags row: inclusion tags (included/type/etc), --radius-full, small
-- Bottom row: price (--font-display, 17px, --staff-action) + "Edit" text button
+- Bottom row: price (--font-display, 17px, bg-brand-solid / text-brand-secondary) + "Edit" text button
 
 **Add package button:**
 - Dashed border, full width (minus 32px), --radius-lg
 - + icon + "Add package" label
-- --staff-text-muted
+- text-tertiary
 
 **Package edit page:**
 (Navigates to /staff/settings/packages/[id] or /new)
@@ -363,17 +355,17 @@ Admin and Manager can edit. All on one scrollable page — no sub-pages.
 
 ### Policy Row Anatomy
 Each policy:
-- Label: 13px, 500 weight, --staff-text-primary
-- Sub: 11px, --staff-text-muted, line-height 1.5
+- Label: 13px, 500 weight, text-primary
+- Sub: 11px, text-tertiary, line-height 1.5
 - Control: toggle, select, or stepper (right side)
-- Note (optional): 10px, --staff-text-muted below the row
+- Note (optional): 10px, text-tertiary below the row
 - Impact badges (optional): small rounded tags
   Customer-visible: amber tint
   Operations: blue tint
 
 ### Save Button
 - Label: "Save policies"
-- Full width, --staff-action bg
+- Full width, bg-brand-solid / text-brand-secondary bg
 - Single save for all policies (not per-row)
 
 ---
@@ -389,18 +381,18 @@ Admin only (Manager and Staff cannot see Team in settings list).
 
 ### Invite Button
 - Full width, below header
-- --staff-action bg, white text
+- bg-brand-solid / text-brand-secondary bg, white text
 - + icon + "Invite team member"
-- Tap: invite sheet slides up
+- Tap: invite slideout from the right
 
 ### Staff Table
 
 **Table headers:**
 - Three columns: Name · Role · Status
-- 9px uppercase, --staff-text-muted
+- `text-sm font-medium text-secondary`
 
 **Staff row:**
-- Name column: name (13px, 500 weight) + meta below (10px, --staff-text-muted)
+- Name column: name (13px, 500 weight) + meta below (10px, text-tertiary)
   Owner row: "Owner · You" as meta
   Pending invite: "Invited [date ago]" as meta
 - Role column: role badge
@@ -411,10 +403,10 @@ Admin only (Manager and Staff cannot see Team in settings list).
 - Status column: 8px dot, centered
   Active: --palette-green-500, pulsing on hover
   Pending: --palette-amber-500, pulsing
-  Inactive: --staff-border-strong
+  Inactive: border-primary
 
 **Tapping a staff row:**
-- Employee detail sheet slides up
+- Employee detail slideout from the right
 - Background dims to 18%
 
 ### Employee Detail Sheet
@@ -445,7 +437,7 @@ Admin only (Manager and Staff cannot see Team in settings list).
 - Email field: required
 - Role selector: same radio options as employee edit
 - Personal message field: optional
-- "Send invite" button: --staff-action bg
+- "Send invite" button: bg-brand-solid / text-brand-secondary bg
 - Invited users appear in table with Pending status
 
 ---
@@ -466,16 +458,16 @@ Admin only.
   All values in --status-ok-text-dark
 
 **Not connected state:**
-- Border: --staff-border (neutral)
+- Border: border-secondary (neutral)
 - Status badge: "Required" (for Stripe) — --status-critical-bg, --status-critical-text
-  OR: "Optional" — --staff-card-raised, --staff-text-muted
+  OR: "Optional" — bg-secondary, text-tertiary
 
 **Error state:**
 - Border: rgba(248,113,113,0.3) — red tint
 - Status badge: "Error" — --status-critical-bg, --status-critical-text
 
 **Tapping an integration card:**
-- Detail sheet slides up
+- Detail slideout from the right
 - Background dims to 18%
 
 ### Stripe Detail Sheet
@@ -500,8 +492,8 @@ Admin only.
 - Logo + "Make" title + error summary in red (e.g. "Webhook unreachable · last event failed 2h ago")
 - Error detail card: red tint bg, error description
 - Webhook URL field: editable, shows current URL
-- "Test webhook" button: --staff-card-raised
-- "Save webhook URL" button: --staff-action bg
+- "Test webhook" button: bg-secondary
+- "Save webhook URL" button: bg-brand-solid / text-brand-secondary bg
 - Docs link
 
 **Connected:**
@@ -516,33 +508,40 @@ Admin only.
 
 ---
 
-## My Profile Sub-page (/staff/settings/profile)
+## Profile Sub-page (/staff/settings/profile)
 
-All roles can access.
+All roles can access. Visual SoT: Figma Profile desktop + mobile URLs in FIGMA.md.
+
+Keep Royal Z AppShell (Untitled sidebar + hamburger `< lg`). Omit photo, country, timezone, and notification toggles
+(no schema). Role is read-only — never posted. Do not copy Untitled logo, ⌘K, or dummy accounts.
 
 ### Fields
-- First name + Last name (two-column row)
-- Email address
-  Note: "This is your sign-in email."
-- Current password (required to save changes)
-- New password (optional — only if changing)
-- Confirm new password (shown when new password has content)
+- Personal info heading + “Update your photo and personal details here.”
+- First name + last name (required; two-column on desktop, stacked on mobile)
+  Persist as `User.name` (join on save, split on load — first token vs remainder)
+- Email address (required, mail icon)
+  Note: changing email updates the sign-in address
+- Role (read-only display)
+- Current password (required to change email or password)
+- New password (optional). Minimum 8 characters — do not adopt Figma’s 12-char rule.
+  No confirm-password field.
 
-### Save
-- Button: "Save profile"
-- Requires current password to confirm any changes
+### Footer
+- Cancel (resets dirty fields) + Save
+- Current password required when email or password changes
 
 ---
 
 ## Global Settings Sub-page Patterns
 
 ### Navigation
-- Mobile: settings sub-pages show a back chevron "‹ Settings" in header
-- Desktop (`md+`): no back chevron — navigation lives in the NavRail
-  (the "Settings" item expands to its child pages); back chevron is
-  `md:hidden`
-- Tab bar (mobile) / NavRail (desktop) persistent on all sub-pages
-- No breadcrumbs — single level deep (Settings → Sub-page)
+- Page title is always “Settings”
+- Desktop (`lg+`): Untitled horizontal tabs (`type="underline"` `size="sm"`)
+  — Figma https://www.figma.com/design/NYFCT7CV3I6j68xggeHuYi/booking_v3?node-id=120-12428
+- Mobile: Untitled Select for the current section; Sign out is the last option
+- No back chevron “‹ Settings” — the switcher replaces it
+- AppShell NavRail (hamburger `< lg`, 280px sidebar on `lg+`) stays for primary staff nav
+- Unsaved changes on tab/select: “Save” + “Discard” + “Keep editing”
 
 ### Save / Discard Pattern
 - Editing any field shows floating footer: "Save" + "Discard"
@@ -565,38 +564,24 @@ All roles can access.
 
 ## Desktop Settings Behavior
 
-Desktop settings navigation lives in the **NavRail**, not in a second
-in-page panel. There is exactly one navigation surface on every viewport.
+Desktop settings section nav is **in-page tabs**, not expanded NavRail children.
 
-- The NavRail "Settings" item expands inline while you are within
-  `/staff/settings/*` to reveal the grouped child pages
-  (Venue · Booking · Team · Integrations · Account)
-- Active settings section highlighted in the rail with the amber
-  `--color-action-dark` left border + amber text
-- Collapses back to a single "Settings" link when you leave the section
-- Sub-pages render in the main content area without a separate sidebar
-- No back chevron on desktop — the rail is always visible (back chevron
-  is mobile-only, hidden at `md+`)
-- The settings hub page (`/staff/settings`) shows only a short prompt on
-  desktop ("Choose a section…") — the grouped list is mobile-only
-- Forms expand to use available width up to 640px max
-- Unsaved-changes guard still applies to rail navigation: the guard
-  provider wraps the AppShell so NavRail links are intercepted when a
-  form is dirty
+- NavRail “Settings” stays a single item (active for all `/staff/settings/*`)
+- Horizontal tabs under the Settings heading switch sections (Figma order, role-filtered)
+- `/staff/settings` redirects to `/staff/settings/profile`
+- No back chevron — the rail is always visible
+- Unsaved-changes guard wraps AppShell so tab, Select, and rail links are intercepted when a form is dirty
 
 ---
 
 ## What Cursor Must Not Do (Settings)
 
 - Build settings as a separate app or layout from the cockpit
-  Settings is Tab 5 — same layout, same header, same tab bar
+  Settings is a primary AppShell item — same layout, same header
 - Show items that aren't accessible to the current role
   Hidden entirely, not disabled or grayed
-- Navigate to a new layout for any settings sub-page
-  Standard staff layout + back chevron (mobile) / NavRail (desktop)
-- Render a second in-page settings nav sidebar on desktop
-  Navigation lives in the NavRail — the "Settings" item expands to its
-  child pages. A separate in-page sidebar is double navigation.
+- Expand Settings children in the NavRail (tabs own that)
+- Copy Untitled dummy chrome (logo, ⌘K search, placeholder accounts)
 - Put save buttons in the staff header (not a toolbar pattern)
   Save buttons live at the bottom of the form content
 - Send per-field API calls on every input change
@@ -604,4 +589,3 @@ in-page panel. There is exactly one navigation surface on every viewport.
 - Show the Stripe Connect button in the platform's purple
   Stripe button uses Stripe's own brand color (#6772E5)
   This is intentional brand recognition, not a token violation
-- Remove the tab bar from settings sub-pages

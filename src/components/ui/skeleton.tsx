@@ -1,22 +1,15 @@
 import * as React from 'react'
 
-function cn(
-  ...inputs: Array<string | undefined | null | false>
-): string {
-  return inputs.filter(Boolean).join(' ')
-}
+import { cx } from '@/lib/cx'
 
 export type SkeletonProps = React.HTMLAttributes<HTMLDivElement>
 
-/**
- * Placeholder block for loading states. Respects prefers-reduced-motion
- * via a static pulse-free fallback when motion is reduced.
- */
+/** Untitled-styled loading placeholder. */
 export function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
-      className={cn(
-        'rounded-[var(--radius-md)] bg-[var(--color-border)]',
+      className={cx(
+        'rounded-md bg-quaternary',
         'motion-safe:animate-pulse',
         className,
       )}

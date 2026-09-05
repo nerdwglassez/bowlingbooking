@@ -1,15 +1,11 @@
-import * as React from 'react'
-import { Slot } from '@radix-ui/react-slot'
-
 /**
- * cn — minimal className joiner. No tailwind-merge yet; conflicts are caller's
- * responsibility (use the `className` prop sparingly and rely on variants).
+ * Compatibility shim. New staff code should import from
+ * `@/components/base/badges/badges`.
  */
-function cn(
-  ...inputs: Array<string | undefined | null | false>
-): string {
-  return inputs.filter(Boolean).join(' ')
-}
+
+import * as React from 'react'
+
+import { cx } from '@/lib/cx'
 
 export type BadgeVariant = 'default' | 'ok' | 'warning' | 'error' | 'info'
 
@@ -19,35 +15,21 @@ export type BadgeVariantsArgs = {
 }
 
 const variantClassName: Record<BadgeVariant, string> = {
-  default: cn(
-    'border border-solid border-[var(--color-border)]',
-    'bg-[var(--surface-sunken)] text-[var(--color-text-secondary)]',
-  ),
-  ok: cn(
-    'border border-solid border-[var(--status-ok-border)]',
-    'bg-[var(--status-ok-bg)] text-[var(--status-ok-text)]',
-  ),
-  warning: cn(
-    'border border-solid border-[var(--status-warning-border)]',
-    'bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]',
-  ),
-  error: cn(
-    'border border-solid border-[var(--status-error-border)]',
-    'bg-[var(--status-error-bg)] text-[var(--status-error-text)]',
-  ),
-  info: cn(
-    'border border-solid border-[var(--status-info-border)]',
-    'bg-[var(--status-info-bg)] text-[var(--status-info-text)]',
-  ),
+  default: 'bg-primary text-secondary ring-1 ring-primary ring-inset',
+  ok: 'bg-success-primary text-success-primary ring-1 ring-success ring-inset',
+  warning:
+    'bg-warning-primary text-warning-primary ring-1 ring-warning ring-inset',
+  error: 'bg-error-primary text-error-primary ring-1 ring-error ring-inset',
+  info: 'bg-primary text-secondary ring-1 ring-brand ring-inset',
 }
 
 export function badgeVariants({
   variant = 'default',
   className,
 }: BadgeVariantsArgs = {}): string {
-  return cn(
+  return cx(
     'inline-flex shrink-0 items-center justify-center whitespace-nowrap',
-    'h-6 rounded-full px-2 text-xs [font-family:var(--font-body)]',
+    'h-6 rounded-full px-2 text-xs font-medium',
     variantClassName[variant],
     className,
   )
@@ -60,16 +42,23 @@ export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> &
 
 export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
   function Badge(
-    { className, variant = 'default', asChild = false, ...props },
+    { className, variant = 'default', asChild = false, children, ...props },
     ref,
   ) {
-    const Comp: React.ElementType = asChild ? Slot : 'span'
+    const classes = cx(badgeVariants({ variant }), className)
+
+    if (asChild && React.isValidElement(children)) {
+      const child = children as React.ReactElement<{ className?: string }>
+      return React.cloneElement(child, {
+        className: cx(classes, child.props.className),
+        ...props,
+      })
+    }
+
     return (
-      <Comp
-        ref={ref as never}
-        className={cn(badgeVariants({ variant }), className)}
-        {...props}
-      />
+      <span ref={ref} className={classes} {...props}>
+        {children}
+      </span>
     )
   },
 )

@@ -1,14 +1,16 @@
 'use client'
 
-import { Download } from 'lucide-react'
+import { Download01 } from '@untitledui/icons'
 
+import { Button } from '@/components/base/buttons/button'
 import { ReportsMetricDelta } from '@/components/patterns/reports-metric-delta'
+import { ReportsRevenueChart } from '@/components/patterns/reports-revenue-chart'
+import { cx } from '@/lib/cx'
 import {
   analyticsExportLabel,
   downloadCsv,
   exportAnalyticsCsv,
   formatMetricMoney,
-  packageAccentColor,
   type StaffAnalyticsSummary,
 } from '@/lib/reports-display'
 
@@ -16,44 +18,15 @@ export type ReportsAnalyticsViewProps = {
   summary: StaffAnalyticsSummary
 }
 
-function MiniBarChart({ summary }: { summary: StaffAnalyticsSummary }) {
-  const max = Math.max(...summary.weeklyBars.map((b) => b.revenueCents), 1)
+const PKG_DOT = [
+  'bg-brand-solid',
+  'bg-success-solid',
+  'bg-warning-solid',
+  'bg-error-solid',
+] as const
 
-  return (
-    <div className="mt-3">
-      <div className="flex h-9 items-end gap-0.5">
-        {summary.weeklyBars.map((bar) => {
-          const heightPct = Math.max(3, Math.round((bar.revenueCents / max) * 100))
-          return (
-            <div
-              key={bar.label}
-              className="flex flex-1 flex-col items-center gap-0.5"
-            >
-              <div
-                className={`w-full rounded-t-[2px] ${
-                  bar.highlight
-                    ? 'bg-[var(--color-action)]'
-                    : 'bg-[var(--color-action-tint)]'
-                }`}
-                style={{ height: `${Math.max(3, heightPct * 0.36)}px` }}
-              />
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-0.5 flex gap-0.5">
-        {summary.weeklyBars.map((bar) => (
-          <div
-            key={`${bar.label}-lbl`}
-            className="flex-1 text-center text-[8px] text-[var(--color-text-muted)]"
-          >
-            {bar.label}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+const CARD =
+  'flex flex-col gap-5 rounded-xl bg-primary px-4 py-5 shadow-xs ring-1 ring-secondary ring-inset md:px-5'
 
 export function ReportsAnalyticsView({ summary }: ReportsAnalyticsViewProps) {
   const maxPkgRevenue = Math.max(
@@ -62,141 +35,145 @@ export function ReportsAnalyticsView({ summary }: ReportsAnalyticsViewProps) {
   )
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="col-span-2 rounded-[var(--radius-lg)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-3.5 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-            Revenue
-          </div>
-          <div className="font-[family-name:var(--font-display)] text-[26px] leading-none text-[var(--color-action-dark)]">
-            {formatMetricMoney(summary.revenueCents)}
-          </div>
-          <ReportsMetricDelta delta={summary.revenueDelta} showLabel />
-          <MiniBarChart summary={summary} />
-        </div>
-
-        <div className="rounded-[var(--radius-lg)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-3.5 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-            Bookings
-          </div>
-          <div className="font-[family-name:var(--font-display)] text-[26px] leading-none text-[var(--color-text-primary)]">
-            {summary.bookingCount}
-          </div>
-          <ReportsMetricDelta delta={summary.bookingsDelta} />
-        </div>
-
-        <div className="rounded-[var(--radius-lg)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-3.5 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-            Avg value
-          </div>
-          <div className="font-[family-name:var(--font-display)] text-[22px] leading-none text-[var(--color-text-primary)]">
-            {formatMetricMoney(summary.avgValueCents)}
-          </div>
-          <ReportsMetricDelta delta={summary.avgValueDelta} />
-        </div>
-
-        <div className="rounded-[var(--radius-lg)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-3.5 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-            Busiest day
-          </div>
-          <div className="font-[family-name:var(--font-display)] text-lg leading-tight text-[var(--color-text-primary)]">
-            {summary.busiestDay?.dayName ?? '—'}
-          </div>
-          {summary.busiestDay ? (
-            <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-              {summary.busiestDay.peakWindow}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+        <div className={cx(CARD, 'min-w-0 flex-1')}>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-tertiary">Revenue</p>
+            <p className="text-display-sm font-semibold text-primary">
+              {formatMetricMoney(summary.revenueCents)}
             </p>
-          ) : null}
+            <ReportsMetricDelta delta={summary.revenueDelta} showLabel />
+          </div>
+          <ReportsRevenueChart summary={summary} />
         </div>
 
-        <div className="rounded-[var(--radius-lg)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-3.5 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-            No-show rate
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:flex lg:w-80 lg:shrink-0 lg:flex-col lg:gap-6">
+          <div className={CARD}>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-tertiary">Bookings</p>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <p className="text-display-sm font-semibold text-primary">
+                {summary.bookingCount}
+              </p>
+              <ReportsMetricDelta delta={summary.bookingsDelta} />
+            </div>
           </div>
-          <div className="font-[family-name:var(--font-display)] text-[22px] leading-none text-[var(--color-text-primary)]">
-            {summary.noShowRate}%
+        </div>
+
+        <div className={CARD}>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-tertiary">Avg value</p>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <p className="text-display-sm font-semibold text-primary">
+                {formatMetricMoney(summary.avgValueCents)}
+              </p>
+              <ReportsMetricDelta delta={summary.avgValueDelta} />
+            </div>
           </div>
-          <ReportsMetricDelta delta={summary.noShowDelta} invertColors />
+        </div>
+
+        <div className={CARD}>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-tertiary">Busiest day</p>
+            <div className="flex flex-col gap-3">
+              <p className="text-display-sm font-semibold text-primary">
+                {summary.busiestDay?.dayName ?? '—'}
+              </p>
+              {summary.busiestDay ? (
+                <p className="text-sm font-medium text-tertiary">
+                  {summary.busiestDay.peakWindow}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className={CARD}>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-tertiary">No-show rate</p>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <p className="text-display-sm font-semibold text-primary">
+                {summary.noShowRate}%
+              </p>
+              <ReportsMetricDelta delta={summary.noShowDelta} invertColors />
+            </div>
+          </div>
+        </div>
         </div>
       </div>
 
-      <div className="h-px bg-[var(--color-border)]" />
-
-      <section className="flex flex-col gap-2">
-        <h2 className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-secondary">
           Package breakdown
         </h2>
-        <div>
         {summary.packages.length === 0 ? (
-          <p className="text-xs text-[var(--color-text-secondary)]">
+          <p className="text-sm text-tertiary">
             No package revenue in this period.
           </p>
         ) : (
           summary.packages.map((pkg, index) => (
             <div
               key={pkg.packageId}
-              className="flex items-center gap-2.5 border-b border-solid border-[var(--color-border)] py-2 last:border-0"
+              className="flex items-center gap-3 border-b border-secondary py-2 last:border-0"
             >
               <span
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: packageAccentColor(index) }}
+                className={cx(
+                  'size-2 shrink-0 rounded-full',
+                  PKG_DOT[index % PKG_DOT.length],
+                )}
               />
-              <span className="flex-1 text-xs text-[var(--color-text-primary)]">
+              <span className="flex-1 text-sm text-primary">
                 {pkg.packageName}
               </span>
-              <span className="mr-2 text-[11px] text-[var(--color-text-muted)]">
+              <span className="mr-2 text-xs text-tertiary">
                 {pkg.bookingCount}
               </span>
-              <div className="h-1 w-[60px] overflow-hidden rounded-[2px] bg-[var(--color-border)]">
+              <div className="h-1.5 w-[60px] overflow-hidden rounded-full bg-secondary">
                 <div
-                  className="h-full rounded-[2px]"
+                  className={cx(
+                    'h-full rounded-full',
+                    PKG_DOT[index % PKG_DOT.length],
+                  )}
                   style={{
                     width: `${Math.round((pkg.revenueCents / maxPkgRevenue) * 100)}%`,
-                    backgroundColor: packageAccentColor(index),
                   }}
                 />
               </div>
-              <span className="text-xs font-semibold text-[var(--color-action-dark)]">
+              <span className="text-sm font-semibold text-brand-secondary">
                 {formatMetricMoney(pkg.revenueCents)}
               </span>
             </div>
           ))
         )}
-        </div>
       </section>
 
       {summary.promoUsage.length > 0 ? (
-        <>
-          <div className="h-px bg-[var(--color-border)]" />
-          <section className="flex flex-col gap-2">
-            <h2 className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
-              Promo code usage
-            </h2>
-            <div>
-            {summary.promoUsage.map((promo) => (
-              <div
-                key={promo.code}
-                className="flex items-center gap-2.5 border-b border-solid border-[var(--color-border)] py-2 last:border-0"
-              >
-                <span className="flex-1 font-mono text-xs font-semibold text-[var(--color-text-primary)]">
-                  {promo.code}
-                </span>
-                <span className="text-[11px] text-[var(--color-text-muted)]">
-                  {promo.uses} uses
-                </span>
-                <span className="text-[11px] text-[var(--status-error-text)]">
-                  −{formatMetricMoney(promo.savedCents)}
-                </span>
-              </div>
-            ))}
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold text-secondary">
+            Promo code usage
+          </h2>
+          {summary.promoUsage.map((promo) => (
+            <div
+              key={promo.code}
+              className="flex items-center gap-3 border-b border-secondary py-2 last:border-0"
+            >
+              <span className="flex-1 font-mono text-sm font-semibold text-primary">
+                {promo.code}
+              </span>
+              <span className="text-xs text-tertiary">{promo.uses} uses</span>
+              <span className="text-xs text-error-primary">
+                −{formatMetricMoney(promo.savedCents)}
+              </span>
             </div>
-          </section>
-        </>
+          ))}
+        </section>
       ) : null}
 
-      <button
+      <Button
         type="button"
-        className="flex w-full items-center justify-center gap-1.5 rounded-[var(--radius-md)] border-[1.5px] border-solid border-[var(--color-border-strong)] bg-transparent py-2.5 text-xs font-medium text-[var(--color-text-secondary)]"
+        color="secondary"
+        iconLeading={Download01}
         onClick={() =>
           downloadCsv(
             `reports-${summary.period}.csv`,
@@ -204,9 +181,8 @@ export function ReportsAnalyticsView({ summary }: ReportsAnalyticsViewProps) {
           )
         }
       >
-        <Download className="size-3.5" aria-hidden />
         {analyticsExportLabel(summary.period)}
-      </button>
+      </Button>
     </div>
   )
 }

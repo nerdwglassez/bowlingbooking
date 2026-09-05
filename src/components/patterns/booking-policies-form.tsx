@@ -3,9 +3,10 @@
 import type { ReactNode } from 'react'
 
 import { SettingsSaveButton } from '@/components/patterns/settings-save-button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
-import { Toggle } from '@/components/ui/toggle'
+import { SettingsFieldRow } from '@/components/patterns/settings-field-row'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
+import { Toggle } from '@/components/base/toggle/toggle'
 import type { SettingsSavePhase } from '@/lib/use-settings-form-state'
 
 export interface BookingPoliciesFormValues {
@@ -75,35 +76,22 @@ function PolicyRow({
   children: ReactNode
 }) {
   return (
-    <div className="rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] px-3.5 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-[var(--color-text-primary)]">{label}</p>
-          {sub ? (
-            <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
-              {sub}
-            </p>
-          ) : null}
-          {badge ? (
-            <span
-              className={`mt-1.5 inline-flex rounded-[var(--radius-full)] border border-solid px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                badge === 'customer'
-                  ? 'border-[color-mix(in_srgb,var(--color-action)_20%,transparent)] text-[var(--color-action)]'
-                  : 'border-[color-mix(in_srgb,var(--status-info-text)_25%,transparent)] text-[var(--status-info-text)]'
-              }`}
-            >
-              {badge === 'customer' ? 'Shown to customers' : 'Affects cockpit Late stat'}
-            </span>
-          ) : null}
-        </div>
-        <div className="shrink-0">{children}</div>
-      </div>
-      {note ? (
-        <p className="mt-2 border-t border-solid border-[var(--color-border)] pt-2 text-[10px] leading-relaxed text-[var(--color-text-secondary)]">
-          {note}
-        </p>
-      ) : null}
-    </div>
+    <SettingsFieldRow
+      label={label}
+      hint={[
+        sub,
+        badge === 'customer'
+          ? 'Shown to customers.'
+          : badge === 'ops'
+            ? 'Affects cockpit Late stat.'
+            : undefined,
+        note,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {children}
+    </SettingsFieldRow>
   )
 }
 
@@ -128,23 +116,23 @@ function Stepper({
         type="button"
         disabled={disabled || value <= min}
         onClick={() => onChange(Math.max(min, value - 1))}
-        className="flex size-7 items-center justify-center rounded-[var(--radius-sm)] border border-solid border-[var(--color-border-strong)] bg-[var(--surface-sunken)] text-base leading-none disabled:opacity-30"
+        className="flex size-7 items-center justify-center rounded-lg border border-solid border-secondary bg-secondary text-base leading-none disabled:opacity-30"
       >
         −
       </button>
-      <span className="min-w-7 text-center [font-family:var(--font-display)] text-base text-[var(--color-text-primary)]">
+      <span className="min-w-7 text-center [font-family:var(--font-display)] text-base text-primary">
         {value}
       </span>
       <button
         type="button"
         disabled={disabled || value >= max}
         onClick={() => onChange(Math.min(max, value + 1))}
-        className="flex size-7 items-center justify-center rounded-[var(--radius-sm)] border border-solid border-[var(--color-border-strong)] bg-[var(--surface-sunken)] text-base leading-none disabled:opacity-30"
+        className="flex size-7 items-center justify-center rounded-lg border border-solid border-secondary bg-secondary text-base leading-none disabled:opacity-30"
       >
         +
       </button>
       {unit ? (
-        <span className="text-[11px] text-[var(--color-text-secondary)]">{unit}</span>
+        <span className="text-[11px] text-tertiary">{unit}</span>
       ) : null}
     </div>
   )
@@ -152,7 +140,7 @@ function Stepper({
 
 function GroupLabel({ children }: { children: ReactNode }) {
   return (
-    <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+    <h2 className="pt-5 text-lg font-semibold text-primary first:pt-0">
       {children}
     </h2>
   )
@@ -177,7 +165,7 @@ export function BookingPoliciesForm({
         e.preventDefault()
         if (!readOnly) onSubmit()
       }}
-      className="flex flex-col gap-4"
+      className="flex flex-col"
     >
       <GroupLabel>Checkout</GroupLabel>
       <PolicyRow label="Lane hold time" sub="Minutes a slot stays reserved during checkout">
@@ -191,20 +179,18 @@ export function BookingPoliciesForm({
         />
       </PolicyRow>
       <PolicyRow label="Minimum booking notice" sub="How soon customers can book online">
-        <Select
+        <NativeSelect
           value={String(values.minBookingNoticeMinutes)}
           disabled={readOnly}
           className="min-w-[7rem]"
           onChange={(e) =>
             patch({ minBookingNoticeMinutes: Number(e.target.value) })
           }
-        >
-          {NOTICE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
+          options={NOTICE_OPTIONS.map((o) => ({
+            label: o.label,
+            value: String(o.value),
+          }))}
+        />
       </PolicyRow>
 
       <GroupLabel>Self-serve changes</GroupLabel>
@@ -214,74 +200,65 @@ export function BookingPoliciesForm({
         badge="customer"
         note="Shown to customers as 'Free cancellation until [date]'"
       >
-        <Select
+        <NativeSelect
           value={String(values.cancellationWindowHours)}
           disabled={readOnly}
           className="min-w-[7rem]"
           onChange={(e) =>
             patch({ cancellationWindowHours: Number(e.target.value) })
           }
-        >
-          {CANCELLATION_WINDOWS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
+          options={CANCELLATION_WINDOWS.map((o) => ({
+            label: o.label,
+            value: String(o.value),
+          }))}
+        />
       </PolicyRow>
       <PolicyRow
         label="Reschedule window"
         sub="Independent window for customer reschedules"
         badge="customer"
       >
-        <Select
+        <NativeSelect
           value={String(values.rescheduleWindowHours)}
           disabled={readOnly}
           className="min-w-[7rem]"
           onChange={(e) =>
             patch({ rescheduleWindowHours: Number(e.target.value) })
           }
-        >
-          {CANCELLATION_WINDOWS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
+          options={CANCELLATION_WINDOWS.map((o) => ({
+            label: o.label,
+            value: String(o.value),
+          }))}
+        />
       </PolicyRow>
       <PolicyRow
         label="Check-in window"
         sub="Customers can check in during this window before their reservation"
       >
-        <Select
+        <NativeSelect
           value={String(values.checkInWindowMinutes)}
           disabled={readOnly}
           className="min-w-[7rem]"
           onChange={(e) =>
             patch({ checkInWindowMinutes: Number(e.target.value) })
           }
-        >
-          {CHECKIN_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
+          options={CHECKIN_OPTIONS.map((o) => ({
+            label: o.label,
+            value: String(o.value),
+          }))}
+        />
       </PolicyRow>
       <PolicyRow label="Refund percent within window">
         <Input
           type="number"
-          min={0}
-          max={100}
           className="w-16 text-center"
-          inputSize="sm"
-          value={values.cancellationRefundPercent}
-          disabled={readOnly}
-          onChange={(e) =>
+          value={String(values.cancellationRefundPercent)}
+          isDisabled={readOnly}
+          onChange={(value) =>
             patch({
               cancellationRefundPercent: Math.max(
                 0,
-                Math.min(100, Math.floor(Number(e.target.value) || 0)),
+                Math.min(100, Math.floor(Number(value) || 0)),
               ),
             })
           }
@@ -303,20 +280,18 @@ export function BookingPoliciesForm({
         />
       </PolicyRow>
       <PolicyRow label="Max advance booking" sub="How far ahead customers can book online">
-        <Select
+        <NativeSelect
           value={String(values.maxAdvanceBookingDays)}
           disabled={readOnly}
           className="min-w-[7rem]"
           onChange={(e) =>
             patch({ maxAdvanceBookingDays: Number(e.target.value) })
           }
-        >
-          {ADVANCE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
+          options={ADVANCE_OPTIONS.map((o) => ({
+            label: o.label,
+            value: String(o.value),
+          }))}
+        />
       </PolicyRow>
 
       <GroupLabel>Operations</GroupLabel>
@@ -339,9 +314,9 @@ export function BookingPoliciesForm({
         sub="Disabling hides the walk-in button in the cockpit"
       >
         <Toggle
-          checked={values.allowWalkInBookings}
-          disabled={readOnly}
-          onChange={(e) => patch({ allowWalkInBookings: e.target.checked })}
+          isSelected={values.allowWalkInBookings}
+          isDisabled={readOnly}
+          onChange={(allowWalkInBookings) => patch({ allowWalkInBookings })}
           aria-label="Allow walk-in bookings"
         />
       </PolicyRow>
@@ -350,23 +325,25 @@ export function BookingPoliciesForm({
         sub="Customers must sign in to cancel or reschedule online"
       >
         <Toggle
-          checked={values.requireAccountToModify}
-          disabled={readOnly}
-          onChange={(e) => patch({ requireAccountToModify: e.target.checked })}
+          isSelected={values.requireAccountToModify}
+          isDisabled={readOnly}
+          onChange={(requireAccountToModify) => patch({ requireAccountToModify })}
           aria-label="Require account to modify"
         />
       </PolicyRow>
 
       {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+        <p className="text-sm text-error-primary">{error}</p>
       ) : null}
 
       {!readOnly ? (
-        <SettingsSaveButton
-          label="Save policies"
-          dirty={dirty ?? true}
-          phase={phase}
-        />
+        <div className="flex justify-end pt-4">
+          <SettingsSaveButton
+            label="Save policies"
+            dirty={dirty ?? true}
+            phase={phase}
+          />
+        </div>
       ) : null}
     </form>
   )

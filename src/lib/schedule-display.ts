@@ -8,8 +8,9 @@ import type {
 
 const DAY_DETAIL = new Intl.DateTimeFormat('en-US', {
   weekday: 'long',
-  month: 'long',
+  month: 'short',
   day: 'numeric',
+  year: 'numeric',
 })
 
 const SLOT_TIME = new Intl.DateTimeFormat('en-US', {
@@ -49,6 +50,12 @@ export function monthParam(year: number, month: number): string {
 
 export function formatDayDetailTitle(dateISO: string): string {
   return DAY_DETAIL.format(new Date(`${dateISO}T12:00:00`))
+}
+
+/** Week-of-month badge (Untitled calendar chrome), 1-based. */
+export function weekOfMonth(dateISO: string): number {
+  const day = new Date(`${dateISO}T12:00:00`).getDate()
+  return Math.ceil(day / 7)
 }
 
 export function formatSlotTime(d: Date): string {
@@ -131,7 +138,8 @@ export type CalendarCell = {
 
 export function buildMonthGrid(year: number, month: number): CalendarCell[] {
   const firstOfMonth = new Date(year, month, 1)
-  const startOffset = firstOfMonth.getDay()
+  // Monday-first to match Untitled calendar frames (Mon–Sun).
+  const startOffset = (firstOfMonth.getDay() + 6) % 7
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const cells: CalendarCell[] = []
 

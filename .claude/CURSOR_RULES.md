@@ -3,50 +3,57 @@
 
 ## The most important rule
 Read DESIGN_SYSTEM.md before writing any component, style, or page.
-All visual decisions flow from the token system defined there.
+All visual decisions flow from `theme.css` (Untitled) plus the legacy token bridge.
 
 ---
 
 ## Token usage
 
-ALWAYS use CSS custom properties for all colors, fonts, radius, shadows.
-NEVER use raw hex values, Tailwind color classes, or hardcoded font names.
+ALWAYS use Untitled semantic utilities from `theme.css` OR legacy CSS custom
+properties (`var(--color-*)`, `var(--surface-*)`) in unreworked patterns.
+NEVER use raw hex values, Tailwind palette classes, or hardcoded font names.
 
 ```
-WRONG: color: '#1C1917'            RIGHT: color: var(--color-text-primary)
-WRONG: background: '#F59E0B'       RIGHT: background: var(--color-action)
-WRONG: className="bg-amber-500"    RIGHT: use Button variant="primary"
+WRONG: color: '#1C1917'            RIGHT: className="text-primary"  OR  color: var(--color-text-primary)
+WRONG: background: '#F59E0B'       RIGHT: className="bg-brand-solid"
+WRONG: className="bg-amber-500"    RIGHT: Button color="primary" (Untitled) or variant="primary" (ui/ shim)
 WRONG: fontFamily: 'Fraunces'      RIGHT: fontFamily: var(--font-display)
-WRONG: color: var(--palette-stone-500)  RIGHT: color: var(--color-text-secondary)
+WRONG: color: var(--palette-stone-500)  RIGHT: className="text-secondary"
 ```
 
-Palette tokens (--palette-*) are NEVER used in components.
-They exist only to define semantic tokens in tokens.css.
+Palette tokens (`--palette-*`) are NEVER used in components.
+They exist only to define semantic tokens in `tokens.css`.
 
 ---
 
 ## Component hierarchy — always follow this
 
 Layer 1 → Layer 2 → Layer 3 → Layer 4
-Tokens  → Primitives → Patterns → Pages
+Tokens  → Untitled primitives → Patterns → Pages
 
 - Pages contain layout (flex, grid, gap, padding) and component composition ONLY
 - Pages never contain color, typography, or border styles
-- Pattern components compose from ui/ primitives only — no raw styles
-- Primitive components in ui/ are the ONLY place each element is styled
+- Pattern components compose from `base/` / `application/` (or `ui/` shims) only
+- Untitled files under `base/`, `application/`, and `foundations/` are the only
+  place interactive primitives are implemented. `ui/` is re-exports only.
 
-If you need a new visual variant, add it to the component file.
+If you need a new visual variant, install or extend the Untitled component.
 Never create a one-off styled element in a page or pattern.
 
 ---
 
 ## File locations
 
-Tokens:           src/styles/tokens.css
-Global styles:    src/styles/globals.css
+Untitled theme:   src/styles/theme.css
+Legacy aliases:   src/styles/tokens.css
+Global styles:    src/app/globals.css
 Tenant themes:    src/styles/themes/{slug}.css
-Primitives:       src/components/ui/
+Base primitives:  src/components/base/
+Application UI:   src/components/application/
+Foundations:      src/components/foundations/
+UI shims:         src/components/ui/ (temporary re-exports)
 Patterns:         src/components/patterns/
+Chrome:           src/components/chrome/
 Business logic:   src/lib/
 Hooks:            src/hooks/
 Context:          src/context/
@@ -55,35 +62,35 @@ API routes:       app/api/
 Customer pages:   app/(customer)/
 Staff pages:      app/(staff)/
 Admin pages:      app/(admin)/
-Wireframes:       docs/wireframes/
+Figma:            .claude/contracts/FIGMA.md
+Untitled install: .claude/contracts/UNTITLED.md
+Wireframes:       docs/wireframes/ (historical)
 
 ---
 
-## Wireframe reference
+## Figma + Untitled
 
-Before building any screen, check docs/wireframes/ for the matching HTML file.
-The wireframes show exact component composition, spacing, and state variations.
-Use them as visual spec — do not deviate from the token system they demonstrate.
-
-Customer screens: docs/wireframes/customer/
-Staff screens:    docs/wireframes/staff/
-Admin screens:    docs/wireframes/admin/
+Before building any screen: Figma frame URL (FIGMA.md) + Untitled components (UNTITLED.md).
+Load `.cursor/skills/untitled-figma/SKILL.md` when implementing UI from design.
+`docs/wireframes/` is historical — do not implement from it when Figma exists.
 
 ---
 
 ## Tailwind usage
 
-Tailwind IS used for: layout, spacing, flexbox, grid, sizing
-Tailwind is NOT used for: colors, typography colors, dark mode variants
+Tailwind IS used for: layout, spacing, flexbox, grid, sizing, **and Untitled
+semantic color utilities** (`bg-brand-solid`, `text-secondary`, `bg-primary`, …).
+
+`dark:` is allowed **only** because `@custom-variant dark` maps to
+`[data-theme="dark"]`. Never `prefers-color-scheme`.
 
 ```
 OK:    className="flex items-center gap-4 px-4 py-3 w-full"
-OK:    className="grid grid-cols-2 gap-3"
-WRONG: className="bg-amber-500 text-white dark:bg-amber-400"
+OK:    className="bg-brand-solid text-white"
+OK:    className="dark:bg-primary"   ← Untitled, resolved via data-theme
+WRONG: className="bg-amber-500 text-white"
 WRONG: className="text-stone-600 border-stone-200"
 ```
-
-Never use dark: prefix. The data-theme system handles both modes via CSS vars.
 
 ---
 
@@ -108,10 +115,9 @@ Refunds:       server-side only at POST /api/staff/bookings/[id]/refund
 
 ## Dark mode
 
-Staff app: data-theme="dark" on <html> — always dark
-Customer app: data-theme="light" default, toggleable
-Set in layout.tsx for each route group.
-Components need no conditional logic — tokens handle both modes.
+Staff app: data-theme follows the device scheme (`StaffThemeScope`)
+Customer app: data-theme="light" (amber until /book is redesigned)
+Untitled `dark:` utilities follow `data-theme`. Never a second theme system.
 
 ---
 
@@ -125,10 +131,11 @@ Theme is loaded by getTenant() via tenant.themeSlug.
 
 ## When adding a new feature
 
-1. Check docs/wireframes/ for the visual spec
-2. Check .claude/ context files for domain rules
-3. Add types to src/types/ first
-4. If new UI pattern needed: add variant to existing ui/ component OR create new ui/ component
-5. Business logic goes in src/lib/
-6. Page composes patterns; pattern composes ui/ components
-7. No new styles at page level — ever
+1. Check Figma frame / FIGMA.md for the visual spec
+2. Check UNTITLED.md — install missing components via MCP CLI
+3. Check .claude/ context files for domain rules
+4. Add types to src/types/ first
+5. If new UI needed: Untitled MCP install into `base/` / `application/`, not a one-off
+6. Business logic goes in src/lib/
+7. Page composes patterns; pattern composes Untitled primitives
+8. No new styles at page level — ever

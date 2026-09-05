@@ -10,7 +10,7 @@ import { getAllowWalkInBookings, getTenant } from '@/lib/tenant'
 export default async function StaffCockpitPage({
   searchParams,
 }: {
-  searchParams: Promise<{ walkin?: string }>
+  searchParams: Promise<{ walkin?: string; view?: string; booking?: string }>
 }) {
   const tenant = await getTenant()
   const user = await getCurrentUser()
@@ -21,6 +21,7 @@ export default async function StaffCockpitPage({
   ])
 
   const canRefund = user?.role === 'MANAGER' || user?.role === 'ADMIN'
+  const subview = params.view === 'lanes' ? 'lanes' : 'overview'
 
   return (
     <CockpitPageClient
@@ -28,11 +29,12 @@ export default async function StaffCockpitPage({
       tenantId={tenant.id}
       packages={packages}
       venueName={tenant.name}
-      clockLine={buildCockpitClockLine()}
+      clockLine={buildCockpitClockLine(new Date(), tenant.timezone)}
       initialWalkInOpen={params.walkin === '1'}
       bowlersPerLane={tenant.bowlersPerLane}
       allowWalkInBookings={getAllowWalkInBookings(tenant)}
       canRefund={canRefund}
+      subview={subview}
     />
   )
 }

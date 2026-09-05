@@ -1,9 +1,7 @@
 // /admin/audit — read-only audit log (ADMIN-only via listAuditLogs).
 
-import Link from 'next/link'
-
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/base/badges/badges'
+import { Button } from '@/components/base/buttons/button'
 import { EmptyState } from '@/components/patterns/empty-state'
 import { listAuditLogs, type AuditLogFilter } from '@/lib/actions/admin'
 import { AUDIT_LOG_ACTIONS } from '@/lib/audit-actions'
@@ -157,14 +155,14 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
     : undefined
 
   const selectClass =
-    'min-h-10 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--color-text-primary)]'
+    'min-h-10 rounded-xl border border-solid border-secondary bg-primary px-3 text-sm text-primary'
 
   return (
     <>
       <header className="flex flex-col gap-2">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl">Audit log</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
+          <p className="text-sm text-tertiary">
             {filterSummaryLine({
               action: actionIn,
               entityType: entityTypeIn,
@@ -179,9 +177,9 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
 
       <form
         method="GET"
-        className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4 md:flex-row md:flex-wrap md:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4 md:flex-row md:flex-wrap md:items-end"
       >
-        <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-[var(--color-text-secondary)]">
+        <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-tertiary">
           Action
           <select name="action" defaultValue={actionIn ?? ''} className={selectClass}>
             <option value="">All</option>
@@ -192,7 +190,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
             ))}
           </select>
         </label>
-        <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-[var(--color-text-secondary)]">
+        <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-tertiary">
           Entity type
           <select
             name="entityType"
@@ -207,7 +205,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
             ))}
           </select>
         </label>
-        <label className="flex min-w-[9rem] flex-col gap-1 text-xs text-[var(--color-text-secondary)]">
+        <label className="flex min-w-[9rem] flex-col gap-1 text-xs text-tertiary">
           From
           <input
             type="date"
@@ -216,7 +214,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
             className={selectClass}
           />
         </label>
-        <label className="flex min-w-[9rem] flex-col gap-1 text-xs text-[var(--color-text-secondary)]">
+        <label className="flex min-w-[9rem] flex-col gap-1 text-xs text-tertiary">
           To
           <input
             type="date"
@@ -226,7 +224,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
           />
         </label>
         <input type="hidden" name="page" value="1" />
-        <Button type="submit" variant="secondary">
+        <Button type="submit" color="secondary">
           Filter
         </Button>
       </form>
@@ -235,23 +233,23 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
         <EmptyState title="No audit entries" />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-[var(--radius-md)] border border-solid border-[var(--color-border)]">
+          <div className="overflow-x-auto rounded-xl border border-solid border-secondary">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-solid border-[var(--color-border)] bg-[var(--surface-sunken)]">
-                  <th className="p-3 font-medium text-[var(--color-text-secondary)]">
+                <tr className="border-b border-solid border-secondary bg-secondary">
+                  <th className="p-3 font-medium text-tertiary">
                     When
                   </th>
-                  <th className="p-3 font-medium text-[var(--color-text-secondary)]">
+                  <th className="p-3 font-medium text-tertiary">
                     Action
                   </th>
-                  <th className="p-3 font-medium text-[var(--color-text-secondary)]">
+                  <th className="p-3 font-medium text-tertiary">
                     Entity
                   </th>
-                  <th className="p-3 font-medium text-[var(--color-text-secondary)]">
+                  <th className="p-3 font-medium text-tertiary">
                     User
                   </th>
-                  <th className="p-3 font-medium text-[var(--color-text-secondary)]">
+                  <th className="p-3 font-medium text-tertiary">
                     Details
                   </th>
                 </tr>
@@ -260,27 +258,29 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
                 {result.entries.map((row) => (
                   <tr
                     key={row.id}
-                    className="border-b border-solid border-[var(--color-border)] last:border-b-0"
+                    className="border-b border-solid border-secondary last:border-b-0"
                   >
-                    <td className="whitespace-nowrap p-3 align-top text-[var(--color-text-primary)]">
+                    <td className="whitespace-nowrap p-3 align-top text-primary">
                       {whenFormatter.format(row.createdAt)}
                     </td>
                     <td className="p-3 align-top">
-                      <Badge variant="default">{row.action}</Badge>
+                      <Badge size="sm" color="gray" type="modern">
+                        {row.action}
+                      </Badge>
                     </td>
-                    <td className="p-3 align-top text-[var(--color-text-primary)]">
+                    <td className="p-3 align-top text-primary">
                       {row.entityType} · {shortEntityId(row.entityId)}
                     </td>
-                    <td className="p-3 align-top text-[var(--color-text-primary)]">
+                    <td className="p-3 align-top text-primary">
                       {row.userId == null ? (
-                        <span className="text-[var(--color-text-secondary)]">
+                        <span className="text-tertiary">
                           system
                         </span>
                       ) : (
                         <span className="flex flex-col gap-0.5">
                           <span>{row.userName ?? row.userEmail ?? row.userId}</span>
                           {row.userName && row.userEmail ? (
-                            <span className="text-xs text-[var(--color-text-secondary)]">
+                            <span className="text-xs text-tertiary">
                               {row.userEmail}
                             </span>
                           ) : null}
@@ -288,7 +288,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
                       )}
                     </td>
                     <td className="max-w-[14rem] p-3 align-top">
-                      <pre className="whitespace-pre-wrap break-words font-mono text-xs text-[var(--color-text-secondary)]">
+                      <pre className="whitespace-pre-wrap break-words font-mono text-xs text-tertiary">
                         {formatDetailsPreview(row.details)}
                       </pre>
                     </td>
@@ -299,27 +299,27 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
           </div>
 
           <nav
-            className="flex items-center justify-between gap-2 border-t border-solid border-[var(--color-border)] pt-4"
+            className="flex items-center justify-between gap-2 border-t border-solid border-secondary pt-4"
             aria-label="Audit log pagination"
           >
             {result.page > 1 && prevHref ? (
-              <Button asChild variant="ghost" size="sm">
-                <Link href={prevHref}>Previous</Link>
+              <Button href={prevHref} color="tertiary" size="sm">
+                Previous
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" disabled>
+              <Button color="tertiary" size="sm" isDisabled>
                 Previous
               </Button>
             )}
-            <span className="text-sm text-[var(--color-text-secondary)]">
+            <span className="text-sm text-tertiary">
               Page {result.page}
             </span>
             {result.hasMore && nextHref ? (
-              <Button asChild variant="ghost" size="sm">
-                <Link href={nextHref}>Next</Link>
+              <Button href={nextHref} color="tertiary" size="sm">
+                Next
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" disabled>
+              <Button color="tertiary" size="sm" isDisabled>
                 Next
               </Button>
             )}

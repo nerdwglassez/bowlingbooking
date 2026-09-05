@@ -1,18 +1,14 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-import { Card, CardBody, CardHeader } from '@/components/ui/card'
+import { SignInThemeScope } from '@/components/chrome/sign-in-theme-scope'
+import { SignInScreen } from '@/components/patterns/sign-in-screen'
 import { getCurrentUser } from '@/lib/auth'
 import { getPostSignInPath } from '@/lib/post-sign-in'
-import {
-  bookingReturnPath,
-  isBookingSignInFrom,
-  sanitizeSignInFrom,
-} from '@/lib/auth-paths'
+import { sanitizeSignInFrom } from '@/lib/auth-paths'
 import { getTenant } from '@/lib/tenant'
 import { SignInForm } from './sign-in-form'
+
+export const dynamic = 'force-dynamic'
 
 function fromSearchParam(raw: string | string[] | undefined): string {
   if (typeof raw !== 'string') return '/'
@@ -33,31 +29,10 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const tenant = await getTenant()
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-4 py-8">
-      <header className="flex flex-col items-center gap-1 text-center">
-        <h1 className="text-2xl">{tenant.name}</h1>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Sign in to continue
-        </p>
-      </header>
-
-      <Card variant="default">
-        <CardHeader>
-          <h2 className="text-lg">Staff sign-in</h2>
-        </CardHeader>
-        <CardBody>
-          <SignInForm from={from} />
-        </CardBody>
-      </Card>
-
-      {isBookingSignInFrom(from) ? (
-        <Link
-          href={bookingReturnPath(from)}
-          className="block w-full text-center text-sm font-medium text-[var(--color-text-secondary)]"
-        >
-          ← Back to booking
-        </Link>
-      ) : null}
-    </main>
+    <SignInThemeScope>
+      <SignInScreen venueName={tenant.name} year={new Date().getFullYear()}>
+        <SignInForm from={from} />
+      </SignInScreen>
+    </SignInThemeScope>
   )
 }

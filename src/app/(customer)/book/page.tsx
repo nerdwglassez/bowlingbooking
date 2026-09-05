@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useBooking } from '@/context/BookingContext'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
 import {
   acquireBookingHold,
@@ -206,7 +205,6 @@ export default function BookStepOnePage() {
     <BookingFlowShell
       venueName={tenant.name}
       address={tenant.address}
-      signInHref={STAFF_SIGN_IN_PATH}
       currentStep={1}
       holdExpiresAt={session.holdExpiresAt}
       onHoldExpire={handleHoldExpired}
@@ -228,6 +226,8 @@ export default function BookStepOnePage() {
           <GroupSizeBanner phone={tenant.phone} maxBowlers={maxOnlineBowlers} />
         ) : null}
       </section>
+
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
       <section className="flex flex-col gap-2">
         <h2 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
           Pick a date
@@ -306,6 +306,7 @@ export default function BookStepOnePage() {
           />
         )}
       </section>
+      </div>
 
       <Button
         variant="primary"
