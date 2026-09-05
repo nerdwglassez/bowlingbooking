@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 
 import { hashPassword } from '@/lib/auth'
 import { sendPasswordResetEmail } from '@/lib/email'
+import { resetPasswordError } from '@/lib/password-rules'
 import { isDevWithoutDb } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { assertPublicRateLimit } from '@/lib/rate-limit-request'
@@ -67,8 +68,9 @@ export async function resetPasswordAction(input: {
   token: string
   password: string
 }): Promise<{ ok: true }> {
-  if (input.password.length < 8) {
-    throw new Error('Password must be at least 8 characters.')
+  const passwordProblem = resetPasswordError(input.password)
+  if (passwordProblem) {
+    throw new Error(passwordProblem)
   }
 
   if (isDevWithoutDb()) {

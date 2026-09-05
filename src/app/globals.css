@@ -44,6 +44,21 @@
   }
 }
 
+/* Chrome fires animationstart on autofill so React can sync FormData. */
+@keyframes on-autofill-start {
+  from {
+    opacity: 0.99;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+input:-webkit-autofill {
+  animation-name: on-autofill-start;
+  animation-duration: 1ms;
+}
+
 html,
 body {
   height: 100%;

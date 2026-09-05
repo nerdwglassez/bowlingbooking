@@ -198,6 +198,17 @@ Redirects to `/book` so old links still work.
 - Compose: `<SignInThemeScope>` + `<SignInScreen>` + `<SignInForm>`. Page is composition only.
 - Omit Google OAuth and Sign up (AUTH.md). Keep Remember for 30 days + Forgot password.
 - Already signed in → `getPostSignInPath(from, user)`. Staff → `/staff`; customers from `/book/confirm` stay on checkout; generic `/` → dashboard or find-my-booking.
+- Login password field hides the in-field eye toggle so Chrome / iCloud password widgets stay clickable.
+
+### `app/forgot-password/page.tsx` — Request a reset link
+**Visual:** FIGMA.md Forgot / reset password row — [flow](https://www.figma.com/design/yDxNvjNjc4C4NwsEqObb8w/%E2%9D%96-Untitled-UI-Figma-%E2%80%93-PRO-VARIABLES--v8.0--KTWJ8mYFqVpN--Copy-?node-id=1269-1186&t=y0Q5lMnzK3ixXLgG-4).
+- Compose: `<SignInThemeScope>` + `<ForgotPasswordForm>` (renders `PasswordResetScreen`).
+- Step 1: email + Reset password. Step 2: Check your email + Open email app + resend. Omit dummy sidebar stepper.
+
+### `app/reset-password/page.tsx` — Set a new password
+**Visual:** same Figma flow (set password + success).
+- Compose: `<SignInThemeScope>` + `<ResetPasswordForm>` when `?token=` is present; invalid-link empty state otherwise.
+- Password must be 8+ characters and include one special character (`src/lib/password-rules.ts`).
 
 ---
 

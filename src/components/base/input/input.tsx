@@ -39,6 +39,13 @@ export interface InputBaseProps extends Omit<AriaInputProps, "size"> {
     groupRef?: Ref<HTMLDivElement>;
     /** Icon component to display on the left side of the input. */
     icon?: ComponentType<HTMLAttributes<HTMLOrSVGElement>>;
+    /**
+     * Show the in-field visibility toggle for `type="password"`.
+     * Hide on login (`current-password`) so Chrome / iCloud password widgets
+     * are not covered by our button.
+     * @default true
+     */
+    showPasswordToggle?: boolean;
 }
 
 export const InputBase = ({
@@ -57,12 +64,15 @@ export const InputBase = ({
     inputClassName,
     iconClassName,
     type = "text",
+    showPasswordToggle = true,
     ...inputProps
 }: InputBaseProps) => {
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
+    const showToggle = type === "password" && showPasswordToggle;
     // Check if the input has a leading icon or tooltip
-    const hasTrailingIcon = tooltip || isInvalid;
+    const hasTrailingIcon = Boolean(tooltip || isInvalid || showToggle);
+    const hasBrowserPasswordUi = type === "password" && !showToggle;
     const hasLeadingIcon = Icon;
 
     // If the input is inside a `TextFieldContext`, use its context to simplify applying styles
@@ -72,19 +82,19 @@ export const InputBase = ({
 
     const sizes = sortCx({
         sm: {
-            root: cx("px-3 py-2 text-sm", hasLeadingIcon && "pl-9", hasTrailingIcon && "pr-9"),
+            root: cx("px-3 py-2 text-sm", hasLeadingIcon && "pl-9", hasTrailingIcon && "pr-9", hasBrowserPasswordUi && "pr-12"),
             iconLeading: "left-3 size-4 stroke-[2.25px]",
             iconTrailing: "right-3",
             shortcut: "pr-1.5",
         },
         md: {
-            root: cx("px-3 py-2 text-md", hasLeadingIcon && "pl-10", hasTrailingIcon && "pr-9"),
+            root: cx("px-3 py-2 text-md", hasLeadingIcon && "pl-10", hasTrailingIcon && "pr-9", hasBrowserPasswordUi && "pr-12"),
             iconLeading: "left-3 size-5",
             iconTrailing: "right-3",
             shortcut: "pr-2",
         },
         lg: {
-            root: cx("px-3.5 py-2.5 text-md", hasLeadingIcon && "pl-10.5", hasTrailingIcon && "pr-9.5"),
+            root: cx("px-3.5 py-2.5 text-md", hasLeadingIcon && "pl-10.5", hasTrailingIcon && "pr-9.5", hasBrowserPasswordUi && "pr-14"),
             iconLeading: "left-3.5 size-5",
             iconTrailing: "right-3.5",
             shortcut: "pr-2.5",
@@ -166,8 +176,8 @@ export const InputBase = ({
                 />
             )}
 
-            {/* Password visibility toggle */}
-            {type === "password" && (
+            {/* Password visibility toggle — omit on login so browser password UI stays clickable */}
+            {showToggle && (
                 <AriaButton
                     aria-label="Toggle password visibility"
                     onClick={() => setIsPasswordVisible(!isPasswordVisible)}
@@ -241,6 +251,7 @@ export interface InputProps
             | "inputClassName"
             | "iconClassName"
             | "tooltipClassName"
+            | "showPasswordToggle"
         > {
     /** Label text for the input */
     label?: string;
@@ -267,6 +278,7 @@ export const Input = ({
     wrapperClassName,
     tooltipClassName,
     type = "text",
+    showPasswordToggle,
     ...props
 }: InputProps) => {
     return (
@@ -293,6 +305,7 @@ export const Input = ({
                             tooltipClassName,
                             tooltip,
                             type,
+                            showPasswordToggle,
                         }}
                     />
 

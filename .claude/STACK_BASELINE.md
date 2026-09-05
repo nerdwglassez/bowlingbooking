@@ -294,9 +294,9 @@ These were introduced after the customer booking flow landed. Every future agent
 
 ### 9.3 Theme resolution (`src/lib/theme.ts` + `src/proxy.ts`)
 
-- Theme is resolved **server-side** in the root layout via `resolveTheme()`. The result is stamped on `<html data-theme="…">` during SSR. `resolveStaffBrand()` stamps `data-app="staff"` on `/staff`, `/admin`, and `/signin`.
+- Theme is resolved **server-side** in the root layout via `resolveTheme()`. The result is stamped on `<html data-theme="…">` during SSR. `resolveStaffBrand()` stamps `data-app="staff"` on `/staff`, `/admin`, `/signin`, `/forgot-password`, and `/reset-password`.
 - Inputs to `resolveTheme()`:
-  1. **Pathname** (via the `x-pathname` header set by `src/proxy.ts`). Customer paths are always light. `/signin` is light even though it uses staff brand.
+  1. **Pathname** (via the `x-pathname` header set by `src/proxy.ts`). Customer paths are always light. `/signin`, `/forgot-password`, and `/reset-password` are light even though they use staff brand.
   2. **`theme` cookie** on `/staff` and `/admin`, written by `StaffThemeScope` from the device color scheme. Defaults to `'light'` when absent.
 - `data-app="staff"` keeps Untitled purple on employee chrome and the shared split login. Customer `/book` stays amber.
 - NEVER add an inline `<script>` to set `data-theme`. NEVER read `localStorage` for theme — cookies survive SSR.
