@@ -1,8 +1,8 @@
 'use client'
 
-import { ChevronRight } from '@untitledui/icons'
+import { ChevronRight } from 'lucide-react'
 
-import { Badge } from '@/components/base/badges/badges'
+import { Badge } from '@/components/ui/badge'
 import {
   formatHistoryDate,
   formatMetricMoney,
@@ -16,18 +16,18 @@ export type ContactBookingHistoryProps = {
   onSelectBooking: (bookingId: string) => void
 }
 
-function statusColor(
+function statusVariant(
   status: StaffContactHistoryStatus,
-): 'gray' | 'brand' | 'warning' | 'error' | 'success' {
+): 'ok' | 'warning' | 'error' | 'info' | 'default' {
   switch (status) {
     case 'upcoming':
-      return 'brand'
+      return 'info'
     case 'checked_in':
       return 'warning'
     case 'cancelled':
       return 'error'
     default:
-      return 'success'
+      return 'ok'
   }
 }
 
@@ -51,7 +51,7 @@ export function ContactBookingHistory({
 }: ContactBookingHistoryProps) {
   return (
     <>
-      <div className="pb-1 text-sm font-semibold text-secondary">
+      <div className="pb-1 text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
         Booking history
       </div>
       {items.map((item) => (
@@ -59,41 +59,40 @@ export function ContactBookingHistory({
           key={item.bookingId}
           type="button"
           onClick={() => onSelectBooking(item.bookingId)}
-          className="flex w-full items-start gap-2 border-b border-secondary py-3 text-left last:border-0"
+          className="flex w-full items-start gap-2 border-b border-solid border-[var(--color-border)] py-2.5 text-left last:border-0"
         >
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-start justify-between gap-2">
-              <span className="text-sm font-medium text-primary">
+              <span className="text-[13px] font-medium text-[var(--color-text-primary)]">
                 {formatHistoryDate(item.startTime)}
               </span>
-              <span className="text-sm font-semibold text-brand-secondary">
+              <span className="font-[family-name:var(--font-display)] text-sm text-[var(--color-action-dark)]">
                 {formatMetricMoney(item.amountCents)}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              <Badge size="sm" color="gray" type="modern">
+              <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
                 {item.bowlerCount} bowlers
-              </Badge>
-              <Badge size="sm" color="gray" type="modern">
+              </span>
+              <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
                 {item.packageName}
-              </Badge>
-              <Badge size="sm" color="gray" type="modern">
+              </span>
+              <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
                 {item.laneLabel}
-              </Badge>
-              <Badge
-                size="sm"
-                color={statusColor(item.status)}
-                type="pill-color"
-              >
+              </span>
+              <Badge variant={statusVariant(item.status)} className="text-[9px]">
                 {statusLabel(item.status)}
               </Badge>
             </div>
           </div>
-          <ChevronRight className="mt-0.5 size-4 shrink-0 text-fg-quaternary" />
+          <ChevronRight
+            className="mt-0.5 size-3.5 shrink-0 text-[var(--color-text-muted)]"
+            aria-hidden
+          />
         </button>
       ))}
       {hiddenCount > 0 ? (
-        <p className="py-2.5 text-center text-sm text-tertiary">
+        <p className="py-2.5 text-center text-[11px] text-[var(--color-text-muted)]">
           {hiddenCount} more booking{hiddenCount === 1 ? '' : 's'}
         </p>
       ) : null}

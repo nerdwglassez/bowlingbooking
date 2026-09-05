@@ -38,10 +38,14 @@ export function BookingDetailLoader({
   }, [bookingId])
 
   if (error) {
-    return <p className="text-sm text-error-primary">{error}</p>
+    return <p className="text-sm text-[var(--status-error-text)]">{error}</p>
   }
   if (!booking) {
-    return <p className="text-sm text-tertiary">Loading booking…</p>
+    return (
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        Loading booking…
+      </p>
+    )
   }
 
   return (
