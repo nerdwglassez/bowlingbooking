@@ -16,6 +16,15 @@ updates:
         dependency-type: development
     commit-message:
       prefix: deps
+    ignore:
+      # eslint-config-next / typescript-eslint do not support TypeScript 7 yet.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      # CI runs Node 20; keep @types/node on the 20.x line.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
