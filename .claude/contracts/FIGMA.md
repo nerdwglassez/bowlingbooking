@@ -46,6 +46,7 @@ Contacts, Settings, Support, real signed-in account card. Staff `data-theme` fol
 | Support | Untitled `lg` | TBD | `/staff/support` | Coming soon |
 | Admin audit | Untitled `lg` | — | `/admin/audit` | Untitled pass — table + badges; ADMIN-only |
 | Sign-in | Desktop + mobile | [desktop](https://www.figma.com/design/yDxNvjNjc4C4NwsEqObb8w/%E2%9D%96-Untitled-UI-Figma-%E2%80%93-PRO-VARIABLES--v8.0--KTWJ8mYFqVpN--Copy-?node-id=1267-132204) · [mobile](https://www.figma.com/design/yDxNvjNjc4C4NwsEqObb8w/%E2%9D%96-Untitled-UI-Figma-%E2%80%93-PRO-VARIABLES--v8.0--KTWJ8mYFqVpN--Copy-?node-id=1267-137926) | `/signin` | Split login (form left, quote image `rounded-l-[80px]` from `lg`; stacked form on mobile). Omit Untitled dummy chrome (logo, Google, Sign up, testimonial carousel). Role-aware routing via `getPostSignInPath`. `data-theme="light"` + `data-app="staff"` (purple). Tenant name from `getTenant()`. |
+| Forgot / reset password | Desktop + mobile | [flow](https://www.figma.com/design/yDxNvjNjc4C4NwsEqObb8w/%E2%9D%96-Untitled-UI-Figma-%E2%80%93-PRO-VARIABLES--v8.0--KTWJ8mYFqVpN--Copy-?node-id=1269-1186&t=y0Q5lMnzK3ixXLgG-4) | `/forgot-password`, `/reset-password` | Centered Untitled 4-step flow (request → check email → set password → success). Omit sidebar stepper / Untitled logo / carousel. `PasswordResetScreen` + featured icons. Same light + `data-app="staff"` as sign-in. |
 
 Suggested design order: **shell → cockpit → walk-in/detail sheets → schedule → reports → settings**.
 Design in Figma **with the Untitled UI library** so node names match CLI component names.
@@ -112,7 +113,7 @@ changes per venue — not component files.
 
 - Customer: `data-theme="light"` (amber until `/book` is redesigned).
 - Staff / admin: device color scheme via `StaffThemeScope` + `theme` cookie. `data-app="staff"` keeps Untitled purple on light.
-- Sign-in (`/signin`): always light + `data-app="staff"` so the Figma split login uses Untitled purple, not customer amber.
+- Sign-in (`/signin`) and password reset (`/forgot-password`, `/reset-password`): always light + `data-app="staff"` so Figma auth screens use Untitled purple, not customer amber.
 - Do not introduce `.dark-mode` or `next-themes` as a second system.
 
 ## Assets

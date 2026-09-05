@@ -19,7 +19,7 @@ The auth module (`src/lib/auth.ts`) is the **only** place that touches `next-aut
 | Sign-in surface | `src/app/signin/page.tsx` | Shared credentials login. Composes `SignInScreen` + `SignInForm`. `getPostSignInPath` routes STAFF+ to `/staff` and CUSTOMER to dashboard / find-my-booking / checkout `from`. |
 | Auth HTTP handlers | `src/app/api/auth/[...nextauth]/route.ts` | Exports `GET` / `POST` from `handlers` in `src/lib/auth.ts`. Required for sessions. |
 | Sign-out surface | Sign-out server action (Phase 6b) | Calls `signOut()`. |
-| Password reset | `src/lib/actions/password-reset.ts` + `src/app/reset-password/page.tsx` | Token-based, single-use (`PasswordResetToken`, 1h TTL). `requestPasswordResetAction` (rate-limited, never leaks account existence) emails a link; `resetPasswordAction` validates the hashed token and calls `hashPassword`. NOT a NextAuth provider. |
+| Password reset | `src/lib/actions/password-reset.ts` + `/forgot-password` + `/reset-password` | Token-based, single-use (`PasswordResetToken`, 1h TTL). Untitled 4-step UI (`PasswordResetScreen`). `requestPasswordResetAction` (rate-limited, never leaks account existence) emails a link; `resetPasswordAction` validates the hashed token (8+ chars and one special character) and calls `hashPassword`. NOT a NextAuth provider. |
 | Team invite (set password) | `src/lib/actions/team-invite.ts` + `/accept-invite` | Admin-issued single-use email token (`TeamInviteToken`, 48h TTL) so a pending user sets their first password. Custom token flow, NOT a NextAuth Email/magic-link provider. |
 
 ---

@@ -228,6 +228,7 @@ Key patterns:
 - BookingFlowShell / BookingSurface — customer booking chrome (Figma may replace widths)
 - BookingAppHeader (Sign in only on checkout), BookingFlowFooter, HoldTimer, StepIndicator
 - SignInScreen — shared `/signin` split login (FIGMA.md)
+- PasswordResetScreen — `/forgot-password` + `/reset-password` (FIGMA.md)
 - FeaturedBookingCard, PackageCard, OrderSummaryCard
 - Staff patterns compose AppShell chrome
 

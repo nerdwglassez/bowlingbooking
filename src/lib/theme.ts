@@ -7,8 +7,9 @@
 //   - Customer paths are always light (amber brand until /book is redesigned).
 //   - /staff/* and /admin/* follow the `theme` cookie written by
 //     StaffThemeScope from the device color scheme. No cookie → light.
-//   - /signin uses light theme + staff brand (Untitled purple) so the split
-//     login matches Figma without following the employee device scheme.
+//   - /signin, /forgot-password, and /reset-password use light theme + staff
+//     brand (Untitled purple) so Figma auth screens match without following
+//     the employee device scheme.
 //   - CSS never uses prefers-color-scheme. Untitled `dark:` maps to
 //     [data-theme="dark"]. Staff also sets data-app="staff" so light staff
 //     uses stock Untitled purple, not customer amber.
@@ -25,6 +26,8 @@ const STAFF_APP_PATTERNS = [/^\/staff(\/|$)/, /^\/admin(\/|$)/]
 const STAFF_BRAND_PATTERNS = [
   ...STAFF_APP_PATTERNS,
   /^\/signin(\/|$)/,
+  /^\/forgot-password(\/|$)/,
+  /^\/reset-password(\/|$)/,
 ]
 
 function isStaffAppPath(pathname: string): boolean {
@@ -53,7 +56,7 @@ export async function resolveTheme(): Promise<Theme> {
 
 /**
  * Stock Untitled purple (`data-app="staff"`) for employee chrome and the
- * shared `/signin` split login. Customer `/book` stays amber.
+ * shared `/signin` split login and password-reset screens. Customer `/book` stays amber.
  */
 export async function resolveStaffBrand(): Promise<boolean> {
   const h = await headers()

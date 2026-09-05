@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 
 import { Button } from '@/components/base/buttons/button'
@@ -22,8 +22,17 @@ export interface SignInFormProps {
 
 const initialState: SignInActionResult = { ok: false }
 
+function readCredentials(form: HTMLFormElement) {
+  const data = new FormData(form)
+  return {
+    email: String(data.get('email') ?? ''),
+    password: String(data.get('password') ?? ''),
+  }
+}
+
 export function SignInForm({ from }: SignInFormProps) {
   const router = useRouter()
+  const formRef = useRef<HTMLFormElement>(null)
   const [state, formAction] = useActionState(signInAction, initialState)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -31,14 +40,41 @@ export function SignInForm({ from }: SignInFormProps) {
   const errored = state.error != null
   const canSubmit = isSignInSubmitEnabled(email, password)
 
+  function syncFromForm(form: HTMLFormElement) {
+    const next = readCredentials(form)
+    setEmail(next.email)
+    setPassword(next.password)
+  }
+
   useEffect(() => {
     if (state.ok && state.redirectTo) {
       router.replace(state.redirectTo)
     }
   }, [state.ok, state.redirectTo, router])
 
+  useEffect(() => {
+    const form = formRef.current
+    if (!form) return
+
+    const onAutoFill = (event: AnimationEvent) => {
+      if (event.animationName !== 'on-autofill-start') return
+      syncFromForm(form)
+    }
+
+    form.addEventListener('animationstart', onAutoFill)
+    return () => form.removeEventListener('animationstart', onAutoFill)
+  }, [])
+
   return (
-    <form action={formAction} className="flex w-full flex-col gap-6" noValidate>
+    <form
+      ref={formRef}
+      action={formAction}
+      autoComplete="on"
+      className="flex w-full flex-col gap-6"
+      noValidate
+      onInput={(event) => syncFromForm(event.currentTarget)}
+      onChange={(event) => syncFromForm(event.currentTarget)}
+    >
       <input type="hidden" name="from" value={from} />
       <input
         type="hidden"
@@ -52,9 +88,8 @@ export function SignInForm({ from }: SignInFormProps) {
           type="email"
           label="Email"
           placeholder="Enter your email"
-          value={email}
           onChange={setEmail}
-          autoComplete="username email"
+          autoComplete="username"
           inputMode="email"
           maxLength={SIGN_IN_EMAIL_MAX_LENGTH}
           size="md"
@@ -66,7 +101,6 @@ export function SignInForm({ from }: SignInFormProps) {
           name="password"
           type="password"
           label="Password"
-          value={password}
           onChange={setPassword}
           autoComplete="current-password"
           maxLength={SIGN_IN_PASSWORD_MAX_LENGTH}
@@ -75,6 +109,7 @@ export function SignInForm({ from }: SignInFormProps) {
           isRequired
           hideRequiredIndicator
           isInvalid={errored}
+          showPasswordToggle={false}
         />
       </div>
 
