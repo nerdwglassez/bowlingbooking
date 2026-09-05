@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
+import { ChevronRight } from '@untitledui/icons'
 
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/base/badges/badges'
 import {
   formatHistoryDate,
   formatMetricMoney,
@@ -13,20 +13,21 @@ import {
 export type ContactBookingHistoryProps = {
   items: StaffContactHistoryItem[]
   hiddenCount?: number
+  onSelectBooking: (bookingId: string) => void
 }
 
-function statusVariant(
+function statusColor(
   status: StaffContactHistoryStatus,
-): 'ok' | 'warning' | 'error' | 'info' | 'default' {
+): 'gray' | 'brand' | 'warning' | 'error' | 'success' {
   switch (status) {
     case 'upcoming':
-      return 'info'
+      return 'brand'
     case 'checked_in':
       return 'warning'
     case 'cancelled':
       return 'error'
     default:
-      return 'ok'
+      return 'success'
   }
 }
 
@@ -46,44 +47,53 @@ function statusLabel(status: StaffContactHistoryStatus): string {
 export function ContactBookingHistory({
   items,
   hiddenCount = 0,
+  onSelectBooking,
 }: ContactBookingHistoryProps) {
   return (
     <>
-      <div className="pb-1 text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+      <div className="pb-1 text-sm font-semibold text-secondary">
         Booking history
       </div>
       {items.map((item) => (
-        <Link
+        <button
           key={item.bookingId}
-          href={`/staff/bookings/${item.bookingId}`}
-          className="block border-b border-solid border-[var(--color-border)] py-2.5 last:border-0"
+          type="button"
+          onClick={() => onSelectBooking(item.bookingId)}
+          className="flex w-full items-start gap-2 border-b border-secondary py-3 text-left last:border-0"
         >
-          <div className="mb-1 flex items-start justify-between gap-2">
-            <span className="text-[13px] font-medium text-[var(--color-text-primary)]">
-              {formatHistoryDate(item.startTime)}
-            </span>
-            <span className="font-[family-name:var(--font-display)] text-sm text-[var(--color-action-dark)]">
-              {formatMetricMoney(item.amountCents)}
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <span className="text-sm font-medium text-primary">
+                {formatHistoryDate(item.startTime)}
+              </span>
+              <span className="text-sm font-semibold text-brand-secondary">
+                {formatMetricMoney(item.amountCents)}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge size="sm" color="gray" type="modern">
+                {item.bowlerCount} bowlers
+              </Badge>
+              <Badge size="sm" color="gray" type="modern">
+                {item.packageName}
+              </Badge>
+              <Badge size="sm" color="gray" type="modern">
+                {item.laneLabel}
+              </Badge>
+              <Badge
+                size="sm"
+                color={statusColor(item.status)}
+                type="pill-color"
+              >
+                {statusLabel(item.status)}
+              </Badge>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-              {item.bowlerCount} bowlers
-            </span>
-            <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-              {item.packageName}
-            </span>
-            <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-card)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-              {item.laneLabel}
-            </span>
-            <Badge variant={statusVariant(item.status)} className="text-[9px]">
-              {statusLabel(item.status)}
-            </Badge>
-          </div>
-        </Link>
+          <ChevronRight className="mt-0.5 size-4 shrink-0 text-fg-quaternary" />
+        </button>
       ))}
       {hiddenCount > 0 ? (
-        <p className="py-2.5 text-center text-[11px] text-[var(--color-text-muted)]">
+        <p className="py-2.5 text-center text-sm text-tertiary">
           {hiddenCount} more booking{hiddenCount === 1 ? '' : 's'}
         </p>
       ) : null}
