@@ -12,8 +12,10 @@
 export const dynamic = 'force-dynamic'
 
 import { AppShell } from '@/components/chrome/app-shell'
+import { StaffObservabilityScope } from '@/components/chrome/staff-observability-scope'
 import { StaffThemeScope } from '@/components/chrome/staff-theme-scope'
 import { requireRole } from '@/lib/auth'
+import { setObservabilitySurface } from '@/lib/observability'
 import { getTenant } from '@/lib/tenant'
 
 export default async function AdminLayout({
@@ -21,17 +23,20 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
+  setObservabilitySurface('staff')
   const user = await requireRole('MANAGER', 'ADMIN')
   const tenant = await getTenant()
 
   return (
     <StaffThemeScope>
-      <AppShell
-        user={{ email: user.email, name: user.name, role: user.role }}
-        tenant={{ name: tenant.name }}
-      >
-        {children}
-      </AppShell>
+      <StaffObservabilityScope>
+        <AppShell
+          user={{ email: user.email, name: user.name, role: user.role }}
+          tenant={{ name: tenant.name }}
+        >
+          {children}
+        </AppShell>
+      </StaffObservabilityScope>
     </StaffThemeScope>
   )
 }
