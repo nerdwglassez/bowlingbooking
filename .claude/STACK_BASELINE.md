@@ -395,7 +395,7 @@ These were introduced after the customer booking flow landed. Every future agent
 
 - **Rate limits** for public surfaces live in `src/lib/rate-limit.ts` + `src/lib/env.ts`; enforced in `src/proxy.ts`, `getBookingByLookup`, `validatePromoCode`, and the `.ics` route. Full contract: `.claude/contracts/OPS.md`.
 - **WAF remains mandatory** in production; in-app limits are per-instance best-effort only.
-- **Sentry traces:** `getSentryTracesSampleRate()` — 0 in non-production, default 0.1 in production (`SENTRY_TRACES_SAMPLE_RATE` optional).
+- **Sentry traces:** `getSentryTracesSampleRate()` — default 0.2 in production, 1.0 in development, 0 in test (`SENTRY_TRACES_SAMPLE_RATE` optional). Staff/admin routes use `getSentryStaffTracesSampleRate()` (default 1.0, `SENTRY_STAFF_TRACES_SAMPLE_RATE` optional) and are tagged `app=staff`.
 
 ### 9.12 Promo codes (Phase 11 M5)
 

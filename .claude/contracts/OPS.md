@@ -54,10 +54,11 @@ Tune per traffic. Document actual limits in `docs/RUNBOOK.md` § Edge security.
 
 ## Sentry performance traces
 
-- **`getSentryTracesSampleRate()`** in `src/lib/env.ts` is the only place that decides sample rate.
-- **Non-production:** always `0`.
-- **Production:** default `0.1`; override with `SENTRY_TRACES_SAMPLE_RATE` (0–1).
-- SDK init files (`sentry.*.config.ts`, `instrumentation-client.ts`) import that helper — no inline rates.
+- **`getSentryTracesSampleRate()`** / **`getSentryStaffTracesSampleRate()`** in `src/lib/env.ts` are the only places that decide sample rates.
+- **Default (customer / untagged):** production `0.2`; development `1.0`; test `0`. Override with `SENTRY_TRACES_SAMPLE_RATE` (0–1).
+- **Staff / admin:** default `1.0` (low-volume employee app). Override with `SENTRY_STAFF_TRACES_SAMPLE_RATE` (0–1).
+- SDK init files (`sentry.*.config.ts`, `instrumentation-client.ts`) import those helpers via `src/lib/sentry-runtime-options.ts` — no inline rates.
+- Staff traffic is tagged `app=staff` / `surface=staff` (path + `StaffObservabilityScope`). Filter Insights with `app:staff`.
 
 Session Replay remains **off** until a separate privacy review.
 

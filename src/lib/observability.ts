@@ -21,6 +21,7 @@
 import * as Sentry from '@sentry/nextjs'
 
 import { warnOnce } from '@/lib/env'
+import type { ObservabilitySurface } from '@/lib/observability-surface'
 
 function isSentryConfigured(): boolean {
   return Boolean(
@@ -134,4 +135,39 @@ export function withObservability<TArgs extends unknown[], TReturn>(
       throw err
     }
   }
+}
+
+/** Tag the current scope so staff Insights filters (`app:staff`) work. */
+export function setObservabilitySurface(
+  surface: ObservabilitySurface,
+  route?: string,
+): void {
+  if (!isSentryConfigured()) return
+  const scope = Sentry.getCurrentScope()
+  scope.setTag('app', surface)
+  scope.setTag('surface', surface)
+  if (route) scope.setTag('staff.route', route)
+}
+
+/**
+ * Root span for a staff page load (cockpit first). Becomes a searchable
+ * transaction named e.g. `staff.cockpit.load`.
+ */
+export async function withStaffPageSpan<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (!isSentryConfigured()) return fn()
+  return Sentry.startSpan(
+    {
+      name,
+      op: 'ui.load',
+      forceTransaction: true,
+      attributes: { app: 'staff', surface: 'staff' },
+    },
+    async () => {
+      setObservabilitySurface('staff')
+      return fn()
+    },
+  )
 }

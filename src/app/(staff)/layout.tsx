@@ -11,9 +11,11 @@
 export const dynamic = 'force-dynamic'
 
 import { AppShell } from '@/components/chrome/app-shell'
+import { StaffObservabilityScope } from '@/components/chrome/staff-observability-scope'
 import { StaffThemeScope } from '@/components/chrome/staff-theme-scope'
 import { StaffToastProvider } from '@/components/chrome/staff-toast-provider'
 import { requireRole } from '@/lib/auth'
+import { setObservabilitySurface } from '@/lib/observability'
 import { getTenant } from '@/lib/tenant'
 
 export default async function StaffLayout({
@@ -21,19 +23,22 @@ export default async function StaffLayout({
 }: {
   children: React.ReactNode
 }) {
+  setObservabilitySurface('staff')
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   const tenant = await getTenant()
 
   return (
     <StaffThemeScope>
-      <StaffToastProvider>
-        <AppShell
-          user={{ email: user.email, name: user.name, role: user.role }}
-          tenant={{ name: tenant.name }}
-        >
-          {children}
-        </AppShell>
-      </StaffToastProvider>
+      <StaffObservabilityScope>
+        <StaffToastProvider>
+          <AppShell
+            user={{ email: user.email, name: user.name, role: user.role }}
+            tenant={{ name: tenant.name }}
+          >
+            {children}
+          </AppShell>
+        </StaffToastProvider>
+      </StaffObservabilityScope>
     </StaffThemeScope>
   )
 }

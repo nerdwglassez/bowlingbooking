@@ -243,13 +243,13 @@ Sentry is wired (Phase 11). Without a DSN, the observability wrapper is a consol
 
 ### Setup
 
-1. Create a Sentry project at https://sentry.io. Pick "Next.js" as the platform.
-2. Copy the **DSN** from Project Settings → Client Keys. Set `NEXT_PUBLIC_SENTRY_DSN` in the production environment.
-3. (Optional, recommended) For readable stack traces, generate an internal-integration auth token with the `project:releases` scope at https://sentry.io/settings/account/api/auth-tokens/. Set in CI only:
+1. This repo is wired to org `bradly-zavakos` / project `javascript-nextjs` (Next.js platform). Creating a new `royalz-lanes` project currently 403s for members — an org admin can rename or recreate later.
+2. Copy the **DSN** from Project Settings → Client Keys. Set `NEXT_PUBLIC_SENTRY_DSN` (and optionally `SENTRY_DSN`) in Vercel production / preview.
+3. For readable stack traces, generate an auth token with the `project:releases` scope at https://sentry.io/settings/account/api/auth-tokens/. Set in Vercel / CI only (never commit):
    - `SENTRY_AUTH_TOKEN`
-   - `SENTRY_ORG` (slug)
-   - `SENTRY_PROJECT` (slug)
-4. Verify locally by setting `NEXT_PUBLIC_SENTRY_DSN` in `.env.local`, then trigger an error (e.g. visit `/api/bookings/x/ics?email=y` and check Sentry's Issues page).
+   - `SENTRY_ORG=bradly-zavakos`
+   - `SENTRY_PROJECT=javascript-nextjs`
+4. Verify locally by setting `NEXT_PUBLIC_SENTRY_DSN` in `.env.local`, load `/staff`, then check Web Vitals / Explore (`app:staff`). You can also trigger an error (e.g. visit `/api/bookings/x/ics?email=y`) and check Issues.
 
 ### Code conventions
 
@@ -259,8 +259,24 @@ Sentry is wired (Phase 11). Without a DSN, the observability wrapper is a consol
 
 ### Tuning
 
-- **Performance traces:** in **production**, `tracesSampleRate` defaults to **0.1** via `getSentryTracesSampleRate()` in `src/lib/env.ts`. Override with `SENTRY_TRACES_SAMPLE_RATE` (0–1). Dev/staging stay at **0**.
-- Session Replay is **off**. Turn on in `instrumentation-client.ts` after reviewing the privacy implications (replays capture user input).
+- **Performance traces:** production default **0.2** via `getSentryTracesSampleRate()`. Development defaults to **1.0** when a DSN is set. Override with `SENTRY_TRACES_SAMPLE_RATE` (0–1).
+- **Staff dashboard traces:** default **1.0** via `getSentryStaffTracesSampleRate()` (`SENTRY_STAFF_TRACES_SAMPLE_RATE`). Events are tagged `app:staff` / `surface:staff`.
+- Session Replay is **off**. Turn on in `instrumentation-client.ts` after reviewing the privacy implications (replays capture user input; staff screens include customer PII).
+
+### Staff performance dashboards
+
+Org: `bradly-zavakos` · project: `javascript-nextjs` (rename in Sentry if you later get org-admin and want `royalz-lanes`).
+
+After staff load `/staff` in a DSN-enabled environment:
+
+1. **Web Vitals (LCP / INP / CLS)** — https://bradly-zavakos.sentry.io/dashboard/9959005/  
+   Then filter the dashboard or Explore by `app:staff` (or transaction `/staff*`).
+2. **Frontend Overview** — https://bradly-zavakos.sentry.io/dashboard/9959013/
+3. **Next.js Overview** — https://bradly-zavakos.sentry.io/dashboard/9959014/
+4. **Explore / traces** — https://bradly-zavakos.sentry.io/explore/traces/ with query `app:staff` or `transaction:staff.cockpit.load`
+5. **Project** — https://bradly-zavakos.sentry.io/projects/javascript-nextjs/
+
+Creating a new custom dashboard via API requires org-admin; members currently get 403 on project create. Duplicate the Web Vitals dashboard in the UI and save the `app:staff` filter if you want a dedicated staff view.
 
 ---
 
@@ -284,7 +300,7 @@ Record your provider’s actual rules here when deployed (Cloudflare rate rule I
 
 `src/proxy.ts` and server actions use `src/lib/rate-limit.ts` with the same default caps. Enabled in **production** automatically; disabled in **test**; in **local dev** set `RATE_LIMIT_ENABLED=true` in `.env.local` to exercise.
 
-Env vars: see `.env.example` (`RATE_LIMIT_*`, `SENTRY_TRACES_SAMPLE_RATE`). Contract: `.claude/contracts/OPS.md`.
+Env vars: see `.env.example` (`RATE_LIMIT_*`, `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_STAFF_TRACES_SAMPLE_RATE`). Contract: `.claude/contracts/OPS.md`.
 
 **Serverless caveat:** in-memory limits are per instance — edge limits remain authoritative.
 

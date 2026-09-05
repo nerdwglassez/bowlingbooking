@@ -12,6 +12,13 @@ const mocks = vi.hoisted(() => {
     captureException: vi.fn(),
     captureMessage: vi.fn(),
     withScope: vi.fn((fn: (s: typeof scope) => void) => fn(scope)),
+    getCurrentScope: vi.fn(() => scope),
+    startSpan: vi.fn(
+      async (
+        _opts: unknown,
+        fn: () => Promise<unknown> | unknown,
+      ) => fn(),
+    ),
     warnOnceMock: vi.fn(),
   }
 })
@@ -20,6 +27,8 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: mocks.captureException,
   captureMessage: mocks.captureMessage,
   withScope: mocks.withScope,
+  getCurrentScope: mocks.getCurrentScope,
+  startSpan: mocks.startSpan,
 }))
 
 vi.mock('@/lib/env', () => ({
@@ -30,7 +39,9 @@ vi.mock('@/lib/env', () => ({
 import {
   captureException,
   captureMessage,
+  setObservabilitySurface,
   withObservability,
+  withStaffPageSpan,
 } from './observability'
 
 beforeEach(() => {
@@ -117,5 +128,40 @@ describe('withObservability', () => {
     await expect(wrapped()).rejects.toThrow('explode')
     expect(mocks.captureException).toHaveBeenCalledWith(err)
     expect(mocks.scope.setTransactionName).toHaveBeenCalledWith('myAction')
+  })
+})
+
+describe('setObservabilitySurface', () => {
+  it('is a no-op without a DSN', () => {
+    setObservabilitySurface('staff', '/staff')
+    expect(mocks.getCurrentScope).not.toHaveBeenCalled()
+  })
+
+  it('tags the current scope when a DSN is set', () => {
+    process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://abc@sentry.io/1'
+    setObservabilitySurface('staff', '/staff')
+    expect(mocks.scope.setTag).toHaveBeenCalledWith('app', 'staff')
+    expect(mocks.scope.setTag).toHaveBeenCalledWith('surface', 'staff')
+    expect(mocks.scope.setTag).toHaveBeenCalledWith('staff.route', '/staff')
+  })
+})
+
+describe('withStaffPageSpan', () => {
+  it('runs the callback without a span when no DSN is set', async () => {
+    await expect(withStaffPageSpan('staff.cockpit.load', async () => 7)).resolves.toBe(7)
+    expect(mocks.startSpan).not.toHaveBeenCalled()
+  })
+
+  it('starts a staff load span when a DSN is set', async () => {
+    process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://abc@sentry.io/1'
+    await expect(withStaffPageSpan('staff.cockpit.load', async () => 9)).resolves.toBe(9)
+    expect(mocks.startSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'staff.cockpit.load',
+        op: 'ui.load',
+        forceTransaction: true,
+      }),
+      expect.any(Function),
+    )
   })
 })
