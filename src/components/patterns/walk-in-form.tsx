@@ -8,9 +8,9 @@
 // Stripe — the Payment row's `status` is set directly from the staff's
 // choice.
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
 import { formatPrice } from '@/lib/pricing'
 import type { Package } from '@/types'
 
@@ -80,116 +80,112 @@ export function WalkInForm({
       }}
       className="flex flex-col gap-4"
     >
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Customer
         </h2>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">Name</span>
+            <span className="text-tertiary">Name</span>
             <Input
               type="text"
               value={values.customerName}
-              onChange={(e) => patch({ customerName: e.target.value })}
-              required
+              onChange={(customerName) => patch({ customerName })}
+              isRequired
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">Phone</span>
+            <span className="text-tertiary">Phone</span>
             <Input
               type="tel"
               value={values.customerPhone}
-              onChange={(e) => patch({ customerPhone: e.target.value })}
+              onChange={(customerPhone) => patch({ customerPhone })}
               placeholder="(555) 555-1234"
             />
           </label>
         </div>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">
+          <span className="text-tertiary">
             Email (optional)
           </span>
           <Input
             type="email"
             value={values.customerEmail}
-            onChange={(e) => patch({ customerEmail: e.target.value })}
+            onChange={(customerEmail) => patch({ customerEmail })}
             placeholder="optional@example.com"
           />
         </label>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Booking
         </h2>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">Bowlers</span>
+            <span className="text-tertiary">Bowlers</span>
             <Input
               type="number"
-              min={1}
-              max={36}
-              value={values.bowlerCount}
-              onChange={(e) =>
-                patch({ bowlerCount: Number(e.target.value) || 1 })
+              value={String(values.bowlerCount)}
+              onChange={(value) =>
+                patch({ bowlerCount: Number(value) || 1 })
               }
-              required
+              isRequired
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">Duration</span>
-            <Select
+            <span className="text-tertiary">Duration</span>
+            <NativeSelect
               value={String(values.durationMinutes)}
               onChange={(e) =>
                 patch({ durationMinutes: Number(e.target.value) })
               }
-            >
-              {DURATION_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Select>
+              options={DURATION_OPTIONS.map((opt) => ({
+                label: opt.label,
+                value: String(opt.value),
+              }))}
+            />
           </label>
         </div>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">Start</span>
+          <span className="text-tertiary">Start</span>
           <Input
             type="datetime-local"
             value={values.startTime}
-            onChange={(e) => patch({ startTime: e.target.value })}
-            required
+            onChange={(startTime) => patch({ startTime })}
+            isRequired
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">Package</span>
-          <Select
+          <span className="text-tertiary">Package</span>
+          <NativeSelect
             value={values.packageId}
             onChange={(e) => patch({ packageId: e.target.value })}
             required
-          >
-            <option value="">Select a package…</option>
-            {packages.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {formatPrice(p.basePrice)}
-              </option>
-            ))}
-          </Select>
+            options={[
+              { label: 'Select a package…', value: '' },
+              ...packages.map((p) => ({
+                label: `${p.name} — ${formatPrice(p.basePrice)}`,
+                value: p.id,
+              })),
+            ]}
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">
+          <span className="text-tertiary">
             Notes (optional)
           </span>
           <Input
             type="text"
             value={values.notes}
-            onChange={(e) => patch({ notes: e.target.value })}
+            onChange={(notes) => patch({ notes })}
             placeholder="Birthday for Riley, allergic to peanuts, etc."
           />
         </label>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Payment
         </h2>
         <div
@@ -207,23 +203,23 @@ export function WalkInForm({
                 aria-checked={active}
                 onClick={() => patch({ paymentMethod: method })}
                 data-active={active ? '' : undefined}
-                className="rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-sunken)] p-3 text-sm text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-border-strong)] data-[active]:border-[var(--color-action)] data-[active]:bg-[var(--color-action)] data-[active]:text-[var(--color-text-on-action)]"
+                className="rounded-xl border border-solid border-secondary bg-secondary p-3 text-sm text-tertiary transition-colors hover:border-secondary data-[active]:border-brand data-[active]:bg-brand-solid data-[active]:text-white"
               >
                 {PAYMENT_LABEL[method]}
               </button>
             )
           })}
         </div>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Total: <strong className="text-[var(--color-text-primary)]">{formatPrice(totalAmount)}</strong>
+        <p className="text-sm text-tertiary">
+          Total: <strong className="text-primary">{formatPrice(totalAmount)}</strong>
         </p>
       </section>
 
       {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+        <p className="text-sm text-error-primary">{error}</p>
       ) : null}
 
-      <Button type="submit" size="lg" fullWidth loading={submitting}>
+      <Button type="submit" size="lg" className="w-full" isLoading={submitting}>
         Create walk-in booking
       </Button>
     </form>

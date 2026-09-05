@@ -9,9 +9,10 @@
 //
 // All state lives on the parent page; this pattern just renders the inputs.
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
+import { TextArea } from '@/components/base/textarea/textarea'
 
 export type TeamRole = 'STAFF' | 'MANAGER' | 'ADMIN'
 
@@ -62,63 +63,64 @@ export function UserForm({
       }}
       className="flex flex-col gap-4"
     >
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Identity
         </h2>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">Email</span>
+          <span className="text-tertiary">Email</span>
           <Input
             type="email"
             value={values.email}
-            onChange={(e) => patch({ email: e.target.value })}
-            required
-            disabled={mode === 'edit'}
+            onChange={(email) => patch({ email })}
+            isRequired
+            isDisabled={mode === 'edit'}
           />
           {mode === 'edit' ? (
-            <span className="text-xs text-[var(--color-text-secondary)]">
+            <span className="text-xs text-tertiary">
               Email is the sign-in identifier and cannot be changed here.
             </span>
           ) : null}
         </label>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">Name</span>
+            <span className="text-tertiary">Name</span>
             <Input
               type="text"
               value={values.name}
-              onChange={(e) => patch({ name: e.target.value })}
+              onChange={(name) => patch({ name })}
               placeholder="Casey Manager"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">Phone</span>
+            <span className="text-tertiary">Phone</span>
             <Input
               type="tel"
               value={values.phone}
-              onChange={(e) => patch({ phone: e.target.value })}
+              onChange={(phone) => patch({ phone })}
               placeholder="(555) 555-5555"
             />
           </label>
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Role
         </h2>
         <label className="flex flex-col gap-1 text-sm">
-          <Select
+          <NativeSelect
             value={values.role}
             onChange={(e) => patch({ role: e.target.value as TeamRole })}
-          >
-            <option value="STAFF">Staff (front of house)</option>
-            <option value="MANAGER">Manager (refunds + settings)</option>
-            {canAssignAdmin ? (
-              <option value="ADMIN">Admin (everything)</option>
-            ) : null}
-          </Select>
-          <span className="text-xs text-[var(--color-text-secondary)]">
+            options={[
+              { label: 'Staff (front of house)', value: 'STAFF' },
+              { label: 'Manager (refunds + settings)', value: 'MANAGER' },
+              ...(canAssignAdmin
+                ? [{ label: 'Admin (everything)', value: 'ADMIN' }]
+                : []),
+            ]}
+          />
+          <span className="text-xs text-tertiary">
             {canAssignAdmin
               ? 'Only ADMINs can assign the ADMIN role.'
               : 'Promote-to-ADMIN requires an existing ADMIN.'}
@@ -127,39 +129,31 @@ export function UserForm({
       </section>
 
       {mode === 'create' ? (
-        <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-          <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+        <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+          <h2 className="text-xs uppercase tracking-wide text-tertiary">
             Invitation
           </h2>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">
-              Personal message (optional)
-            </span>
-            <textarea
-              rows={3}
-              value={values.personalMessage}
-              onChange={(e) => patch({ personalMessage: e.target.value })}
-              className="w-full resize-none rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
-              placeholder="Welcome to the team!"
-            />
-            <span className="text-xs text-[var(--color-text-secondary)]">
-              An invite link will be sent to their email. It expires in 48
-              hours; they set their own password when they accept.
-            </span>
-          </label>
+          <TextArea
+            label="Personal message (optional)"
+            hint="An invite link will be sent to their email. It expires in 48 hours; they set their own password when they accept."
+            rows={3}
+            value={values.personalMessage}
+            onChange={(personalMessage) => patch({ personalMessage })}
+            placeholder="Welcome to the team!"
+          />
         </section>
       ) : null}
 
       {resetPanel}
 
       {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+        <p className="text-sm text-error-primary">{error}</p>
       ) : null}
       {successMessage ? (
-        <p className="text-sm text-[var(--status-ok-text)]">{successMessage}</p>
+        <p className="text-sm text-success-primary">{successMessage}</p>
       ) : null}
 
-      <Button type="submit" size="lg" fullWidth loading={submitting}>
+      <Button type="submit" size="lg" className="w-full" isLoading={submitting}>
         {submitLabel ?? (mode === 'create' ? 'Send invite' : 'Save changes')}
       </Button>
     </form>

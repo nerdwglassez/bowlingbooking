@@ -1,20 +1,17 @@
 'use client'
 
-// BottomSheet — staff slide-up panel (matches PackageDetailSheet chrome).
-//
-// Mobile: slides up from bottom with dimmed backdrop.
-// Desktop: 400px right panel (schedule wireframe) — same opaque surface + overlay.
+// BottomSheet — overlay chrome.
+// Staff default (`placement="end"`) is the Untitled slideout: full-height,
+// docked to the right, horizontal enter/exit only. Customer dashboard
+// uses `placement="bottom"`. Do not combine from-bottom + from-right —
+// both transforms apply and the panel moves diagonally.
 
-import { useEffect } from 'react'
-import { X } from 'lucide-react'
+import { Dialog as AriaDialog, Modal as AriaModal, ModalOverlay as AriaModalOverlay } from 'react-aria-components'
 
-import { buttonVariants } from '@/components/ui/button'
+import { CloseButton } from '@/components/base/buttons/close-button'
+import { cx } from '@/lib/cx'
 
-function cn(
-  ...inputs: Array<string | undefined | null | false>
-): string {
-  return inputs.filter(Boolean).join(' ')
-}
+export type BottomSheetPlacement = 'end' | 'bottom'
 
 export type BottomSheetProps = {
   open: boolean
@@ -23,6 +20,11 @@ export type BottomSheetProps = {
   children: React.ReactNode
   /** Raise above other sheets when stacked (e.g. invite link over member detail). */
   elevated?: boolean
+  /**
+   * `end` — Untitled right slideout (staff), all breakpoints.
+   * `bottom` — customer bottom sheet.
+   */
+  placement?: BottomSheetPlacement
 }
 
 export function BottomSheet({
@@ -31,79 +33,67 @@ export function BottomSheet({
   onClose,
   children,
   elevated = false,
+  placement = 'end',
 }: BottomSheetProps) {
-  useEffect(() => {
-    if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
-
-  if (!open) return null
+  const isEnd = placement === 'end'
 
   return (
-    <div
-      className={cn(
-        'fixed inset-0 flex flex-col justify-end md:items-end md:justify-stretch',
-        elevated ? 'z-[60]' : 'z-50',
-      )}
+    <AriaModalOverlay
+      isOpen={open}
+      isDismissable
+      onOpenChange={(next) => {
+        if (!next) onClose()
+      }}
+      className={(state) =>
+        cx(
+          'fixed inset-0 flex min-h-dvh w-full overflow-hidden bg-overlay/70 outline-hidden backdrop-blur-[6px]',
+          isEnd ? 'items-stretch justify-end' : 'items-end justify-center',
+          elevated ? 'z-[60]' : 'z-50',
+          state.isEntering && 'duration-300 ease-out animate-in fade-in',
+          state.isExiting && 'duration-200 ease-in animate-out fade-out',
+        )
+      }
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-[var(--surface-overlay)] sheet-backdrop-in"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bottom-sheet-title"
-        className={cn(
-          'relative flex max-h-[min(88dvh,720px)] w-full flex-col',
-          'border-[var(--color-border)] bg-[var(--surface-raised)]',
-          'px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-xl)]',
-          'max-md:sheet-slide-up border-t',
-          'md:h-full md:max-h-none md:w-[400px] md:border-l md:border-t-0',
-        )}
+      <AriaModal
+        className={(state) =>
+          cx(
+            'flex flex-col bg-primary shadow-xl outline-hidden',
+            isEnd
+              ? 'h-full w-[calc(100%-1.5rem)] max-w-[400px] rounded-none border-l border-secondary'
+              : 'w-full max-w-lg max-h-[min(88dvh,720px)] rounded-t-xl',
+            state.isEntering &&
+              cx(
+                'duration-300 ease-out animate-in motion-reduce:animate-none',
+                isEnd ? 'slide-in-from-right' : 'slide-in-from-bottom',
+              ),
+            state.isExiting &&
+              cx(
+                'duration-200 ease-in animate-out motion-reduce:animate-none',
+                isEnd ? 'slide-out-to-right' : 'slide-out-to-bottom',
+              ),
+          )
+        }
       >
-        <button
-          type="button"
-          className={cn(
-            buttonVariants({ variant: 'ghost', size: 'sm' }),
-            'absolute right-2 top-2 z-10 size-9 p-0',
+        <AriaDialog
+          className={cx(
+            'flex h-full max-h-[inherit] flex-col gap-4 overflow-y-auto outline-hidden',
+            isEnd ? 'px-4 py-6 lg:p-6' : 'p-5',
           )}
-          onClick={onClose}
-          aria-label="Close"
         >
-          <X className="size-5 shrink-0" aria-hidden />
-        </button>
-
-        <div
-          className="mx-auto mb-3.5 h-[3px] w-8 shrink-0 rounded-full bg-[var(--color-border-strong)] md:hidden"
-          aria-hidden
-        />
-
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-6">
-          <h2
-            id="bottom-sheet-title"
-            className="pr-10 text-lg [font-family:var(--font-display)] text-[var(--color-text-primary)]"
-          >
-            {title}
-          </h2>
+          <div className="flex items-start justify-between gap-3">
+            <h2
+              className={cx(
+                'font-semibold text-primary',
+                isEnd ? 'text-md lg:text-lg' : 'text-lg',
+              )}
+            >
+              {title}
+            </h2>
+            <CloseButton onPress={onClose} label="Close" size={isEnd ? 'md' : 'sm'} />
+          </div>
           {children}
-        </div>
-      </div>
-    </div>
+        </AriaDialog>
+      </AriaModal>
+    </AriaModalOverlay>
   )
 }

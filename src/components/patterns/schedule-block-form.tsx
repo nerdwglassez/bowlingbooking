@@ -1,9 +1,8 @@
 'use client'
 
-// ScheduleBlockForm — controlled block creation form (wireframe sheet fields).
-
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/base/buttons/button'
+import { Checkbox } from '@/components/base/checkbox/checkbox'
+import { Input } from '@/components/base/input/input'
 
 export type BlockScope = 'venue' | 'lanes'
 
@@ -55,130 +54,109 @@ export function ScheduleBlockForm({
         e.preventDefault()
         onSubmit()
       }}
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-4"
     >
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
+        <legend className="text-sm font-medium text-secondary">
           What to block
         </legend>
-        <div className="flex rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-sunken)] p-0.5">
+        <div className="flex gap-2">
           {(['venue', 'lanes'] as const).map((scope) => (
-            <button
+            <Button
               key={scope}
               type="button"
-              className={`flex-1 rounded-[calc(var(--radius-md)-2px)] py-2 text-xs font-semibold transition-colors ${
-                values.scope === scope
-                  ? 'border border-solid border-[color-mix(in_srgb,var(--status-error-border)_30%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_12%,transparent)] text-[var(--status-error-text)]'
-                  : 'text-[var(--color-text-secondary)]'
-              }`}
+              size="sm"
+              color={values.scope === scope ? 'secondary' : 'tertiary'}
+              className="flex-1"
               onClick={() => patch({ scope })}
             >
               {scope === 'venue' ? 'Whole venue' : 'Specific lanes'}
-            </button>
+            </Button>
           ))}
         </div>
       </fieldset>
 
       {values.scope === 'lanes' ? (
         <fieldset className="flex flex-col gap-1.5">
-          <legend className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-            Lanes
-          </legend>
+          <legend className="text-sm font-medium text-secondary">Lanes</legend>
           <div className="flex flex-wrap gap-1.5">
             {laneNumbers.map((lane) => {
               const on = values.lanes.includes(lane)
               return (
-                <button
+                <Button
                   key={lane}
                   type="button"
-                  className={`min-w-8 rounded-[var(--radius-full)] border px-2.5 py-1 text-[11px] font-semibold ${
-                    on
-                      ? 'border-[color-mix(in_srgb,var(--status-error-border)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_10%,transparent)] text-[var(--status-error-text)]'
-                      : 'border-[var(--color-border-strong)] bg-[var(--surface-sunken)] text-[var(--color-text-secondary)]'
-                  }`}
+                  size="sm"
+                  color={on ? 'primary-destructive' : 'secondary'}
                   onClick={() => toggleLane(lane)}
                 >
                   {lane}
-                </button>
+                </Button>
               )
             })}
           </div>
         </fieldset>
       ) : null}
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Reason
-        </span>
-        <Input
-          value={values.reason}
-          onChange={(e) => patch({ reason: e.target.value })}
-          placeholder="League night setup"
-          required
-        />
-      </label>
+      <Input
+        label="Reason"
+        value={values.reason}
+        onChange={(reason) => patch({ reason })}
+        placeholder="League night setup"
+        isRequired
+      />
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Date
-        </span>
-        <Input
-          type="date"
-          value={values.date}
-          onChange={(e) => patch({ date: e.target.value })}
-          required
-        />
-      </label>
+      <Input
+        type="date"
+        label="Date"
+        value={values.date}
+        onChange={(date) => patch({ date })}
+        isRequired
+      />
 
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Time
-        </legend>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={values.allDay}
-            onChange={(e) => patch({ allDay: e.target.checked })}
-          />
-          <span className="text-[var(--color-text-primary)]">All day</span>
-        </label>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-secondary">Time</legend>
+        <Checkbox
+          isSelected={values.allDay}
+          onChange={(allDay) => patch({ allDay })}
+          label="All day"
+        />
         {!values.allDay ? (
           <div className="grid grid-cols-2 gap-2">
             <Input
               type="time"
+              aria-label="Start time"
               value={values.startTime}
-              onChange={(e) => patch({ startTime: e.target.value })}
-              required
+              onChange={(startTime) => patch({ startTime })}
+              isRequired
             />
             <Input
               type="time"
+              aria-label="End time"
               value={values.endTime}
-              onChange={(e) => patch({ endTime: e.target.value })}
-              required
+              onChange={(endTime) => patch({ endTime })}
+              isRequired
             />
           </div>
         ) : (
-          <p className="text-[10px] text-[var(--color-text-secondary)]">
+          <p className="text-sm text-tertiary">
             Leave times blank to block the entire day.
           </p>
         )}
       </fieldset>
 
-      {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
-      ) : null}
+      {error ? <p className="text-sm text-error-primary">{error}</p> : null}
 
       <div className="flex gap-2">
         <Button
           type="submit"
-          variant="secondary"
-          fullWidth
-          loading={submitting}
-          className="flex-[2] border-[color-mix(in_srgb,var(--status-error-border)_30%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_15%,transparent)] text-[var(--status-error-text)]"
+          color="primary-destructive"
+          className="flex-[2]"
+          isLoading={submitting}
         >
           Add block
         </Button>
-        <Button type="button" variant="ghost" fullWidth onClick={onCancel}>
+        <Button type="button" color="tertiary" onClick={onCancel}>
           Cancel
         </Button>
       </div>

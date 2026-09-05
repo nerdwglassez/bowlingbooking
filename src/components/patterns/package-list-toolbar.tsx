@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/base/buttons/button'
 
 function cn(
   ...inputs: Array<string | undefined | null | false>
@@ -27,17 +27,17 @@ export function PackageListToolbar({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3',
+        'flex items-center justify-between gap-3 border-b border-secondary pb-3',
         className,
       )}
     >
-      <p className="text-sm text-[var(--color-text-secondary)]">{label}</p>
+      <p className="text-sm text-tertiary">{label}</p>
       <Button
         type="button"
-        variant="secondary"
+        color="secondary"
         size="sm"
-        disabled
-        title="Sort and filter coming soon"
+        isDisabled
+        aria-label="Sort and filter coming soon"
       >
         {'⇅ Sort & Filter'}
       </Button>

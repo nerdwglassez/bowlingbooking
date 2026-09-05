@@ -21,6 +21,7 @@ export default async function StaffContactDetailPage({ params }: PageProps) {
 
   return (
     <ContactDetailPanel
+      key={contact.id}
       contact={contact}
       tenantId={tenant.id}
       bowlersPerLane={tenant.bowlersPerLane}

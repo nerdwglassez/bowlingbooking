@@ -1,7 +1,10 @@
 import type { Role } from '@/types'
 
-/** Staff sign-in entry from the customer booking header (not customer auth). */
+/** Staff sign-in entry (employee deep link, not the booking header). */
 export const STAFF_SIGN_IN_PATH = '/signin?from=/staff'
+
+/** Checkout-only booking header — customers return here; staff still land in /staff. */
+export const CHECKOUT_SIGN_IN_PATH = '/signin?from=/book/confirm'
 
 const ALLOWED_SIGN_IN_FROM = /^\/(?!\/)[A-Za-z0-9/_-]*$/
 

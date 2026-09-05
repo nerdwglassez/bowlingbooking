@@ -4,9 +4,8 @@
 # Prerequisite: STAFF_INTERACTIONS.md (global architecture)
 # Domain:       BOOKING_DOMAIN.md Part 1 (§Booking source, walk-in → CONFIRMED)
 # Code contract: contracts/STAFF.md
-# Wireframes:    docs/wireframes/staff/walkin-booking-flow.html,
-#                docs/wireframes/staff/staff-app-cockpit.html,
-#                docs/wireframes/staff/staff-app-v2.html
+# Visual: Figma URL TBD — paste into FIGMA.md. Historical HTML under docs/wireframes/ is not visual SoT.
+# Colors: Untitled semantic utilities (theme.css). Do not introduce --staff-* tokens.
 # Build status:  Partial — /staff/walkin built; lane timeline not built
 
 ---
@@ -25,7 +24,6 @@ Sub-view toggle: Overview | Lanes
 Time window selector
 Legend row
 Timeline (scrollable horizontally per row)
-Tab bar (persistent)
 ```
 
 ---
@@ -34,10 +32,10 @@ Tab bar (persistent)
 
 - Row below the toggle: "Time window" label (left) + chip strip (right)
 - Chips: "2 hr" | "4 hr" | "6 hr" | "All day"
-- Active chip: --staff-card-raised bg, --staff-text-primary, 
-  border 1px --staff-border-strong
-- Inactive chip: --staff-card bg, --staff-text-muted, 
-  border 1px --staff-border
+- Active chip: bg-secondary bg, text-primary, 
+  border 1px border-primary
+- Inactive chip: bg-primary bg, text-tertiary, 
+  border 1px border-secondary
 - Font: 10px, 600 weight
 - Padding: 3px 8px, --radius-full
 - Changing the time window rescales the timeline columns
@@ -52,7 +50,7 @@ Tab bar (persistent)
 - 4 items: Available · Occupied · Upcoming · Blocked
 - Each item: 7×7px dot (2px border radius) + label
 - Dot colors match lane state token backgrounds and borders
-- Label: 9px, --staff-text-muted
+- Label: `text-xs text-tertiary`
 - Gap between items: 10px
 
 ---
@@ -66,30 +64,30 @@ Each lane = one horizontal row:
 ```
 
 **Lane label (left, fixed 36px width):**
-- Font: 11px, 600 weight, --staff-text-secondary
+- Font: 11px, 600 weight, text-secondary
 - Text align: right, 6px right padding
-- Hover/active: --staff-action color
+- Hover/active: bg-brand-solid / text-brand-secondary color
 
 **Timeline track (flex: 1):**
 - Height: 22px
-- Background: --staff-card (empty/available lane)
-- Border: 1px --staff-border
+- Background: bg-primary (empty/available lane)
+- Border: 1px border-secondary
 - Border radius: 4px
 - Overflow: hidden
 - Horizontally scrollable as a unit (all rows scroll together)
 - Blocked lanes: --lane-blocked-bg fill, --lane-blocked-border border
-  Centered text: "Blocked · [reason]" in --lane-blocked-text, 9px uppercase
+  Centered text: "Blocked · [reason]" in --lane-blocked-text, `text-sm font-medium text-secondary`
 
 ### Column Headers
 Row above all lane rows:
 - Left: 36px spacer (aligns with lane labels)
 - Right: hour labels at equal intervals matching time window
-- Font: 8px, 600 weight, --staff-text-muted, centered per column
+- Font: 8px, 600 weight, text-tertiary, centered per column
 
 ### Now Line
-- 1.5px vertical amber line (--staff-action) at current time position
+- 1.5px vertical brand line (`bg-brand-solid`) at current time position
 - Renders on every lane row at the same horizontal position
-- Top indicator: 7×7px amber circle (--staff-action), positioned at top of now line
+- Top indicator: 7×7px brand circle (`bg-brand-solid`), positioned at top of now line
 - z-index above booking blocks
 - Updates position in real time (every 60 seconds)
 
@@ -97,7 +95,7 @@ Row above all lane rows:
 Positioned absolutely within the timeline track:
 - Top/bottom: 2px inset (leaves 2px above and below)
 - Border radius: 3px
-- Customer name (truncated): 9px, 600 weight, 5px horizontal padding
+- Customer name (truncated): `text-xs font-semibold`
 - Overflow: hidden (long names truncate)
 
 **Block states:**
@@ -111,11 +109,11 @@ Positioned absolutely within the timeline track:
   Text: --lane-upcoming-text
 - Completed (past):
   Background: rgba(87,83,78,0.30)
-  Border: 1px --staff-border
-  Text: --staff-text-muted
+  Border: 1px border-secondary
+  Text: text-tertiary
 
 ### Tap Behavior
-- Tapping a booking block → booking detail sheet slides up
+- Tapping a booking block → booking detail slideout from the right
   (same sheet as Overview — identical behavior)
 - Tapping an empty track area → no action on mobile
 - Tapping an empty track area on desktop → create block / walk-in prompt
@@ -158,11 +156,11 @@ above the upcoming list. This is different from the timeline.
 - Transition: all 0.2s
 
 ### Lane Card Contents
-- Lane number: --font-display, 18px, --staff-text-primary, line-height 1
-- Status text: 9px, 600 weight, uppercase, letter-spacing 0.05em, 3px top margin
+- Lane number: --font-display, 18px, text-primary, line-height 1
+- Status text: `text-xs font-semibold uppercase tracking-wide text-tertiary`
 - Time detail: 10px, 600 weight, 2px top margin (occupied shows "until 3:00",
   upcoming shows "2:30 PM")
-- Detail text: 10px, --staff-text-muted, 4px top margin 
+- Detail text: 10px, text-tertiary, 4px top margin 
   (blocked lanes show reason e.g. "Maintenance")
 
 ### Lane Card States and Colors
@@ -197,7 +195,7 @@ Blocked:
 - Returns to normal scale when sheet dismisses
 
 ### Tap Behavior
-- Tap any lane card → booking detail sheet slides up
+- Tap any lane card → booking detail slideout from the right
 - Available lanes: sheet shows "No active booking · [time] open"
   with single action: "Create walk-in"
 - Occupied/upcoming/blocked lanes: standard booking detail sheet
@@ -209,7 +207,7 @@ Blocked:
 ### Position and Appearance
 - Position: absolute, bottom 70px (above tab bar), right 16px
 - Size: 44×44px circle
-- Background: --staff-action (amber)
+- Background: `bg-brand-solid` / `text-white`
 - Icon: + (plus), white, 20px, font-weight 300
 - Border radius: --radius-full
 - Shadow: 0 4px 16px rgba(245,158,11,0.4)
@@ -224,10 +222,9 @@ Blocked:
 - Disabled (opacity 0.4) if walk-in bookings are turned off in settings
 
 ### Tap Behavior
-- Tap FAB → walk-in sheet slides up from bottom
-- Cockpit content dims to 18% opacity (not a backdrop overlay —
-  the content itself is dimmed via opacity on the content wrapper)
-- FAB hides as sheet opens
+- Tap FAB → walk-in slideout from the right (Untitled, all breakpoints)
+- Overlay: `bg-overlay/70` + backdrop blur
+- FAB hides as the slideout opens
 
 ---
 
@@ -241,7 +238,7 @@ Blocked:
 
 ### Sheet Structure
 ```
-Handle bar (32×3px, --staff-border-strong)
+Handle bar (32×3px, border-primary)
 Sheet header: title + 3-dot step indicator
 Sheet content (scrollable)
 Next/Back button (sticky at sheet bottom)
@@ -249,9 +246,9 @@ Next/Back button (sticky at sheet bottom)
 
 ### Step Indicator in Sheet Header
 - 3 dots: step 1, step 2, step 3
-- Active step: wider pill (20px wide), --staff-action
-- Completed step: 8px circle, --staff-action at 60% opacity
-- Upcoming step: 8px circle, --staff-border
+- Active step: wider pill (20px wide), bg-brand-solid / text-brand-secondary
+- Completed step: 8px circle, bg-brand-solid / text-brand-secondary at 60% opacity
+- Upcoming step: 8px circle, border-secondary
 - Title changes per step: "New booking" → "Package & lane" → "Confirm booking"
 
 ### Step 1 — Guest Details
@@ -259,14 +256,14 @@ Next/Back button (sticky at sheet bottom)
 **Source selector:**
 - 3 pills: "Walk-in" | "Phone" | "Advance"
 - Default: Walk-in (pre-selected)
-- Selected: --staff-action bg, white text
-- Unselected: --staff-card-raised bg, --staff-text-muted text
-- Border: 1.5px --staff-border-strong (unselected), transparent (selected)
+- Selected: bg-brand-solid / text-brand-secondary bg, white text
+- Unselected: bg-secondary bg, text-tertiary text
+- Border: 1.5px border-primary (unselected), transparent (selected)
 - Source affects booking record (WALK_IN / PHONE / ADVANCE)
 
 **Guest name field:**
-- Label: "Guest name" (10px uppercase, --staff-text-muted)
-- Input: --staff-card-raised bg, 1.5px --staff-border-strong border, --radius-md
+- Label: "Guest name" (10px uppercase, text-tertiary)
+- Input: bg-secondary bg, 1.5px border-primary border, --radius-md
 - Placeholder: "First name or group name"
 - No last name required — walk-ins are informal
 
@@ -277,9 +274,9 @@ Next/Back button (sticky at sheet bottom)
 
 **Bowler count stepper:**
 - Inline stepper: [−] [count] [+]
-- Minus/plus: 32×32px, --radius-sm, --staff-card-raised bg
-- Count: --font-display, 24px, --staff-text-primary, min-width 36px, centered
-- Below stepper: "X lanes required" in 11px --staff-text-muted
+- Minus/plus: 32×32px, --radius-sm, bg-secondary bg
+- Count: --font-display, 24px, text-primary, min-width 36px, centered
+- Below stepper: "X lanes required" in 11px text-tertiary
   Updates live as count changes: "1 lane" at 1–6, "2 lanes" at 7–12, etc.
 - Minimum: 1 bowler
 - Maximum: determined by available lane count
@@ -297,7 +294,7 @@ Next/Back button (sticky at sheet bottom)
 - Options from packages table: name + pricing summary
   Format: "Cosmic Bowl — $12.00/hr per person"
   OR: "Birthday Party — $185 flat"
-- Background: --staff-card-raised, border 1.5px --staff-border-strong
+- Background: bg-secondary, border 1.5px border-primary
 - Selecting a package does NOT auto-populate bowler count
   (staff already entered bowler count in Step 1)
 
@@ -305,9 +302,9 @@ Next/Back button (sticky at sheet bottom)
 - Auto-assign row (default):
   Background: rgba(16,185,129,0.06), border rgba(16,185,129,0.25)
   Label: "Auto-assigned" in --status-available-text (green)
-  Sub: "Next available lane" in --staff-text-muted
+  Sub: "Next available lane" in text-tertiary
   Right: Lane number in --font-display, 16px
-  "Override" button: text button, --staff-action color
+  "Override" button: text button, bg-brand-solid / text-brand-secondary color
 
 - Override state (tapped Override):
   Auto-assign row collapses
@@ -319,31 +316,31 @@ Next/Back button (sticky at sheet bottom)
 - Same state colors as the main lane grid
 - States: available / occupied / selected / current
   Current: blue tint (rgba(96,165,250,0.1)), blue border
-  Selected: --color-action-tint, --staff-action border
+  Selected: --color-action-tint, bg-brand-solid / text-brand-secondary border
   Occupied: --lane-occupied-bg, 50% opacity, not tappable
 - Legend row below grid: Available · Current · Selected · Occupied
 - Confirmation note: "Lane X available at [time]" in --status-available-text
-- "Apply — Lane X" button: full width, --staff-action bg
+- "Apply — Lane X" button: full width, bg-brand-solid / text-brand-secondary bg
 
 ### Step 3 — Confirm Booking
 
 **Summary card:**
-- --staff-card bg, --radius-md, 1px --staff-border border
+- bg-primary bg, --radius-md, 1px border-secondary border
 - Rows: Guest · Bowlers · Package · Lane · Source · Started
-- Label: 10px uppercase, --staff-text-muted
-- Value: 13px, 500 weight, --staff-text-primary
-- "Started" value: "Now · 2:14 PM" in --staff-action color
+- Label: 10px uppercase, text-tertiary
+- Value: 13px, 500 weight, text-primary
+- "Started" value: "Now · 2:14 PM" in bg-brand-solid / text-brand-secondary color
 
 **Payment method chips:**
 - 3 pills: "Cash" | "Card terminal" | "Tab / invoice"
 - Default: Cash
-- Selected: --staff-action bg, white text
-- Unselected: --staff-card-raised, --staff-text-muted
+- Selected: bg-brand-solid / text-brand-secondary bg, white text
+- Unselected: bg-secondary, text-tertiary
 - Note below: "Payment is handled at the desk — no online charge."
-- Note: 10px, --staff-text-muted
+- Note: 10px, text-tertiary
 
 **CTA button:**
-- Full width, --staff-action bg
+- Full width, bg-brand-solid / text-brand-secondary bg
 - Label: "Create & check in"
 - This is ONE action that creates the booking AND marks it CHECKED_IN
 - No Stripe, no hold, no confirmation email (unless email was provided)
@@ -357,18 +354,16 @@ Next/Back button (sticky at sheet bottom)
 - Cannot go back from Step 3 after "Create & check in" is tapped
 
 ### Sheet Dismiss (any step)
-- Swipe down on handle bar
-- Tap dimmed cockpit content
+- Tap dimmed overlay, Escape, or header Close
 - Shows discard confirmation: "Discard this booking?"
   "Keep editing" + "Discard" buttons
   Only shown if any field has been filled in Step 1
   If Step 1 is empty, dismisses immediately without confirmation
 
 ### Desktop Walk-in Behavior
-- Same 3-step flow but renders as a right-side panel (400px)
-  instead of a bottom sheet
-- Panel slides in from right: translateX(100%)→0
-- Cockpit content does NOT dim on desktop — panel overlays it
+- Same 3-step flow in the Untitled right slideout (~400px, full height)
+- Panel slides in from the right: translateX(100%)→0 (no translateY)
+- Overlay covers the content area
 - All other behavior identical
 
 ---

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, Plus } from '@untitledui/icons'
 
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
@@ -194,28 +194,28 @@ export function PricingSettingsPanel({
                       <button
                         type="button"
                         onClick={() => openEditPeriod(p)}
-                        className="flex w-full items-center gap-2.5 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] px-3.5 py-3 text-left"
+                        className="flex w-full items-center gap-2.5 rounded-xl border border-solid border-secondary bg-primary px-3.5 py-3 text-left"
                       >
                         <span
-                          className="size-2.5 shrink-0 rounded-full bg-[var(--color-action)]"
+                          className="size-2.5 shrink-0 rounded-full bg-brand-solid"
                           aria-hidden
                         />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium text-[var(--color-text-primary)]">
+                          <span className="block text-sm font-medium text-primary">
                             {p.name}
                           </span>
-                          <span className="block text-[10px] text-[var(--color-text-secondary)]">
+                          <span className="block text-sm text-tertiary">
                             Priority {p.priority}
                             {p.daysOfWeek.length
                               ? ` · ${p.daysOfWeek.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}`
                               : ''}
                           </span>
                         </span>
-                        <span className="[font-family:var(--font-display)] text-sm text-[var(--color-action)]">
+                        <span className="[font-family:var(--font-display)] text-sm text-brand-secondary">
                           {formatPrice(p.ratePerPersonPerHour)}
                         </span>
                         <ChevronRight
-                          className="size-3.5 text-[var(--color-text-secondary)]"
+                          className="size-3.5 text-tertiary"
                           aria-hidden
                         />
                       </button>
@@ -225,7 +225,7 @@ export function PricingSettingsPanel({
               <button
                 type="button"
                 onClick={openNewPeriod}
-                className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)] py-3 text-xs font-medium text-[var(--color-text-secondary)]"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-secondary py-3 text-xs font-medium text-tertiary"
               >
                 <Plus className="size-3.5" aria-hidden />
                 Add rate override

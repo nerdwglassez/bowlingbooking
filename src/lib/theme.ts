@@ -1,16 +1,20 @@
 // theme.ts — Server-side theme resolution.
 //
-// Theme is decided entirely server-side from (1) the URL pathname and
-// (2) a `theme` cookie. The root layout reads `resolveTheme()` and stamps
-// `data-theme` directly on `<html>` during SSR — no client script, no
-// hydration warning, no FOUC.
+// Theme is decided server-side from (1) the URL pathname and (2) a `theme`
+// cookie. The root layout stamps `data-theme` on `<html>` during SSR.
 //
 // Rules:
-//   - /staff/* and /admin/* paths are ALWAYS rendered dark, ignoring cookies.
-//   - All other paths default to 'light' unless a `theme` cookie says
-//     otherwise. A future customer-facing toggle will call setThemeCookie().
+//   - Customer paths are always light (amber brand until /book is redesigned).
+//   - /staff/* and /admin/* follow the `theme` cookie written by
+//     StaffThemeScope from the device color scheme. No cookie → light.
+//   - /signin, /forgot-password, and /reset-password use light theme + staff
+//     brand (Untitled purple) so Figma auth screens match without following
+//     the employee device scheme.
+//   - CSS never uses prefers-color-scheme. Untitled `dark:` maps to
+//     [data-theme="dark"]. Staff also sets data-app="staff" so light staff
+//     uses stock Untitled purple, not customer amber.
 //
-// NEVER use Tailwind's `dark:` prefix — it conflicts with this system.
+// NEVER use Tailwind's `dark:` against prefers-color-scheme.
 // NEVER read `localStorage` for theme; cookies survive SSR.
 
 import { cookies, headers } from 'next/headers'
@@ -18,25 +22,31 @@ import { cookies, headers } from 'next/headers'
 export type Theme = 'light' | 'dark'
 
 const COOKIE_NAME = 'theme'
-const FORCED_DARK_PATTERNS = [/^\/staff(\/|$)/, /^\/admin(\/|$)/]
+const STAFF_APP_PATTERNS = [/^\/staff(\/|$)/, /^\/admin(\/|$)/]
+const STAFF_BRAND_PATTERNS = [
+  ...STAFF_APP_PATTERNS,
+  /^\/signin(\/|$)/,
+  /^\/forgot-password(\/|$)/,
+  /^\/reset-password(\/|$)/,
+]
 
-function isForcedDarkPath(pathname: string): boolean {
-  return FORCED_DARK_PATTERNS.some((re) => re.test(pathname))
+function isStaffAppPath(pathname: string): boolean {
+  return STAFF_APP_PATTERNS.some((re) => re.test(pathname))
+}
+
+function isStaffBrandPath(pathname: string): boolean {
+  return STAFF_BRAND_PATTERNS.some((re) => re.test(pathname))
 }
 
 /**
  * Resolve the theme for the current request. Call from server components
  * only (uses async `cookies()` / `headers()`). Returns 'light' or 'dark'.
- *
- * Note: when proxy doesn't run (e.g. fully static segment) `x-pathname` is
- * absent and we default to '/' → light. That's safe because forced-dark
- * route groups always have proxy coverage.
  */
 export async function resolveTheme(): Promise<Theme> {
   const h = await headers()
   const pathname = h.get('x-pathname') ?? '/'
 
-  if (isForcedDarkPath(pathname)) return 'dark'
+  if (!isStaffAppPath(pathname)) return 'light'
 
   const c = await cookies()
   const stored = c.get(COOKIE_NAME)?.value
@@ -45,12 +55,18 @@ export async function resolveTheme(): Promise<Theme> {
 }
 
 /**
- * Persist the user's theme choice. Intended to be wrapped in a Server Action
- * by the (future) customer-facing toggle UI. NOT available on staff/admin
- * routes — those are server-forced dark.
- *
- * Caller is responsible for `router.refresh()` after invocation so the new
- * cookie value is picked up.
+ * Stock Untitled purple (`data-app="staff"`) for employee chrome and the
+ * shared `/signin` split login and password-reset screens. Customer `/book` stays amber.
+ */
+export async function resolveStaffBrand(): Promise<boolean> {
+  const h = await headers()
+  const pathname = h.get('x-pathname') ?? '/'
+  return isStaffBrandPath(pathname)
+}
+
+/**
+ * Persist the staff/admin theme choice (device scheme, written by
+ * StaffThemeScope). Customer routes ignore this cookie.
  */
 export async function setThemeCookie(theme: Theme): Promise<void> {
   const c = await cookies()

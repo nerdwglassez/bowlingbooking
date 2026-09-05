@@ -4,9 +4,9 @@ import { formatPrice } from '@/lib/format-price'
 
 export type StaffReportsSubview = 'analytics' | 'contacts'
 
-export type StaffReportsPeriod = 'today' | 'week' | 'month' | 'custom'
-
 export const STAFF_REPORTS_SUBVIEW_STORAGE_KEY = 'staff_reports_subview'
+
+export type StaffReportsPeriod = 'today' | 'week' | 'month' | 'custom'
 
 export type StaffMetricDelta = {
   direction: 'up' | 'down' | 'flat'
@@ -59,6 +59,15 @@ export type StaffContactRow = {
   phone: string | null
   bookingCount: number
   lastBookingDate: string
+  /** Distinct package names this contact has booked. */
+  packageNames: string[]
+}
+
+export type StaffContactsSortColumn = 'bookings' | 'lastBooking'
+
+export type StaffContactsSort = {
+  column: StaffContactsSortColumn
+  direction: 'ascending' | 'descending'
 }
 
 export type StaffContactHistoryStatus =
@@ -92,10 +101,10 @@ export type StaffContactDetail = {
 }
 
 const PACKAGE_ACCENT_VARS = [
-  'var(--color-action)',
-  'var(--status-info-text)',
-  'var(--status-warning-text)',
-  'var(--status-ok-text)',
+  'var(--color-bg-brand-solid)',
+  'var(--color-fg-success-secondary)',
+  'var(--color-fg-warning-secondary)',
+  'var(--color-fg-error-secondary)',
 ] as const
 
 export function packageAccentColor(index: number): string {
@@ -290,14 +299,18 @@ const DAY_NAMES = [
   'Saturday',
 ] as const
 
+const STAFF_DATE_LOCALE = 'en-US'
+
 export function formatHistoryDate(iso: string): string {
   const d = new Date(iso)
-  const day = new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(d)
-  const rest = new Intl.DateTimeFormat(undefined, {
+  const day = new Intl.DateTimeFormat(STAFF_DATE_LOCALE, {
+    weekday: 'short',
+  }).format(d)
+  const rest = new Intl.DateTimeFormat(STAFF_DATE_LOCALE, {
     month: 'short',
     day: 'numeric',
   }).format(d)
-  const time = new Intl.DateTimeFormat(undefined, {
+  const time = new Intl.DateTimeFormat(STAFF_DATE_LOCALE, {
     hour: 'numeric',
     minute: '2-digit',
   }).format(d)
@@ -306,15 +319,24 @@ export function formatHistoryDate(iso: string): string {
 
 export function formatLastBookingDate(iso: string): string {
   const d = new Date(iso)
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(STAFF_DATE_LOCALE, {
     month: 'short',
     day: 'numeric',
   }).format(d)
 }
 
+/** Table cell date — Figma Contacts: "Jan 11, 2027". */
+export function formatContactTableDate(iso: string): string {
+  return new Intl.DateTimeFormat(STAFF_DATE_LOCALE, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(iso))
+}
+
 export function formatCustomerSince(iso: string): string {
   const d = new Date(iso)
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(STAFF_DATE_LOCALE, {
     month: 'short',
     year: 'numeric',
   }).format(d)
@@ -335,6 +357,47 @@ export function filterContacts(
     if (queryDigits.length === 0) return false
     return phoneDigits.includes(queryDigits)
   })
+}
+
+export function filterContactsByPackage(
+  contacts: StaffContactRow[],
+  packageName: string,
+): StaffContactRow[] {
+  if (!packageName) return contacts
+  return contacts.filter((c) => c.packageNames.includes(packageName))
+}
+
+export function uniqueContactPackages(contacts: StaffContactRow[]): string[] {
+  const names = new Set<string>()
+  for (const contact of contacts) {
+    for (const name of contact.packageNames) names.add(name)
+  }
+  return [...names].sort((a, b) => a.localeCompare(b))
+}
+
+export function sortContacts(
+  contacts: StaffContactRow[],
+  sort: StaffContactsSort,
+): StaffContactRow[] {
+  const next = [...contacts]
+  next.sort((a, b) => {
+    const cmp =
+      sort.column === 'bookings'
+        ? a.bookingCount - b.bookingCount
+        : new Date(a.lastBookingDate).getTime() -
+          new Date(b.lastBookingDate).getTime()
+    return sort.direction === 'ascending' ? cmp : -cmp
+  })
+  return next
+}
+
+export function paginateContacts(
+  contacts: StaffContactRow[],
+  page: number,
+  pageSize: number,
+): StaffContactRow[] {
+  const start = Math.max(0, (page - 1) * pageSize)
+  return contacts.slice(start, start + pageSize)
 }
 
 export function exportAnalyticsCsv(summary: StaffAnalyticsSummary): string {
@@ -448,7 +511,7 @@ export function busiestDayFromBookings(
       peakHourCount = count
     }
   }
-  const fmt = new Intl.DateTimeFormat(undefined, {
+  const fmt = new Intl.DateTimeFormat(STAFF_DATE_LOCALE, {
     hour: 'numeric',
     hour12: true,
   })
@@ -471,9 +534,9 @@ export function buildWeeklyBars(
   if (period === 'week') {
     return daily.map((d, i) => {
       const day = new Date(`${d.date}T12:00:00.000Z`)
-      const label = new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(
-        day,
-      )
+      const label = new Intl.DateTimeFormat(STAFF_DATE_LOCALE, {
+        weekday: 'short',
+      }).format(day)
       return {
         label,
         revenueCents: d.revenueCents,

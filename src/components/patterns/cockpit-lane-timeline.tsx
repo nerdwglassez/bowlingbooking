@@ -1,9 +1,9 @@
 'use client'
 
-// CockpitLaneTimeline — lane rows with booking blocks + now line (staff-app-v2.html).
-
 import Link from 'next/link'
 
+import { Button } from '@/components/base/buttons/button'
+import { cx } from '@/lib/cx'
 import type {
   CockpitTimeline,
   CockpitTimeWindow,
@@ -25,16 +25,10 @@ const TIME_WINDOWS: { value: CockpitTimeWindow; label: string }[] = [
   { value: 'day', label: 'Day' },
 ]
 
-const BLOCK_CLASS: Record<
-  'occupied' | 'upcoming' | 'completed',
-  string
-> = {
-  occupied:
-    'border-[color-mix(in_srgb,var(--status-error-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_25%,transparent)] text-[var(--status-error-text)]',
-  upcoming:
-    'border-[color-mix(in_srgb,var(--color-action)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-action-subtle)_20%,transparent)] text-[var(--color-action-dark)]',
-  completed:
-    'border-[var(--color-border)] bg-[color-mix(in_srgb,var(--surface-sunken)_30%,transparent)] text-[var(--color-text-secondary)]',
+const BLOCK_CLASS: Record<'occupied' | 'upcoming' | 'completed', string> = {
+  occupied: 'border-error bg-error-secondary text-error-primary',
+  upcoming: 'border-brand bg-brand-primary text-brand-secondary',
+  completed: 'border-secondary bg-secondary text-tertiary',
 }
 
 export function CockpitLaneTimeline({
@@ -48,44 +42,38 @@ export function CockpitLaneTimeline({
   const scrollHint = totalLanes > 12
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between py-2">
-        <span className="text-[10px] text-[var(--color-text-secondary)]">
-          Time window
-        </span>
-        <div className="flex gap-1">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-sm font-medium text-secondary">Time window</span>
+        <div className="flex flex-wrap gap-1">
           {TIME_WINDOWS.map((chip) => {
             const active = timeWindow === chip.value
             return (
-              <button
+              <Button
                 key={chip.label}
                 type="button"
-                className={`rounded-[var(--radius-full)] border border-solid px-2 py-0.5 text-[10px] font-semibold transition-colors ${
-                  active
-                    ? 'border-[var(--color-border-strong)] bg-[var(--surface-raised)] text-[var(--color-text-primary)]'
-                    : 'border-[var(--color-border)] bg-[var(--surface-card)] text-[var(--color-text-secondary)]'
-                }`}
+                size="sm"
+                color={active ? 'secondary' : 'tertiary'}
                 onClick={() => onTimeWindowChange(chip.value)}
               >
                 {chip.label}
-              </button>
+              </Button>
             )
           })}
         </div>
       </div>
 
-      <div className="overflow-x-hidden">
-        <div className="mb-1.5 flex">
-          <div className="w-9 shrink-0" aria-hidden />
+      <div className="overflow-x-auto">
+        <div className="mb-1.5 flex min-w-[640px]">
+          <div className="w-10 shrink-0" aria-hidden />
           <div className="flex flex-1">
             {timeline.hourLabels.map((hour, index) => (
               <div
                 key={`${hour.label}-${index}`}
-                className={`flex-1 text-center text-[8px] font-semibold tracking-wide ${
-                  hour.isNow
-                    ? 'text-[var(--color-action)]'
-                    : 'text-[var(--color-text-secondary)]'
-                }`}
+                className={cx(
+                  'flex-1 text-center text-xs font-semibold',
+                  hour.isNow ? 'text-brand-secondary' : 'text-tertiary',
+                )}
               >
                 {hour.label}
               </div>
@@ -93,35 +81,38 @@ export function CockpitLaneTimeline({
           </div>
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-[640px] flex-col gap-1">
           {timeline.lanes.map((lane) => (
             <div key={lane.number} className="flex items-center">
               <button
                 type="button"
-                className="w-9 shrink-0 pr-1.5 text-right text-[11px] font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-action)]"
+                className="min-h-11 w-10 shrink-0 pr-1.5 text-right text-sm font-semibold text-tertiary hover:text-brand-secondary"
                 onClick={() => onLaneSelect?.(lane.number)}
               >
                 {lane.number}
               </button>
 
               {lane.blocked ? (
-                <div className="relative h-[22px] flex-1 overflow-hidden rounded border border-solid border-[var(--color-border-strong)] bg-[var(--surface-sunken)]">
-                  <span className="absolute inset-0 flex items-center px-2 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                <div className="relative h-8 flex-1 overflow-hidden rounded-lg bg-secondary ring-1 ring-secondary ring-inset">
+                  <span className="absolute inset-0 flex items-center px-2 text-xs font-semibold text-tertiary">
                     Blocked · {lane.blocked.reason}
                   </span>
                 </div>
               ) : (
-                <div className="relative h-[22px] flex-1 overflow-hidden rounded border border-solid border-[var(--color-border)] bg-[var(--surface-card)]">
+                <div className="relative h-8 flex-1 overflow-hidden rounded-lg bg-primary ring-1 ring-secondary ring-inset">
                   <div
-                    className="absolute bottom-0 top-0 z-[2] w-px bg-[var(--color-action)]"
+                    className="absolute inset-y-0 z-[2] w-px bg-brand-solid"
                     style={{ left: `${timeline.nowPercent}%` }}
                     aria-hidden
                   >
-                    <span className="absolute -left-[3px] -top-[3px] size-[7px] rounded-full bg-[var(--color-action)]" />
+                    <span className="absolute -top-0.5 -left-1 size-2 rounded-full bg-brand-solid" />
                   </div>
 
                   {lane.blocks.map((block) => {
-                    const blockClass = `absolute bottom-0.5 top-0.5 z-[1] flex items-center overflow-hidden rounded-[3px] border border-solid px-1 text-[9px] font-semibold ${BLOCK_CLASS[block.state]}`
+                    const blockClass = cx(
+                      'absolute inset-y-0.5 z-[1] flex items-center overflow-hidden rounded-md border px-1 text-xs font-semibold',
+                      BLOCK_CLASS[block.state],
+                    )
                     const blockStyle = {
                       left: `${block.leftPercent}%`,
                       width: `${Math.max(block.widthPercent, 4)}%`,
@@ -154,29 +145,20 @@ export function CockpitLaneTimeline({
         </div>
 
         {scrollHint ? (
-          <p className="py-1.5 text-center text-[10px] text-[var(--color-text-secondary)]">
-            ↓ Lanes 13–{totalLanes} · scroll to see more
+          <p className="py-2 text-center text-sm text-tertiary">
+            Lanes 13–{totalLanes} · scroll to see more
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-2.5 pb-2 pt-1">
+      <div className="flex flex-wrap gap-4 pb-2">
+        <LegendItem className="border-error bg-error-secondary" label="Active" />
         <LegendItem
-          className="bg-[color-mix(in_srgb,var(--status-error-bg)_25%,transparent)] border-[color-mix(in_srgb,var(--status-error-border)_60%,transparent)]"
-          label="Active"
-        />
-        <LegendItem
-          className="bg-[color-mix(in_srgb,var(--color-action-subtle)_20%,transparent)] border-[color-mix(in_srgb,var(--color-action)_50%,transparent)]"
+          className="border-brand bg-brand-primary"
           label="Upcoming"
         />
-        <LegendItem
-          className="bg-[color-mix(in_srgb,var(--surface-sunken)_30%,transparent)] border-[var(--color-border)]"
-          label="Done"
-        />
-        <LegendItem
-          className="bg-[var(--surface-sunken)] border-[var(--color-border-strong)]"
-          label="Blocked"
-        />
+        <LegendItem className="border-secondary bg-secondary" label="Done" />
+        <LegendItem className="border-secondary bg-secondary" label="Blocked" />
       </div>
     </div>
   )
@@ -190,14 +172,12 @@ function LegendItem({
   label: string
 }) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
       <span
-        className={`size-[7px] shrink-0 rounded-[2px] border border-solid ${className}`}
+        className={cx('size-2.5 shrink-0 rounded-sm border', className)}
         aria-hidden
       />
-      <span className="text-[9px] text-[var(--color-text-secondary)]">
-        {label}
-      </span>
+      <span className="text-xs text-tertiary">{label}</span>
     </div>
   )
 }

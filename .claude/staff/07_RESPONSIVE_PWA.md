@@ -4,23 +4,26 @@
 # Prerequisite: STAFF_INTERACTIONS.md (global architecture)
 # Domain:       DESIGN_SYSTEM.md (breakpoints, tokens)
 # Code contract: contracts/STAFF.md (NavRail breakpoints)
-# Wireframes:    docs/wireframes/admin/admin-pricing-team-pwa.html
-# Build status:  Reference — NavRail responsive behavior is built; PWA TBD
+# Visual: Figma URL TBD — paste into FIGMA.md. Historical HTML under docs/wireframes/ is not visual SoT.
+# Colors: Untitled semantic utilities (theme.css). Do not introduce --staff-* tokens.
+# Build status:  Chrome + interiors on Untitled (`lg` 1024px); PWA TBD
 
 ---
 
 ## Breakpoints
 
 ```
-Mobile:   < 640px    — phone, single column, bottom tab bar
-Tablet:   640–1024px — iPad, primary staff device, bottom tab bar
-Desktop:  > 1024px   — laptop/desktop, left sidebar nav
+Mobile:   < 1024px   — hamburger header + overlay drawer (Untitled `lg`)
+Desktop:  ≥ 1024px   — 280px left sidebar
 ```
 
 The staff app is **tablet-first**, not desktop-first.
 Most front desk and floor staff use an iPad or iPhone.
 Desktop is a secondary surface used by managers and admins
 for settings, reports, and scheduling.
+
+NavRail matches Untitled: sidebar at `lg` (1024px), hamburger below that.
+No bottom tab bar.
 
 All touch targets remain 44px minimum regardless of breakpoint.
 
@@ -29,40 +32,38 @@ All touch targets remain 44px minimum regardless of breakpoint.
 ## Navigation: Mobile + Tablet vs Desktop
 
 ### Mobile + Tablet (< 1024px)
-- Bottom tab bar always visible
-- 5 tabs: Cockpit · Schedule · Reports · Team · Settings
-- Tab bar: --staff-nav bg, border-top rgba(168,85,247,0.12)
-- Active indicator: 20×2px amber bar at TOP of tab item
-- Role-based tabs hidden entirely (not disabled)
+- Top hamburger opens the same sidebar contents in an overlay
+- Overview / Scheduling accordions (one open at a time)
+- Reporting + Contacts hidden for STAFF
+- Footer: Settings, Support, signed-in account card
+- Role-based items hidden entirely (not disabled)
 
-### Desktop (> 1024px)
-- Left sidebar replaces bottom tab bar
-- Sidebar width: 220px, fixed
-- Background: --staff-nav
-- Border right: 1px rgba(168,85,247,0.12)
-- Top: venue name (--font-display, 18px, #FAFAF9) + role badge
-- Nav items: icon (24px SVG) + label (13px)
-  Active: 2px --staff-action left border + --staff-action text + full opacity icon
-  Inactive: --staff-text-muted text + 35% opacity icon
-- Content area fills remaining width (calc(100% - 220px))
-- No bottom tab bar on desktop
+### Desktop (≥ 1024px)
+- Left sidebar 280px, fixed
+- Background: `bg-primary`
+- Border right: `border-secondary`
+- Top: venue name (`--font-display`)
+- Nav: Untitled item styles (icon + label; accordion children indent)
+- Content area: `lg:ml-[280px]`
+- No bottom tab bar on any breakpoint
 
 ---
 
 ## Staff Header: Desktop Adaptations
 
-### Mobile + Tablet
-- Full-width header
-- Left: venue name + date/time
-- Right: role badge + avatar
-- Height: 56px
+Do **not** add a second in-content header that repeats the sidebar account
+card (role badge + avatar). Venue name stays in the sidebar.
 
-### Desktop
-- Header spans content area only (sidebar has its own top section)
-- Left: page title (changes per section, not venue name)
-- Right: role badge + avatar + optional action button
-- Venue name lives in sidebar top, not repeated in header
-- Height: 64px
+### `< lg`
+- Hamburger header (venue name + menu button)
+- Page title in the content area (`StaffPageHeader`: `text-display-sm font-semibold text-primary`)
+- Overlays: Untitled right slideout (`BottomSheet` `placement="end"`); 44px min touch
+
+### `lg+`
+- 280px sidebar with venue name + account card
+- Content: page title + optional actions only
+- Booking detail: Untitled right slideout (~400px) at all breakpoints
+- Metrics in a row; tables with headers
 
 ---
 
@@ -77,9 +78,9 @@ All touch targets remain 44px minimum regardless of breakpoint.
   instead of vertical stack on mobile
 - Upcoming list: becomes a table with column headers
   Time | Customer | Bowlers/Package | Lane | Status | Actions
-- Booking detail: RIGHT PANEL (400px) instead of bottom sheet
-  Slides in from right: translateX(100%)→0
-  Backdrop: --surface-dark 20% opacity
+- Booking detail: Untitled right slideout (~400px)
+  Slides in from the right: translateX(100%)→0 (never translateY)
+  Overlay: bg-overlay/70 + backdrop blur
   Panel height: 100vh, fixed right
 
 ### Lanes Sub-view (desktop)
@@ -92,24 +93,24 @@ All touch targets remain 44px minimum regardless of breakpoint.
 
 ### Walk-in FAB (desktop)
 - FAB remains visible (bottom right of content area, above status bar)
-- Walk-in booking opens as right panel (400px), not bottom sheet
+- Walk-in booking opens as the same right slideout (~400px)
 - Same 3-step flow, panel layout instead of sheet layout
 
 ---
 
 ## Booking Detail: Desktop
 
-Always a right panel on desktop.
-Never a bottom sheet at > 1024px.
+Untitled right slideout at all breakpoints (including `< lg`).
+Never a bottom sheet. Never combine `slide-in-from-bottom` with
+`slide-in-from-right`.
 
-- Width: 400px fixed
+- Width: ~400px (`max-w-[400px]`; 24px overlay peek on small screens)
 - Height: 100vh
-- Background: --staff-card
-- Left border: 1px --staff-border
-- Animation: translateX(100%)→0, --duration-base --ease-out
-- Backdrop: --surface-dark 20% opacity, covers content area only
-  (not the sidebar)
-- Dismiss: tap backdrop, Escape key, or X button in panel header
+- Background: bg-primary
+- Left border: 1px border-secondary
+- Animation: translateX(100%)→0 only
+- Overlay: bg-overlay/70 + backdrop blur
+- Dismiss: tap overlay, Escape, or X in the header
 
 ### Check-in Checklist (desktop)
 - Panel content replaces in place
@@ -120,20 +121,19 @@ Never a bottom sheet at > 1024px.
 
 ## Booking Modification: Desktop
 
-- All states render within the right panel
-- Field editor slides up within the panel content area
-- Panel content dims to 18% when field editor is active
-- No full-screen overlays on desktop
+- All states render within the right slideout
+- Field editor replaces content inside the same panel
+- No bottom-sheet motion on employee overlays
 
 ---
 
 ## Walk-in Flow: Desktop
 
-- Right panel (400px), not bottom sheet
-- 3-step flow within panel
+- Untitled right slideout (~400px) at all breakpoints
+- 3-step flow within the panel
 - Step indicator in panel header (same dot pattern)
-- Cockpit content visible behind panel (no dimming on desktop)
-- All other behavior identical to mobile
+- Overlay covers content behind the panel
+- All other behavior identical at both breakpoints
 
 ---
 
@@ -143,7 +143,7 @@ Never a bottom sheet at > 1024px.
 - Day detail: renders to the RIGHT of the calendar as a column
   Side-by-side layout instead of below
   Day detail column: ~40% of content area
-- Block creation: right panel (400px), not bottom sheet
+- Block creation: Untitled right slideout (~400px)
 - List view: wider visible area, more blocks per scroll
 
 ---
@@ -165,50 +165,40 @@ Never a bottom sheet at > 1024px.
 
 ---
 
-## Settings Tab: Desktop
+## Settings: Desktop and mobile
 
-Single navigation surface — settings nav lives in the **NavRail**, not a
-second in-page panel. (Avoids the double-navigation that a separate
-in-page sidebar creates next to the rail.)
+Visual SoT: Profile + Venue + Hours frames in FIGMA.md (desktop tabs, mobile section Select). Reporting and Contacts desktop frames are also in FIGMA.md (`/staff/reports`).
 
-- The NavRail "Settings" item expands inline while within
-  `/staff/settings/*` to reveal grouped child pages
-  Groups: Venue · Booking · Team · Integrations · Account
-  Active child: amber left border (--color-action-dark) + amber text
-  Background: --surface-card (the rail's own surface)
-- Collapses to a single "Settings" link when you leave the section
-- Content: settings sub-page fills the main content area
-  Max content width: 640px
-  No back chevron on desktop — the rail is always visible
-- The settings hub page shows only a short prompt on desktop; the
-  grouped drill-down list is mobile-only
+- NavRail “Settings” is a single footer item — do not expand children in the rail
+- Desktop (`md+`): in-page horizontal tabs under the Settings heading
+- Mobile: section Select; Sign out is the last option; AppShell hamburger stays
+- `/staff/settings` redirects to `/staff/settings/profile`
+- Unsaved-changes guard wraps AppShell so tab/Select/rail navigation is intercepted when a form is dirty
 
-Sub-pages render in the main content area. Navigation is always one click
-from the rail. The unsaved-changes guard wraps the AppShell, so rail
-navigation is intercepted when a form is dirty.
+Do not copy Untitled logo, ⌘K, or dummy accounts. Hamburger `< lg` is intentional.
 
 ---
 
-## Sheet → Panel Conversion Rules
+## Staff overlay rules (Untitled slideouts)
 
-All bottom sheets on mobile become right panels (400px) on desktop:
+Employee overlays are Untitled **right slideouts** at every breakpoint
+(Figma node `231:922`). `BottomSheet` default `placement="end"`:
+full height, ~400px, `slide-in-from-right` only. Customer `/dashboard`
+keeps `placement="bottom"`.
 
-| Mobile (< 1024px) | Desktop (> 1024px) |
+| Surface | Overlay |
 |---|---|
-| Booking detail sheet | Right panel |
-| Check-in checklist | Within booking detail panel |
-| Field editor sheet | Within modification panel |
-| Cancel sheet | Within booking detail panel |
-| Walk-in sheet | Right panel |
-| Block creation sheet | Right panel |
-| Employee detail sheet | Right panel |
-| Integration detail sheet | Right panel |
-| Package detail sheet (booking flow) | Right panel from right |
+| Booking detail | Right slideout |
+| Check-in checklist | Within booking detail slideout |
+| Field editor | Within modification slideout |
+| Cancel | Within booking detail slideout |
+| Walk-in | Right slideout |
+| Block creation | Right slideout |
+| Employee detail / invite | Right slideout |
+| Integration detail | Right slideout |
+| Package detail (customer `/book`) | Customer bottom sheet — do not restyle |
 
-Exceptions — these are always sheets on both mobile and desktop:
-- Cancel confirmation (simple yes/no, too small for a panel)
-- Sign out confirmation
-- Simple toasts (never sheets)
+Confirmations (sign-out, unsaved settings) also use the staff right slideout.
 
 ---
 
@@ -352,18 +342,17 @@ All animations respect prefers-reduced-motion:
 
 ## What Cursor Must Not Do (Responsive + PWA)
 
-- Use the bottom tab bar on desktop — replace with left sidebar at >1024px
-- Show bottom sheets on desktop — all sheets become right panels
+- Use a bottom tab bar — hamburger `< lg`, sidebar on `lg+`
+- Use bottom-sheet motion on staff overlays — employee panels are Untitled right slideouts (`slide-in-from-right` only)
 - Hardcode venue name or app name in manifest files
   Both manifests are dynamic routes reading from tenant config
 - Make the staff app portrait-only — staff need landscape on iPad
 - Make the customer app landscape — it's portrait-only
 - Create a single manifest for both apps
   Two separate manifests required for two separate installable apps
-- Use different breakpoints than 640px and 1024px
+- Use different breakpoints than Untitled `lg` (1024px) for staff chrome
 - Remove touch target minimums on desktop — 44px still applies
-- Render a second in-page settings nav sidebar on desktop
-  Settings navigation lives in the NavRail (the "Settings" item expands
-  to its child pages) — a separate in-page sidebar is double navigation
-- Build the desktop settings as a stack of pages
-  Desktop navigates via the rail, not a back-and-forth page stack
+- Render a second in-page settings **sidebar** on desktop
+  Section switching is horizontal tabs (Figma), not a second sidebar
+- Expand Settings children in the NavRail
+- Build the desktop settings as a stack of pages with a back chevron

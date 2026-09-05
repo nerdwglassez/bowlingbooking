@@ -16,10 +16,10 @@ The auth module (`src/lib/auth.ts`) is the **only** place that touches `next-aut
 | Current-user resolution | `getCurrentUser()` in `src/lib/auth.ts` | Reads the session, returns a plain object. Never re-queries the DB. |
 | Auth requirement (any user) | `requireUser(currentPath?)` in `src/lib/auth.ts` | Redirects to `/signin?from=…`. Returns the user. |
 | Role gating | `requireRole(...allowed)` in `src/lib/auth.ts` | Redirects on no session; `unauthorized()` on wrong role. Returns the user. |
-| Sign-in surface | `src/app/signin/page.tsx` (Phase 6b) | The only place the user authenticates. Calls `signIn('credentials', …)`. |
+| Sign-in surface | `src/app/signin/page.tsx` | Shared credentials login. Composes `SignInScreen` + `SignInForm`. `getPostSignInPath` routes STAFF+ to `/staff` and CUSTOMER to dashboard / find-my-booking / checkout `from`. |
 | Auth HTTP handlers | `src/app/api/auth/[...nextauth]/route.ts` | Exports `GET` / `POST` from `handlers` in `src/lib/auth.ts`. Required for sessions. |
 | Sign-out surface | Sign-out server action (Phase 6b) | Calls `signOut()`. |
-| Password reset | `src/lib/actions/password-reset.ts` + `src/app/reset-password/page.tsx` | Token-based, single-use (`PasswordResetToken`, 1h TTL). `requestPasswordResetAction` (rate-limited, never leaks account existence) emails a link; `resetPasswordAction` validates the hashed token and calls `hashPassword`. NOT a NextAuth provider. |
+| Password reset | `src/lib/actions/password-reset.ts` + `/forgot-password` + `/reset-password` | Token-based, single-use (`PasswordResetToken`, 1h TTL). Untitled 4-step UI (`PasswordResetScreen`). `requestPasswordResetAction` (rate-limited, never leaks account existence) emails a link; `resetPasswordAction` validates the hashed token (8+ chars and one special character) and calls `hashPassword`. NOT a NextAuth provider. |
 | Team invite (set password) | `src/lib/actions/team-invite.ts` + `/accept-invite` | Admin-issued single-use email token (`TeamInviteToken`, 48h TTL) so a pending user sets their first password. Custom token flow, NOT a NextAuth Email/magic-link provider. |
 
 ---
@@ -32,7 +32,7 @@ The auth module (`src/lib/auth.ts`) is the **only** place that touches `next-aut
 4. **Password verification for sessions goes through `signIn('credentials', …)` → `authorize` → `verifyCredentials`.** The `/signin` server action may call `verifyCredentials` **once before** `signIn` solely to resolve a role-aware `redirectTo` (`resolvePostSignInPath`). It must not set cookies or skip `signIn`; `authorize` remains the session source of truth (and performs the bcrypt check again).
 5. **Don't trust `email` casing.** `verifyCredentials` lowercases the input. User records store the lowercase email.
 6. **Don't catch `redirect()` / `unauthorized()`.** They throw a Next.js framework signal; catching turns the redirect into a 500. Let them propagate.
-7. **No OAuth and no passwordless (NextAuth Email/magic-link) *sign-in* in v1.** Adding either requires updating this contract first, then adding the provider in `src/lib/auth.ts` only. (Password reset and team-invite "set your password" links DO exist — but they are custom single-use token flows in `src/lib/actions/*`, not NextAuth providers, and never create a session by themselves. The user still signs in via Credentials afterward.)
+7. **No OAuth and no passwordless (NextAuth Email/magic-link) *sign-in* in v1.** The `/signin` Figma frame includes Google and Sign up — **omit both**. Adding either requires updating this contract first, then adding the provider in `src/lib/auth.ts` only. (Password reset and team-invite "set your password" links DO exist — but they are custom single-use token flows in `src/lib/actions/*`, not NextAuth providers, and never create a session by themselves. The user still signs in via Credentials afterward.)
 8. **DATABASE_URL is required** for `/signin` and any route gated by `requireUser` / `requireRole`. The customer booking flow's dev-DB fallback (`src/lib/env.ts`) does NOT cover auth. Agents building staff/admin must run a real Postgres.
 
 ---
@@ -151,7 +151,7 @@ curl -i http://localhost:3000/admin           # → 307 redirect to /signin?from
 curl -i -b 'authjs.session-token=…' http://localhost:3000/staff   # → 200 if STAFF+, 401 if CUSTOMER
 ```
 
-The `/signin` page itself must render without a session (no infinite redirect).
+The `/signin` page itself must render without a session (no infinite redirect). Employees hitting `/staff` without a session still land on `/signin?from=/staff`. The booking header Sign in is checkout-only (`/signin?from=/book/confirm`).
 
 ---
 

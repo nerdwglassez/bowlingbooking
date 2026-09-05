@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 
 import { BookingAppHeader } from '@/components/patterns/booking-app-header'
+import { BookingSurface } from '@/components/patterns/booking-surface'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
@@ -18,7 +19,7 @@ import {
   claimBookingAccountAction,
   getClaimTokenForBooking,
 } from '@/lib/actions/claim'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { BOOKING_SHELL_PX } from '@/lib/booking-shell-layout'
 import { formatPrice } from '@/lib/pricing'
 
 const POLL_INTERVAL_MS = 800
@@ -207,16 +208,20 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
     status === 'ready' && booking && !offlinePending && !bannerDismissed
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+    <BookingSurface>
       <BookingAppHeader
         venueName={tenant.name}
         address={tenant.address}
-        signInHref={STAFF_SIGN_IN_PATH}
         signedIn={signedIn}
       />
 
       {showCelebration ? (
-        <div className="flex shrink-0 items-center gap-2.5 bg-[var(--status-ok-text)] px-5 py-3.5">
+        <div
+          className={[
+            'flex shrink-0 items-center gap-2.5 bg-[var(--status-ok-text)] py-3.5',
+            BOOKING_SHELL_PX,
+          ].join(' ')}
+        >
           <span className="text-xl" aria-hidden>
             🎉
           </span>
@@ -242,7 +247,12 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
       ) : null}
 
       {status === 'ready' && booking && offlinePending ? (
-        <div className="flex shrink-0 items-center gap-2.5 bg-[var(--surface-booking-chrome)] px-5 py-3.5">
+        <div
+          className={[
+            'flex shrink-0 items-center gap-2.5 bg-[var(--surface-booking-chrome)] py-3.5',
+            BOOKING_SHELL_PX,
+          ].join(' ')}
+        >
           <span className="text-lg" aria-hidden>
             🤝
           </span>
@@ -259,7 +269,12 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
         </div>
       ) : null}
 
-      <main className="flex flex-1 flex-col gap-3 px-4 pb-12 pt-4">
+      <main
+        className={[
+          'flex flex-1 flex-col gap-3 pb-12 pt-4',
+          BOOKING_SHELL_PX,
+        ].join(' ')}
+      >
         {status === 'auth_failed' ? (
           <section className="flex flex-col gap-3 pt-4 text-center">
             <h1 className="text-2xl">Bank verification didn&apos;t complete</h1>
@@ -452,6 +467,6 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
           </section>
         ) : null}
       </main>
-    </div>
+    </BookingSurface>
   )
 }

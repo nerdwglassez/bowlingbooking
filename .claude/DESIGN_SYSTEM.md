@@ -9,8 +9,9 @@ are never directly styled — they compose components.
 ## The four layers
 
 ```
-Layer 1 — Tokens        src/styles/globals.css + tokens.css
-Layer 2 — Primitives    src/components/ui/
+Layer 1 — Tokens        src/styles/theme.css (+ tokens.css legacy bridge)
+Layer 2 — Primitives    src/components/base/ + application/ + foundations/
+                        src/components/ui/ is temporary re-exports only
 Layer 3 — Patterns      src/components/patterns/
 Layer 4 — Pages         app/**/page.tsx
 ```
@@ -22,8 +23,13 @@ Never style at Layer 3 or 4 directly.
 
 ## Layer 1 — Design tokens
 
-File: src/styles/tokens.css
-Imported once in globals.css, available everywhere.
+Primary file: `src/styles/theme.css` (Untitled semantic utilities: `bg-brand-solid`,
+`text-secondary`, `bg-primary`, …). Imported first in `src/app/globals.css`.
+
+Legacy aliases: `src/styles/tokens.css` (`--surface-*`, `--color-*`) for patterns
+not yet rewritten from Figma. Prefer Untitled utilities when touching a file.
+
+`tokens.css` palette (`--palette-*`) is NEVER used directly in components.
 
 ### Palette (NEVER use directly in components — building blocks only)
 ```css
@@ -73,6 +79,7 @@ Imported once in globals.css, available everywhere.
 --surface-card:       #FDFCFA;   /* cards, inputs */
 --surface-raised:     #FFFFFF;   /* elevated panels */
 --surface-sunken:     #EDE9E3;   /* recessed areas */
+--surface-app-backdrop: var(--surface-sunken); /* md+ backdrop behind customer card panels */
 --surface-dark:       #1E0A2E;   /* staff headers, featured */
 --surface-dark-mid:   #292524;
 --surface-overlay:    rgba(0,0,0,0.18);
@@ -186,164 +193,122 @@ Imported once in globals.css, available everywhere.
 
 ---
 
-## Layer 2 — Primitive components
+## Layer 2 — Primitive components (Untitled UI React)
 
-Directory: src/components/ui/
+Directories: `src/components/base/`, `src/components/application/`,
+`src/components/foundations/`. Temporary shims: `src/components/ui/`.
 
-Each component references ONLY CSS variable tokens.
-Never uses raw color values or Tailwind color classes.
-Exports named variants covering all use cases.
+**Untitled UI React is the only Layer 2 library.** Install via Untitled MCP + CLI —
+see `.claude/contracts/UNTITLED.md` and `.claude/contracts/PRIMITIVES.md`.
 
-### Button — src/components/ui/button.tsx
-Variants: PRIMARY | SECONDARY | GHOST | DANGER | DARK
-Sizes: sm | md (default) | lg
-Props: variant, size, fullWidth, disabled, loading
+- Colors: Untitled semantic utilities from `src/styles/theme.css`
+  (`bg-brand-solid`, `text-secondary`, `bg-primary`, …).
+  **Staff (`data-app="staff"`):** stock Untitled brand (purple) in light and dark.
+  **Customer light:** brand remapped to amber until `/book` is redesigned.
+  Do not remap employee `bg-brand-solid` to amber.
+- Dark mode: `dark:` utilities via `@custom-variant dark` → `[data-theme="dark"]`.
+- Do **not** resurrect Radix Slot / `--color-action` button class maps.
+- When Figma needs a component not in `base/` / `application/`, install it with
+  Untitled MCP `get_component` in the same change. Never invent PRO components.
 
-PRIMARY
-  background: --color-action
-  color: white
-  border-radius: --radius-lg
-  box-shadow: 0 0 20px rgba(245,158,11,0.25)
-  disabled: opacity 0.35
-
-SECONDARY
-  background: --surface-sunken
-  color: --color-text-secondary
-  border: 1.5px solid --color-border
-
-GHOST
-  background: transparent
-  color: --color-text-secondary
-  border: none
-
-DANGER
-  background: --status-error-bg
-  color: --status-error-text
-  border: 1px solid --status-error-border
-
-DARK (on --surface-dark backgrounds)
-  background: rgba(255,255,255,0.08)
-  color: --color-text-inverted
-  border: 1px solid rgba(255,255,255,0.12)
-
-### Card — src/components/ui/card.tsx
-Variants: DEFAULT | SUNKEN | FEATURED
-
-DEFAULT
-  background: --surface-card
-  border: 1.5px solid --color-border
-  border-radius: --radius-lg
-  padding: 16px
-
-SUNKEN
-  background: --surface-sunken
-  border: 1.5px solid --color-border
-
-FEATURED (dark header card)
-  background: --surface-dark
-  border-radius: --radius-xl
-  padding: 20px
-  No border
-
-### Input — src/components/ui/input.tsx
-  background: --surface-card
-  border: 1.5px solid --color-border
-  border-radius: --radius-md
-  padding: 12px 14px
-  font: --font-body 14px
-  placeholder: --color-text-muted
-  focus: border-color --color-action
-  error: border-color --status-error-border, background --status-error-bg
-
-### Select — src/components/ui/select.tsx
-  Same base as Input
-  Custom chevron SVG (stone-400 stroke)
-  appearance: none
-
-### Badge — src/components/ui/badge.tsx
-Variants: DEFAULT | ACTION | SUCCESS | WARNING | ERROR | MUTED | ROLE
-All use --radius-full (pill shape)
-
-### Toggle — src/components/ui/toggle.tsx
-  ON:  background --color-action, knob right
-  OFF: background --color-border-strong, knob left
-  Width 40px, Height 22px
-
-### Checkbox — src/components/ui/checkbox.tsx
-  Unchecked: 20px, border-radius 5px, border --color-border-strong
-  Checked: background --color-action, white checkmark SVG
-
-### Sheet — src/components/ui/sheet.tsx
-  background: --surface-raised
-  border-top: 1px solid --color-border
-  Handle: 32×3px, --color-border-strong, centered
-
-### TabBar — src/components/ui/tab-bar.tsx
-  Staff app: background #120620, active icon --color-action, 2px amber top bar
+Compatibility props still used by unreworked call sites (`Button` `variant` / `size` /
+`fullWidth` / `loading` / `asChild`) live in `ui/` re-exports — prefer native Untitled
+imports when rewriting screens from Figma.
 
 ---
 
 ## Layer 3 — Pattern components
 
 Directory: src/components/patterns/
-Composed ONLY from Layer 2 primitives. No raw styles.
+Composed ONLY from Layer 2 (`base/` / `application/`, or `ui/` shims until a Figma rewrite).
+Prefer Untitled semantic utilities when rewriting.
+Do not extend old `--surface-*` / `--color-action` recipes when touching a pattern — migrate.
 
 Key patterns:
-- BookingFlowShell — stone booking chrome header, step strip, hold bar, scrollable content, optional CTA footer
-- BookingAppHeader — `--surface-booking-chrome` venue header (stone, not staff purple)
-- BookingFlowFooter — stone sticky bar, primary CTA, optional secondary back button
-- FeaturedBookingCard — dark card, confirmation code, booking details, action buttons
-- StaffCockpitHeader — purple surface, venue name (Fraunces), role badge, avatar
-- LaneTimelineRow — lane label, track bar, booking blocks, now-line
-- PackageCard — package summary card, **What's included →** opens detail sheet, tags, select CTA
-- OrderSummaryCard — collapsible itemized pricing on confirm step (in-content, not footer)
+- BookingFlowShell / BookingSurface — customer booking chrome (Figma may replace widths)
+- BookingAppHeader (Sign in only on checkout), BookingFlowFooter, HoldTimer, StepIndicator
+- SignInScreen — shared `/signin` split login (FIGMA.md)
+- PasswordResetScreen — `/forgot-password` + `/reset-password` (FIGMA.md)
+- FeaturedBookingCard, PackageCard, OrderSummaryCard
+- Staff patterns compose AppShell chrome
 
 ---
 
 ## Tenant theme override
 
 File: src/styles/themes/{tenant-slug}.css
-Override ONLY --color-action family and --surface-dark if needed.
-No component files ever need to change for a rebrand.
-
-```css
-/* Example: kingpin-lanes.css */
-:root {
-  --color-action:       #22C55E;
-  --color-action-hover: #16A34A;
-  --color-action-dark:  #4ADE80;
-  --surface-dark:       #0A1628;
-}
-```
+Override brand / action family (and dark chrome if needed). Prefer remapping
+`--color-brand-*` in theme.css for Untitled components; keep `--color-action*`
+aliases in sync for unreworked patterns.
+No component files should need to change for a rebrand.
 
 ---
 
 ## Theme switching
 
-Theme controlled by data-theme on <html>.
-NEVER use Tailwind dark: prefix — it bypasses the token system.
+Theme controlled by `data-theme` on `<html>`.
+Untitled `dark:` utilities are remapped to `[data-theme="dark"]` in `globals.css`.
+Never use `prefers-color-scheme` for app theming.
 
-Customer app → data-theme="light" default, user can toggle
-Staff app    → data-theme="dark" always
+Customer app → data-theme="light" (amber brand until /book is redesigned)
+Staff app    → data-theme follows device scheme (`StaffThemeScope` + cookie);
+               `data-app="staff"` keeps Untitled purple on light staff pages
+Sign-in      → data-theme="light" + `data-app="staff"` (Figma purple split login)
 Emails       → always light (email clients ignore CSS vars)
 
 ---
 
 ## Critical rules — NEVER do these
 
-1. Use raw color values: WRONG: background: '#F59E0B' | RIGHT: background: var(--color-action)
-2. Use Tailwind color classes: WRONG: bg-amber-500 | RIGHT: use Button PRIMARY variant
+1. Use raw hex values
+2. Use raw Tailwind palette classes (`bg-amber-500`, `text-stone-600`)
 3. Create one-off styled elements in pages
 4. Duplicate component logic across screens
 5. Style at the page level (pages = layout + composition only)
-6. Hardcode font strings: WRONG: fontFamily: 'Fraunces' | RIGHT: fontFamily: var(--font-display)
-7. Override component styles from outside: WRONG: <Button className="bg-red-500"> | RIGHT: <Button variant="danger">
-8. Use palette tokens directly in components: WRONG: color: var(--palette-green-400) | RIGHT: color: var(--status-ok-text)
-9. Use Tailwind dark: prefix — data-theme system handles both modes
+6. Hardcode font strings — use `var(--font-display)` / `var(--font-body)`
+7. Invent parallel primitives beside Untitled `base/` / `application/`
+8. Use `--palette-*` directly in components
+9. Use `prefers-color-scheme` for theming
+10. Extend old `--surface-*` / `--color-action` recipes when touching patterns — migrate to Untitled
+11. Implement UI from `docs/wireframes/` when a Figma frame exists — see `.claude/contracts/FIGMA.md`
+
+---
+
+## Responsive & layout
+
+### Breakpoints (Tailwind v4 defaults — no custom overrides)
+
+| Prefix | Min width | Role |
+|--------|-----------|------|
+| `sm`   | 640px     | Minor layout tweaks |
+| `md`   | 768px     | Customer card panel / staff sidebar |
+| `lg`   | 1024px    | Comfortable desktop spacing |
+| `xl`   | 1280px    | Staff/admin content max-width |
+
+### Customer surfaces
+
+**Current shell:** `BookingSurface` — mobile column; `md+` grows toward `max-w-xl` / `max-w-2xl`.
+
+**Figma supersedes:** When Figma specifies different widths or layout, update `BookingSurface`
+(or replace it). Do not defend old max-widths against the design. See `.claude/contracts/FIGMA.md`.
+
+### Staff / admin
+
+`AppShell` + `NavRail`; always dark. No `BookingSurface`. No `--staff-*` tokens.
+
+### Responsive rules
+
+- Layout: Tailwind responsive prefixes OK
+- Color: Untitled semantic utilities (or legacy token vars until Figma rewrite)
+- Type bumps at `lg` in patterns, not pages
 
 ---
 
 ## Typography scale
+
+Staff/admin: Untitled type (`text-xs`, `text-sm`, `text-md`, `text-display-sm`). Do not use 9px labels on employee surfaces.
+
+Customer booking (until redesigned) may still use:
 9px  — uppercase labels, badges, tab labels
 10px — section labels, metadata
 11px — secondary text, policy notes

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Fraunces, DM_Sans } from 'next/font/google'
-import { resolveTheme } from '@/lib/theme'
+import { resolveStaffBrand, resolveTheme } from '@/lib/theme'
 import {
   DEFAULT_THEME_SLUG,
   isValidThemeSlug,
@@ -37,7 +37,11 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [theme, tenant] = await Promise.all([resolveTheme(), getTenant()])
+  const [theme, tenant, staffBrand] = await Promise.all([
+    resolveTheme(),
+    getTenant(),
+    resolveStaffBrand(),
+  ])
   const themePreset = isValidThemeSlug(tenant.themeSlug)
     ? tenant.themeSlug
     : DEFAULT_THEME_SLUG
@@ -46,6 +50,7 @@ export default async function RootLayout({
     <html
       lang="en"
       data-theme={theme}
+      data-app={staffBrand ? 'staff' : undefined}
       data-theme-preset={themePreset}
       className={`${fraunces.variable} ${dmSans.variable}`}
     >

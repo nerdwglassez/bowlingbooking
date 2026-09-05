@@ -1,10 +1,15 @@
 /* ============================================================
-   tokens.css — Layer 1 Design Tokens
+   tokens.css — Legacy semantic aliases (bridge layer)
    Royal Z Lanes Booking System
-   
-   RULE: Palette tokens are for building semantic tokens only.
-   Components NEVER reference --palette-* directly.
-   Only --surface-*, --color-*, --status-*, --font-*, --radius-*, --shadow-*
+
+   Untitled UI theme.css is the primary design token source.
+   This file keeps --surface-* / --color-action* / --status-* aliases so
+   patterns not yet redesigned from Figma keep working.
+
+   RULES:
+   - New ui/ primitives use Untitled semantic utilities from theme.css.
+   - Do not extend this file with new recipes — migrate patterns to Untitled.
+   - Palette tokens remain private to this file / theme.css only.
    ============================================================ */
 
 /* Fonts: loaded via next/font/google in src/app/layout.tsx,
@@ -67,6 +72,7 @@
   --surface-card:       #FDFCFA;
   --surface-raised:     var(--palette-white);
   --surface-sunken:     #EDE9E3;
+  --surface-app-backdrop: var(--surface-sunken);
   --surface-dark:       #1E0A2E;
   --surface-dark-mid:   var(--palette-stone-800);
   --surface-overlay:    rgba(0, 0, 0, 0.18);
@@ -142,6 +148,7 @@
   --surface-card:       #1C1917;
   --surface-raised:     #292524;
   --surface-sunken:     #141211;
+  --surface-app-backdrop: var(--surface-sunken);
   --surface-dark:       #0D0517;
   --surface-overlay:    rgba(0, 0, 0, 0.45);
 

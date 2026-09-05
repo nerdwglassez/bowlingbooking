@@ -10,8 +10,8 @@ Built to be licensed to other bowling alleys (multi-tenant SaaS architecture).
 - Next.js 16.2.6 (App Router, Turbopack default) — read `node_modules/next/dist/docs/` before writing route code; see `.claude/STACK_BASELINE.md` § 7 for the breaking changes from training data
 - React 19.2.4 (server actions, `useActionState`, `useFormStatus`, `use()`)
 - TypeScript 5+
-- Tailwind CSS v4 (CSS-first via `@theme`; layout/spacing utilities only — NO color classes; drift sentinel enforces this)
-- Custom 4-layer component system: tokens → `ui/` primitives → `patterns/` → pages (see DESIGN_SYSTEM.md). NOT shadcn/ui directly — primitives are hand-built against the token system. Radix Slot may be used inside primitives for `asChild`.
+- Tailwind CSS v4 (CSS-first via `@theme`; layout/spacing + Untitled semantic color utilities; no raw palette classes; drift sentinel enforces this)
+- 4-layer component system: `theme.css` → Untitled `base/` + `application/` → `patterns/` → pages (see DESIGN_SYSTEM.md and UNTITLED.md). `src/components/ui/` is temporary re-exports. Not shadcn/ui.
 - Prisma 7.8 + PostgreSQL via `@prisma/adapter-pg` (money stored as integer cents — no `Decimal` columns)
 - Stripe (payments) — Stripe API uses cents natively, so no boundary conversion
 - NextAuth v5 / Auth.js (authentication; React 19 compatible) — wrapped in `src/lib/auth.ts`
@@ -81,11 +81,8 @@ Built to be licensed to other bowling alleys (multi-tenant SaaS architecture).
 - src/lib/prisma.ts        — Prisma singleton
 - src/lib/email.ts         — Resend / Make webhook trigger
 
-## Wireframes
-All HTML wireframes are in docs/wireframes/ organized by:
-  docs/wireframes/customer/   — booking flow, dashboard, cancel/reschedule
-  docs/wireframes/staff/      — cockpit, schedule, walk-in, reports
-  docs/wireframes/admin/      — all settings screens
-
-Wireframes use the same token system as production code.
-Use them as visual reference when building components and pages.
+## Design (Figma + Untitled)
+Visual SoT: Figma frames via MCP (`.claude/contracts/FIGMA.md`).
+Layer 2: Untitled UI React (`src/components/base/`, `application/`, `foundations/`; see `.claude/contracts/UNTITLED.md`).
+`src/components/ui/` is temporary re-exports for unreworked call sites.
+`docs/wireframes/` is historical only.

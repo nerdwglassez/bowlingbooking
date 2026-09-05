@@ -16,7 +16,9 @@ type SettingsFormContextValue = {
   saving: boolean
   setFormState: (state: { dirty: boolean; saving: boolean }) => void
   registerSaveHandler: (handler: (() => void) | null) => void
+  registerNavigateHandler: (handler: ((href: string) => void) | null) => void
   requestSave: () => void
+  requestNavigate: (href: string) => void
 }
 
 const SettingsFormContext = createContext<SettingsFormContextValue | null>(
@@ -27,6 +29,7 @@ export function SettingsFormProvider({ children }: { children: ReactNode }) {
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const saveHandlerRef = useRef<(() => void) | null>(null)
+  const navigateHandlerRef = useRef<((href: string) => void) | null>(null)
 
   const setFormState = useCallback(
     (state: { dirty: boolean; saving: boolean }) => {
@@ -40,8 +43,19 @@ export function SettingsFormProvider({ children }: { children: ReactNode }) {
     saveHandlerRef.current = handler
   }, [])
 
+  const registerNavigateHandler = useCallback(
+    (handler: ((href: string) => void) | null) => {
+      navigateHandlerRef.current = handler
+    },
+    [],
+  )
+
   const requestSave = useCallback(() => {
     saveHandlerRef.current?.()
+  }, [])
+
+  const requestNavigate = useCallback((href: string) => {
+    navigateHandlerRef.current?.(href)
   }, [])
 
   const value = useMemo(
@@ -50,9 +64,19 @@ export function SettingsFormProvider({ children }: { children: ReactNode }) {
       saving,
       setFormState,
       registerSaveHandler,
+      registerNavigateHandler,
       requestSave,
+      requestNavigate,
     }),
-    [dirty, saving, setFormState, registerSaveHandler, requestSave],
+    [
+      dirty,
+      saving,
+      setFormState,
+      registerSaveHandler,
+      registerNavigateHandler,
+      requestSave,
+      requestNavigate,
+    ],
   )
 
   return (

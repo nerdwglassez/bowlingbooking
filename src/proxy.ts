@@ -4,8 +4,8 @@
 // without a client-side script.
 //
 // The root layout reads `x-pathname` to decide between light and dark themes
-// (staff and admin paths are always dark; customer paths default to light or
-// respect the user's theme cookie). Without this header, `headers()` in a
+// (customer paths stay light; staff/admin use the theme cookie written from
+// the device color scheme). Without this header, `headers()` in a
 // Server Component can't see the current URL.
 
 import { NextResponse, type NextRequest } from 'next/server'

@@ -266,6 +266,7 @@ export function DashboardClient({
         open={cancelTarget != null}
         title="Cancel booking"
         onClose={() => setCancelTarget(null)}
+        placement="bottom"
       >
         <div className="flex flex-col gap-3 p-4 text-sm">
           {cancelTarget ? (
@@ -298,6 +299,7 @@ export function DashboardClient({
         open={rescheduleTarget != null}
         title="Reschedule booking"
         onClose={() => setRescheduleTarget(null)}
+        placement="bottom"
       >
         <div className="flex flex-col gap-3 p-4 text-sm">
           <label className="flex flex-col gap-1">

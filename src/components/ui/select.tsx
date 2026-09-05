@@ -1,10 +1,11 @@
+/**
+ * Compatibility shim. New staff code should import from
+ * `@/components/base/select/select-native` or `select`.
+ */
+
 import * as React from 'react'
 
-function cn(
-  ...inputs: Array<string | undefined | null | false>
-): string {
-  return inputs.filter(Boolean).join(' ')
-}
+import { cx } from '@/lib/cx'
 
 export type SelectVariant = 'default'
 export type SelectSize = 'sm' | 'md' | 'lg'
@@ -16,16 +17,9 @@ export type SelectVariantsArgs = {
 }
 
 const sizeClassName: Record<SelectSize, string> = {
-  sm: 'h-8 min-h-8 py-1.5 pl-3 pr-8 text-[13px]',
-  md: 'h-10 min-h-10 py-2 pl-3.5 pr-9 text-sm',
-  lg: 'h-12 min-h-12 py-2.5 pl-4 pr-10 text-sm font-semibold',
-}
-
-const variantClassName: Record<SelectVariant, string> = {
-  default: cn(
-    'bg-[var(--surface-card)] text-[var(--color-text-primary)]',
-    'border-[1.5px] border-solid border-[var(--color-border)]',
-  ),
+  sm: 'h-9 py-1.5 pl-3 pr-8 text-sm',
+  md: 'h-10 py-2 pl-3.5 pr-9 text-md',
+  lg: 'h-11 py-2.5 pl-4 pr-10 text-md',
 }
 
 const chevronInsetClassName: Record<SelectSize, string> = {
@@ -35,21 +29,17 @@ const chevronInsetClassName: Record<SelectSize, string> = {
 }
 
 export function selectVariants({
-  variant = 'default',
   selectSize = 'md',
   className,
 }: SelectVariantsArgs = {}): string {
-  return cn(
-    'block w-full max-w-full appearance-none rounded-[var(--radius-md)]',
-    '[font-family:var(--font-body)] transition-colors',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-strong)]',
-    'focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-ground)]',
-    'focus-visible:border-[var(--color-action)]',
-    'disabled:pointer-events-none disabled:opacity-35 disabled:cursor-not-allowed',
-    'aria-disabled:pointer-events-none aria-disabled:opacity-35 aria-disabled:cursor-not-allowed',
-    'aria-invalid:border-[var(--status-error-border)] aria-invalid:bg-[var(--status-error-bg)]',
+  return cx(
+    'block w-full max-w-full appearance-none rounded-lg',
+    'bg-primary text-primary shadow-xs ring-1 ring-primary ring-inset',
+    'outline-brand transition duration-100 ease-linear',
+    'focus:ring-2 focus:ring-brand focus:outline-hidden',
+    'disabled:cursor-not-allowed disabled:bg-disabled_subtle disabled:text-disabled',
+    'aria-invalid:ring-error_subtle',
     sizeClassName[selectSize],
-    variantClassName[variant],
     className,
   )
 }
@@ -62,7 +52,7 @@ export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
 function SelectChevron({ className }: { className?: string }) {
   return (
     <svg
-      className={cn('size-4 shrink-0', className)}
+      className={cx('size-4 shrink-0', className)}
       viewBox="0 0 20 20"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -83,7 +73,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   function Select(
     {
       className,
-      variant = 'default',
+      variant: _variant = 'default',
       selectSize = 'md',
       disabled,
       'aria-invalid': ariaInvalid,
@@ -98,14 +88,14 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           disabled={disabled}
           aria-invalid={ariaInvalid}
-          className={cn(selectVariants({ variant, selectSize }), className)}
+          className={cx(selectVariants({ selectSize }), className)}
           {...props}
         >
           {children}
         </select>
         <span
-          className={cn(
-            'pointer-events-none absolute top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]',
+          className={cx(
+            'pointer-events-none absolute top-1/2 -translate-y-1/2 text-fg-quaternary',
             chevronInsetClassName[selectSize],
           )}
           aria-hidden

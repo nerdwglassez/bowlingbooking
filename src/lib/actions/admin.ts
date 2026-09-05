@@ -809,6 +809,32 @@ export async function deletePricingPeriodAction(
 
 // ── Profile ───────────────────────────────────────────────
 
+export async function getStaffProfile(): Promise<{
+  name: string
+  email: string
+  role: CurrentUser['role']
+}> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) {
+    return {
+      name: user.name ?? '',
+      email: user.email ?? '',
+      role: user.role,
+    }
+  }
+
+  const row = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { name: true, email: true, role: true },
+  })
+
+  return {
+    name: row?.name ?? user.name ?? '',
+    email: row?.email ?? user.email ?? '',
+    role: row?.role ?? user.role,
+  }
+}
+
 export async function updateProfileAction(input: {
   name: string
   email: string

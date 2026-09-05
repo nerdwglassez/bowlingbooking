@@ -32,7 +32,7 @@ export function TimeSlotGrid({
   if (loading) {
     return (
       <div
-        className={['grid grid-cols-3 gap-[7px]', className]
+        className={['grid grid-cols-3 gap-[7px] md:grid-cols-4 lg:grid-cols-5', className]
           .filter(Boolean)
           .join(' ')}
         aria-busy
@@ -49,7 +49,7 @@ export function TimeSlotGrid({
     <div
       role="radiogroup"
       aria-label="Choose a time"
-      className={['grid grid-cols-3 gap-[7px]', className]
+      className={['grid grid-cols-3 gap-[7px] md:grid-cols-4 lg:grid-cols-5', className]
         .filter(Boolean)
         .join(' ')}
     >

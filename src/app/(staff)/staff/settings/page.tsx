@@ -1,73 +1,9 @@
-// /staff/settings — settings hub (tab 5 in the unified staff app).
-//
-// Role-filtered grouped list per staff/06_SETTINGS.md and
-// docs/wireframes/admin/settings-venue-details.html.
+// /staff/settings — Figma has no hub; Profile is the default section.
 
-import { SettingsListItem } from '@/components/patterns/settings-list-item'
-import { SettingsSignOutItem } from '@/components/chrome/settings-sign-out-item'
-import { getSettingsHubMeta } from '@/lib/actions/admin'
-import { requireRole } from '@/lib/auth'
-import { getSettingsGroups } from '@/lib/staff-nav'
-import { getTenant } from '@/lib/tenant'
+import { redirect } from 'next/navigation'
 
-export default async function StaffSettingsPage() {
-  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
-  const tenant = await getTenant()
-  const meta = await getSettingsHubMeta(tenant.id)
-  const groups = getSettingsGroups(user.role, meta)
-  const isStaffOnly = user.role === 'STAFF'
+export const dynamic = 'force-dynamic'
 
-  return (
-    <>
-      {/* Mobile: grouped drill-down list. Desktop: nav lives in the NavRail. */}
-      <header className="flex flex-col gap-1 md:hidden">
-        <h1 className="[font-family:var(--font-display)] text-[22px] text-[var(--color-text-primary)]">
-          Settings
-        </h1>
-      </header>
-
-      <div className="flex flex-col gap-6 md:hidden">
-        {groups.map((group) => (
-          <section key={group.label} className="flex flex-col gap-2">
-            <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-              {group.label}
-            </h2>
-            <ul className="flex flex-col gap-1.5">
-              {group.items.map((item) => (
-                <li key={`${group.label}-${item.label}`}>
-                  {item.action === 'sign-out' ? (
-                    <SettingsSignOutItem venueName={tenant.name} />
-                  ) : (
-                    <SettingsListItem
-                      href={item.href}
-                      icon={item.icon}
-                      label={item.label}
-                      sub={item.sub || undefined}
-                      viewOnly={item.viewOnly}
-                      variant={item.variant}
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
-
-      {isStaffOnly ? (
-        <p className="text-center text-xs text-[var(--color-text-secondary)] md:hidden">
-          Need more access? Contact your venue admin.
-        </p>
-      ) : null}
-
-      <div className="hidden flex-col gap-2 md:flex">
-        <h1 className="[font-family:var(--font-display)] text-[22px] text-[var(--color-text-primary)]">
-          Settings
-        </h1>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Choose a section from the menu to get started.
-        </p>
-      </div>
-    </>
-  )
+export default function StaffSettingsIndexPage() {
+  redirect('/staff/settings/profile')
 }

@@ -10,7 +10,6 @@ import {
   LaneBlockingForm,
   type LaneBlockingFormValues,
 } from '@/components/patterns/lane-blocking-form'
-import { Card, CardBody } from '@/components/ui/card'
 import { blockLanes } from '@/lib/actions/staff'
 
 interface BlockingPanelProps {
@@ -69,17 +68,15 @@ export function BlockingPanel({ dateISO, tenantId }: BlockingPanelProps) {
   }
 
   return (
-    <Card>
-      <CardBody className="flex flex-col gap-3">
-        <h2 className="text-lg">Block lanes</h2>
-        <LaneBlockingForm
-          values={values}
-          onChange={setValues}
-          onSubmit={handleSubmit}
-          submitting={submitting}
-          error={error}
-        />
-      </CardBody>
-    </Card>
+    <section className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold text-primary">Block lanes</h2>
+      <LaneBlockingForm
+        values={values}
+        onChange={setValues}
+        onSubmit={handleSubmit}
+        submitting={submitting}
+        error={error}
+      />
+    </section>
   )
 }

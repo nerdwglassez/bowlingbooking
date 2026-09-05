@@ -1,12 +1,13 @@
 'use client'
 
-// ScheduleMonthCalendar — month grid with density bars and block indicators.
-// Controlled pattern — no useState.
-
-import type {
-  ScheduleBlockLevel,
-  ScheduleDaySummary,
-} from '@/lib/actions/staff'
+import { CalendarColumnHeader } from '@/components/application/calendar/base-components/calendar-column-header'
+import { CalendarMonthViewCell } from '@/components/application/calendar/base-components/calendar-month-view-cell'
+import {
+  CalendarMonthViewEvent,
+  type EventViewColor,
+} from '@/components/application/calendar/base-components/calendar-month-view-event'
+import { cx } from '@/lib/cx'
+import type { ScheduleDaySummary } from '@/lib/actions/staff'
 import { buildMonthGrid } from '@/lib/schedule-display'
 
 export type ScheduleMonthCalendarProps = {
@@ -16,9 +17,11 @@ export type ScheduleMonthCalendarProps = {
   selectedDate: string
   todayISO: string
   onSelectDate: (dateISO: string) => void
+  onAddBlock?: (dateISO: string) => void
 }
 
-const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
+const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
+const MAX_EVENTS_PER_CELL = 2
 
 function daySummary(
   days: ScheduleDaySummary[],
@@ -27,26 +30,39 @@ function daySummary(
   return days.find((d) => d.dateISO === dateISO)
 }
 
-function densityFillClass(level: ScheduleDaySummary['densityLevel']): string {
+function densityColor(level: ScheduleDaySummary['densityLevel']): EventViewColor {
   switch (level) {
     case 'full':
-      return 'bg-[var(--status-error-text)]'
+      return 'orange'
     case 'busy':
-      return 'bg-[var(--color-action)]'
+      return 'brand'
     default:
-      return 'bg-[var(--status-ok-text)]'
+      return 'green'
   }
 }
 
-function cellBlockClass(blockLevel: ScheduleBlockLevel): string {
-  switch (blockLevel) {
-    case 'full':
-      return 'border border-solid border-[var(--status-error-border)] bg-[color-mix(in_srgb,var(--status-error-bg)_12%,transparent)]'
-    case 'partial':
-      return 'border border-solid border-[color-mix(in_srgb,var(--status-error-border)_15%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_7%,transparent)]'
-    default:
-      return ''
+function cellEvents(summary: ScheduleDaySummary | undefined): {
+  label: string
+  color: EventViewColor
+}[] {
+  if (!summary) return []
+  const events: { label: string; color: EventViewColor }[] = []
+  if (summary.bookingCount > 0) {
+    events.push({
+      label:
+        summary.bookingCount === 1
+          ? '1 booking'
+          : `${summary.bookingCount} bookings`,
+      color: densityColor(summary.densityLevel),
+    })
   }
+  if (summary.blockLevel === 'partial' || summary.blockLevel === 'full') {
+    events.push({
+      label: summary.blockLevel === 'full' ? 'Blocked' : 'Partial block',
+      color: 'gray',
+    })
+  }
+  return events
 }
 
 export function ScheduleMonthCalendar({
@@ -56,130 +72,89 @@ export function ScheduleMonthCalendar({
   selectedDate,
   todayISO,
   onSelectDate,
+  onAddBlock,
 }: ScheduleMonthCalendarProps) {
   const cells = buildMonthGrid(year, month)
+  const rowClass =
+    cells.length > 35
+      ? 'grid-rows-6'
+      : cells.length > 28
+        ? 'grid-rows-5'
+        : 'grid-rows-4'
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="grid grid-cols-7 gap-0.5">
+    <div
+      role="grid"
+      aria-label="Month occupancy calendar"
+      className="isolate flex flex-col"
+    >
+      <div className="grid grid-cols-7">
         {DOW.map((label) => (
-          <span
+          <CalendarColumnHeader
             key={label}
-            className="py-1 text-center text-[9px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]"
-          >
-            {label}
-          </span>
+            weekDay={label}
+            className="before:border-b"
+          />
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((cell) => {
+      <div className={cx('grid flex-1 grid-cols-7', rowClass)}>
+        {cells.map((cell, index) => {
           const summary = daySummary(days, cell.dateISO)
           const isSelected = selectedDate === cell.dateISO
           const isToday = todayISO === cell.dateISO
-          const blockLevel = summary?.blockLevel ?? 'none'
-          const densityPercent = summary?.densityPercent ?? 0
-          const densityLevel = summary?.densityLevel ?? 'low'
-          const showBlockDot =
-            blockLevel === 'partial' || blockLevel === 'full'
-
-          let cellClass =
-            'relative flex aspect-square flex-col items-center justify-start rounded-[var(--radius-sm)] px-0.5 pb-1 pt-1 transition-colors'
-
-          if (!cell.inMonth) {
-            cellClass += ' opacity-20'
-          } else if (isSelected) {
-            cellClass += ' bg-[var(--color-action)]'
-          } else {
-            cellClass += ` hover:bg-[var(--surface-elevated)] ${cellBlockClass(blockLevel)}`
-            if (isToday) {
-              cellClass +=
-                ' border border-solid border-[color-mix(in_srgb,var(--color-action)_25%,transparent)] bg-[color-mix(in_srgb,var(--color-action)_8%,transparent)]'
-            }
-          }
+          const isLastRow =
+            cells.length > 35
+              ? index >= 35
+              : cells.length > 28
+                ? index >= 28
+                : index >= 21
+          const isLastColumn = (index + 1) % 7 === 0
+          const events = cellEvents(summary)
+          const shown = events.slice(0, MAX_EVENTS_PER_CELL)
+          const remaining = Math.max(0, events.length - MAX_EVENTS_PER_CELL)
 
           return (
-            <button
+            <CalendarMonthViewCell
               key={`${cell.dateISO}-${cell.inMonth}`}
-              type="button"
-              className={cellClass}
+              day={cell.day}
+              isDisabled={!cell.inMonth}
+              state={
+                isSelected ? 'selected' : isToday ? 'current' : 'default'
+              }
+              className={cx(
+                isLastRow && 'before:border-b-0',
+                isLastColumn && 'before:border-r-0',
+              )}
+              addEventLabel="Block"
+              onAddEvent={
+                cell.inMonth && onAddBlock
+                  ? () => onAddBlock(cell.dateISO)
+                  : undefined
+              }
               onClick={() => {
                 if (cell.inMonth) onSelectDate(cell.dateISO)
               }}
-              aria-label={cell.dateISO}
-              aria-pressed={isSelected}
             >
-              <span
-                className={`text-[11px] font-semibold leading-none ${
-                  isSelected
-                    ? 'text-[var(--color-text-on-action)]'
-                    : isToday
-                      ? 'text-[var(--color-action)]'
-                      : 'text-[var(--color-text-secondary)]'
-                }`}
-              >
-                {cell.day}
-              </span>
-              {cell.inMonth && densityPercent > 0 ? (
-                <span
-                  className={`mt-0.5 h-[3px] w-[calc(100%-4px)] overflow-hidden rounded-[2px] ${
-                    isSelected
-                      ? 'bg-[color-mix(in_srgb,var(--color-text-on-action)_20%,transparent)]'
-                      : 'bg-[var(--color-border)]'
-                  }`}
-                >
-                  <span
-                    className={`block h-full rounded-[2px] transition-[width] duration-300 ${densityFillClass(densityLevel)} ${
-                      isSelected ? '!bg-[var(--color-text-on-action)]' : ''
-                    }`}
-                    style={{ width: `${densityPercent}%` }}
+              <div className="flex gap-1 max-md:pl-1 md:flex-col">
+                {shown.map((event) => (
+                  <CalendarMonthViewEvent
+                    key={event.label}
+                    label={event.label}
+                    color={event.color}
+                    collapseOnMobile
                   />
-                </span>
-              ) : cell.inMonth ? (
-                <span className="mt-0.5 h-[3px] w-[calc(100%-4px)] rounded-[2px] bg-[var(--color-border)]" />
+                ))}
+              </div>
+              {remaining > 0 ? (
+                <div className="truncate text-xs font-semibold text-utility-neutral-500 max-md:pl-1">
+                  {remaining} more...
+                </div>
               ) : null}
-              {showBlockDot && cell.inMonth && !isSelected ? (
-                <span
-                  className="absolute bottom-0.5 right-0.5 size-1 rounded-full bg-[var(--status-error-text)]"
-                  aria-hidden
-                />
-              ) : null}
-            </button>
+            </CalendarMonthViewCell>
           )
         })}
       </div>
-
-      <div className="flex flex-wrap items-center gap-3 px-1 pt-2">
-        <LegendSwatch className="bg-[var(--status-ok-text)]" label="Available" />
-        <LegendSwatch className="bg-[var(--color-action)]" label="Busy" />
-        <LegendSwatch
-          className="bg-[var(--status-error-text)]"
-          label="Full"
-        />
-        <span className="flex items-center gap-1">
-          <span className="size-1.5 rounded-full bg-[var(--status-error-text)]" />
-          <span className="text-[9px] text-[var(--color-text-secondary)]">
-            Blocked
-          </span>
-        </span>
-      </div>
     </div>
-  )
-}
-
-function LegendSwatch({
-  className,
-  label,
-}: {
-  className: string
-  label: string
-}) {
-  return (
-    <span className="flex items-center gap-1">
-      <span className={`h-[3px] w-5 rounded-[2px] ${className}`} />
-      <span className="text-[9px] text-[var(--color-text-secondary)]">
-        {label}
-      </span>
-    </span>
   )
 }

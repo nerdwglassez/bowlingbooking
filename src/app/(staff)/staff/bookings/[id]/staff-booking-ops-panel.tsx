@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/base/buttons/button'
 import {
   checkInBookingAction,
   markBookingCompletedAction,
@@ -42,16 +42,14 @@ export function StaffBookingOpsPanel({
 
   return (
     <div className="flex flex-col gap-2">
-      {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
-      ) : null}
+      {error ? <p className="text-sm text-error-primary">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
         {status === 'PENDING_PAYMENT' ? (
           <Button
             type="button"
-            variant="primary"
+            color="primary"
             size="sm"
-            disabled={pending}
+            isDisabled={pending}
             onClick={() =>
               run(() => staffConfirmPendingPaymentAction(bookingId))
             }
@@ -62,9 +60,9 @@ export function StaffBookingOpsPanel({
         {checkedInAt == null && status === 'CONFIRMED' ? (
           <Button
             type="button"
-            variant="secondary"
+            color="secondary"
             size="sm"
-            disabled={pending}
+            isDisabled={pending}
             onClick={() => run(() => checkInBookingAction(bookingId))}
           >
             Check in
@@ -74,18 +72,18 @@ export function StaffBookingOpsPanel({
           <>
             <Button
               type="button"
-              variant="ghost"
+              color="tertiary"
               size="sm"
-              disabled={pending}
+              isDisabled={pending}
               onClick={() => run(() => markBookingNoShowAction(bookingId))}
             >
               Mark no-show
             </Button>
             <Button
               type="button"
-              variant="ghost"
+              color="tertiary"
               size="sm"
-              disabled={pending}
+              isDisabled={pending}
               onClick={() => run(() => markBookingCompletedAction(bookingId))}
             >
               Mark completed
@@ -94,7 +92,7 @@ export function StaffBookingOpsPanel({
         ) : null}
       </div>
       {checkedInAt != null ? (
-        <p className="text-xs text-[var(--color-text-secondary)]">
+        <p className="text-xs text-tertiary">
           Checked in at {checkedInAt.toLocaleString()}
         </p>
       ) : null}

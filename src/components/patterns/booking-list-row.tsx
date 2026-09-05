@@ -1,11 +1,6 @@
-// BookingListRow — single-row summary of a booking in the staff cockpit
-// and schedule list.
-//
-// Server-safe. Controlled — all data via props.
-
 import Link from 'next/link'
 
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/base/badges/badges'
 import { formatPrice } from '@/lib/pricing'
 
 const TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -38,15 +33,15 @@ export interface BookingListRowProps {
   isRefunded?: boolean
 }
 
-const STATUS_VARIANT: Record<
+const STATUS_COLOR: Record<
   BookingListRowStatus,
-  React.ComponentProps<typeof Badge>['variant']
+  'gray' | 'success' | 'warning' | 'error'
 > = {
-  CONFIRMED: 'ok',
-  COMPLETED: 'default',
+  CONFIRMED: 'success',
+  COMPLETED: 'gray',
   NO_SHOW: 'warning',
   CANCELLED: 'error',
-  HOLD: 'default',
+  HOLD: 'gray',
 }
 
 const SOURCE_LABEL: Record<BookingListRowSource, string> = {
@@ -69,62 +64,49 @@ export function BookingListRow({
   source,
   isRefunded,
 }: BookingListRowProps) {
-  const baseClass =
-    'flex flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4 text-sm transition-colors md:flex-row md:items-center md:justify-between md:gap-4'
-
   const inner = (
     <>
-      <div className="flex flex-col gap-0.5">
-        <span className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-xs font-medium text-tertiary">
           {confirmationCode}
         </span>
         <div className="flex items-baseline gap-2">
-          <span className="text-base [font-family:var(--font-display)] text-[var(--color-text-primary)]">
+          <span className="text-md font-semibold text-primary">
             {TIME_FORMATTER.format(startTime)}
           </span>
-          <span className="text-xs text-[var(--color-text-secondary)]">
+          <span className="text-xs text-tertiary">
             – {TIME_FORMATTER.format(endTime)}
           </span>
         </div>
       </div>
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[var(--color-text-primary)]">{customerName}</span>
-        <span className="text-xs text-[var(--color-text-secondary)]">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate font-medium text-primary">{customerName}</span>
+        <span className="text-xs text-tertiary">
           {bowlerCount} bowler{bowlerCount === 1 ? '' : 's'} · {laneCount} lane
           {laneCount === 1 ? '' : 's'} · {packageName}
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-xs text-[var(--color-text-secondary)]">
-          {SOURCE_LABEL[source]}
-        </span>
-        <span className="font-medium text-[var(--color-text-primary)]">
+        <span className="text-xs text-tertiary">{SOURCE_LABEL[source]}</span>
+        <span className="text-sm font-semibold text-primary">
           {formatPrice(totalAmount)}
         </span>
-        <Badge variant={STATUS_VARIANT[status]}>
-          {isRefunded ? 'REFUNDED' : status}
+        <Badge size="sm" color={STATUS_COLOR[status]} type="pill-color">
+          {isRefunded ? 'Refunded' : status}
         </Badge>
-        {href ? (
-          <span
-            aria-hidden
-            className="hidden text-[var(--color-text-secondary)] md:inline"
-          >
-            ›
-          </span>
-        ) : null}
       </div>
     </>
   )
 
+  const className =
+    'flex min-h-11 flex-col gap-2 rounded-xl bg-primary p-4 shadow-xs ring-1 ring-secondary ring-inset lg:flex-row lg:items-center lg:justify-between lg:gap-4'
+
   if (href) {
     return (
-      <Link
-        href={href}
-        className={`${baseClass} hover:border-[var(--color-border-strong)] hover:bg-[var(--surface-sunken)]`}
-      >
+      <Link href={href} className={`${className} hover:bg-primary_hover`}>
         {inner}
       </Link>
     )
   }
-  return <div className={baseClass}>{inner}</div>
+  return <div className={className}>{inner}</div>
 }

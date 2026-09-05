@@ -4,29 +4,31 @@ You are working on a bowling alley lane reservation system built with Next.js 16
 
 ## Before writing any code
 
-1. Read .claude/DESIGN_SYSTEM.md — all visual decisions come from the token system
+1. Read .claude/DESIGN_SYSTEM.md — tokens + Untitled Layer 2
 2. Read .claude/STACK_BASELINE.md — frozen stack decisions, Next.js 16 API notes
-3. Check docs/wireframes/ for the screen you are building
+3. If implementing UI from design: read `.claude/contracts/FIGMA.md` and `.claude/contracts/UNTITLED.md`; load `.cursor/skills/untitled-figma/SKILL.md`; use the Figma frame URL (do not implement from docs/wireframes/)
 4. Read .claude/BOOKING_DOMAIN.md — business logic and data model
 5. Read the relevant .claude/contracts/*.md for the surface you are touching
+6. Layer 2 is Untitled UI React only — see `.claude/contracts/UNTITLED.md` and `.claude/contracts/PRIMITIVES.md`
 
 ## Non-negotiable rules
 
-**Colors**: ONLY CSS custom properties. Never raw hex. Never Tailwind color classes.
+**Colors**: Untitled semantic utilities from `theme.css` (`bg-brand-solid`, `text-secondary`, …) OR legacy aliases `var(--color-*)` / `var(--surface-*)` in patterns not yet redesigned. Never raw hex. Never raw palette Tailwind (`text-stone-500`, `bg-amber-500`).
 ```
-RIGHT: color: var(--color-text-secondary)
-WRONG: color: var(--palette-stone-500)   ← palette tokens are for tokens.css only
+RIGHT: className="bg-brand-solid text-white"
+RIGHT: color: var(--color-text-secondary)   ← legacy pattern bridge OK until Figma rewrite
+WRONG: color: var(--palette-stone-500)
 WRONG: color: '#57534E'
 WRONG: className="text-stone-500"
 ```
 
-**Components**: 4-layer system — tokens → ui/ primitives → patterns/ → pages
+**Components**: 4-layer system — theme/tokens → Untitled `base/` + `application/` → patterns/ → pages
 - Pages: layout and composition only. No colors, no borders, no typography.
-- Patterns in components/patterns/: compose from ui/ only.
-- Primitives in components/ui/: only place each element is styled.
+- Patterns in components/patterns/: compose from `base/` / `application/` (or `ui/` shims). Do not extend old `--surface-*` recipes when touching a file — migrate toward Untitled utilities.
+- Layer 2: Untitled UI React under `src/components/base/`, `application/`, `foundations/` (see `.claude/contracts/UNTITLED.md`). `src/components/ui/` is temporary re-exports only.
 
-**Tailwind**: OK for layout/spacing. Never for color or dark mode.
-Never use `dark:` prefix — data-theme attribute handles both modes.
+**Tailwind**: OK for layout/spacing and Untitled semantic color utilities.
+`dark:` is allowed only because `@custom-variant dark` maps to `[data-theme="dark"]` — never `prefers-color-scheme`.
 
 **Fonts**: var(--font-display) for Fraunces, var(--font-body) for DM Sans. Never hardcode.
 
@@ -41,9 +43,10 @@ Always read from getTenant(). Drift sentinel greps for literal venue strings.
 **Refunds**: Server-side only. MANAGER or ADMIN role required. STAFF cannot refund.
 Walk-in/phone bookings have no Stripe payment — use manualRefundBookingAction.
 
-**Staff app**: data-theme="dark" in layout. Customer app: data-theme="light".
+**Staff app**: `data-theme` follows the device color scheme (`StaffThemeScope` + theme cookie). Stock Untitled brand (purple) in both light and dark via `data-app="staff"`. Customer app: `data-theme="light"` — brand remapped to amber until `/book` is redesigned.
 Both use the same --color-* and --surface-* token namespace.
 The theme system handles light/dark — never add separate --staff-* tokens.
+Do not remap staff `bg-brand-solid` back to amber.
 
 **Money**: All monetary values are integer cents. Never Decimal, never float.
 calculatePrice() returns integer cents. formatPrice() divides by 100 at display.
@@ -62,25 +65,31 @@ When files conflict, later entries override earlier:
 1. STACK_BASELINE.md — framework and infrastructure decisions
 2. BOOKING_DOMAIN.md — business logic and data model
 3. SCHEMA_MIGRATIONS.md — planned schema changes (gates Part 2 of BOOKING_DOMAIN)
-4. DESIGN_SYSTEM.md — visual system
-5. contracts/*.md — surface-specific contracts
-6. STAFF_INTERACTIONS.md — staff/admin global rules and architecture
-7. staff/0N_*.md — staff surface-specific interaction specs
-8. BOOKING_INTERACTIONS.md — customer booking behavior
-9. CUSTOMER_DASHBOARD.md — customer post-booking experience
+4. DESIGN_SYSTEM.md — visual system (theme.css + Untitled)
+5. contracts/FIGMA.md — Figma visual SoT
+6. contracts/UNTITLED.md — Untitled MCP/CLI install + folder map
+7. contracts/*.md — surface-specific contracts
+8. STAFF_INTERACTIONS.md — staff/admin global rules and architecture
+9. staff/0N_*.md — staff surface-specific interaction specs
+10. BOOKING_INTERACTIONS.md — customer booking behavior
+11. CUSTOMER_DASHBOARD.md — customer post-booking experience
 
 These .claude/ files override any other docs in the project.
 
 ## File locations
-- Tokens:          src/styles/tokens.css
-- Primitives:      src/components/ui/
+- Untitled theme:  src/styles/theme.css
+- Legacy aliases:  src/styles/tokens.css (bridge for unreworked patterns)
+- Base primitives: src/components/base/
+- Application UI:  src/components/application/
+- Foundations:     src/components/foundations/
+- UI shims:        src/components/ui/ (temporary re-exports)
 - Patterns:        src/components/patterns/
 - Chrome:          src/components/chrome/
 - Business logic:  src/lib/
 - Customer pages:  src/app/(customer)/
 - Staff pages:     src/app/(staff)/
 - Admin pages:     src/app/(admin)/
-- Wireframes:      docs/wireframes/
+- Wireframes:      docs/wireframes/ (historical — do not implement from)
 
 ## Current booking flow routes
 - /book              — bowler count + date/time (Step 1)

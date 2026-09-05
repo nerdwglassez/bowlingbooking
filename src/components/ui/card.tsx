@@ -1,15 +1,11 @@
-import * as React from 'react'
-import { Slot } from '@radix-ui/react-slot'
-
 /**
- * cn — minimal className joiner. No tailwind-merge yet; conflicts are caller's
- * responsibility (use the `className` prop sparingly and rely on variants).
+ * Compatibility surface card. Untitled has no 1:1 Card primitive — keep this
+ * shim until a Figma rewrite replaces call sites.
  */
-function cn(
-  ...inputs: Array<string | undefined | null | false>
-): string {
-  return inputs.filter(Boolean).join(' ')
-}
+
+import * as React from 'react'
+
+import { cx } from '@/lib/cx'
 
 export type CardVariant = 'default' | 'elevated' | 'flat'
 
@@ -19,18 +15,17 @@ export type CardVariantsArgs = {
 }
 
 const variantClassName: Record<CardVariant, string> = {
-  default: 'shadow-[var(--shadow-md)]',
-  elevated: 'shadow-[var(--shadow-lg)]',
-  flat: '',
+  default: 'shadow-md',
+  elevated: 'shadow-lg',
+  flat: 'shadow-none',
 }
 
 export function cardVariants({
   variant = 'default',
   className,
 }: CardVariantsArgs = {}): string {
-  return cn(
-    'bg-[var(--surface-card)] border border-[var(--color-border)]',
-    'rounded-[var(--radius-xl)]',
+  return cx(
+    'bg-primary ring-1 ring-secondary ring-inset rounded-xl',
     variantClassName[variant],
     className,
   )
@@ -42,16 +37,23 @@ export type CardProps = React.HTMLAttributes<HTMLDivElement> &
   }
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
-  { className, variant = 'default', asChild = false, ...props },
+  { className, variant = 'default', asChild = false, children, ...props },
   ref,
 ) {
-  const Comp: React.ElementType = asChild ? Slot : 'div'
+  const classes = cx(cardVariants({ variant }), className)
+
+  if (asChild && React.isValidElement(children)) {
+    const child = children as React.ReactElement<{ className?: string }>
+    return React.cloneElement(child, {
+      className: cx(classes, child.props.className),
+      ...props,
+    })
+  }
+
   return (
-    <Comp
-      ref={ref as never}
-      className={cn(cardVariants({ variant }), className)}
-      {...props}
-    />
+    <div ref={ref} className={classes} {...props}>
+      {children}
+    </div>
   )
 })
 
@@ -64,7 +66,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(
     return (
       <div
         ref={ref}
-        className={cn('flex flex-col gap-1 p-6 pb-4', className)}
+        className={cx('flex flex-col gap-1 p-6 pb-4', className)}
         {...props}
       />
     )
@@ -78,11 +80,7 @@ export type CardBodyProps = React.HTMLAttributes<HTMLDivElement>
 export const CardBody = React.forwardRef<HTMLDivElement, CardBodyProps>(
   function CardBody({ className, ...props }, ref) {
     return (
-      <div
-        ref={ref}
-        className={cn('p-6 pt-0', className)}
-        {...props}
-      />
+      <div ref={ref} className={cx('p-6 pt-0', className)} {...props} />
     )
   },
 )
@@ -96,7 +94,7 @@ export const CardFooter = React.forwardRef<HTMLDivElement, CardFooterProps>(
     return (
       <div
         ref={ref}
-        className={cn('flex items-center gap-2 p-6 pt-0', className)}
+        className={cx('flex items-center gap-2 p-6 pt-0', className)}
         {...props}
       />
     )

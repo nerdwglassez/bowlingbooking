@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
+import { TextArea } from '@/components/base/textarea/textarea'
 import type { StaffBookingDetail, StaffPackageOption } from '@/lib/actions/staff'
 import {
   getStaffPackageOptions,
@@ -191,7 +193,7 @@ export function BookingModifySheet({
       <div className="flex flex-col gap-3 pb-2 text-sm">
         {editor == null ? (
           <>
-            <p className="text-xs text-[var(--color-text-secondary)]">
+            <p className="text-sm text-tertiary">
               {booking.customerName} · {booking.confirmationCode}
             </p>
 
@@ -233,12 +235,12 @@ export function BookingModifySheet({
             />
 
             {changeCount === 0 ? (
-              <p className="text-center text-xs text-[var(--color-text-secondary)]">
+              <p className="text-center text-sm text-tertiary">
                 Tap a field to change it
               </p>
             ) : (
-              <div className="rounded-[var(--radius-md)] border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-3 text-xs">
-                <p className="mb-2 font-medium uppercase tracking-wide text-[var(--color-text-secondary)]">
+              <div className="rounded-xl bg-warning-primary p-3 text-sm ring-1 ring-warning ring-inset">
+                <p className="mb-2 text-sm font-semibold text-secondary">
                   Changes
                 </p>
                 <ul className="flex flex-col gap-1">
@@ -257,14 +259,14 @@ export function BookingModifySheet({
             )}
 
             {error ? (
-              <p className="text-xs text-[var(--status-error-text)]">{error}</p>
+              <p className="text-sm text-error-primary">{error}</p>
             ) : null}
 
             <Button
               type="button"
-              fullWidth
-              loading={saving}
-              disabled={changeCount < 1}
+              color="primary"
+              isLoading={saving}
+              isDisabled={changeCount < 1}
               onClick={handleSaveAll}
             >
               {changeCount === 1
@@ -273,8 +275,7 @@ export function BookingModifySheet({
             </Button>
             <Button
               type="button"
-              variant="ghost"
-              fullWidth
+              color="tertiary"
               onClick={() => {
                 setChanges({})
                 onClose()
@@ -304,26 +305,18 @@ export function BookingModifySheet({
               setEditor(null)
             }}
           >
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                Start
-              </span>
-              <Input
-                type="datetime-local"
-                value={draftStartLocal}
-                onChange={(e) => setDraftStartLocal(e.target.value)}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                End
-              </span>
-              <Input
-                type="datetime-local"
-                value={draftEndLocal}
-                onChange={(e) => setDraftEndLocal(e.target.value)}
-              />
-            </label>
+            <Input
+              type="datetime-local"
+              label="Start"
+              value={draftStartLocal}
+              onChange={setDraftStartLocal}
+            />
+            <Input
+              type="datetime-local"
+              label="End"
+              value={draftEndLocal}
+              onChange={setDraftEndLocal}
+            />
           </EditorPanel>
         ) : editor === 'bowlers' ? (
           <EditorPanel
@@ -338,19 +331,19 @@ export function BookingModifySheet({
             <div className="flex items-center justify-center gap-4">
               <Button
                 type="button"
-                variant="ghost"
+                color="tertiary"
                 onClick={() =>
                   setDraftBowlers((n) => Math.max(1, n - 1))
                 }
               >
                 −
               </Button>
-              <span className="text-2xl font-medium tabular-nums">
+              <span className="text-display-sm font-semibold tabular-nums text-primary">
                 {draftBowlers}
               </span>
               <Button
                 type="button"
-                variant="ghost"
+                color="tertiary"
                 onClick={() =>
                   setDraftBowlers((n) => Math.min(48, n + 1))
                 }
@@ -358,7 +351,7 @@ export function BookingModifySheet({
                 +
               </Button>
             </div>
-            <p className="text-center text-xs text-[var(--color-text-secondary)]">
+            <p className="text-center text-sm text-tertiary">
               {getLaneCount(draftBowlers, bowlersPerLane)}{' '}
               {getLaneCount(draftBowlers, bowlersPerLane) === 1
                 ? 'lane'
@@ -385,22 +378,15 @@ export function BookingModifySheet({
               setEditor(null)
             }}
           >
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                Package
-              </span>
-              <select
-                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
-                value={draftPackageId}
-                onChange={(e) => setDraftPackageId(e.target.value)}
-              >
-                {packages.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <NativeSelect
+              label="Package"
+              value={draftPackageId}
+              onChange={(e) => setDraftPackageId(e.target.value)}
+              options={packages.map((p) => ({
+                label: p.name,
+                value: p.id,
+              }))}
+            />
           </EditorPanel>
         ) : (
           <EditorPanel
@@ -412,12 +398,12 @@ export function BookingModifySheet({
               setEditor(null)
             }}
           >
-            <textarea
+            <TextArea
               rows={4}
+              label="Notes"
               value={draftNotes}
-              onChange={(e) => setDraftNotes(e.target.value)}
+              onChange={setDraftNotes}
               placeholder="Add a note about this booking…"
-              className="w-full resize-none rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
             />
           </EditorPanel>
         )}
@@ -442,27 +428,21 @@ function FieldRow({
       type="button"
       onClick={onClick}
       className={[
-        'flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] border p-3 text-left',
+        'flex min-h-11 w-full items-center justify-between gap-2 rounded-xl p-3 text-left ring-1 ring-inset',
         changed
-          ? 'border-[var(--status-warning-border)] bg-[var(--status-warning-bg)]'
-          : 'border-[var(--color-border)] bg-[var(--surface-elevated)]',
+          ? 'bg-warning-primary ring-warning'
+          : 'bg-primary ring-secondary',
       ].join(' ')}
     >
       <div className="min-w-0 flex-1">
-        <span className="block text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-secondary)]">
-          {label}
-        </span>
+        <span className="block text-sm font-medium text-tertiary">{label}</span>
         <span
-          className={
-            changed
-              ? 'text-[var(--color-action)]'
-              : 'text-[var(--color-text-primary)]'
-          }
+          className={changed ? 'text-brand-secondary' : 'text-primary'}
         >
           {value}
         </span>
       </div>
-      <span className="shrink-0 text-[var(--color-action)]" aria-hidden>
+      <span className="shrink-0 text-brand-secondary" aria-hidden>
         ›
       </span>
     </button>
@@ -484,15 +464,11 @@ function EditorPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        className="self-start text-xs text-[var(--color-action)]"
-        onClick={onBack}
-      >
+      <Button type="button" color="link-color" size="sm" onClick={onBack}>
         {backLabel}
-      </button>
+      </Button>
       {children}
-      <Button type="button" fullWidth onClick={onApply}>
+      <Button type="button" color="primary" onClick={onApply}>
         {applyLabel}
       </Button>
     </div>

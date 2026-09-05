@@ -1,8 +1,9 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
+import { SettingsFieldRow } from '@/components/patterns/settings-field-row'
 import { formatPrice, formatPriceInputValue, parsePriceInputValue } from '@/lib/pricing'
 
 export type PricingStrategy =
@@ -95,122 +96,88 @@ export function PricingSettingsForm({
         e.preventDefault()
         if (!readOnly) onSubmit()
       }}
-      className="flex flex-col gap-4"
+      className="flex flex-col"
     >
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Pricing strategy
-        </h2>
-        <Select
+      <SettingsFieldRow
+        label="Pricing strategy"
+        hint={`${strategyFormula(values.strategy)}. Example: 6 bowlers · 2 hrs at ${formatPrice(values.defaultRateCents)} → ${exampleTotal}.`}
+      >
+        <NativeSelect
           value={values.strategy}
           onChange={(e) =>
             patch({ strategy: e.target.value as PricingStrategy })
           }
           disabled={readOnly}
-        >
-          {STRATEGY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </Select>
-        <div className="rounded-[var(--radius-md)] border border-solid border-[color-mix(in_srgb,var(--color-action)_15%,transparent)] bg-[color-mix(in_srgb,var(--color-action)_6%,transparent)] px-3.5 py-2.5">
-          <p className="font-mono text-xs font-semibold text-[var(--status-warning-text)]">
-            {strategyFormula(values.strategy)}
-          </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
-            6 bowlers · 2 hrs at {formatPrice(values.defaultRateCents)} →{' '}
-            <span className="text-[var(--color-action)]">{exampleTotal}</span>
-          </p>
-        </div>
-      </section>
+          options={STRATEGY_OPTIONS.map((opt) => ({
+            label: opt.label,
+            value: opt.value,
+          }))}
+        />
+      </SettingsFieldRow>
 
       {values.strategy !== 'packages_only' ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-            Default rate
-          </h2>
+        <SettingsFieldRow
+          label="Default rate"
+          hint={strategyUnit(values.strategy).replace('\n', ' · ')}
+        >
           <div className="flex items-center gap-2">
-            <span className="text-sm text-[var(--color-text-secondary)]">$</span>
+            <span className="text-sm text-tertiary">$</span>
             <Input
               type="number"
-              min={0}
-              step={0.5}
               className="w-28 text-center [font-family:var(--font-display)] text-lg"
               value={rateDollars}
-              onChange={(e) => {
-                const cents = parsePriceInputValue(e.target.value)
+              onChange={(value) => {
+                const cents = parsePriceInputValue(value)
                 if (cents !== null) patch({ defaultRateCents: cents })
               }}
-              disabled={readOnly}
+              isDisabled={readOnly}
             />
-            <span className="whitespace-pre-line text-xs leading-snug text-[var(--color-text-secondary)]">
-              {strategyUnit(values.strategy)}
-            </span>
           </div>
-        </section>
+        </SettingsFieldRow>
       ) : null}
 
-      <div className="h-px bg-[var(--color-border)]" />
-
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Shoe rental
-        </h2>
-        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] px-3.5 py-3">
-          <div>
-            <p className="text-sm font-medium text-[var(--color-text-primary)]">
-              Rental price
-            </p>
-            <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-              Per person · charged separately
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-[var(--color-text-secondary)]">$</span>
-            <Input
-              type="number"
-              min={0}
-              step={0.5}
-              className="w-[4.25rem] text-center [font-family:var(--font-display)]"
-              inputSize="sm"
-              value={formatPriceInputValue(values.shoeRentalCents)}
-              onChange={(e) => {
-                const cents = parsePriceInputValue(e.target.value)
-                if (cents !== null) patch({ shoeRentalCents: cents })
-              }}
-              disabled={readOnly}
-            />
-          </div>
+      <SettingsFieldRow
+        label="Shoe rental"
+        hint="Per person · charged separately."
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-tertiary">$</span>
+          <Input
+            type="number"
+            className="w-[4.25rem] text-center [font-family:var(--font-display)]"
+            value={formatPriceInputValue(values.shoeRentalCents)}
+            onChange={(value) => {
+              const cents = parsePriceInputValue(value)
+              if (cents !== null) patch({ shoeRentalCents: cents })
+            }}
+            isDisabled={readOnly}
+          />
         </div>
-      </section>
+      </SettingsFieldRow>
 
-      <div className="h-px bg-[var(--color-border)]" />
-
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Rate overrides
-        </h2>
-        <p className="px-1 text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
-          Override periods replace the default rate for specific days or times.
-        </p>
+      <SettingsFieldRow
+        label="Rate overrides"
+        hint="Override periods replace the default rate for specific days or times."
+      >
         {periodsSlot}
-      </section>
+      </SettingsFieldRow>
 
       {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+        <p className="pt-4 text-sm text-error-primary">{error}</p>
       ) : null}
       {successMessage ? (
-        <p className="text-sm text-[var(--status-ok-text)]">{successMessage}</p>
+        <p className="pt-4 text-sm text-success-primary">{successMessage}</p>
       ) : null}
 
-      {!readOnly
-        ? saveButton ?? (
-            <Button type="submit" fullWidth loading={submitting}>
+      {!readOnly ? (
+        <div className="flex justify-end pt-4">
+          {saveButton ?? (
+            <Button type="submit" isLoading={submitting}>
               Save pricing
             </Button>
-          )
-        : null}
+          )}
+        </div>
+      ) : null}
     </form>
   )
 }
