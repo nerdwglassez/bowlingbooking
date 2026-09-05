@@ -39,12 +39,6 @@ export function ContactDetailPanel({
   const [detailKey, setDetailKey] = useState(0)
 
   useEffect(() => {
-    setBookingId(null)
-    setModifyOpen(false)
-    setBookingForModify(null)
-  }, [contact.id])
-
-  useEffect(() => {
     if (!bookingId) return
     const dialog = document.querySelector('[role="dialog"]')
     dialog?.scrollTo({ top: 0 })

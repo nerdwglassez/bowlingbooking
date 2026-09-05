@@ -176,6 +176,7 @@ export function ReportsContactsView({
             ) : (
               <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--surface-card)] p-4">
                 <ContactDetailPanel
+                  key={contactDetail.id}
                   contact={contactDetail}
                   embedded
                   tenantId={tenantId}
@@ -201,6 +202,7 @@ export function ReportsContactsView({
           {contactDetail ? (
             <div className="p-4">
               <ContactDetailPanel
+                key={contactDetail.id}
                 contact={contactDetail}
                 embedded
                 tenantId={tenantId}
