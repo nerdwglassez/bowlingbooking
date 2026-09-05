@@ -1,22 +1,38 @@
 /* ============================================================
-   globals.css — global stylesheet for Royal Z Lanes
-   Imported once in src/app/layout.tsx.
-
-   Order matters:
-   1. Tailwind v4 (utilities)
-   2. Design tokens (Layer 1)
-   3. Active tenant theme override (only --color-action family + --surface-dark)
-
-   Components/pages reference --surface-*, --color-*, --status-*, --font-*,
-   --radius-*, --shadow-* only. Palette tokens (--palette-*) are forbidden
-   outside of tokens.css — see .cursor/AGENTS.md § 6 (drift sentinel).
+   globals.css — Royal Z Lanes
+   Order: Tailwind → Untitled theme → legacy token aliases → tenant themes
    ============================================================ */
 
 @import 'tailwindcss';
+@import '../styles/theme.css';
 @import '../styles/tokens.css';
 @import '../styles/themes/default.css';
 @import '../styles/themes/midnight.css';
 @import '../styles/themes/sunset.css';
+
+@plugin 'tailwindcss-animate';
+@plugin 'tailwindcss-react-aria-components';
+
+/* Untitled dark: utilities resolve via data-theme (staff/admin always dark). */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@custom-variant label (& [data-label]);
+@custom-variant focus-input-within (&:has(input:focus));
+
+@utility scrollbar-hide {
+  &::-webkit-scrollbar {
+    display: none;
+    -webkit-appearance: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@utility transition-inherit-all {
+  transition-property: inherit;
+  transition-duration: inherit;
+  transition-timing-function: inherit;
+}
 
 @keyframes hold-blink {
   0%,
@@ -45,7 +61,6 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Headings use the display font by default; pages/patterns override sizes as needed */
 h1,
 h2,
 h3,
@@ -58,14 +73,12 @@ h6 {
   margin: 0;
 }
 
-/* Default focus ring uses the action color — works on light and dark surfaces */
 :where(button, a, input, select, textarea):focus-visible {
-  outline: 2px solid var(--color-action);
+  outline: 2px solid var(--color-brand-500, var(--color-action));
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
-/* Bottom sheet enter — booking PackageDetailSheet (wireframe 2c) */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes sheet-slide-up {
     from {

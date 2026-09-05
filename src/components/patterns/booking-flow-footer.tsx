@@ -4,6 +4,10 @@ import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import type { BookingBackTarget } from '@/lib/booking-flow-nav'
+import {
+  BOOKING_SHELL_NEG_MX,
+  BOOKING_SHELL_PX,
+} from '@/lib/booking-shell-layout'
 
 export type BookingFlowFooterProps = {
   ctaLabel: string
@@ -32,7 +36,9 @@ export function BookingFlowFooter({
   return (
     <footer
       className={[
-        '-mx-5 bg-[var(--surface-booking-chrome)] px-5 pb-[18px] pt-[13px]',
+        BOOKING_SHELL_NEG_MX,
+        'bg-[var(--surface-booking-chrome)] pb-[18px] pt-[13px]',
+        BOOKING_SHELL_PX,
         className,
       ]
         .filter(Boolean)

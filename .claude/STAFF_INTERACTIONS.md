@@ -6,18 +6,18 @@
 # How to use (every staff/admin session):
 #   1. Read this file — architecture, NavRail, sheets vs panels, roles
 #   2. Load the section file for the surface you are building (see table below)
-#   3. Open the wireframe HTML listed for that section
+#   3. Open the Figma frame for that section (FIGMA.md + UNTITLED.md) — not docs/wireframes HTML
 #   4. BOOKING_DOMAIN.md — booking status, walk-in source, refund rules
 #   5. contracts/STAFF.md — file locations, auth gating, server action rules
 #
 # Implementation status (summary):
-#   BUILT:     AppShell, NavRail, /staff cockpit (+ ?booking= detail sheet, md+ 400px panel),
+#   BUILT:     AppShell, NavRail (Untitled accordion + Support), /staff cockpit
+#              (+ ?view=lanes, ?booking= Untitled right slideout),
 #              5-state booking modification (lane editor deferred), walk-in FAB (policy-gated),
 #              /staff/schedule, /staff/reports (analytics + contacts, MANAGER+),
-#              /staff/settings/* (venue, hours, pricing, policies, packages, team,
-#              integrations stub, profile), refund panel on /staff/bookings/[id]
-#   PARTIAL:   reports wireframe deltas (desktop contact panel, export polish),
-#              customer dashboard wireframe parity (see CUSTOMER_DASHBOARD.md)
+#              /staff/settings/*, /staff/support, refund panel on /staff/bookings/[id]
+#   PARTIAL:   reports polish (desktop contact panel, export), customer dashboard
+#              Figma parity (see CUSTOMER_DASHBOARD.md)
 #   LEGACY:    /admin/* duplicate editors (packages/[id], team/new) — list routes redirect;
 #              /staff/bookings/[id] kept for direct links + refunds
 
@@ -29,8 +29,9 @@ Staff and admin are TWO Next.js route groups sharing ONE visual shell.
 
 ```
 src/app/(staff)/    — STAFF+ role required (requireRole in layout)
-  staff/page.tsx    — cockpit
+  staff/page.tsx          — cockpit
   staff/schedule/page.tsx
+  staff/support/page.tsx  — venue contact (STAFF+)
   staff/walkin/page.tsx
   staff/bookings/[id]/page.tsx  — full detail + refunds (deep links)
 
@@ -50,10 +51,16 @@ Both route groups use:
   NavRail (src/components/chrome/nav-rail.tsx)
 
 NavRail renders:
-  Fixed left sidebar on md and up (≥768px)
-  Bottom tab bar on smaller viewports
+  Fixed 280px left sidebar on `lg` and up (≥1024px)
+  Hamburger + overlay drawer below `lg` (no bottom tabs)
 
-This IS the wireframe intent — staff and admin feel like one app
+Accordion (one section open at a time):
+  Overview → Dashboard `/staff`, Lane Assignments `/staff?view=lanes`
+  Scheduling → Calendar `/staff/schedule`, Reservation List `/staff/schedule?view=list`
+Flat (MANAGER+): Reporting `/staff/reports`, Contacts `/staff/reports?view=contacts`
+Footer (all STAFF+): Settings `/staff/settings`, Support `/staff/support`, signed-in account card
+
+This IS the intended UX — staff and admin feel like one app
 because they share the same chrome. The two route groups are for
 auth gating only, not for visual separation.
 
@@ -65,54 +72,54 @@ Admin settings look and feel identical to the staff cockpit.
 
 ## Visual Identity
 
-Staff and admin app: always dark.
-data-theme="dark" is set in both (staff)/layout.tsx and (admin)/layout.tsx.
+Staff and admin app: Untitled light and dark via `data-theme`, synced to
+the device color scheme (`StaffThemeScope` + theme cookie). `data-app="staff"`
+keeps stock Untitled brand (purple) on light staff pages.
 
-Uses the same --color-* and --surface-* semantic tokens as the customer app.
-The dark theme variant of those tokens applies automatically via data-theme.
+Uses Untitled semantic utilities from `theme.css` (`bg-primary`, `text-secondary`,
+`bg-brand-solid`, …). Staff dark theme uses **stock Untitled brand (purple)**.
+Do not remap employee brand to amber. Customer `/book` stays light/amber.
+Legacy `--color-*` / `--surface-*` aliases remain for unreworked customer patterns.
 
-Do NOT add --staff-* tokens. They don't exist and would break the theme system.
-Do NOT use raw Tailwind color classes in staff/admin components.
+Do NOT add `--staff-*` tokens. They don't exist and would break the theme system.
+Do NOT use raw Tailwind palette classes in staff/admin components.
 
-Key dark theme surfaces:
-  --surface-ground    very dark background
-  --surface-card      dark cards
-  --surface-elevated  elevated dark panels
-  --surface-dark      deepest dark (headers)
+Visual layout: Figma frames in FIGMA.md are **direct guidance** (spacing, two-column
+settings, calendar chrome, charts). Compose Untitled `application/` + `base/`.
+Rail URLs are the source of truth — no in-page Overview|Lanes or Analytics|Contacts tabs.
+
+Key surfaces (Untitled names):
+  bg-primary          page / card
+  bg-secondary        raised panels
+  text-primary / text-secondary / text-tertiary
+  bg-brand-solid      primary actions
 
 ---
 
 ## NavRail — Current Implementation
 
-The NavRail is already built and handles responsive nav correctly.
-It accepts navItems as an array from the layout.
+The NavRail is Untitled-shaped staff chrome (Next.js `Link`, not AriaLink).
+Role filtering lives in `getStaffNavTree` (`src/lib/staff-nav.ts`).
 
-Staff navItems (from (staff)/layout.tsx):
-  Cockpit   → /staff
-  Schedule  → /staff/schedule
-  Walk-in   → /staff/walkin
+  Overview (collapsible) — Dashboard, Lane Assignments
+  Scheduling (collapsible) — Calendar, Reservation List
+  Reporting → `/staff/reports` (MANAGER+)
+  Contacts → `/staff/reports?view=contacts` (MANAGER+)
+  Settings → `/staff/settings`
+  Support → `/staff/support`
 
-Admin navItems (from (admin)/layout.tsx):
-  Settings  → /admin
-  Packages  → /admin/packages
-  Team      → /admin/team
-  Reports   → /admin/reports
-  Audit     → /admin/audit
+If a role cannot access a route, remove it from the tree entirely.
+Never pass a nav item and then show "access denied" on the page.
 
-Role-based nav filtering:
-  If a role cannot access a route, remove it from navItems entirely.
-  Never pass a navItem and then show "access denied" on the page.
-  Gate in the layout before building the navItems array.
-
-Active state: computed from currentPath prop, not client-side state.
-currentPath read from x-pathname header set by src/proxy.ts.
+Do not mount Untitled `SidebarNavigationSimple` wholesale (logo, ⌘K, dummy accounts).
+Do not expand Settings children in the rail — settings tabs/Select own that.
 
 ---
 
 ## Booking Detail (BUILT)
 
 - Cockpit: `?booking=` opens `BookingDetailSheet` (`src/components/chrome/booking-detail-sheet.tsx`)
-- Desktop (md+): same sheet renders as 400px right panel via `BottomSheet` chrome
+- Overlay: Untitled right slideout via `BottomSheet` (`placement="end"`, default) — full height, `translateX` only, all breakpoints
 - Direct URL: `/staff/bookings/[id]/page.tsx` for refunds and deep links
 - Modification: 5-state drill-in via `BookingModifySheet` (lane editor deferred per `03_MODIFICATION.md`)
 - PENDING_PAYMENT: `StaffBookingOpsPanel` shows "Confirm payment received"
@@ -121,17 +128,20 @@ currentPath read from x-pathname header set by src/proxy.ts.
 
 ## Sheets vs Panels vs Pages
 
-Mobile (< 768px):
-  Booking detail: bottom sheet
-  Walk-in flow: bottom sheet (currently implemented as inline page)
-  Modification flow: bottom sheet drill-in states
-  All other details: bottom sheets
+Staff overlays are Untitled **right slideouts** at every breakpoint
+(Figma Slideout menus — FIGMA.md). `BottomSheet` default `placement="end"`:
+full viewport height, ~400px (`w-[calc(100%-1.5rem)] max-w-[400px]`),
+`slide-in-from-right` / `slide-out-to-right` only. Never combine with
+`slide-in-from-bottom` (diagonal motion). Customer `/dashboard` uses
+`placement="bottom"`.
 
-Desktop (≥ 768px — NavRail sidebar breakpoint):
-  Booking detail: right panel (400px)
-  Walk-in flow: right panel
-  Modification: within right panel
-  Settings sub-pages: full page with back navigation
+  Booking detail: right slideout
+  Walk-in flow: right slideout
+  Modification: drill-in states inside the same slideout
+  Team invite / member / pricing / integrations / sign-out / unsaved: right slideout
+
+Desktop (`lg+`, 1024px — NavRail sidebar breakpoint):
+  Settings sub-pages: full page with section tabs (`lg+`) / Select (`< lg`)
 
 Always pages (both breakpoints):
   Settings sub-pages (/admin/*)
@@ -144,9 +154,8 @@ Always pages (both breakpoints):
 All staff action confirmations use toasts. No inline success messages.
 
 Position: top center mobile, top right desktop
-Background: var(--surface-card) with dark theme applied
-Success: green check icon
-Error: red X icon
+Untitled `alerts` recipe (FeaturedIcon + CloseButton), not `--surface-*`
+Success / error / info variants via Untitled color
 Auto-dismiss: 3s success, 5s error
 Manual dismiss: X button
 
@@ -172,15 +181,15 @@ If role is insufficient:
 Load this index + **one** section file per session. Do not merge section
 files into this index — they stay separate for focused loading.
 
-| Section | File | Build status | Wireframes (`docs/wireframes/`) |
-|---------|------|--------------|----------------------------------|
-| 1 — Cockpit overview, booking detail, check-in | `staff/01_COCKPIT_OVERVIEW.md` | Built (detail sheet + md+ panel + check-in) | `staff/staff-app-cockpit.html`, `staff/staff-app-v2.html` |
-| 2 — Lanes sub-view, walk-in FAB | `staff/02_LANES_WALKIN.md` | Built (walk-in; lane timeline partial) | `staff/walkin-booking-flow.html`, `staff/staff-app-cockpit.html` |
-| 3 — Booking modification, cancel | `staff/03_MODIFICATION.md` | Built (lane editor deferred) | `staff/booking-modification-flow.html` |
-| 4 — Schedule, lane blocking | `staff/04_SCHEDULE.md` | Built | `staff/schedule-calendar-blocking.html` |
-| 5 — Reports, analytics, contacts | `staff/05_REPORTS.md` | Built (wireframe polish open) | `staff/reports-analytics-contacts.html` |
-| 6 — Admin settings sub-pages | `staff/06_SETTINGS.md` | Built (Connect OAuth open) | `admin/settings-*.html` (see section file) |
-| 7 — Desktop responsive, PWA | `staff/07_RESPONSIVE_PWA.md` | Reference | `admin/admin-pricing-team-pwa.html` |
+| Section | File | Build status | Visual SoT |
+|---------|------|--------------|------------|
+| 1 — Cockpit overview, booking detail, check-in | `staff/01_COCKPIT_OVERVIEW.md` | Built (detail sheet + md+ panel + check-in) | Untitled dashboard desktop + mobile URLs in FIGMA.md |
+| 2 — Lanes sub-view, walk-in FAB | `staff/02_LANES_WALKIN.md` | Built (walk-in; lane timeline partial) | Figma URL TBD |
+| 3 — Booking modification, cancel | `staff/03_MODIFICATION.md` | Built (lane editor deferred) | Figma URL TBD |
+| 4 — Schedule, lane blocking | `staff/04_SCHEDULE.md` | Built | Calendar + details + mobile URLs in FIGMA.md |
+| 5 — Reports, analytics, contacts | `staff/05_REPORTS.md` | Built (Figma interiors ready) | Reporting + Contacts desktop URLs in FIGMA.md |
+| 6 — Admin settings sub-pages | `staff/06_SETTINGS.md` | Built (Connect OAuth open; Profile Figma built; Venue + Hours interiors ready) | Profile + Venue + Hours URLs in FIGMA.md |
+| 7 — Desktop responsive, PWA | `staff/07_RESPONSIVE_PWA.md` | Built chrome — Untitled sidebar 280px + hamburger `< lg`; PWA TBD | Untitled nav structure |
 
 **Domain rules** (walk-in → CONFIRMED, refunds, status machine):
 `BOOKING_DOMAIN.md` Part 1 — §Booking source, §Refund rules, §Staff server actions.

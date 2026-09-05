@@ -1,3 +1,7 @@
+# HISTORICAL — pre-Figma booking route map
+
+> Do not use as visual SoT. Prefer Figma + `.claude/contracts/FIGMA.md`.
+
 # Phase 0 — Booking wireframes source of truth
 
 Wireframe sections **Step 1 (a–c)** and **Step 2 (a–d)** in `docs/wireframes/customer/booking-step1-2-branded.html` are **one logical user step (scheduling)** in two parts; **package selection** is the **third milestone** in the four-dot system but the **second full-screen chapter** in the user’s journey.

@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/base/buttons/button'
 import type { SettingsSavePhase } from '@/lib/use-settings-form-state'
 
 export interface SettingsSaveButtonProps {
@@ -27,9 +27,9 @@ export function SettingsSaveButton({
   return (
     <Button
       type="submit"
-      fullWidth={fullWidth}
-      loading={phase === 'saving'}
-      disabled={!dirty || phase === 'saving'}
+      className={fullWidth ? 'w-full lg:w-auto' : undefined}
+      isLoading={phase === 'saving'}
+      isDisabled={!dirty || phase === 'saving'}
     >
       {text}
     </Button>

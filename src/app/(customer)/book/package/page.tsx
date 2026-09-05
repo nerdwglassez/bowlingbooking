@@ -17,7 +17,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getPackagesForTenant } from '@/lib/actions/booking'
 import { useBooking } from '@/context/BookingContext'
 import { formatPackageStepSubtitle } from '@/lib/booking-display'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import {
   calculateBookingTotal,
@@ -188,7 +187,6 @@ export default function PackagePage() {
     <BookingFlowShell
       venueName={tenant.name}
       address={tenant.address}
-      signInHref={STAFF_SIGN_IN_PATH}
       currentStep={2}
       holdExpiresAt={session.holdExpiresAt}
       onHoldExpire={handleHoldExpired}

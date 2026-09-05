@@ -25,6 +25,7 @@ export type ReportsPanelProps = {
   analytics: StaffAnalyticsSummary
   contacts: StaffContactRow[]
   tenantId: string
+  bowlersPerLane: number
 }
 
 function readPersistedSubview(): StaffReportsSubview | null {
@@ -58,6 +59,7 @@ export function ReportsPanel({
   analytics,
   contacts,
   tenantId,
+  bowlersPerLane,
 }: ReportsPanelProps) {
   const router = useRouter()
   const subview = usePersistedSubview(serverSubview)
@@ -145,6 +147,8 @@ export function ReportsPanel({
           onCloseDetail={handleCloseContactDetail}
           contactDetail={contactDetail}
           contactDetailLoading={contactDetailLoading}
+          tenantId={tenantId}
+          bowlersPerLane={bowlersPerLane}
         />
       ) : null}
     </div>

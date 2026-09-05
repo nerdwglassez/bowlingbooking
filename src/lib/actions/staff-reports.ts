@@ -249,6 +249,7 @@ const MOCK_CONTACTS: StaffContactRow[] = [
     phone: '(803) 555-0147',
     bookingCount: 7,
     lastBookingDate: '2026-05-11T18:00:00.000Z',
+    packageNames: ['Open Bowl'],
   },
   {
     id: contactIdFromEmail('marcus@email.com'),
@@ -257,6 +258,7 @@ const MOCK_CONTACTS: StaffContactRow[] = [
     phone: '(803) 555-0182',
     bookingCount: 3,
     lastBookingDate: '2026-05-11T14:00:00.000Z',
+    packageNames: ['Cosmic Bowl'],
   },
   {
     id: contactIdFromEmail('jordan@acmecorp.com'),
@@ -265,6 +267,7 @@ const MOCK_CONTACTS: StaffContactRow[] = [
     phone: '(803) 555-0193',
     bookingCount: 12,
     lastBookingDate: '2026-05-10T17:00:00.000Z',
+    packageNames: ['Corporate Bowl', 'Cosmic Bowl', 'Open Bowl'],
   },
   {
     id: contactIdFromEmail('taylor@email.com'),
@@ -273,6 +276,7 @@ const MOCK_CONTACTS: StaffContactRow[] = [
     phone: '(803) 555-0164',
     bookingCount: 2,
     lastBookingDate: '2026-05-10T12:00:00.000Z',
+    packageNames: ['Open Bowl'],
   },
   {
     id: contactIdFromEmail('alex@email.com'),
@@ -281,6 +285,7 @@ const MOCK_CONTACTS: StaffContactRow[] = [
     phone: '(803) 555-0211',
     bookingCount: 5,
     lastBookingDate: '2026-05-08T19:00:00.000Z',
+    packageNames: ['Cosmic Bowl'],
   },
   {
     id: contactIdFromEmail('riley@email.com'),
@@ -289,6 +294,7 @@ const MOCK_CONTACTS: StaffContactRow[] = [
     phone: '(803) 555-0088',
     bookingCount: 1,
     lastBookingDate: '2026-05-03T15:00:00.000Z',
+    packageNames: ['Open Bowl'],
   },
 ]
 
@@ -475,6 +481,7 @@ export async function listStaffContacts(
         customerEmail: true,
         customerPhone: true,
         startTime: true,
+        package: { select: { name: true } },
       },
       orderBy: { startTime: 'desc' },
     })
@@ -483,6 +490,7 @@ export async function listStaffContacts(
     for (const row of rows) {
       const email = row.customerEmail.trim().toLowerCase()
       const existing = byEmail.get(email)
+      const packageName = row.package?.name
       if (!existing) {
         byEmail.set(email, {
           id: contactIdFromEmail(email),
@@ -491,9 +499,13 @@ export async function listStaffContacts(
           phone: row.customerPhone,
           bookingCount: 1,
           lastBookingDate: toIso(row.startTime),
+          packageNames: packageName ? [packageName] : [],
         })
       } else {
         existing.bookingCount += 1
+        if (packageName && !existing.packageNames.includes(packageName)) {
+          existing.packageNames.push(packageName)
+        }
       }
     }
 

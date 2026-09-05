@@ -1,8 +1,7 @@
 'use client'
 
-// WalkInGuestStep — step 1: source, guest, bowlers (walkin-booking-flow.html).
-
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
 import {
   formatBowlerLaneHint,
   type WalkInBookingSource,
@@ -41,119 +40,95 @@ export function WalkInGuestStep({
   const canNext = values.customerName.trim().length > 0 && values.bowlerCount >= 1
 
   return (
-    <div className="flex flex-col gap-3">
-      <div>
-        <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Source
-        </span>
-        <div className="flex gap-1.5">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-secondary">Source</span>
+        <div className="flex gap-2">
           {SOURCES.map((opt) => {
             const active = values.source === opt.value
             return (
-              <button
+              <Button
                 key={opt.value}
                 type="button"
-                className={`flex-1 rounded-[var(--radius-md)] border-[1.5px] border-solid px-1.5 py-2 text-center text-[11px] font-semibold ${
-                  active
-                    ? 'border-[var(--color-action)] bg-[color-mix(in_srgb,var(--color-action-subtle)_10%,transparent)] text-[var(--color-action-dark)]'
-                    : 'border-[var(--color-border-strong)] bg-[var(--surface-raised)] text-[var(--color-text-secondary)]'
-                }`}
+                size="sm"
+                color={active ? 'secondary' : 'tertiary'}
+                className="flex-1"
                 onClick={() => patch({ source: opt.value })}
               >
                 {opt.label}
-              </button>
+              </Button>
             )
           })}
         </div>
       </div>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Guest name
-        </span>
-        <Input
-          value={values.customerName}
-          onChange={(e) => patch({ customerName: e.target.value })}
-          placeholder="First name or group name"
-          className="border-[1.5px] border-solid border-[var(--color-border-strong)] bg-[var(--surface-raised)] px-3 py-2.5 text-[13px]"
-        />
-      </label>
+      <Input
+        label="Guest name"
+        value={values.customerName}
+        onChange={(customerName) => patch({ customerName })}
+        placeholder="First name or group name"
+        isRequired
+      />
 
-      <label className="flex flex-col gap-1">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Email{' '}
-          <span className="normal-case font-normal">— optional</span>
-        </span>
-        <Input
-          type="email"
-          value={values.customerEmail}
-          onChange={(e) => patch({ customerEmail: e.target.value })}
-          placeholder="For confirmation email"
-          className="border-[1.5px] border-solid border-[var(--color-border-strong)] bg-[var(--surface-raised)] px-3 py-2.5 text-[13px]"
-        />
-        <span className="text-[10px] text-[var(--color-text-secondary)]">
-          Leave blank for guests without accounts.
-        </span>
-      </label>
+      <Input
+        type="email"
+        label="Email"
+        hint="Optional — leave blank for guests without accounts."
+        value={values.customerEmail}
+        onChange={(customerEmail) => patch({ customerEmail })}
+        placeholder="For confirmation email"
+      />
 
       {showSchedule ? (
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-            Start time
-          </span>
-          <Input
-            type="datetime-local"
-            value={values.scheduledStart}
-            onChange={(e) => patch({ scheduledStart: e.target.value })}
-            className="border-[1.5px] border-solid border-[var(--color-border-strong)] bg-[var(--surface-raised)] px-3 py-2.5 text-[13px]"
-          />
-        </label>
+        <Input
+          type="datetime-local"
+          label="Start time"
+          value={values.scheduledStart}
+          onChange={(scheduledStart) => patch({ scheduledStart })}
+        />
       ) : null}
 
-      <div>
-        <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Bowler count
-        </span>
-        <div className="flex items-center gap-2.5">
-          <button
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-secondary">Bowler count</span>
+        <div className="flex items-center gap-3">
+          <Button
             type="button"
-            className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border-[1.5px] border-solid border-[var(--color-border-strong)] bg-[var(--surface-raised)] text-lg leading-none text-[var(--color-text-primary)]"
+            color="secondary"
+            size="sm"
             aria-label="Decrease bowlers"
             onClick={() =>
               patch({ bowlerCount: Math.max(1, values.bowlerCount - 1) })
             }
           >
             −
-          </button>
-          <span className="min-w-9 text-center text-2xl [font-family:var(--font-display)] text-[var(--color-text-primary)]">
+          </Button>
+          <span className="min-w-9 text-center text-display-xs font-semibold text-primary">
             {values.bowlerCount}
           </span>
-          <button
+          <Button
             type="button"
-            className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border-[1.5px] border-solid border-[var(--color-border-strong)] bg-[var(--surface-raised)] text-lg leading-none text-[var(--color-text-primary)]"
+            color="secondary"
+            size="sm"
             aria-label="Increase bowlers"
             onClick={() => patch({ bowlerCount: values.bowlerCount + 1 })}
           >
             +
-          </button>
-          <span className="text-[11px] leading-snug text-[var(--color-text-secondary)]">
-            bowlers
-            <br />
-            <span className="text-[9px]">
-              {formatBowlerLaneHint(values.bowlerCount)}
-            </span>
+          </Button>
+          <span className="text-sm text-tertiary">
+            {formatBowlerLaneHint(values.bowlerCount)}
           </span>
         </div>
       </div>
 
-      <button
+      <Button
         type="button"
-        disabled={!canNext}
-        className="mt-1 w-full rounded-[var(--radius-md)] bg-[var(--color-action)] px-3 py-3 text-[13px] font-semibold text-[var(--color-text-on-action)] disabled:cursor-not-allowed disabled:opacity-35"
+        color="primary"
+        size="md"
+        isDisabled={!canNext}
         onClick={onNext}
       >
-        Next — Package & lane →
-      </button>
+        Next — Package & lane
+      </Button>
     </div>
   )
 }

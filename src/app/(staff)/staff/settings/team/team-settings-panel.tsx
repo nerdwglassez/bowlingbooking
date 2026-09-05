@@ -2,15 +2,16 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, UserX } from 'lucide-react'
+import { Edit01, Plus, UsersX } from '@untitledui/icons'
 
+import { Table, TableCard } from '@/components/application/table/table'
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
-import { PasswordInput } from '@/components/ui/password-input'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Avatar } from '@/components/base/avatar/avatar'
+import { Badge } from '@/components/base/badges/badges'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
 import type { AdminUserRow } from '@/lib/actions/admin'
 import {
   createTeamUserAction,
@@ -33,13 +34,19 @@ type InviteLinkFallbackState = {
   emailError?: string
 } | null
 
-const ROLE_VARIANT: Record<
-  TeamRole,
-  React.ComponentProps<typeof Badge>['variant']
-> = {
-  STAFF: 'default',
-  MANAGER: 'info',
-  ADMIN: 'ok',
+const ROLE_COLOR: Record<TeamRole, 'gray' | 'brand' | 'success'> = {
+  STAFF: 'gray',
+  MANAGER: 'brand',
+  ADMIN: 'success',
+}
+
+function memberInitials(name: string | null, email: string): string {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase()
+  }
+  if (parts[0]) return parts[0].slice(0, 2).toUpperCase()
+  return email.slice(0, 2).toUpperCase()
 }
 
 function formatInvitedAgo(date: Date): string {
@@ -135,56 +142,104 @@ export function TeamSettingsPanel({
 
   return (
     <>
-      <div className="flex justify-end">
-        <Button type="button" size="sm" onClick={() => setInviteOpen(true)}>
-          <Plus className="size-4" aria-hidden />
-          Invite member
-        </Button>
-      </div>
-
-      {users.length === 0 ? (
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          No team members yet.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {users.map((u) => {
-            const pending = !u.hasPassword
-            return (
-              <li key={u.id}>
-                <button
-                  type="button"
-                  onClick={() => setDetailUser(u)}
-                  className="flex w-full flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4 text-left transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--surface-sunken)] md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm text-[var(--color-text-primary)]">
-                      {u.name ?? 'Unnamed'}
-                    </span>
-                    <span className="text-xs text-[var(--color-text-secondary)]">
-                      {u.email}
-                    </span>
-                    {pending ? (
-                      <span className="text-xs text-[var(--color-text-secondary)]">
-                        {formatInvitedAgo(new Date(u.createdAt))}
-                      </span>
-                    ) : null}
-                  </div>
-                  <Badge
-                    variant={
-                      pending
-                        ? 'warning'
-                        : ROLE_VARIANT[u.role as TeamRole]
-                    }
+      <TableCard.Root>
+        <TableCard.Header
+          title="Team members"
+          badge={`${users.length} ${users.length === 1 ? 'user' : 'users'}`}
+          description="Invite staff, assign roles, and manage access."
+          contentTrailing={
+            <Button type="button" size="sm" iconLeading={Plus} onClick={() => setInviteOpen(true)}>
+              Invite member
+            </Button>
+          }
+        />
+        {users.length === 0 ? (
+          <p className="px-4 py-8 text-sm text-tertiary md:px-6">
+            No team members yet.
+          </p>
+        ) : (
+          <Table aria-label="Team members" size="sm">
+            <Table.Header>
+              <Table.Head id="name" isRowHeader>
+                Name
+              </Table.Head>
+              <Table.Head id="status">Status</Table.Head>
+              <Table.Head id="email" className="hidden md:table-cell">
+                Email address
+              </Table.Head>
+              <Table.Head id="role">Role</Table.Head>
+              <Table.Head id="actions" className="w-16">
+                <span className="sr-only">Actions</span>
+              </Table.Head>
+            </Table.Header>
+            <Table.Body items={users}>
+              {(u) => {
+                const pending = !u.hasPassword
+                return (
+                  <Table.Row
+                    id={u.id}
+                    onAction={() => setDetailUser(u)}
                   >
-                    {pending ? 'Pending' : u.role}
-                  </Badge>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+                    <Table.Cell>
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          size="sm"
+                          initials={memberInitials(u.name, u.email)}
+                          alt={u.name ?? u.email}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-primary">
+                            {u.name ?? 'Unnamed'}
+                          </p>
+                          <p className="truncate text-xs text-tertiary md:hidden">
+                            {u.email}
+                          </p>
+                          {pending ? (
+                            <p className="text-xs text-tertiary">
+                              {formatInvitedAgo(new Date(u.createdAt))}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge
+                        size="sm"
+                        type="pill-color"
+                        color={pending ? 'warning' : 'success'}
+                      >
+                        {pending ? 'Pending' : 'Active'}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell className="hidden md:table-cell">
+                      {u.email}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge
+                        size="sm"
+                        type="pill-color"
+                        color={ROLE_COLOR[u.role as TeamRole]}
+                      >
+                        {u.role}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Button
+                        type="button"
+                        color="tertiary"
+                        size="sm"
+                        iconLeading={Edit01}
+                        aria-label={`Edit ${u.name ?? u.email}`}
+                        onClick={() => setDetailUser(u)}
+                      />
+                    </Table.Cell>
+                  </Table.Row>
+                )
+              }}
+            </Table.Body>
+          </Table>
+        )}
+      </TableCard.Root>
 
       <InviteSheet
         open={inviteOpen}
@@ -269,12 +324,12 @@ function InviteLinkFallback({
     >
       {inviteUrl ? (
         <div className="flex flex-col gap-3 p-4">
-          <p className="text-sm text-[var(--color-text-secondary)]">{message}</p>
-          <Input type="url" value={inviteUrl} readOnly />
-          <Button type="button" fullWidth onClick={handleCopy}>
+          <p className="text-sm text-tertiary">{message}</p>
+          <Input type="url" value={inviteUrl} isReadOnly />
+          <Button type="button" className="w-full" onClick={handleCopy}>
             {copied ? 'Copied' : 'Copy invite link'}
           </Button>
-          <Button type="button" variant="secondary" fullWidth onClick={onClose}>
+          <Button type="button" color="secondary" className="w-full" onClick={onClose}>
             Done
           </Button>
         </div>
@@ -337,53 +392,55 @@ function InviteSheet({
         }}
       >
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">Email</span>
+          <span className="text-tertiary">Email</span>
           <Input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            onChange={setEmail}
+            isRequired
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">Role</span>
-          <Select
+          <span className="text-tertiary">Role</span>
+          <NativeSelect
+            label="Role"
             value={role}
             onChange={(e) => setRole(e.target.value as TeamRole)}
-          >
-            <option value="STAFF">Staff</option>
-            <option value="MANAGER">Manager</option>
-            {callerRole === 'ADMIN' ? (
-              <option value="ADMIN">Admin</option>
-            ) : null}
-          </Select>
+            options={[
+              { label: 'Staff', value: 'STAFF' },
+              { label: 'Manager', value: 'MANAGER' },
+              ...(callerRole === 'ADMIN'
+                ? [{ label: 'Admin', value: 'ADMIN' }]
+                : []),
+            ]}
+          />
           {callerRole === 'MANAGER' ? (
-            <span className="text-xs text-[var(--color-text-secondary)]">
+            <span className="text-xs text-tertiary">
               Managers can invite staff and other managers only.
             </span>
           ) : null}
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">
+          <span className="text-tertiary">
             Personal message (optional)
           </span>
           <textarea
             rows={3}
             value={personalMessage}
             onChange={(e) => setPersonalMessage(e.target.value)}
-            className="w-full resize-none rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+            className="w-full resize-none rounded-xl border border-secondary bg-primary px-3 py-2 text-sm text-primary"
             placeholder="Welcome to the team!"
           />
         </label>
-        <p className="text-xs text-[var(--color-text-secondary)]">
+        <p className="text-xs text-tertiary">
           An invite link will be sent to their email. The link expires in{' '}
           <strong>48 hours</strong>. They&apos;ll set their own password when
           they accept.
         </p>
         {error ? (
-          <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+          <p className="text-sm text-error-primary">{error}</p>
         ) : null}
-        <Button type="submit" fullWidth loading={pending}>
+        <Button type="submit" className="w-full" isLoading={pending}>
           Send invite
         </Button>
       </form>
@@ -542,159 +599,162 @@ function DetailSheetForm({
   return (
     <div className="flex flex-col gap-3 p-4">
       {!editable ? (
-        <p className="text-xs text-[var(--color-text-secondary)]">
+        <p className="text-xs text-tertiary">
           Only an admin can edit admin accounts.
         </p>
       ) : null}
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Email</span>
-        <Input type="email" value={user.email} disabled />
+        <span className="text-tertiary">Email</span>
+        <Input type="email" value={user.email} isDisabled />
       </label>
 
       {pendingInvite ? (
-        <p className="text-xs text-[var(--color-text-secondary)]">
+        <p className="text-xs text-tertiary">
           {formatInvitedAgo(new Date(user.createdAt))} — waiting for them to
           accept.
         </p>
       ) : (
-        <p className="text-xs text-[var(--color-text-secondary)]">
+        <p className="text-xs text-tertiary">
           {user.hasPassword ? 'Active account' : 'No password set'}
         </p>
       )}
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Name</span>
+        <span className="text-tertiary">Name</span>
         <Input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={!editable}
+          onChange={setName}
+          isDisabled={!editable}
         />
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Phone</span>
+        <span className="text-tertiary">Phone</span>
         <Input
           type="tel"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={setPhone}
           placeholder="(555) 555-5555"
-          disabled={!editable}
+          isDisabled={!editable}
         />
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Role</span>
-        <Select
+        <span className="text-tertiary">Role</span>
+        <NativeSelect
           value={role}
           onChange={(e) => setRole(e.target.value as TeamRole)}
           disabled={!editable}
-        >
-          <option value="STAFF">Staff</option>
-          <option value="MANAGER">Manager</option>
-          {callerRole === 'ADMIN' ? (
-            <option value="ADMIN">Admin</option>
-          ) : null}
-        </Select>
+          options={[
+            { label: 'Staff', value: 'STAFF' },
+            { label: 'Manager', value: 'MANAGER' },
+            ...(callerRole === 'ADMIN'
+              ? [{ label: 'Admin', value: 'ADMIN' }]
+              : []),
+          ]}
+        />
         {callerRole === 'MANAGER' && user.role === 'ADMIN' ? (
-          <span className="text-xs text-[var(--color-text-secondary)]">
+          <span className="text-xs text-tertiary">
             Admin role cannot be changed by a manager.
           </span>
         ) : null}
       </label>
 
       {resettable ? (
-        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-sunken)] p-4">
-          <h3 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+        <div className="flex flex-col gap-2 rounded-xl border border-solid border-secondary bg-secondary p-4">
+          <h3 className="text-xs uppercase tracking-wide text-tertiary">
             {pendingInvite ? 'Set password' : 'Reset password'}
           </h3>
-          <p className="text-xs text-[var(--color-text-secondary)]">
+          <p className="text-xs text-tertiary">
             {pendingInvite
               ? 'Set a sign-in password directly instead of waiting for the invite link.'
               : 'Sets a new sign-in password. Share it with them securely.'}
           </p>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">
+            <span className="text-tertiary">
               New password
             </span>
-            <PasswordInput
+            <Input
+              type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={setNewPassword}
               minLength={8}
               autoComplete="new-password"
               placeholder="At least 8 characters"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">
+            <span className="text-tertiary">
               Confirm password
             </span>
-            <PasswordInput
+            <Input
+              type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={setConfirmPassword}
               minLength={8}
               autoComplete="new-password"
               placeholder="Re-enter password"
             />
           </label>
           {confirmPassword.length > 0 && newPassword !== confirmPassword ? (
-            <p className="text-xs text-[var(--status-error-text)]">
+            <p className="text-xs text-error-primary">
               Passwords do not match.
             </p>
           ) : null}
           {passwordError ? (
-            <p className="text-sm text-[var(--status-error-text)]">
+            <p className="text-sm text-error-primary">
               {passwordError}
             </p>
           ) : null}
           <Button
             type="button"
-            variant="secondary"
-            fullWidth
-            loading={resetPending}
-            disabled={!passwordsMatch}
+            color="secondary"
+            className="w-full"
+            isLoading={resetPending}
+            isDisabled={!passwordsMatch}
             onClick={handleResetPassword}
           >
             {pendingInvite ? 'Set password' : 'Update password'}
           </Button>
         </div>
       ) : user.id === callerId ? (
-        <p className="text-xs text-[var(--color-text-secondary)]">
-          Change your own password from My profile.
+        <p className="text-xs text-tertiary">
+          Change your own password from Profile.
         </p>
       ) : null}
 
       {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+        <p className="text-sm text-error-primary">{error}</p>
       ) : null}
 
       {removable ? (
-        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-solid border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-4">
-          <h3 className="text-xs uppercase tracking-wide text-[var(--status-error-text)]">
+        <div className="flex flex-col gap-2 rounded-xl border border-solid border-error bg-error-primary p-4">
+          <h3 className="text-xs uppercase tracking-wide text-error-primary">
             Account actions
           </h3>
           {confirmRemove ? (
             <>
-              <p className="text-sm text-[var(--color-text-secondary)]">
+              <p className="text-sm text-tertiary">
                 Remove {displayName} from the team? They will lose staff access
                 immediately. This cannot be undone.
               </p>
               <div className="flex flex-col gap-2">
                 <Button
                   type="button"
-                  variant="danger"
-                  fullWidth
-                  loading={removePending}
+                  color="primary-destructive"
+                  className="w-full"
+                  isLoading={removePending}
                   onClick={handleRemove}
                 >
                   Remove from team
                 </Button>
                 <Button
                   type="button"
-                  variant="ghost"
-                  fullWidth
-                  disabled={removePending}
+                  color="tertiary"
+                  className="w-full"
+                  isDisabled={removePending}
                   onClick={() => setConfirmRemove(false)}
                 >
                   Cancel
@@ -704,30 +764,30 @@ function DetailSheetForm({
           ) : (
             <button
               type="button"
-              className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--status-error-border)] bg-[var(--surface-elevated)] px-3 py-3 text-left transition-colors hover:bg-[var(--surface-sunken)]"
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-solid border-error bg-primary px-3 py-3 text-left transition-colors hover:bg-secondary"
               onClick={() => setConfirmRemove(true)}
             >
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-sm text-[var(--color-text-primary)]">
+                <span className="text-sm text-primary">
                   Remove from team
                 </span>
-                <span className="text-xs text-[var(--color-text-secondary)]">
+                <span className="text-xs text-tertiary">
                   Blocks sign-in · booking history preserved
                 </span>
               </div>
-              <UserX
-                className="size-4 shrink-0 text-[var(--status-error-text)]"
+              <UsersX
+                className="size-4 shrink-0 text-error-primary"
                 aria-hidden
               />
             </button>
           )}
         </div>
       ) : user.id === callerId ? (
-        <p className="text-xs text-[var(--color-text-secondary)]">
+        <p className="text-xs text-tertiary">
           You cannot remove your own account from here.
         </p>
       ) : user.role === 'ADMIN' && callerRole !== 'ADMIN' ? (
-        <p className="text-xs text-[var(--color-text-secondary)]">
+        <p className="text-xs text-tertiary">
           Only an admin can remove admin accounts.
         </p>
       ) : null}
@@ -735,9 +795,9 @@ function DetailSheetForm({
       {editable && pendingInvite ? (
         <Button
           type="button"
-          variant="secondary"
-          fullWidth
-          loading={resendPending}
+          color="secondary"
+          className="w-full"
+          isLoading={resendPending}
           onClick={handleResend}
         >
           Resend invite
@@ -745,7 +805,7 @@ function DetailSheetForm({
       ) : null}
 
       {editable ? (
-        <Button type="button" fullWidth loading={pending} onClick={handleSave}>
+        <Button type="button" className="w-full" isLoading={pending} onClick={handleSave}>
           Save changes
         </Button>
       ) : null}

@@ -21,7 +21,7 @@ import {
   useLanePricingContext,
   useTenant,
 } from '@/app/(customer)/book/tenant-provider'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import { CHECKOUT_SIGN_IN_PATH } from '@/lib/auth-paths'
 import { BOOKING_BACK_BY_STEP } from '@/lib/booking-flow-nav'
 import {
   confirmBooking,
@@ -380,7 +380,8 @@ export default function ConfirmBookingPage() {
       <BookingFlowShell
         venueName={tenant.name}
         address={tenant.address}
-        signInHref={STAFF_SIGN_IN_PATH}
+        signInHref={CHECKOUT_SIGN_IN_PATH}
+        showSignIn
         currentStep={4}
         holdExpiresAt={session.holdExpiresAt}
         onHoldExpire={handleHoldExpired}

@@ -1,8 +1,7 @@
 'use client'
 
-// WalkInLaneMiniGrid — compact lane picker for walk-in override.
-
 import type { CockpitLaneCard } from '@/lib/actions/staff'
+import { cx } from '@/lib/cx'
 import {
   canSelectMiniLane,
   cockpitLaneToMiniState,
@@ -17,14 +16,12 @@ export type WalkInLaneMiniGridProps = {
 }
 
 const STATE_CLASS: Record<WalkInMiniLaneState, string> = {
-  available:
-    'border-[color-mix(in_srgb,var(--status-ok-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--status-ok-bg)_8%,transparent)] text-[var(--status-ok-text)]',
+  available: 'border-success bg-success-primary text-success-primary',
   occupied:
-    'cursor-not-allowed border-[color-mix(in_srgb,var(--status-error-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_8%,transparent)] text-[var(--status-error-text)] opacity-50',
+    'cursor-not-allowed border-error bg-error-primary text-error-primary opacity-50',
   blocked:
-    'cursor-not-allowed border-[var(--color-border-strong)] bg-[var(--surface-sunken)] text-[var(--color-text-secondary)] opacity-40',
-  selected:
-    'border-[var(--color-action)] bg-[color-mix(in_srgb,var(--color-action-subtle)_15%,transparent)] text-[var(--color-action-dark)]',
+    'cursor-not-allowed border-secondary bg-secondary text-tertiary opacity-40',
+  selected: 'border-brand bg-brand-primary text-brand-secondary',
 }
 
 export function WalkInLaneMiniGrid({
@@ -56,7 +53,7 @@ export function WalkInLaneMiniGrid({
 
   return (
     <div>
-      <p className="mb-1.5 text-[10px] text-[var(--color-text-secondary)]">
+      <p className="mb-1.5 text-sm text-tertiary">
         Tap to select {requiredCount === 1 ? 'a lane' : `${requiredCount} lanes`}
       </p>
       <div className="grid grid-cols-6 gap-1.5">
@@ -67,7 +64,10 @@ export function WalkInLaneMiniGrid({
               key={lane.number}
               type="button"
               disabled={!canSelectMiniLane(state)}
-              className={`flex aspect-square items-center justify-center rounded-[var(--radius-sm)] border-[1.5px] border-solid text-[11px] font-semibold ${STATE_CLASS[state]}`}
+              className={cx(
+                'flex aspect-square min-h-11 items-center justify-center rounded-lg border text-sm font-semibold',
+                STATE_CLASS[state],
+              )}
               onClick={() => toggleLane(lane.number, state)}
             >
               {lane.number}
@@ -75,10 +75,16 @@ export function WalkInLaneMiniGrid({
           )
         })}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-2">
-        <LegendDot className="border-[color-mix(in_srgb,var(--status-ok-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--status-ok-bg)_8%,transparent)]" label="Available" />
-        <LegendDot className="border-[color-mix(in_srgb,var(--status-error-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_8%,transparent)]" label="Occupied" />
-        <LegendDot className="border-[var(--color-action)] bg-[color-mix(in_srgb,var(--color-action-subtle)_15%,transparent)]" label="Selected" />
+      <div className="mt-2 flex flex-wrap gap-3">
+        <LegendDot
+          className="border-success bg-success-primary"
+          label="Available"
+        />
+        <LegendDot className="border-error bg-error-primary" label="Occupied" />
+        <LegendDot
+          className="border-brand bg-brand-primary"
+          label="Selected"
+        />
       </div>
     </div>
   )
@@ -94,12 +100,10 @@ function LegendDot({
   return (
     <div className="flex items-center gap-1">
       <span
-        className={`size-2 shrink-0 rounded-[2px] border border-solid ${className}`}
+        className={cx('size-2 shrink-0 rounded-sm border', className)}
         aria-hidden
       />
-      <span className="text-[9px] text-[var(--color-text-secondary)]">
-        {label}
-      </span>
+      <span className="text-xs text-tertiary">{label}</span>
     </div>
   )
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  CHECKOUT_SIGN_IN_PATH,
   defaultAppPathForRole,
+  isBookingSignInFrom,
   isGenericSignInFrom,
   resolvePostSignInPath,
   sanitizeSignInFrom,
@@ -25,10 +27,16 @@ describe('post-sign-in paths', () => {
     expect(defaultAppPathForRole('MANAGER')).toBe('/staff')
   })
 
-  it('treats booking header from=/staff as generic for admins', () => {
+  it('treats from=/staff as generic for employees', () => {
     expect(isGenericSignInFrom('/staff')).toBe(true)
     expect(resolvePostSignInPath('/staff', 'ADMIN')).toBe('/staff')
     expect(resolvePostSignInPath('/staff', 'STAFF')).toBe('/staff')
+  })
+
+  it('treats checkout sign-in as a booking return path', () => {
+    expect(CHECKOUT_SIGN_IN_PATH).toBe('/signin?from=/book/confirm')
+    expect(isBookingSignInFrom('/book/confirm')).toBe(true)
+    expect(isGenericSignInFrom('/book/confirm')).toBe(false)
   })
 
   it('defaults customers to find-my-booking', () => {

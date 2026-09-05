@@ -4,10 +4,10 @@
 // All state lives on the parent page; this pattern just renders the inputs
 // and reports user intent via callbacks.
 
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Button } from '@/components/base/buttons/button'
+import { Checkbox } from '@/components/base/checkbox/checkbox'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
 import { formatPrice } from '@/lib/pricing'
 
 export type PartyType = 'OPEN' | 'BIRTHDAY' | 'CORPORATE' | 'COSMIC'
@@ -76,118 +76,112 @@ export function PackageForm({
       }}
       className="flex flex-col gap-4"
     >
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Basics
         </h2>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">Name</span>
+          <span className="text-tertiary">Name</span>
           <Input
             type="text"
             value={values.name}
-            onChange={(e) => patch({ name: e.target.value })}
-            required
+            onChange={(name) => patch({ name })}
+            isRequired
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">
+          <span className="text-tertiary">
             Description
           </span>
           <Input
             type="text"
             value={values.description}
-            onChange={(e) => patch({ description: e.target.value })}
+            onChange={(description) => patch({ description })}
             placeholder="Shown to customers in the package picker."
           />
         </label>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">
+            <span className="text-tertiary">
               Base price (cents) · {formatPrice(values.basePrice)}
             </span>
             <Input
               type="number"
-              min={0}
-              step={100}
-              value={values.basePrice}
-              onChange={(e) =>
-                patch({ basePrice: Math.max(0, Number(e.target.value) || 0) })
+              value={String(values.basePrice)}
+              onChange={(value) =>
+                patch({ basePrice: Math.max(0, Number(value) || 0) })
               }
-              required
+              isRequired
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">
+            <span className="text-tertiary">
               Sort order
             </span>
             <Input
               type="number"
-              value={values.sortOrder}
-              onChange={(e) =>
-                patch({ sortOrder: Number(e.target.value) || 0 })
+              value={String(values.sortOrder)}
+              onChange={(value) =>
+                patch({ sortOrder: Number(value) || 0 })
               }
             />
           </label>
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Inclusions
         </h2>
         <Checkbox
           label="Games included in base price"
-          checked={values.gameIncluded}
-          onChange={(e) => patch({ gameIncluded: e.target.checked })}
+          isSelected={values.gameIncluded}
+          onChange={(gameIncluded) => patch({ gameIncluded })}
         />
         {!values.gameIncluded ? (
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">
+            <span className="text-tertiary">
               Cost per extra game (cents) · {formatPrice(values.gameCostPer)}
             </span>
             <Input
               type="number"
-              min={0}
-              step={50}
-              value={values.gameCostPer}
-              onChange={(e) =>
+              value={String(values.gameCostPer)}
+              onChange={(value) =>
                 patch({
-                  gameCostPer: Math.max(0, Number(e.target.value) || 0),
+                  gameCostPer: Math.max(0, Number(value) || 0),
                 })
               }
-              required
+              isRequired
             />
           </label>
         ) : null}
         <Checkbox
           label="Shoes included in base price"
-          checked={values.shoesIncluded}
-          onChange={(e) => patch({ shoesIncluded: e.target.checked })}
+          isSelected={values.shoesIncluded}
+          onChange={(shoesIncluded) => patch({ shoesIncluded })}
         />
         {!values.shoesIncluded ? (
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">
+            <span className="text-tertiary">
               Shoe rental per bowler (cents) ·{' '}
               {formatPrice(values.shoeCostPer)}
             </span>
             <Input
               type="number"
-              min={0}
-              step={50}
-              value={values.shoeCostPer}
-              onChange={(e) =>
+              value={String(values.shoeCostPer)}
+              onChange={(value) =>
                 patch({
-                  shoeCostPer: Math.max(0, Number(e.target.value) || 0),
+                  shoeCostPer: Math.max(0, Number(value) || 0),
                 })
               }
-              required
+              isRequired
             />
           </label>
         ) : null}
       </section>
 
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Available for
         </h2>
         <div className="grid gap-2 md:grid-cols-2">
@@ -195,7 +189,7 @@ export function PackageForm({
             <Checkbox
               key={pt.value}
               label={pt.label}
-              checked={values.partyTypes.includes(pt.value)}
+              isSelected={values.partyTypes.includes(pt.value)}
               onChange={() => togglePartyType(pt.value)}
             />
           ))}
@@ -203,70 +197,66 @@ export function PackageForm({
       </section>
 
       <section
-        className={`flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid bg-[var(--surface-elevated)] p-4 ${
+        className={`flex flex-col gap-3 rounded-xl border border-solid bg-primary p-4 ${
           values.accessType === 'CODE_REQUIRED'
-            ? 'border-[color-mix(in_srgb,var(--color-action)_40%,var(--color-border))]'
-            : 'border-[var(--color-border)]'
+            ? 'border-brand'
+            : 'border-secondary'
         }`}
       >
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-          Access
-        </h2>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">Who can book</span>
-          <Select
-            value={values.accessType}
-            onChange={(e) =>
-              patch({
-                accessType: e.target.value as PackageAccessType,
-              })
-            }
-          >
-            <option value="PUBLIC">Public — shown in package picker</option>
-            <option value="CODE_REQUIRED">Code required — unlock at checkout</option>
-          </Select>
-        </label>
+        <h2 className="text-sm font-semibold text-secondary">Access</h2>
+        <NativeSelect
+          label="Who can book"
+          value={values.accessType}
+          onChange={(e) =>
+            patch({
+              accessType: e.target.value as PackageAccessType,
+            })
+          }
+          options={[
+            { label: 'Public — shown in package picker', value: 'PUBLIC' },
+            {
+              label: 'Code required — unlock at checkout',
+              value: 'CODE_REQUIRED',
+            },
+          ]}
+        />
         {values.accessType === 'CODE_REQUIRED' ? (
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-secondary)]">
-              Promo code (unique per venue)
-            </span>
-            <Input
-              type="text"
-              value={values.codeString}
-              onChange={(e) =>
-                patch({ codeString: e.target.value.toUpperCase() })
-              }
-              placeholder="SUMMER25"
-              required
-            />
-          </label>
+          <Input
+            type="text"
+            label="Promo code (unique per venue)"
+            value={values.codeString}
+            onChange={(value) =>
+              patch({ codeString: value.toUpperCase() })
+            }
+            placeholder="SUMMER25"
+            isRequired
+          />
         ) : null}
       </section>
 
-      <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] p-4">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <section className="flex flex-col gap-3 rounded-xl border border-solid border-secondary bg-primary p-4">
+        <h2 className="text-xs uppercase tracking-wide text-tertiary">
           Visibility
         </h2>
         <Checkbox
           label="Active (visible to customers)"
-          checked={values.active}
-          onChange={(e) => patch({ active: e.target.checked })}
+          isSelected={values.active}
+          onChange={(active) => patch({ active })}
         />
-        <p className="text-xs text-[var(--color-text-secondary)]">
+        <p className="text-xs text-tertiary">
           Existing bookings keep their package even after archive — packages are
           never deleted, only hidden.
         </p>
       </section>
 
       {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+        <p className="text-sm text-error-primary">{error}</p>
       ) : null}
       {successMessage ? (
-        <p className="text-sm text-[var(--status-ok-text)]">{successMessage}</p>
+        <p className="text-sm text-success-primary">{successMessage}</p>
       ) : null}
 
-      <Button type="submit" size="lg" fullWidth loading={submitting}>
+      <Button type="submit" size="lg" className="w-full" isLoading={submitting}>
         {submitLabel}
       </Button>
     </form>

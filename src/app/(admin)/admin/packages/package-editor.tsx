@@ -7,8 +7,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { Button } from '@/components/ui/button'
-import { Card, CardBody } from '@/components/ui/card'
+import { Button } from '@/components/base/buttons/button'
 import {
   PackageForm,
   type PackageAccessType,
@@ -127,26 +126,24 @@ export function PackageEditor({
         submitLabel={mode === 'create' ? 'Create package' : 'Save package'}
       />
       {mode === 'edit' && initial?.active ? (
-        <Card>
-          <CardBody className="flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[var(--color-text-primary)]">
-                Archive this package
-              </span>
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                Hides it from new customer bookings. Existing bookings keep
-                their package reference.
-              </span>
-            </div>
-            <Button
-              variant="danger"
-              onClick={handleArchive}
-              loading={archiving}
-            >
-              Archive
-            </Button>
-          </CardBody>
-        </Card>
+        <div className="mt-4 flex flex-col gap-3 rounded-xl bg-primary p-4 shadow-xs ring-1 ring-secondary ring-inset md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-primary">
+              Archive this package
+            </span>
+            <span className="text-xs text-tertiary">
+              Hides it from new customer bookings. Existing bookings keep
+              their package reference.
+            </span>
+          </div>
+          <Button
+            color="primary-destructive"
+            onClick={handleArchive}
+            isLoading={archiving}
+          >
+            Archive
+          </Button>
+        </div>
       ) : null}
     </>
   )

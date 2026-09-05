@@ -1,11 +1,9 @@
 'use client'
 
-// ScheduleDayDetail — booking + block slots for one selected day.
-
-import Link from 'next/link'
-import { Plus } from 'lucide-react'
-
-import { Button } from '@/components/ui/button'
+import {
+  CalendarMonthViewEvent,
+  type EventViewColor,
+} from '@/components/application/calendar/base-components/calendar-month-view-event'
 import type { BlockedSlotRow, StaffBookingRow } from '@/lib/actions/staff'
 import {
   formatDayDetailTitle,
@@ -18,9 +16,8 @@ export type ScheduleDayDetailProps = {
   bookings: StaffBookingRow[]
   blocks: BlockedSlotRow[]
   canManageBlocks: boolean
-  onAddBlock: () => void
-  onUnblock?: (blockId: string) => void
-  unblockingId?: string | null
+  onSelectBooking: (bookingId: string) => void
+  onSelectBlock?: (blockId: string) => void
 }
 
 type DaySlot =
@@ -41,10 +38,11 @@ function sortSlots(bookings: StaffBookingRow[], blocks: BlockedSlotRow[]): DaySl
   })
 }
 
-function laneLabelForBooking(booking: StaffBookingRow): string {
-  const count = booking.laneCount
-  if (count <= 1) return 'Ln 1'
-  return `Ln 1–${count}`
+function bookingColor(status: StaffBookingRow['status']): EventViewColor {
+  if (status === 'CONFIRMED') return 'brand'
+  if (status === 'NO_SHOW') return 'orange'
+  if (status === 'COMPLETED') return 'gray'
+  return 'blue'
 }
 
 export function ScheduleDayDetail({
@@ -52,43 +50,19 @@ export function ScheduleDayDetail({
   bookings,
   blocks,
   canManageBlocks,
-  onAddBlock,
-  onUnblock,
-  unblockingId,
+  onSelectBooking,
+  onSelectBlock,
 }: ScheduleDayDetailProps) {
   const slots = sortSlots(bookings, blocks)
-  const activeLanes = bookings.filter((b) => b.status === 'CONFIRMED').length
 
   return (
-    <section className="flex flex-col gap-3 border-t border-solid border-[var(--color-border)] pt-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base [font-family:var(--font-display)] text-[var(--color-text-primary)]">
-            {formatDayDetailTitle(dateISO)}
-          </h2>
-          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-            {bookings.length} booking{bookings.length === 1 ? '' : 's'}
-            {activeLanes > 0
-              ? ` · ${activeLanes} lane group${activeLanes === 1 ? '' : 's'} active`
-              : ''}
-          </p>
-        </div>
-        {canManageBlocks ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="shrink-0 text-[11px] font-semibold text-[var(--color-action)]"
-            onClick={onAddBlock}
-          >
-            <Plus className="size-3" aria-hidden />
-            Block
-          </Button>
-        ) : null}
-      </div>
+    <section className="flex flex-col gap-4">
+      <h2 className="text-sm font-semibold text-primary">
+        {formatDayDetailTitle(dateISO)}
+      </h2>
 
       {slots.length === 0 ? (
-        <p className="text-sm text-[var(--color-text-secondary)]">
+        <p className="text-xs font-semibold text-quaternary">
           Nothing scheduled for this day.
         </p>
       ) : (
@@ -96,59 +70,43 @@ export function ScheduleDayDetail({
           {slots.map((slot) =>
             slot.kind === 'booking' ? (
               <li key={slot.booking.id}>
-                <Link
-                  href={`/staff/bookings/${slot.booking.id}`}
-                  className="flex items-center gap-2.5 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] px-3 py-2.5 transition-colors hover:border-[var(--color-border-strong)]"
+                <button
+                  type="button"
+                  className="w-full text-left"
+                  onClick={() => onSelectBooking(slot.booking.id)}
                 >
-                  <span className="min-w-[52px] text-[13px] [font-family:var(--font-display)] text-[var(--color-text-primary)]">
-                    {formatSlotTime(slot.booking.startTime)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-medium text-[var(--color-text-primary)]">
-                      {slot.booking.customerName}
-                    </span>
-                    <span className="mt-0.5 block text-[10px] text-[var(--color-text-secondary)]">
-                      {slot.booking.bowlerCount} bowler
-                      {slot.booking.bowlerCount === 1 ? '' : 's'} ·{' '}
-                      {slot.booking.packageName}
-                    </span>
-                  </span>
-                  <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-sunken)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)]">
-                    {laneLabelForBooking(slot.booking)}
-                  </span>
-                </Link>
+                  <CalendarMonthViewEvent
+                    label={slot.booking.customerName}
+                    supportingText={formatSlotTime(slot.booking.startTime)}
+                    color={bookingColor(slot.booking.status)}
+                  />
+                </button>
               </li>
             ) : (
               <li key={slot.block.id}>
-                <div className="flex items-center gap-2.5 rounded-[var(--radius-md)] border border-solid border-[color-mix(in_srgb,var(--status-error-border)_20%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_5%,transparent)] px-3 py-2.5">
-                  <span className="min-w-[52px] text-[13px] [font-family:var(--font-display)] text-[var(--color-text-primary)]">
-                    {formatSlotTime(slot.block.startTime)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[10px] font-semibold text-[var(--status-error-text)]">
-                      Blocked — {slot.block.reason ?? 'Lane block'}
-                    </span>
-                    <span className="mt-0.5 block text-[10px] text-[var(--color-text-secondary)]">
-                      {formatLanePill(slot.block.lanes)} ·{' '}
-                      {formatSlotTime(slot.block.startTime)} –{' '}
-                      {formatSlotTime(slot.block.endTime)}
-                    </span>
-                  </span>
-                  <span className="rounded-[var(--radius-full)] border border-solid border-[color-mix(in_srgb,var(--status-error-border)_20%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--status-error-text)]">
-                    {formatLanePill(slot.block.lanes)}
-                  </span>
-                  {canManageBlocks && onUnblock ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      loading={unblockingId === slot.block.id}
-                      onClick={() => onUnblock(slot.block.id)}
-                    >
-                      Remove
-                    </Button>
-                  ) : null}
-                </div>
+                {canManageBlocks && onSelectBlock ? (
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => onSelectBlock(slot.block.id)}
+                  >
+                    <CalendarMonthViewEvent
+                      label={slot.block.reason ?? 'Lane block'}
+                      supportingText={formatSlotTime(slot.block.startTime)}
+                      color="gray"
+                    />
+                  </button>
+                ) : (
+                  <CalendarMonthViewEvent
+                    label={slot.block.reason ?? 'Lane block'}
+                    supportingText={
+                      formatLanePill(slot.block.lanes) +
+                      ' · ' +
+                      formatSlotTime(slot.block.startTime)
+                    }
+                    color="gray"
+                  />
+                )}
               </li>
             ),
           )}

@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardBody } from '@/components/ui/card'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
 import { createPaymentResumeLink } from '@/lib/actions/payment-resume'
 import { formatPrice } from '@/lib/pricing'
 
@@ -48,38 +47,37 @@ export function PaymentResumePanel() {
   }
 
   return (
-    <Card>
-      <CardBody className="flex flex-col gap-3 text-sm">
+    <section className="flex flex-col gap-3 rounded-xl bg-primary p-4 text-sm shadow-xs ring-1 ring-secondary ring-inset">
         <div className="flex flex-col gap-1">
-          <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+          <h2 className="text-xs uppercase tracking-wide text-tertiary">
             Resend payment link
           </h2>
-          <p className="text-[var(--color-text-secondary)]">
+          <p className="text-tertiary">
             For customers who abandoned checkout or need to retry 3D Secure. Paste
             the Payment Intent id from the Stripe Dashboard (
-            <code className="text-[var(--color-text-primary)]">pi_…</code>).
+            <code className="text-primary">pi_…</code>).
           </p>
         </div>
         <label className="flex flex-col gap-1">
-          <span className="text-[var(--color-text-secondary)]">
+          <span className="text-tertiary">
             Payment Intent id
           </span>
           <Input
             type="text"
             value={paymentIntentId}
-            onChange={(e) => setPaymentIntentId(e.target.value)}
+            onChange={setPaymentIntentId}
             placeholder="pi_3P…"
             autoComplete="off"
           />
         </label>
         {error ? (
-          <p className="text-[var(--status-error-text)]">{error}</p>
+          <p className="text-error-primary">{error}</p>
         ) : null}
         {meta ? (
-          <p className="text-[var(--color-text-secondary)]">{meta}</p>
+          <p className="text-tertiary">{meta}</p>
         ) : null}
         {generatedUrl ? (
-          <p className="break-all rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--surface-sunken)] p-3 text-[var(--color-text-primary)]">
+          <p className="break-all rounded-xl border border-secondary bg-secondary p-3 text-primary">
             {generatedUrl}
           </p>
         ) : null}
@@ -87,18 +85,17 @@ export function PaymentResumePanel() {
           <Button
             type="button"
             onClick={handleGenerate}
-            loading={pending}
-            disabled={!paymentIntentId.trim()}
+            isLoading={pending}
+            isDisabled={!paymentIntentId.trim()}
           >
             Generate link
           </Button>
           {generatedUrl ? (
-            <Button type="button" variant="secondary" onClick={() => void handleCopy()}>
+            <Button type="button" color="secondary" onClick={() => void handleCopy()}>
               Copy link
             </Button>
           ) : null}
         </div>
-      </CardBody>
-    </Card>
+    </section>
   )
 }

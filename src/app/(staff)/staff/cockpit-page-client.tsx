@@ -12,6 +12,7 @@ function CockpitPageInner(
   const router = useRouter()
   const searchParams = useSearchParams()
   const bookingId = searchParams.get('booking')
+  const subview = searchParams.get('view') === 'lanes' ? 'lanes' : 'overview'
 
   const openBooking = useCallback(
     (id: string) => {
@@ -31,7 +32,11 @@ function CockpitPageInner(
 
   return (
     <>
-      <CockpitPanel {...props} onOpenBooking={openBooking} />
+      <CockpitPanel
+        {...props}
+        subview={subview}
+        onOpenBooking={openBooking}
+      />
       <BookingDetailSheet
         bookingId={bookingId}
         tenantId={props.tenantId}
@@ -48,7 +53,7 @@ export function CockpitPageClient(
   props: CockpitPanelProps & { canRefund: boolean },
 ) {
   return (
-    <Suspense fallback={<CockpitPanel {...props} />}>
+    <Suspense fallback={null}>
       <CockpitPageInner {...props} />
     </Suspense>
   )

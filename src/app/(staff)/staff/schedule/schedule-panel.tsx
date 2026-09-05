@@ -4,15 +4,15 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  List,
-  Plus,
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, Plus } from '@untitledui/icons'
 
+import { CalendarDateIcon } from '@/components/application/calendar/base-components/calendar-date-icon'
+import { CalendarViewDropdown } from '@/components/application/calendar/base-components/calendar-view-dropdown'
+import { Badge } from '@/components/base/badges/badges'
+import { ButtonGroup, ButtonGroupItem } from '@/components/base/button-group/button-group'
+import { Button } from '@/components/base/buttons/button'
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
+import { StaffPageHeader } from '@/components/chrome/staff-page-header'
 import {
   ScheduleBlockForm,
   type ScheduleBlockFormValues,
@@ -20,7 +20,7 @@ import {
 import { ScheduleBlocksList } from '@/components/patterns/schedule-blocks-list'
 import { ScheduleDayDetail } from '@/components/patterns/schedule-day-detail'
 import { ScheduleMonthCalendar } from '@/components/patterns/schedule-month-calendar'
-import { Button } from '@/components/ui/button'
+import { ScheduleReservationDetail } from '@/components/patterns/schedule-reservation-detail'
 import type {
   BlockedSlotRow,
   ScheduleDaySummary,
@@ -34,6 +34,7 @@ import {
   isoDateLocal,
   monthParam,
   parseMonthParam,
+  weekOfMonth,
 } from '@/lib/schedule-display'
 
 export type ScheduleView = 'calendar' | 'list'
@@ -110,10 +111,14 @@ export function SchedulePanel({
 }: SchedulePanelProps) {
   const router = useRouter()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(
+    null,
+  )
   const [formValues, setFormValues] = useState(() =>
     defaultBlockValues(selectedDate),
   )
   const [formError, setFormError] = useState<string | null>(null)
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const [unblockingId, setUnblockingId] = useState<string | null>(null)
   const [submitting, startSubmit] = useTransition()
   const [navPending, startNav] = useTransition()
@@ -123,6 +128,7 @@ export function SchedulePanel({
     new Date(`${selectedDate}T12:00:00`),
   )
   const monthTitle = formatCalendarMonthTitle(year, monthIndex)
+  const selectedBooking = dayBookings.find((b) => b.id === selectedBookingId)
 
   const listBlocks = useMemo(() => {
     return monthBlocks.filter((block) => {
@@ -155,6 +161,7 @@ export function SchedulePanel({
     setFormValues(
       existing ? blockToFormValues(existing, date) : defaultBlockValues(date),
     )
+    setEditingBlockId(existing?.id ?? null)
     setFormError(null)
     setSheetOpen(true)
   }
@@ -223,99 +230,172 @@ export function SchedulePanel({
 
   return (
     <>
-      <header className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl">Schedule</h1>
-        <ViewToggle
-          view={view}
-          onChange={(next) => navigate({ view: next })}
-        />
-      </header>
+      <StaffPageHeader title={view === 'list' ? 'Reservation List' : 'Schedule'} />
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8">
-        <div className="w-full md:max-w-[480px] md:shrink-0">
-          <div className="flex items-center justify-between px-1 py-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label="Previous month"
-              disabled={navPending}
-              onClick={() => shiftMonth(-1)}
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-            </Button>
-            <span className="text-lg [font-family:var(--font-display)] text-[var(--color-text-primary)]">
-              {monthTitle}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label="Next month"
-              disabled={navPending}
-              onClick={() => shiftMonth(1)}
-            >
-              <ChevronRight className="size-4" aria-hidden />
-            </Button>
-          </div>
-
-          {view === 'calendar' ? (
-            <ScheduleMonthCalendar
-              year={year}
-              month={monthIndex}
-              days={monthDays}
-              selectedDate={selectedDate}
-              todayISO={todayISO}
-              onSelectDate={(dateISO) => navigate({ date: dateISO })}
-            />
-          ) : (
-            <div className="flex flex-col gap-3">
+      {view === 'calendar' ? (
+        <div className="flex flex-col overflow-hidden rounded-xl bg-primary shadow-xs ring ring-secondary">
+          <div className="relative flex flex-col items-start justify-between gap-4 bg-primary px-4 py-5 md:px-6 lg:flex-row">
+            <div className="flex items-start gap-3">
+              <CalendarDateIcon
+                day={Number(selectedDate.slice(8, 10))}
+                month={new Date(`${selectedDate}T12:00:00`)
+                  .toLocaleString('en-US', { month: 'short' })
+                  .toUpperCase()}
+                className="max-md:hidden"
+              />
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2 text-lg font-semibold text-primary">
+                  {monthTitle}
+                  <Badge size="sm" color="gray" type="modern">
+                    Week {weekOfMonth(selectedDate)}
+                  </Badge>
+                </div>
+                <span className="text-sm text-tertiary">
+                  {new Date(year, monthIndex, 1).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                  {' – '}
+                  {new Date(year, monthIndex + 1, 0).toLocaleDateString(
+                    'en-US',
+                    { month: 'short', day: 'numeric', year: 'numeric' },
+                  )}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 gap-y-4 max-lg:w-full">
+              <ButtonGroup
+                selectedKeys={[]}
+                size="sm"
+                className="flex max-lg:order-last max-lg:min-w-full max-lg:flex-1"
+              >
+                <ButtonGroupItem
+                  id="prev"
+                  iconLeading={ArrowLeft}
+                  aria-label="Previous month"
+                  isDisabled={navPending}
+                  onClick={() => shiftMonth(-1)}
+                />
+                <ButtonGroupItem
+                  id="today"
+                  className="flex-1 justify-center text-center"
+                  isDisabled={navPending}
+                  onClick={() => {
+                    const d = new Date()
+                    navigate({
+                      month: monthParam(d.getFullYear(), d.getMonth()),
+                      date: isoDateLocal(d),
+                    })
+                  }}
+                >
+                  Today
+                </ButtonGroupItem>
+                <ButtonGroupItem
+                  id="next"
+                  iconLeading={ArrowRight}
+                  aria-label="Next month"
+                  isDisabled={navPending}
+                  onClick={() => shiftMonth(1)}
+                />
+              </ButtonGroup>
+              <CalendarViewDropdown
+                value="month"
+                onSelectionChange={() => undefined}
+                options={[{ value: 'month', label: 'Month view' }]}
+              />
               {canManageBlocks ? (
                 <Button
-                  type="button"
-                  variant="secondary"
-                  fullWidth
-                  className="border-[color-mix(in_srgb,var(--status-error-border)_20%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_8%,transparent)] text-[var(--status-error-text)]"
-                  onClick={() => openBlockSheet()}
+                  iconLeading={Plus}
+                  size="sm"
+                  onPress={() => openBlockSheet(selectedDate)}
                 >
-                  <Plus className="size-3" aria-hidden />
-                  Add block
+                  Block
                 </Button>
               ) : null}
-              <ScheduleBlocksList
-                blocks={listBlocks}
-                canManageBlocks={canManageBlocks}
-                onSelectBlock={
-                  canManageBlocks
-                    ? (id) => {
-                        const block = listBlocks.find((b) => b.id === id)
-                        if (block) openBlockSheet(isoDateLocal(block.startTime), block)
-                      }
-                    : undefined
-                }
-              />
             </div>
-          )}
-        </div>
+            <div className="pointer-events-none absolute bottom-0 left-0 w-full border-t border-secondary" />
+          </div>
 
-        {view === 'calendar' ? (
-          <div className="min-w-0 flex-1">
+          <ScheduleMonthCalendar
+            year={year}
+            month={monthIndex}
+            days={monthDays}
+            selectedDate={selectedDate}
+            todayISO={todayISO}
+            onSelectDate={(dateISO) => {
+              setSelectedBookingId(null)
+              navigate({ date: dateISO })
+            }}
+            onAddBlock={
+              canManageBlocks
+                ? (dateISO) => openBlockSheet(dateISO)
+                : undefined
+            }
+          />
+
+          <div className="border-t border-secondary px-4 py-5 md:px-6">
             <ScheduleDayDetail
               dateISO={selectedDate}
               bookings={dayBookings}
               blocks={dayBlocks}
               canManageBlocks={canManageBlocks}
-              onAddBlock={() => openBlockSheet(selectedDate)}
-              onUnblock={canManageBlocks ? handleUnblock : undefined}
-              unblockingId={unblockingId}
+              onSelectBooking={(id) => setSelectedBookingId(id)}
+              onSelectBlock={
+                canManageBlocks
+                  ? (id) => {
+                      const block = dayBlocks.find((b) => b.id === id)
+                      if (block) {
+                        openBlockSheet(isoDateLocal(block.startTime), block)
+                      }
+                    }
+                  : undefined
+              }
             />
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {canManageBlocks ? (
+            <Button
+              type="button"
+              color="primary-destructive"
+              iconLeading={Plus}
+              onClick={() => openBlockSheet()}
+            >
+              Add block
+            </Button>
+          ) : null}
+          <ScheduleBlocksList
+            blocks={listBlocks}
+            canManageBlocks={canManageBlocks}
+            onSelectBlock={
+              canManageBlocks
+                ? (id) => {
+                    const block = listBlocks.find((b) => b.id === id)
+                    if (block) openBlockSheet(isoDateLocal(block.startTime), block)
+                  }
+                : undefined
+            }
+          />
+        </div>
+      )}
+
+      <BottomSheet
+        open={selectedBookingId != null}
+        title={selectedBooking?.customerName ?? 'Reservation'}
+        onClose={() => setSelectedBookingId(null)}
+      >
+        {selectedBooking ? (
+          <ScheduleReservationDetail booking={selectedBooking} />
+        ) : (
+          <p className="text-sm text-tertiary">Nothing scheduled for this day.</p>
+        )}
+      </BottomSheet>
 
       <BottomSheet
         open={sheetOpen}
-        title="Add block"
+        title={editingBlockId ? 'Edit block' : 'Add block'}
         onClose={() => setSheetOpen(false)}
       >
         <ScheduleBlockForm
@@ -327,62 +407,21 @@ export function SchedulePanel({
           submitting={submitting}
           error={formError}
         />
+        {editingBlockId ? (
+          <Button
+            type="button"
+            color="tertiary"
+            className="mt-2"
+            isLoading={unblockingId === editingBlockId}
+            onClick={() => {
+              handleUnblock(editingBlockId)
+              setSheetOpen(false)
+            }}
+          >
+            Remove block
+          </Button>
+        ) : null}
       </BottomSheet>
     </>
-  )
-}
-
-function ViewToggle({
-  view,
-  onChange,
-}: {
-  view: ScheduleView
-  onChange: (view: ScheduleView) => void
-}) {
-  return (
-    <div className="flex items-center gap-1">
-      <ViewIconButton
-        active={view === 'calendar'}
-        label="Calendar view"
-        onClick={() => onChange('calendar')}
-      >
-        <CalendarDays className="size-3.5" strokeWidth={1.8} aria-hidden />
-      </ViewIconButton>
-      <ViewIconButton
-        active={view === 'list'}
-        label="Blocked times list"
-        onClick={() => onChange('list')}
-      >
-        <List className="size-3.5" strokeWidth={1.8} aria-hidden />
-      </ViewIconButton>
-    </div>
-  )
-}
-
-function ViewIconButton({
-  active,
-  label,
-  onClick,
-  children,
-}: {
-  active: boolean
-  label: string
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={active}
-      className={`flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-solid transition-opacity ${
-        active
-          ? 'border-[color-mix(in_srgb,var(--color-action)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-action)_12%,transparent)] text-[var(--color-action)]'
-          : 'border-[var(--color-border-strong)] text-[var(--color-text-secondary)] opacity-45'
-      }`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
   )
 }

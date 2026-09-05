@@ -1,7 +1,6 @@
 'use client'
 
-// WalkInConfirmStep — step 3: summary + payment + create.
-
+import { Button } from '@/components/base/buttons/button'
 import type { WalkInPaymentMethod } from '@/lib/actions/staff'
 import {
   formatBowlersSummary,
@@ -61,22 +60,20 @@ export function WalkInConfirmStep({
   ]
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-raised)] p-3">
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl bg-primary p-4 shadow-xs ring-1 ring-secondary ring-inset">
         {rows.map((row) => (
           <div
             key={row.label}
-            className="flex items-center justify-between gap-3 border-b border-solid border-[var(--color-border)] py-1.5 last:border-b-0"
+            className="flex items-center justify-between gap-3 border-b border-secondary py-2 last:border-b-0"
           >
-            <span className="text-[11px] text-[var(--color-text-secondary)]">
-              {row.label}
-            </span>
+            <span className="text-sm text-tertiary">{row.label}</span>
             <span
-              className={`text-xs font-medium ${
+              className={
                 row.accent
-                  ? 'text-[var(--color-action-dark)]'
-                  : 'text-[var(--color-text-primary)]'
-              }`}
+                  ? 'text-sm font-medium text-brand-secondary'
+                  : 'text-sm font-medium text-primary'
+              }
             >
               {row.value}
             </span>
@@ -84,56 +81,56 @@ export function WalkInConfirmStep({
         ))}
       </div>
 
-      <div>
-        <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-secondary">
           Payment collected at desk
         </span>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           {PAYMENT_OPTIONS.map((opt) => {
             const active = values.paymentMethod === opt.value
             return (
-              <button
+              <Button
                 key={opt.value}
                 type="button"
-                className={`flex-1 rounded-[var(--radius-md)] border-[1.5px] border-solid px-1.5 py-2 text-center text-[11px] font-semibold ${
-                  active
-                    ? 'border-[var(--color-action)] bg-[color-mix(in_srgb,var(--color-action-subtle)_10%,transparent)] text-[var(--color-action-dark)]'
-                    : 'border-[var(--color-border-strong)] bg-[var(--surface-raised)] text-[var(--color-text-secondary)]'
-                }`}
+                size="sm"
+                color={active ? 'secondary' : 'tertiary'}
+                className="flex-1"
                 onClick={() => onChangePayment(opt.value)}
               >
                 {opt.label}
-              </button>
+              </Button>
             )
           })}
         </div>
-        <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">
+        <p className="text-sm text-tertiary">
           Payment is handled at the desk — no online charge. This booking is
           created as checked-in immediately.
         </p>
       </div>
 
-      {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
-      ) : null}
+      {error ? <p className="text-sm text-error-primary">{error}</p> : null}
 
       <div className="flex gap-2">
-        <button
+        <Button
           type="button"
-          className="flex-1 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-raised)] px-3 py-3 text-[13px] text-[var(--color-text-secondary)]"
+          color="secondary"
+          size="md"
+          className="flex-1"
           onClick={onBack}
-          disabled={submitting}
+          isDisabled={submitting}
         >
-          ← Back
-        </button>
-        <button
+          Back
+        </Button>
+        <Button
           type="button"
-          disabled={submitting}
-          className="flex-[2] rounded-[var(--radius-md)] bg-[var(--color-action)] px-3 py-3 text-[13px] font-semibold text-[var(--color-text-on-action)] disabled:cursor-not-allowed disabled:opacity-35"
+          color="primary"
+          size="md"
+          className="flex-[2]"
+          isLoading={submitting}
           onClick={onSubmit}
         >
-          {submitting ? 'Creating…' : 'Create & check in'}
-        </button>
+          Create & check in
+        </Button>
       </div>
     </div>
   )

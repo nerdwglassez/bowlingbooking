@@ -1,7 +1,8 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
+import { SettingsFieldRow } from '@/components/patterns/settings-field-row'
 import {
   formatTenantAddress,
   parseTenantAddress,
@@ -55,22 +56,6 @@ export function venueInfoToAddress(values: VenueInfoFormValues): string {
   })
 }
 
-function FieldNote({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mt-1 text-[10px] leading-relaxed text-[var(--color-text-secondary)]">
-      {children}
-    </p>
-  )
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--color-text-secondary)]">
-      {children}
-    </span>
-  )
-}
-
 export function VenueInfoForm({
   values,
   onChange,
@@ -91,117 +76,117 @@ export function VenueInfoForm({
         e.preventDefault()
         if (!readOnly) onSubmit()
       }}
-      className="flex flex-col gap-4"
+      className="flex flex-col"
     >
-      <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Identity
-        </h2>
-        <label className="flex flex-col">
-          <FieldLabel>Venue name</FieldLabel>
-          <Input
-            type="text"
-            value={values.name}
-            onChange={(e) => patch({ name: e.target.value })}
-            disabled={readOnly}
-            required
-          />
-          <FieldNote>Appears in the app header and all customer emails.</FieldNote>
-        </label>
-      </section>
+      <SettingsFieldRow
+        label="Venue name"
+        hint="Appears in the app header and all customer emails."
+        required
+      >
+        <Input
+          type="text"
+          aria-label="Venue name"
+          value={values.name}
+          onChange={(name) => patch({ name })}
+          isDisabled={readOnly}
+          isRequired
+        />
+      </SettingsFieldRow>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Address
-        </h2>
-        <label className="flex flex-col">
-          <FieldLabel>Street address</FieldLabel>
-          <Input
-            type="text"
-            value={values.street}
-            onChange={(e) => patch({ street: e.target.value })}
-            disabled={readOnly}
-            required
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col">
-            <FieldLabel>City</FieldLabel>
+      <SettingsFieldRow label="Street address" required>
+        <Input
+          type="text"
+          aria-label="Street address"
+          value={values.street}
+          onChange={(street) => patch({ street })}
+          isDisabled={readOnly}
+          isRequired
+        />
+      </SettingsFieldRow>
+
+      <SettingsFieldRow
+        label="City, state, ZIP"
+        hint="Address links to maps in the customer app and confirmation emails."
+        required
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+          <div className="sm:col-span-3">
             <Input
               type="text"
+              label="City"
               value={values.city}
-              onChange={(e) => patch({ city: e.target.value })}
-              disabled={readOnly}
-              required
+              onChange={(city) => patch({ city })}
+              isDisabled={readOnly}
+              isRequired
             />
-          </label>
-          <label className="flex flex-col">
-            <FieldLabel>State</FieldLabel>
+          </div>
+          <div className="sm:col-span-1">
             <Input
               type="text"
+              label="State"
               value={values.state}
-              onChange={(e) => patch({ state: e.target.value })}
-              disabled={readOnly}
-              required
+              onChange={(state) => patch({ state })}
+              isDisabled={readOnly}
+              isRequired
             />
-          </label>
+          </div>
+          <div className="sm:col-span-2">
+            <Input
+              type="text"
+              label="ZIP"
+              value={values.zip}
+              onChange={(zip) => patch({ zip })}
+              isDisabled={readOnly}
+              isRequired
+            />
+          </div>
         </div>
-        <label className="flex flex-col">
-          <FieldLabel>ZIP code</FieldLabel>
-          <Input
-            type="text"
-            value={values.zip}
-            onChange={(e) => patch({ zip: e.target.value })}
-            disabled={readOnly}
-            required
-          />
-          <FieldNote>
-            Address links to maps in the customer app and confirmation emails.
-          </FieldNote>
-        </label>
-      </section>
+      </SettingsFieldRow>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Contact
-        </h2>
-        <label className="flex flex-col">
-          <FieldLabel>Phone number</FieldLabel>
-          <Input
-            type="tel"
-            value={values.phone}
-            onChange={(e) => patch({ phone: e.target.value })}
-            disabled={readOnly}
-            required
-          />
-          <FieldNote>Shown as a tappable call link to customers.</FieldNote>
-        </label>
-        <label className="flex flex-col">
-          <FieldLabel>Contact email</FieldLabel>
-          <Input
-            type="email"
-            value={values.contactEmail}
-            onChange={(e) => patch({ contactEmail: e.target.value })}
-            disabled={readOnly}
-          />
-          <FieldNote>Reply-to address for all booking confirmation emails.</FieldNote>
-        </label>
-      </section>
+      <SettingsFieldRow
+        label="Phone number"
+        hint="Shown as a tappable call link to customers."
+        required
+      >
+        <Input
+          type="tel"
+          aria-label="Phone number"
+          value={values.phone}
+          onChange={(phone) => patch({ phone })}
+          isDisabled={readOnly}
+          isRequired
+        />
+      </SettingsFieldRow>
+
+      <SettingsFieldRow
+        label="Contact email"
+        hint="Reply-to address for all booking confirmation emails."
+      >
+        <Input
+          type="email"
+          aria-label="Contact email"
+          value={values.contactEmail}
+          onChange={(contactEmail) => patch({ contactEmail })}
+          isDisabled={readOnly}
+        />
+      </SettingsFieldRow>
 
       {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+        <p className="pt-4 text-sm text-error-primary">{error}</p>
       ) : null}
       {successMessage ? (
-        <p className="text-sm text-[var(--status-ok-text)]">{successMessage}</p>
+        <p className="pt-4 text-sm text-success-primary">{successMessage}</p>
       ) : null}
 
-      {!readOnly
-        ? saveButton ?? (
-            <Button type="submit" fullWidth loading={submitting}>
+      {!readOnly ? (
+        <div className="flex justify-end pt-4">
+          {saveButton ?? (
+            <Button type="submit" isLoading={submitting}>
               Save venue info
             </Button>
-          )
-        : null}
+          )}
+        </div>
+      ) : null}
     </form>
   )
 }

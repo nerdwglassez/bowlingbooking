@@ -4,42 +4,40 @@
 # Prerequisite: STAFF_INTERACTIONS.md (global architecture)
 # Domain:       BOOKING_DOMAIN.md Part 1
 # Code contract: contracts/STAFF.md
-# Wireframes:    docs/wireframes/staff/staff-app-cockpit.html,
-#                docs/wireframes/staff/staff-app-v2.html,
-#                docs/wireframes/staff/staff-stat-hierarchy.html
-# Build status:  Built — cockpit, booking detail sheet (mobile sheet + md+ 400px panel), check-in, 5-state modification
+# Visual: FIGMA.md cockpit row —
+#   desktop https://www.figma.com/design/BYKelzNYd141jdsvslOABk/%E2%9D%96-Untitled-UI-Figma-%E2%80%93-PRO-STYLES--v8.0--KTWJ8mYFqVpN--Copy-?node-id=1726-443880&t=w2r3hIJBDYQltPHJ-4
+#   mobile  https://www.figma.com/design/BYKelzNYd141jdsvslOABk/%E2%9D%96-Untitled-UI-Figma-%E2%80%93-PRO-STYLES--v8.0--KTWJ8mYFqVpN--Copy-?node-id=1726-443918&t=w2r3hIJBDYQltPHJ-4
+# Rail Dashboard vs Lane Assignments — no in-page tabs.
+# Colors: Untitled semantic utilities, stock brand on dark. Do not introduce --staff-* tokens or amber remap.
+# Build status:  Built — Untitled cockpit (metrics, occupancy chart, table/cards), booking detail right slideout, check-in, 5-state modification
 
 ---
 
-## Cockpit Tab — Overview Sub-view
+## Cockpit Tab — Dashboard
 
 ### Page Structure (top to bottom)
 ```
-Staff header (persistent)
-Sub-view toggle: Overview | Lanes
-Context bar: "Today's bookings · [Date]"
-Stat hierarchy section
-Search bar
-Section label: "Upcoming" or "Late — no check-in (5+ min)"
-Upcoming/Late list
+StaffPageHeader (Dashboard + clock; search in header on `lg+`)
+Context bar (today’s bookings + date — not Untitled 12m/30d/⌘K chrome)
+Untitled remaining-day occupancy chart
+Untitled metric cards (Total / Upcoming / Active / Done / Late)
+Search (`< lg` only — desktop search lives in the header)
+Section: "Upcoming" or "Late — no check-in (5+ min)"
+Upcoming/Late list (table `lg+`, stacked avatar rows `< lg`)
 Walk-in FAB (floating, bottom right)
-Tab bar (persistent)
 ```
 
-### Sub-view Toggle
-- Pill toggle: "Overview" | "Lanes"
-- Position: first element inside content area, below the header
-- NOT in the header — toggle lives in the content scroll area
-- Container: --staff-card bg, --radius-md, border 1px --staff-border, 3px padding
-- Active option: --staff-card-raised bg, #FAFAF9 text, 13px, 500 weight
-- Inactive option: transparent bg, --staff-text-muted text
-- Transition: background --duration-fast
-- Selection persists within session (localStorage key: 'cockpit_subview')
+Desktop frame (`lg+`): full-width chart, then metric **row**. Mobile frame (`< lg`):
+chart and metrics **stack**. Do not copy Untitled dummy chrome (logo, ⌘K, Olivia,
+fake revenue / activity).
+
+Lane Assignments is a **rail destination** (`/staff?view=lanes`), not an in-page
+Overview|Lanes toggle. Do not persist a dashboard subview in localStorage.
 
 ### Context Bar
-- Below toggle, above stats
-- Left: "Today's bookings" label (9px uppercase, --staff-text-muted)
-- Right: date string "Sat May 10" (10px, --staff-text-muted)
+- Below header, above the occupancy chart
+- Left: context label (`text-sm font-medium text-secondary`)
+- Right: date string (`text-sm text-tertiary`)
 - No border, no card — plain text row with 16px horizontal padding
 
 ---
@@ -47,46 +45,43 @@ Tab bar (persistent)
 ## Stat Hierarchy
 
 ### Layout Structure
-The stat section uses a parent-children visual hierarchy,
-not a flat grid of equal cards.
+Untitled dashboard frames use an **equal metric row** (not the older
+parent-children stack). Five cards: Total, Upcoming, Active, Done, Late.
 
 ```
-[  Total: 18  ]   ← large, prominent parent
-       |           ← thin vertical connector line (1px, --staff-border)
-  ┌────┴────┐
-[Up: 6][Active: 4]  ← 2×2 child grid
-[Done: 8][Late: 2]  ← Late only appears when count > 0
+`lg+`  [Total] [Upcoming] [Active] [Done] [Late]   ← one row, 24px gap
+`< lg` stacked full-width cards (2-col from `sm`)
 ```
 
 ### Total Card (parent)
 - Full width, centered
-- Number: --font-display, 36px, #FAFAF9
-- Label: "Total" — 11px, --staff-text-muted, uppercase
-- Background: --staff-card, --radius-lg, 16px padding
+- Number: --font-display, 36px, `text-primary`
+- Label: "Total" — 11px, text-tertiary, uppercase
+- Background: bg-primary, --radius-lg, 16px padding
 - No border in normal state
 
 ### Connector
-- 1px vertical line, --staff-border color
+- 1px vertical line, border-secondary color
 - Height: 20px
 - Centered horizontally between parent and children
 
 ### Children Grid (2×2)
 - Grid: 2 columns, gap 8px
-- Each child card: --staff-card bg, --radius-md, 12px padding, centered
+- Each child card: bg-primary bg, --radius-md, 12px padding, centered
 - Number: --font-display, 24px
-- Label: 10px, --staff-text-muted, uppercase, 3px margin top
+- Label: 10px, text-tertiary, uppercase, 3px margin top
 
 ### Child Card Colors
-- Upcoming: --palette-amber-400 (warm, attention)
+- Upcoming: `text-brand-secondary` (Untitled brand, not amber)
 - Active: --palette-green-400 (positive, in progress)
-- Done: --staff-text-muted (neutral, no action needed)
+- Done: text-tertiary (neutral, no action needed)
 - Late: --status-error-text-dark / #FCA5A5 (urgent, red)
 
 ### Late Card Behavior
 
 **Zero late (normal operation):**
 - Late card still renders in the 2×2 grid
-- Number shown as 0 in --staff-text-muted (no urgency)
+- Number shown as 0 in text-tertiary (no urgency)
 - No pulse, no border emphasis
 - Late section label NOT shown in upcoming list
 
@@ -95,7 +90,7 @@ not a flat grid of equal cards.
 - Number pulses: opacity 1→0.5→1, 2s interval, infinite
 - Pulse indicator below number: small dot + "5+ min" label
   Dot: --status-error-text-dark, 6px, pulsing
-  Label: 9px, --status-error-text-dark
+  Label: `text-xs font-medium text-error-primary`
 - Late section surfaces ABOVE upcoming section in the list
   Section label: "Late — no check-in (5+ min)" in red tint
 - Quick action row appears below late items (see below)
@@ -112,17 +107,15 @@ not a flat grid of equal cards.
 ## Search Bar
 
 ### Normal State
-- Below stat section
-- Background: --staff-card, border 1px --staff-border, --radius-md
-- Padding: 9px 13px
-- Search icon: 14px SVG (outline magnifier), --staff-text-muted
+- `lg+`: in the page header, right side, max 280px (Untitled dashboard search — no ⌘K)
+- `< lg`: below metrics, above the upcoming list
+- Untitled `Input` `size="sm"` with SearchLg icon
 - Placeholder: "Search by name, phone, or code…"
-- Font: 13px, --staff-text-muted
 
 ### Active / Typing State
-- Border changes to --staff-border-strong
+- Border changes to border-primary
 - Placeholder clears
-- Text: --staff-text-primary, 13px
+- Text: text-primary, 13px
 - Clear (×) button appears on right when text is present
 
 ### Results Behavior
@@ -137,7 +130,7 @@ not a flat grid of equal cards.
 ## Upcoming List
 
 ### Section Label
-- "Upcoming" in normal state: 9px uppercase, --staff-text-muted
+- "Upcoming" in normal state: `text-sm font-medium text-secondary`
 - "Late — no check-in (5+ min)" when late bookings exist: same size, red tint
 
 ### List Item Layout
@@ -146,24 +139,24 @@ not a flat grid of equal cards.
 ```
 
 **Time column (left, fixed width ~44px):**
-- Hour: 14px, 600 weight, --staff-action (amber)
-- AM/PM: 9px, --staff-text-muted, below hour
+- Hour: 14px, 600 weight, bg-brand-solid / text-brand-secondary (amber)
+- AM/PM: `text-xs text-tertiary`, below hour
 
 **Vertical divider:**
-- 1px line, height ~80% of row, --staff-border
+- 1px line, height ~80% of row, border-secondary
 - Centered vertically
 
 **Info column (flex: 1):**
-- Customer name: 13px, 500 weight, --staff-text-primary
-- Meta line: 11px, --staff-text-muted
+- Customer name: 13px, 500 weight, text-primary
+- Meta line: 11px, text-tertiary
   Format: "X bowlers · [Package name] · X shoe rentals"
   OR: "X bowlers · [Package name] · Shoes incl."
 
 **Right column (fixed width):**
 - Lane badge: "Ln 4" or "Ln 1–2" for multi-lane
-  Background: --staff-card-raised, --radius-full
-  Text: 10px, 600 weight, --staff-text-secondary
-  Border: 1px --staff-border
+  Background: bg-secondary, --radius-full
+  Text: 10px, 600 weight, text-secondary
+  Border: 1px border-secondary
 - Status pip: 8px circle below lane badge
   Pending: --palette-amber-400
   Confirmed: --palette-green-400
@@ -171,8 +164,8 @@ not a flat grid of equal cards.
   Late: --status-error-text-dark, pulsing
 
 ### List Item States
-- Normal: --staff-bg background (no card bg — list sits directly on page)
-- Hover/press: --staff-card bg, --radius-md
+- Normal: bg-primary (page) background (no card bg — list sits directly on page)
+- Hover/press: bg-primary bg, --radius-md
 - Checked-in items: full row at 50% opacity — still visible, not removed
 - Late items: left border 2px --status-error-text-dark,
   name text in --status-error-text-dark, meta adds "X min late"
@@ -187,10 +180,9 @@ Appears below the late items section (not below all items):
   They don't bulk-action without confirmation
 
 ### Tap to Open Booking Detail
-- Tapping any upcoming list item → booking detail sheet slides up
-- The cockpit content behind dims: opacity drops to ~18%
-- Sheet slides up from bottom: translateY(100%)→0, --duration-base --ease-out
-- Backdrop: transparent (no overlay — dimming is on content, not overlay)
+- Tapping any upcoming list item → booking detail slideout from the right
+- Overlay: `bg-overlay/70` + backdrop blur (Untitled slideout)
+- Panel: full height, `translateX(100%)→0` only — never `translateY`
 
 ---
 
@@ -203,9 +195,9 @@ Appears below the late items section (not below all items):
 
 ### Sheet Anatomy
 ```
-Handle bar          (32×3px, centered, --staff-border-strong)
-Customer name       (--font-display, 18px, --staff-text-primary)
-Meta line           (12px, --staff-text-muted)
+Handle bar          (32×3px, centered, border-primary)
+Customer name       (--font-display, 18px, text-primary)
+Meta line           (12px, text-tertiary)
 Detail rows         (icon + label + value)
 Action buttons      (3 buttons)
 ```
@@ -220,14 +212,14 @@ Row types (always shown in this order):
 1. Party: 👥 icon · label "Party" · value "X bowlers · [Package] · X hrs"
 2. Shoe rental: 👟 icon · label "Shoe rental" · value "X rentals · sizes X, X, X"
    OR "Included with package" if shoes are a package inclusion
-3. Contact: 📞 icon · label "Contact" · value in --staff-action (tappable tel: link)
+3. Contact: 📞 icon · label "Contact" · value in bg-brand-solid / text-brand-secondary (tappable tel: link)
 4. Notes: 📝 icon · only shown if booking has notes · value is note text
 
-Icon container: --staff-card-raised bg, 7px border radius
-Label: 9px uppercase, --staff-text-muted
-Value: 13px, 500 weight, --staff-text-primary (exception: contact = --staff-action)
+Icon container: bg-secondary bg, 7px border radius
+Label: `text-sm font-medium text-secondary`
+Value: 13px, 500 weight, text-primary (exception: contact = bg-brand-solid / text-brand-secondary)
 
-Each row separated by 1px --staff-border bottom border
+Each row separated by 1px border-secondary bottom border
 Last row: no border
 
 ### Action Buttons (3 in a row)
@@ -236,15 +228,15 @@ Last row: no border
 ```
 
 **Check In (primary, flex:2):**
-- Background: --staff-action
+- Background: bg-brand-solid / text-brand-secondary
 - Text: white, 13px, 600 weight
 - Border radius: --radius-md
 - Padding: 12px
 
 **Modify (secondary, flex:1):**
-- Background: --staff-card-raised
-- Text: --staff-text-secondary, 13px
-- Border: 1px --staff-border
+- Background: bg-secondary
+- Text: text-secondary, 13px
+- Border: 1px border-secondary
 - Border radius: --radius-md
 
 **Cancel (danger, flex:1):**
@@ -273,15 +265,15 @@ Triggered by tapping "Check In" in booking detail sheet.
 The sheet content replaces (does not navigate) — same sheet, new content.
 
 ### Checklist Header
-- Title: "Check in" (--font-display, 17px, --staff-text-primary)
-- Sub: "Confirm the details below" (11px, --staff-text-muted)
-- Separated from items by 1px --staff-border
+- Title: "Check in" (--font-display, 17px, text-primary)
+- Sub: "Confirm the details below" (11px, text-tertiary)
+- Separated from items by 1px border-secondary
 
 ### Checklist Items
 Each item: check circle + label/sub + optional right action
 
 **Check circle states:**
-- Unchecked: 22px circle, 2px border --staff-border-strong, no fill
+- Unchecked: 22px circle, 2px border border-primary, no fill
 - Checked: 22px circle, --palette-green-500 fill, white checkmark SVG
 - Transition: fill --duration-fast
 
@@ -304,7 +296,7 @@ Each item: check circle + label/sub + optional right action
   Lane state → occupied
   Sheet dismisses with slide-down animation
   Toast: "Checked in · Sarah Johnson · Lane 4"
-  Toast: --staff-card bg, green checkmark, 3s auto-dismiss, top center
+  Toast: bg-primary bg, green checkmark, 3s auto-dismiss, top center
 
 ### Back to Detail
 - Back chevron in sheet header: "‹ Detail"
@@ -322,11 +314,8 @@ Each item: check circle + label/sub + optional right action
   Total card (left, wider) → connector → children in 2×2 grid (right)
 - Upcoming list becomes a table-style layout with column headers:
   Time | Customer | Package | Lanes | Status | Actions
-- Booking detail: slides in from right as a panel (400px)
-  NOT a bottom sheet on desktop
-  Panel width: 400px, full viewport height
-  Backdrop: --surface-dark at 20% opacity
-  Slide: translateX(100%)→0
+- Booking detail: Untitled right slideout (~400px, full height) at all breakpoints
+  Horizontal only: translateX(100%)→0. Overlay: bg-overlay/70
 
 ### Stat Cards (desktop)
 - Displayed as a horizontal row of 5 cards (Total + 4 children)

@@ -1,7 +1,5 @@
-import Link from 'next/link'
-
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/base/buttons/button'
+import { Input } from '@/components/base/input/input'
 import type { StaffReportsPeriod } from '@/lib/reports-display'
 
 export type ReportsPeriodChipsProps = {
@@ -52,16 +50,12 @@ export function ReportsPeriodChips({
   const canApplyCustom = draftStart.length > 0 && draftEnd.length > 0
 
   return (
-    <div className="flex flex-col gap-2">
-      <div
-        className="flex gap-1.5 overflow-x-auto pb-1"
-        role="group"
-        aria-label="Report period"
-      >
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Report period">
         {PERIODS.map((p) => {
           const active = period === p.value
           return (
-            <Link
+            <Button
               key={p.value}
               href={buildHref(
                 p.value,
@@ -69,59 +63,44 @@ export function ReportsPeriodChips({
                 p.value === 'custom' ? customStart : undefined,
                 p.value === 'custom' ? customEnd : undefined,
               )}
-              scroll={false}
-              className={`shrink-0 rounded-[var(--radius-full)] border-[1.5px] border-solid px-3 py-1 text-[11px] font-semibold transition-colors ${
-                active
-                  ? 'border-[var(--color-action)] bg-[var(--color-action-subtle)] text-[var(--color-action-dark)]'
-                  : 'border-[var(--color-border-strong)] bg-[var(--surface-card)] text-[var(--color-text-muted)]'
-              }`}
+              size="sm"
+              color={active ? 'secondary' : 'tertiary'}
             >
               {p.label}
-            </Link>
+            </Button>
           )
         })}
       </div>
 
       {period === 'custom' ? (
-        <div className="flex flex-col gap-2 pb-2">
-          <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-              Start
-              <Input
-                type="date"
-                value={draftStart}
-                onChange={(e) => onDraftStartChange(e.target.value)}
-                className="text-sm"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-              End
-              <Input
-                type="date"
-                value={draftEnd}
-                onChange={(e) => onDraftEndChange(e.target.value)}
-                className="text-sm"
-              />
-            </label>
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              type="date"
+              label="Start"
+              value={draftStart}
+              onChange={onDraftStartChange}
+            />
+            <Input
+              type="date"
+              label="End"
+              value={draftEnd}
+              onChange={onDraftEndChange}
+            />
           </div>
-          <Button
-            asChild
-            variant="secondary"
-            size="sm"
-            disabled={!canApplyCustom}
-            className={canApplyCustom ? '' : 'pointer-events-none opacity-50'}
-          >
-            <Link
-              href={
-                canApplyCustom
-                  ? buildHref('custom', view, draftStart, draftEnd)
-                  : '#'
-              }
-              scroll={false}
+          {canApplyCustom ? (
+            <Button
+              href={buildHref('custom', view, draftStart, draftEnd)}
+              color="secondary"
+              size="sm"
             >
               Apply
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button color="secondary" size="sm" isDisabled>
+              Apply
+            </Button>
+          )}
         </div>
       ) : null}
     </div>

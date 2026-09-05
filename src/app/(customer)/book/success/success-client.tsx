@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 
 import { BookingAppHeader } from '@/components/patterns/booking-app-header'
+import { BookingSurface } from '@/components/patterns/booking-surface'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTenant } from '@/app/(customer)/book/tenant-provider'
@@ -14,8 +15,11 @@ import {
   getBookingByPaymentIntentId,
   type BookingSummary,
 } from '@/lib/actions/booking'
-import { claimBookingAccountAction } from '@/lib/actions/claim'
-import { STAFF_SIGN_IN_PATH } from '@/lib/auth-paths'
+import {
+  claimBookingAccountAction,
+  getClaimTokenForBooking,
+} from '@/lib/actions/claim'
+import { BOOKING_SHELL_PX } from '@/lib/booking-shell-layout'
 import { formatPrice } from '@/lib/pricing'
 
 const POLL_INTERVAL_MS = 800
@@ -96,7 +100,6 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
   const offlineCode = params.get('code')
   const offlineEmail = params.get('email')
   const offlinePending = params.get('pending') === '1'
-  const claimToken = params.get('claim_token')
   const paymentIntentId =
     params.get('payment_intent') ?? params.get('payment_intent_client_secret')
   const [claimPassword, setClaimPassword] = useState('')
@@ -111,8 +114,7 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
   const { resetSession } = useBooking()
   const [booking, setBooking] = useState<BookingSummary | null>(null)
   const [pollExhausted, setPollExhausted] = useState(false)
-  // Claim capability is email-held via claim_token — never fetch by booking id.
-  const showAccountPrompt = !signedIn && Boolean(claimToken)
+  const [showAccountPrompt, setShowAccountPrompt] = useState(!signedIn)
   const [accountExpanded, setAccountExpanded] = useState(true)
 
   const authFailed = redirectStatus === 'failed'
@@ -181,13 +183,14 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
     setClaimError(null)
     setClaimPending(true)
     try {
-      if (!claimToken) {
+      const token = await getClaimTokenForBooking(booking.id)
+      if (!token) {
         throw new Error(
-          'Use the account link from your confirmation email to create an account.',
+          'Account link is not ready yet — check your email shortly.',
         )
       }
       await claimBookingAccountAction({
-        token: claimToken,
+        token,
         password: claimPassword,
         name: booking.customerEmail.split('@')[0],
       })
@@ -205,16 +208,20 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
     status === 'ready' && booking && !offlinePending && !bannerDismissed
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+    <BookingSurface>
       <BookingAppHeader
         venueName={tenant.name}
         address={tenant.address}
-        signInHref={STAFF_SIGN_IN_PATH}
         signedIn={signedIn}
       />
 
       {showCelebration ? (
-        <div className="flex shrink-0 items-center gap-2.5 bg-[var(--status-ok-text)] px-5 py-3.5">
+        <div
+          className={[
+            'flex shrink-0 items-center gap-2.5 bg-[var(--status-ok-text)] py-3.5',
+            BOOKING_SHELL_PX,
+          ].join(' ')}
+        >
           <span className="text-xl" aria-hidden>
             🎉
           </span>
@@ -240,7 +247,12 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
       ) : null}
 
       {status === 'ready' && booking && offlinePending ? (
-        <div className="flex shrink-0 items-center gap-2.5 bg-[var(--surface-booking-chrome)] px-5 py-3.5">
+        <div
+          className={[
+            'flex shrink-0 items-center gap-2.5 bg-[var(--surface-booking-chrome)] py-3.5',
+            BOOKING_SHELL_PX,
+          ].join(' ')}
+        >
           <span className="text-lg" aria-hidden>
             🤝
           </span>
@@ -257,7 +269,12 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
         </div>
       ) : null}
 
-      <main className="flex flex-1 flex-col gap-3 px-4 pb-12 pt-4">
+      <main
+        className={[
+          'flex flex-1 flex-col gap-3 pb-12 pt-4',
+          BOOKING_SHELL_PX,
+        ].join(' ')}
+      >
         {status === 'auth_failed' ? (
           <section className="flex flex-col gap-3 pt-4 text-center">
             <h1 className="text-2xl">Bank verification didn&apos;t complete</h1>
@@ -450,6 +467,6 @@ export function BookingSuccessClient({ signedIn }: { signedIn: boolean }) {
           </section>
         ) : null}
       </main>
-    </div>
+    </BookingSurface>
   )
 }

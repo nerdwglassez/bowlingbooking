@@ -4,7 +4,8 @@
 # Prerequisite: STAFF_INTERACTIONS.md (global architecture)
 # Domain:       BOOKING_DOMAIN.md Part 1 (§Refund rules, status machine)
 # Code contract: contracts/STAFF.md, contracts/PAYMENTS.md
-# Wireframes:    docs/wireframes/staff/booking-modification-flow.html
+# Visual: Figma URL TBD — paste into FIGMA.md. Historical HTML under docs/wireframes/ is not visual SoT.
+# Colors: Untitled semantic utilities (theme.css). Do not introduce --staff-* tokens.
 # Build status:  Built (date/time, bowlers, package, notes — lane editor deferred)
 
 ---
@@ -20,7 +21,7 @@ State 1: Booking detail (read)
    ↓ tap "Modify"
 State 2: Modify overview (all fields listed)
    ↓ tap a field row
-State 3: Field editor (slides up over State 2)
+State 3: Field editor (same right slideout, over State 2)
    ↓ tap Apply
 State 2: Modify overview (field shows pending change)
    ↓ tap "Save N change(s)"
@@ -44,7 +45,7 @@ Additional elements visible in modify-capable bookings:
 - "Confirmed" badge: green tint bg, --status-available-text
 - "Updated" badge (shows after a modification): green tint bg, green text
   Fades in on return from save
-  Both badges: 9px uppercase, --radius-full, small padding
+  Both badges: `text-sm font-medium text-secondary`, --radius-full, small padding
 
 **Modify button (in action row):**
 - flex:2, amber tint bg rgba(245,158,11,0.1)
@@ -53,8 +54,8 @@ Additional elements visible in modify-capable bookings:
 - Label: "Modify booking"
 
 **Contact row (detail rows):**
-- Email: 📧 icon · value in --staff-action (tappable mailto: link)
-- Phone: 📞 icon · value in --staff-action (tappable tel: link)
+- Email: 📧 icon · value in bg-brand-solid / text-brand-secondary (tappable mailto: link)
+- Phone: 📞 icon · value in bg-brand-solid / text-brand-secondary (tappable tel: link)
 - Both are tappable — email opens mail client, phone opens dialer
 
 ---
@@ -64,26 +65,26 @@ Additional elements visible in modify-capable bookings:
 ### Header
 - Back chevron: "‹ Detail"
 - Title: "Modify booking" (centered, --font-display, 16px)
-- Cancel button: right side, text button, --staff-text-muted
+- Cancel button: right side, text button, text-tertiary
 
 ### Identity Strip
 - Customer name + confirmation code
-- Background: --staff-card-raised, --radius-md, 1px --staff-border
-- Name: 13px, 500 weight, --staff-text-primary
-- Code: monospace, 10px, --staff-text-muted
+- Background: bg-secondary, --radius-md, 1px border-secondary
+- Name: 13px, 500 weight, text-primary
+- Code: monospace, 10px, text-tertiary
 
 ### Field List
 One row per modifiable field. All fields always shown.
 
 **Field row (default state):**
-- Background: --staff-card-raised
-- Border: 1.5px --staff-border-strong
+- Background: bg-secondary
+- Border: 1.5px border-primary
 - Border radius: --radius-md
 - Padding: 13px 14px
 - Cursor: pointer
-- Label: 10px uppercase, --staff-text-muted, 3px bottom margin
-- Value: 13px, 500 weight, --staff-text-primary
-- Chevron: › right side, --staff-action color, 14px, flex-shrink 0
+- Label: 10px uppercase, text-tertiary, 3px bottom margin
+- Value: 13px, 500 weight, text-primary
+- Chevron: › right side, bg-brand-solid / text-brand-secondary color, 14px, flex-shrink 0
 
 **Fields shown (in this order):**
 1. Date & time — "Sat May 10 · 3:00 PM"
@@ -97,29 +98,29 @@ One row per modifiable field. All fields always shown.
 - Border: 1.5px rgba(245,158,11,0.35)
 - Background: rgba(245,158,11,0.04) — very subtle amber tint
 - Label: unchanged
-- New value: 13px, --staff-action color (amber)
-- Original value: 10px, --staff-text-muted, text-decoration: line-through
+- New value: 13px, `text-brand-secondary`
+- Original value: 10px, text-tertiary, text-decoration: line-through
   Shown below new value, format: "Lane 4" with strikethrough
 
 ### Instructional Text
 - Below field list, above save buttons
 - "Tap a field to change it"
-- 11px, --staff-text-muted, centered
+- 11px, text-tertiary, centered
 - Only shown when no changes have been applied yet
 
 ### Change Log
 - Appears below field list when ≥1 change is applied
 - Background: rgba(245,158,11,0.04), border rgba(245,158,11,0.15)
-- Label: "Changes" (9px uppercase, --palette-amber-700)
+- Label: "Changes" (`text-sm font-medium text-warning-primary`)
 - Each row: field name left, new value right, 11px
 - Compact summary of all pending changes
 
 ### Save / Discard Buttons
-- "Save N change(s)": full width, --staff-action bg, white text
+- "Save N change(s)": full width, bg-brand-solid / text-brand-secondary bg, white text
   Disabled (opacity 0.35) until at least one change applied
   Label updates dynamically: "Save 1 change" → "Save 3 changes"
-- "Discard all changes": full width, no bg, --staff-border border
-  Text: --staff-text-muted, 13px
+- "Discard all changes": full width, no bg, border-secondary border
+  Text: text-tertiary, 13px
   Always shown even when save is disabled (allows escape)
   Tapping Discard: shows confirmation if changes exist
   Confirmation: "Discard X change(s)?" · "Keep editing" + "Discard"
@@ -160,7 +161,7 @@ One row per modifiable field. All fields always shown.
 - Stepper: same large centered style as walk-in flow
 - Inline note: "X lanes required" updates live
 - Warning if reducing bowlers below package minimum:
-  amber note "Package serves X bowlers"
+  brand note "Package serves X bowlers"
   Non-blocking
 
 **Package editor:**
@@ -173,7 +174,7 @@ One row per modifiable field. All fields always shown.
 - Instructional note: "Current lane is in blue. Tap to select a different lane."
 - Mini lane grid: same state colors as cockpit lane grid
   Current lane: blue tint bg rgba(96,165,250,0.1), blue border
-  Selected lane: --color-action-tint bg, --staff-action border
+  Selected lane: --color-action-tint bg, bg-brand-solid / text-brand-secondary border
   Occupied: --lane-occupied-bg, 50% opacity, cursor not-allowed
   Available: --lane-available-bg, --lane-available-border
 - Legend row: Available · Current · Selected · Occupied
@@ -183,13 +184,13 @@ One row per modifiable field. All fields always shown.
   Disabled until a different lane is selected
 
 **Notes editor:**
-- Textarea: --staff-card-raised bg, --radius-md, --staff-border-strong
+- Textarea: bg-secondary bg, --radius-md, border-primary
 - Placeholder: "Add a note about this booking…"
 - 4 rows tall
 - Apply button: always active
 
 ### Apply Button Behavior
-- Full width, --staff-action bg, white text
+- Full width, bg-brand-solid / text-brand-secondary bg, white text
 - Label includes the selected value where applicable:
   "Apply — Lane 5", "Apply — 3:00 PM", "Apply — Cosmic Bowl"
 - On tap: field editor slides down, Modify overview returns to full opacity
@@ -221,11 +222,11 @@ One row per modifiable field. All fields always shown.
 - Transition: sheet content fades/slides — same sheet, swapped content
 - New values shown in detail rows
 - Updated rows: green tint icon container, green-tinted value
-  "← was [original value]" note in --staff-text-muted below new value
+  "← was [original value]" note in text-tertiary below new value
   This note fades out after ~3 seconds
 - "Updated" green badge appears next to "Confirmed" in status row
 - Toast: "Booking updated · Confirmation sent to [email]"
-  --staff-card bg, green checkmark icon
+  bg-primary bg, green checkmark icon
   Auto-dismiss 3s, top center
 
 ---
@@ -240,19 +241,19 @@ Triggered by tapping "Cancel" in the booking detail sheet.
 - Header: "‹ Detail" back · "Cancel booking" title · no right button
 
 ### What's Being Cancelled (summary card)
-- Name: 13px, 600 weight, --staff-text-primary
-- Details: "Sat May 10 · 3:00 PM · 6 bowlers · Lane 4" — 11px, --staff-text-muted
+- Name: 13px, 600 weight, text-primary
+- Details: "Sat May 10 · 3:00 PM · 6 bowlers · Lane 4" — 11px, text-tertiary
 - Background: rgba(239,68,68,0.05), border rgba(239,68,68,0.15), --radius-md
 
 ### Reason Selection (required)
-- Section label: "Reason" (10px uppercase, --staff-text-muted)
+- Section label: "Reason" (10px uppercase, text-tertiary)
 - 3 radio-style options:
   1. Customer request
   2. No show
   3. Venue issue
 - Each option: flex row, 14px circle radio + label
   Selected: circle filled --status-error-text-dark, border --status-error-text-dark
-  Unselected: empty circle, --staff-border-strong border, 60% opacity
+  Unselected: empty circle, border-primary border, 60% opacity
 - Cannot proceed without selecting a reason
 
 ### Refund Toggle (conditional)
@@ -268,10 +269,10 @@ Hidden entirely (not shown, not disabled) when:
 - User is STAFF role
 
 **Toggle appearance:**
-- Row: --staff-card-raised bg, 1px --staff-border, --radius-md
-- Left: "Issue refund" (13px, 500 weight) + "Return $X.XX to [card last 4]" (10px, --staff-text-muted)
-- Right: iOS-style toggle (38×21px), --staff-action when on
-- Note below toggle: "Refund will be processed immediately." (10px, --staff-text-muted)
+- Row: bg-secondary bg, 1px border-secondary, --radius-md
+- Left: "Issue refund" (13px, 500 weight) + "Return $X.XX to [card last 4]" (10px, text-tertiary)
+- Right: iOS-style toggle (38×21px), bg-brand-solid / text-brand-secondary when on
+- Note below toggle: "Refund will be processed immediately." (10px, text-tertiary)
 - Default: OFF (staff must explicitly choose to refund)
 
 ### Confirm Cancel Button
@@ -290,18 +291,18 @@ Hidden entirely (not shown, not disabled) when:
 
 **Toast:**
 - Standard cancel (no refund): "Booking cancelled · [name]"
-  --staff-card bg, red X icon, 3s auto-dismiss
+  bg-primary bg, red X icon, 3s auto-dismiss
 
 - Cancel + refund: "Booking cancelled · Refund issued to [card]"
-  --staff-card bg, red X icon, slightly longer (4s auto-dismiss)
+  bg-primary bg, red X icon, slightly longer (4s auto-dismiss)
 
 ### Post-Cancel Booking Detail (if reopened)
 - Status badges: "Cancelled" (red tint) + "Refunded" (green tint, if applicable)
 - Payment row: amount with strikethrough, "Refund issued" note below in green
 - Audit trail section appears at bottom of sheet:
-  Background: --staff-card-raised, --radius-md
+  Background: bg-secondary, --radius-md
   Shows: Reason · Cancelled by [name · role] · Timestamp
-  Font: 11px, --staff-text-muted for labels, --staff-text-secondary for values
+  Font: 11px, text-tertiary for labels, text-secondary for values
 
 ---
 

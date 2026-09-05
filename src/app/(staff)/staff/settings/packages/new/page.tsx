@@ -14,7 +14,7 @@ export default async function StaffSettingsNewPackagePage() {
 
   return (
     <>
-      <SettingsSubpageHeader title="New package" backHref="/staff/settings/packages" backLabel="Packages" />
+      <SettingsSubpageHeader title="New package" />
       <PackageEditor
         mode="create"
         tenantId={tenant.id}

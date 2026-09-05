@@ -809,6 +809,32 @@ export async function deletePricingPeriodAction(
 
 // ── Profile ───────────────────────────────────────────────
 
+export async function getStaffProfile(): Promise<{
+  name: string
+  email: string
+  role: CurrentUser['role']
+}> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  if (isDevWithoutDb()) {
+    return {
+      name: user.name ?? '',
+      email: user.email ?? '',
+      role: user.role,
+    }
+  }
+
+  const row = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { name: true, email: true, role: true },
+  })
+
+  return {
+    name: row?.name ?? user.name ?? '',
+    email: row?.email ?? user.email ?? '',
+    role: row?.role ?? user.role,
+  }
+}
+
 export async function updateProfileAction(input: {
   name: string
   email: string
@@ -852,14 +878,9 @@ export async function updateProfileAction(input: {
     data.passwordHash = await hashPassword(input.newPassword.trim())
   }
 
-  await prisma.$transaction(async (tx) => {
-    if (changingPassword) {
-      await tx.passwordResetToken.deleteMany({ where: { userId: user.id } })
-    }
-    await tx.user.update({
-      where: { id: user.id },
-      data,
-    })
+  await prisma.user.update({
+    where: { id: user.id },
+    data,
   })
 
   revalidatePath('/staff/settings/profile')
@@ -1749,7 +1770,6 @@ export async function resetUserPasswordAction(
 
   await prisma.$transaction(async (tx) => {
     await tx.teamInviteToken.deleteMany({ where: { userId: input.userId } })
-    await tx.passwordResetToken.deleteMany({ where: { userId: input.userId } })
     await tx.user.update({
       where: { id: input.userId },
       data: { passwordHash: hashed },
@@ -1794,7 +1814,6 @@ export async function deactivateTeamUserAction(
   // because Booking rows reference them via Booking.userId.
   await prisma.$transaction(async (tx) => {
     await tx.teamInviteToken.deleteMany({ where: { userId } })
-    await tx.passwordResetToken.deleteMany({ where: { userId } })
     await tx.user.update({
       where: { id: userId },
       data: { role: 'CUSTOMER', passwordHash: null },

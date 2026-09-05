@@ -19,5 +19,12 @@ export default async function StaffContactDetailPage({ params }: PageProps) {
   const contact = await getStaffContactDetail(tenant.id, contactId)
   if (!contact) notFound()
 
-  return <ContactDetailPanel contact={contact} />
+  return (
+    <ContactDetailPanel
+      contact={contact}
+      tenantId={tenant.id}
+      bowlersPerLane={tenant.bowlersPerLane}
+      canRefund
+    />
+  )
 }

@@ -1,10 +1,11 @@
+/**
+ * Compatibility shim. New staff code should import from
+ * `@/components/base/input/input`. Native-attribute call sites stay here.
+ */
+
 import * as React from 'react'
 
-function cn(
-  ...inputs: Array<string | undefined | null | false>
-): string {
-  return inputs.filter(Boolean).join(' ')
-}
+import { cx } from '@/lib/cx'
 
 export type InputVariant = 'default'
 export type InputSize = 'sm' | 'md' | 'lg'
@@ -16,33 +17,23 @@ export type InputVariantsArgs = {
 }
 
 const inputSizeClassName: Record<InputSize, string> = {
-  sm: 'h-8 px-3 text-[13px]',
-  md: 'h-10 px-[14px] text-sm',
-  lg: 'h-12 px-5 text-sm font-semibold',
-}
-
-const variantClassName: Record<InputVariant, string> = {
-  default: '',
+  sm: 'px-3 py-2 text-sm',
+  md: 'px-3.5 py-2.5 text-md',
+  lg: 'px-4 py-3 text-md',
 }
 
 export function inputVariants({
-  variant = 'default',
   inputSize = 'md',
   className,
 }: InputVariantsArgs = {}): string {
-  return cn(
-    'bg-[var(--surface-card)] border border-[var(--color-border)]',
-    'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
-    'rounded-[var(--radius-md)] [font-family:var(--font-body)]',
-    'transition-colors',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-strong)]',
-    'focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-ground)]',
-    'aria-invalid:border-[var(--status-error-border)]',
-    'aria-invalid:focus-visible:ring-[var(--status-error-text)]',
-    'disabled:opacity-35 disabled:cursor-not-allowed',
-    'aria-disabled:opacity-35 aria-disabled:cursor-not-allowed',
+  return cx(
+    'w-full bg-primary text-primary shadow-xs ring-1 ring-primary ring-inset',
+    'rounded-lg placeholder:text-placeholder',
+    'outline-brand transition duration-100 ease-linear',
+    'focus:ring-2 focus:ring-brand focus:outline-hidden',
+    'disabled:cursor-not-allowed disabled:bg-disabled_subtle disabled:text-disabled',
+    'aria-invalid:ring-error_subtle aria-invalid:focus:ring-error',
     inputSizeClassName[inputSize],
-    variantClassName[variant],
     className,
   )
 }
@@ -57,14 +48,14 @@ export type InputProps = Omit<
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   function Input(
-    { className, variant = 'default', inputSize = 'md', invalid, ...rest },
+    { className, variant: _variant = 'default', inputSize = 'md', invalid, ...rest },
     ref,
   ) {
     return (
       <input
         ref={ref}
         {...rest}
-        className={cn(inputVariants({ variant, inputSize }), className)}
+        className={cx(inputVariants({ inputSize }), className)}
         aria-invalid={invalid === true ? true : rest['aria-invalid']}
       />
     )

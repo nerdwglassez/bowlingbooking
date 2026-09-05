@@ -7,7 +7,8 @@ The system is designed around the project's existing anti-drift architecture:
 - 4-layer component hierarchy (tokens → primitives → patterns → pages)
 - Single source-of-truth helpers (`getLaneCount`, `calculatePrice`, `getTenant`)
 - Token-only color system, server-side-only mutations
-- Wireframe-driven visual spec
+- Figma-driven visual spec + Untitled UI React Layer 2
+- Staff `data-theme="dark"` uses stock Untitled brand (purple); customer light stays amber until `/book` is redesigned. Do not remap employee brand to amber.
 
 Each agent owns exactly one directory tree and reads from a frozen interface above it. Drift is impossible as long as the orchestrator releases each agent only after the contracts below are frozen.
 
@@ -24,12 +25,12 @@ Each agent owns exactly one directory tree and reads from a frozen interface abo
                                    │
    ┌───────────────┬───────────────┼───────────────┬────────────────┐
    ▼               ▼               ▼               ▼                ▼
- INFRA          TOKENS          DOMAIN          WIREFRAME         DRIFT
- (config)       (ui/styles)     (lib/api/db)    (HTML→spec)       SENTINEL
+ INFRA          TOKENS          DOMAIN          FIGMA-SPEC        DRIFT
+ (config)       (theme.css)     (lib/api/db)    (Figma→spec)      SENTINEL
    │               │               │                                 ▲
    │               ▼               │                                 │
    │           PRIMITIVES          │                                 │
-   │           (ui/)               │                                 │
+   │           (base/application)  │                                 │
    │               │               │                                 │
    │               ▼               │                                 │
    │           PATTERNS            │                                 │
@@ -53,14 +54,14 @@ Each agent owns exactly one directory tree (write access) and reads from the lay
 | # | Agent | Owns (writes) | Reads (consumes) | Forbidden |
 |---|---|---|---|---|
 | 1 | **Infra** | Root configs: `tailwind.config.ts`, `eslint.config.mjs`, `tsconfig.json`, `next.config.ts`, `package.json`, `.env.example`, `src/app/layout.tsx`, `src/app/globals.css`, route-group `layout.tsx` files | `.claude/`, `node_modules/next/dist/docs/`, `AGENTS.md` | Touching components, libs, or pages content |
-| 2 | **Tokens** | `src/styles/tokens.css`, `src/styles/themes/*.css` | `.claude/DESIGN_SYSTEM.md`, wireframe CSS blocks | Adding tokens not in spec; using palette vars in components |
-| 3 | **Primitives** | `src/components/ui/*` | tokens.css, `.claude/DESIGN_SYSTEM.md`, relevant wireframe HTML, `.claude/contracts/TOKENS.md` | Raw hex, Tailwind colors, business logic, importing DB/lib |
-| 4 | **Patterns** | `src/components/patterns/*` | `ui/*`, wireframes, `.claude/contracts/PRIMITIVES.md` | Importing palette tokens, importing DB/lib, raw styles |
+| 2 | **Tokens** | `src/styles/theme.css`, `src/styles/tokens.css`, `src/styles/themes/*.css` | `.claude/DESIGN_SYSTEM.md`, FIGMA.md | Adding tokens not in spec; using palette vars in components |
+| 3 | **Primitives** | `src/components/base/*`, `application/*`, `foundations/*`; `ui/` re-exports only | theme.css, FIGMA.md, UNTITLED.md, PRIMITIVES.md | Raw hex, raw palette utilities, business logic, inventing non-Untitled primitives, skipping Untitled MCP CLI |
+| 4 | **Patterns** | `src/components/patterns/*` | `base/` / `application/`, Figma, UNTITLED.md, PRIMITIVES.md | Importing palette tokens, importing DB, resurrecting Slot primitives |
 | 5 | **Domain / Backend** | `src/lib/*`, `prisma/`, `src/app/api/**`, `src/types/index.ts` | `.claude/BOOKING_DOMAIN.md`, schema | Importing React, touching components |
-| 6 | **Customer pages** | `src/app/(customer)/**`, `src/context/BookingContext.tsx` | patterns/, ui/, lib/, types/, `wireframes/customer/`, `.claude/contracts/API.md` | New styles at page level, importing prisma directly |
-| 7 | **Staff pages** | `src/app/(staff)/**` | patterns/, ui/, lib/, `wireframes/staff/` | Same as #6; refund mutations must go through API only |
-| 8 | **Admin pages** | `src/app/(admin)/**` | patterns/, ui/, lib/, `wireframes/admin/` | Same as #6 |
-| 9 | **Wireframe-to-spec** (readonly) | `.claude/specs/**` (new folder) | `docs/wireframes/**` | All other writes |
+| 6 | **Customer pages** | `src/app/(customer)/**`, `src/context/BookingContext.tsx` | patterns/, base/, lib/, types/, Figma | New styles at page level, importing prisma directly |
+| 7 | **Staff pages** | `src/app/(staff)/**`, `src/components/chrome/**` | patterns/, base/, application/, lib/, Figma | Same as #6; refund mutations must go through API only |
+| 8 | **Admin pages** | `src/app/(admin)/**` | patterns/, chrome (shared), base/, lib/, Figma | Same as #6; do not duplicate AppShell |
+| 9 | **Figma-to-spec** (readonly) | `.claude/specs/**` | Figma frames via MCP / FIGMA.md | All other writes; do not treat docs/wireframes as SoT |
 | 10 | **Drift sentinel** (readonly) | `drift-report.json` | everything | Any source-code write |
 | 11 | **Security review** (readonly) | review report only | diff + `.claude/contracts/SECURITY.md` | Any source-code write |
 
@@ -88,12 +89,12 @@ Request/response shapes for every route in `.claude/BOOKING_DOMAIN.md` § "API r
 
 | Agent role | Cursor `subagent_type` | Notes |
 |---|---|---|
-| Wireframe-to-spec | `explore` (readonly) | Pure recon |
+| Figma-to-spec | `explore` (readonly) | Pure recon from Figma MCP — not HTML wireframes |
 | Drift sentinel | `explore` (readonly) | Greps for banned patterns |
 | Security review | `explore` (readonly) | Diff review + `npm run drift` + `npm run audit`; see `.cursor/skills/security-review/SKILL.md` |
 | Infra | `generalPurpose` | Multi-step config edits |
 | Tokens | `generalPurpose` | Small, focused scope |
-| Primitives (each) | `generalPurpose` per component; **`best-of-n-runner` N=3** recommended for the first one (Button) to pick the cleanest variant strategy across parallel attempts in worktrees |  |
+| Primitives | `generalPurpose`; **must** use Untitled MCP `get_component` / CLI — never best-of-n Radix/CVA |  |
 | Patterns | `generalPurpose` | Composition only |
 | Domain / Backend | `generalPurpose` + `shell` for `prisma generate`, `npm install` | Largely mechanical from schema + docs |
 | Page groups | `generalPurpose`, one per route group | Parallelizable once contracts are frozen |
@@ -117,19 +118,19 @@ Request/response shapes for every route in `.claude/BOOKING_DOMAIN.md` § "API r
 Parallel batch:
 - **Tokens agent** verifies `tokens.css` against `DESIGN_SYSTEM.md` and emits `.claude/contracts/TOKENS.md`.
 - **Infra agent (pass 2)** rewrites `src/app/globals.css`, `src/app/layout.tsx`, replaces the demo `page.tsx`, scaffolds empty `(customer)/(staff)/(admin)/api` route-group layouts with correct `data-theme`.
-- **Wireframe-to-spec agent** (readonly `explore`) reads all 25 wireframe HTML files and emits `.claude/specs/{group}/{filename}.md` summaries.
+- **Figma-to-spec agent** (readonly `explore`) reads Figma frames via MCP and emits `.claude/specs/{group}/{screen}.md` summaries. Do not treat `docs/wireframes/` as visual SoT.
 
 **Gate:** drift sentinel runs once before unlocking Phase 2.
 
-### Phase 2 — Primitives (1 agent per component, parallel)
+### Phase 2 — Primitives (Untitled CLI)
 
-Once `TOKENS.md` is frozen, fan out:
+Once `theme.css` / tokens are frozen:
 
-- 7 parallel `generalPurpose` agents, one per primitive: button, badge, input, select, checkbox, toggle, card.
-- 2 more (sheet, tab-bar) defer to Phase 4+ when first needed.
-- For **Button** specifically, run `best-of-n-runner` with N=3 in isolated worktrees: each attempts a different implementation strategy (CVA, plain function variants, headless+Radix). Pick the winner; the chosen strategy then constrains the other 6 primitives.
+- Primitives agent installs Untitled components via MCP `get_component_bundle` into `src/components/base/`, `application/`, `foundations/`.
+- `src/components/ui/` stays **re-exports only** for unreworked call sites.
+- Do **not** run best-of-n CVA vs Radix Slot for Button. Untitled CLI is the strategy (`STACK_BASELINE.md` § 6). Load `.cursor/skills/untitled-figma/SKILL.md`.
 
-**Gate:** drift sentinel + `npm run lint`. **Output:** `.claude/contracts/PRIMITIVES.md`.
+**Gate:** drift sentinel + `npm run lint`. **Output:** `.claude/contracts/PRIMITIVES.md` + UNTITLED.md.
 
 ### Phase 3 — Backend foundation (1 agent, parallel with Phase 2)
 
@@ -145,17 +146,17 @@ Touches no overlapping files with Phase 2.
 ### Phase 4 — Patterns (1 agent, after Phase 2)
 
 - **Patterns agent** builds: `BookingStepShell`, `FeaturedBookingCard`, `StaffCockpitHeader`, `LaneTimelineRow`, `PackageCard`, `PriceFooter`.
-- Composes only from `ui/`. May import variant types from `.claude/contracts/PRIMITIVES.md`. No tokens, no raw styles.
+- Composes only from Untitled `base/` / `application/` (or `ui/` shims). May import types from PRIMITIVES.md. No raw palette utilities.
 
 **Gate:** drift sentinel.
 
 ### Phase 5 — Pages (3 agents, fully parallel, after Phase 3 + 4)
 
 - **Customer pages agent** — booking flow + dashboard + cancel/reschedule.
-- **Staff pages agent** — cockpit + walk-in + schedule + reports.
-- **Admin pages agent** — settings screens.
+- **Staff pages agent** — cockpit + walk-in + schedule + reports; may write `src/components/chrome/**`.
+- **Admin pages agent** — settings screens; shares AppShell chrome (do not duplicate).
 
-Never touch each other's directories. Never touch `ui/`, `lib/`, or `tokens.css`. If a page agent needs a new primitive variant, it **halts and files a request** rather than styling inline.
+Never touch each other's route groups. Never invent primitives — file a request or install via Untitled MCP. If a page agent needs a new Untitled component, halt and install via CLI rather than styling inline.
 
 ### Phase 6 — Hardening
 
@@ -173,7 +174,7 @@ The sentinel is the single most important safety mechanism. It only reads, only 
 - `var\(--palette-` — palette token leak
 - `#[0-9a-fA-F]{3,6}\b` — raw hex (skip CSS files)
 - `\b(bg|text|border|ring|outline|placeholder|caret|accent|fill|stroke)-(amber|stone|red|green|blue|purple|zinc|slate|gray|neutral|orange|yellow|lime|emerald|teal|cyan|sky|indigo|violet|fuchsia|pink|rose)-[0-9]+\b` — Tailwind color class
-- `[\s"'\x60]dark:` — Tailwind dark-mode prefix (preceded by whitespace/quote/backtick, to avoid matching CSS custom properties like `--surface-dark:`)
+- `[\s"'\x60]dark:` — **allowed** for Untitled utilities when `@custom-variant dark` maps to `[data-theme="dark"]`. **Banned:** `@media (prefers-color-scheme: dark)`. The live sentinel is `scripts/drift-check.mjs`.
 - `'Fraunces'|"Fraunces"|'DM Sans'|"DM Sans"` — hardcoded font string
 
 **Banned in pages (`src/app/**/page.tsx`, non-root `layout.tsx`):**
@@ -218,7 +219,7 @@ Phase 0 ─ Infra(v1) ───────────────────�
                   ▼
 Phase 1 ─ Infra(v2) ─┬─ Tokens ─┬─ Wireframe-spec ──► sentinel ──►
                      │          │
-Phase 2 ─────────────┴──────────┴─► Primitive×7 (parallel) ──► sentinel ──►
+Phase 2 ─────────────┴──────────┴─► Untitled CLI primitives ──► sentinel ──►
                                                       │
 Phase 3 (parallel with Phase 2) ─ Domain ─────────────┤
                                                       ▼
@@ -267,28 +268,26 @@ Each prompt is self-contained and references the contract files so the agent can
 >
 > Return: the `TOKENS.md` content and any drift found vs `DESIGN_SYSTEM.md`.
 
-### Wireframe-to-spec agent (Phase 1, readonly)
+### Figma-to-spec agent (Phase 1, readonly)
 
-> You are the Wireframe-to-spec agent (readonly). For each HTML file under `docs/wireframes/{customer,staff,admin}/`, produce a markdown spec at `.claude/specs/{group}/{filename}.md` containing:
+> You are the Figma-to-spec agent (readonly). For each Figma frame listed in `.claude/contracts/FIGMA.md`, produce a markdown spec at `.claude/specs/{group}/{screen}.md` containing:
 > - One-sentence summary
-> - Section list (header, hero, list, footer, etc.)
-> - Component inventory: every primitive used (Button, Card, Badge, etc.) with variant + count
+> - Section list (header, sidebar, list, footer, etc.)
+> - Untitled component inventory (base/application names from MCP)
 > - State variations shown (default, selected, error, loading, empty)
-> - Any business rules baked into the wireframe (e.g., "lane count displayed, never bowler/6 typed")
+> - Any business rules baked into the design (e.g., "lane count displayed, never bowler/6 typed")
 >
-> Do NOT modify the HTML. Do NOT touch source code.
+> Do NOT treat `docs/wireframes/` as visual SoT when a Figma frame exists. Do NOT touch source code.
 
-### Primitive agent template (Phase 2), example: Button
+### Primitive agent template (Phase 2)
 
-> You are the Button primitive agent. Your only writable file is `src/components/ui/button.tsx`.
+> You are the Primitives agent. Writable: `src/components/base/`, `application/`, `foundations/`, and thin `ui/` re-exports.
 >
-> Read in order: `.claude/contracts/TOKENS.md`, `.claude/DESIGN_SYSTEM.md` § "Button", `.claude/specs/customer/booking-step1.md`, `.claude/CURSOR_RULES.md`.
+> Read in order: `.claude/contracts/UNTITLED.md`, `.claude/contracts/PRIMITIVES.md`, `.claude/DESIGN_SYSTEM.md`, `.cursor/skills/untitled-figma/SKILL.md`.
 >
-> Build the Button with variants PRIMARY | SECONDARY | GHOST | DANGER | DARK, sizes sm | md | lg, props `variant`, `size`, `fullWidth`, `disabled`, `loading`, `asChild` (optional). Use ONLY tokens from `TOKENS.md` — no raw hex, no Tailwind color classes, no inline color styles. Tailwind is allowed for layout (flex, padding, gap, sizing) only.
+> Install Untitled UI via MCP `get_component` / `get_component_bundle` then the returned CLI. Point `cx` at `@/lib/cx`. Do not hand-roll PRO components. Do not commit license keys. Do not invent Radix Slot buttons.
 >
-> Export the variant union type for downstream agents to import.
->
-> Return: file contents, the prop signature, and any tokens you wished existed but didn't (do NOT add them — file a request).
+> Return: files installed, shim status, any components you wished existed but didn't (do NOT invent them — file a request).
 
 ### Domain agent (Phase 3)
 
@@ -315,7 +314,7 @@ Each prompt is self-contained and references the contract files so the agent can
 
 > You are the Drift Sentinel (readonly). Run these checks via `rg` and emit a JSON report:
 >
-> 1. In `src/components/**` and `src/app/**`, FAIL on any match of: `var\(--palette-`, `#[0-9a-fA-F]{3,6}\b`, `\b(bg|text|border|ring)-(amber|stone|red|green|blue|purple|zinc)-[0-9]+`, `\bdark:`, `'Fraunces'|"Fraunces"|'DM Sans'|"DM Sans"`.
+> 1. In `src/components/**` and `src/app/**`, FAIL on any match of: `var\(--palette-`, `#[0-9a-fA-F]{3,6}\b`, `\b(bg|text|border|ring)-(amber|stone|red|green|blue|purple|zinc)-[0-9]+`, `@media (prefers-color-scheme: dark)`, `'Fraunces'|"Fraunces"|'DM Sans'|"DM Sans"`. Untitled `dark:` utilities are allowed when mapped to `[data-theme="dark"]`. Prefer running `npm run drift` (`scripts/drift-check.mjs`) over reimplementing greps.
 > 2. In `src/app/**/page.tsx`, FAIL on any `style=\{` containing `color|background|border|font-`.
 > 3. `Math.ceil` of `/6` must appear only in `src/lib/lane-logic.ts`. FAIL on any other match.
 > 4. `prisma` import outside `src/lib/` and `src/app/api/**` is a FAIL.
@@ -336,6 +335,6 @@ Before launching Phase 0, the orchestrator (human) must answer:
 3. **NextAuth v4 or v5 (Auth.js)**?
 4. **Money representation** — integer cents in DB, or `Decimal` with boundary conversion?
 5. **Single-tenant launch** with `DEFAULT_TENANT_SLUG`, or multi-tenant routing from day one?
-6. **Button first attempt**: `best-of-n-runner` with N=3, or a single `generalPurpose` pass?
+6. **Layer 2:** Untitled UI React via MCP CLI (`UNTITLED.md`). Not CVA/Radix best-of-n.
 
 These answers go into `.claude/STACK_BASELINE.md` and are referenced by every downstream agent.

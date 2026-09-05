@@ -27,14 +27,14 @@ The Stripe wrapper (`src/lib/stripe.ts`) is the **only** place that imports `str
 2. **Never `import` from `resend`** outside `src/lib/email.ts`. Same enforcement.
 3. **A Booking row is created in EXACTLY ONE place**: the webhook handler on `payment_intent.succeeded`. No other code path writes `status='CONFIRMED'` to a Booking. This guarantees: every confirmed booking has a captured Stripe payment.
 4. **`confirmBooking` does NOT create the Booking row.** It only creates the Stripe PaymentIntent and returns its `client_secret`. The browser confirms the card via Stripe.js; the webhook then creates the Booking.
-5. **The webhook is the SOLE source of truth for `Payment.refundStatus = SUCCEEDED|FAILED`** and `Booking.isRefunded = true` **for Stripe-captured payments.** The Stripe `refundBookingAction` only writes `refundStatus = PENDING`. **Exception:** walk-in manual refunds (`manualRefundBookingAction`, §3.3) set `SUCCEEDED` synchronously — no webhook.
+5. **The webhook is the SOLE source of truth for `Payment.refundStatus = SUCCEEDED|FAILED`** and `Booking.isRefunded = true` **for Stripe-captured payments.** Two events reconcile refunds: `refund.updated` (the primary, status-aware path — `succeeded`/`failed`/`canceled`/pending) and `charge.refunded` (aggregate `amount_refunded`). Either one finalizes; the StripeEvent idempotency table prevents double-processing. The Stripe `refundBookingAction` only writes `refundStatus = PENDING`. **Exception:** walk-in manual refunds (`manualRefundBookingAction`, §3.3) set `SUCCEEDED` synchronously — no webhook.
 6. **PaymentIntent metadata is the contract** between `confirmBooking` and the webhook. The webhook reconstructs the Booking from this metadata. Never trust client-supplied data on `success` — read the intent from Stripe.
 7. **Webhook idempotency goes through the `StripeEvent` table.** Inserting the event id is the first DB write; a `P2002` conflict means "already processed" — return 200 without re-running side effects.
 8. **Holds are availability locks, not booking drafts.** A `BookingHold` row has no package, no customer, no payment. It exists only to exclude its (time × lanes) from other customers' availability queries until either expiry or success.
 9. **Hold expiration is lazy.** `getAvailableTimeSlots` runs `bookingHold.deleteMany({ expiresAt: { lt: now } })` before computing availability. No cron is needed for v1.
 10. **Money is always integer cents.** Never use `Decimal`. Never use `toFixed` outside `src/lib/pricing.ts`.
 11. **Refunds require `requireRole('MANAGER', 'ADMIN')`.** STAFF cannot refund. This is enforced server-side in `refundBookingAction` and `manualRefundBookingAction`. The drift sentinel does NOT special-case refunds — it's the server-action's responsibility.
-12. **Webhook returns 200 quickly, even on handler error logging.** Stripe retries on non-2xx for hours. Long work goes in background jobs (none for v1).
+12. **Webhook status codes drive Stripe's retry behavior.** Success → `200`. Bad/failed signature or missing event → `400` (no retry — the request is malformed). Handler **throws** → the route clears the `StripeEvent` idempotency marker (`clearStripeEventForRetry`) and returns `500` so Stripe redelivers and the side effects can run cleanly next time. Keep handlers fast — long work goes in background jobs (none for v1).
 
 ---
 
@@ -65,6 +65,8 @@ Customer                Client (browser)          Server                    Stri
    ├─ receives email ─────────┤                      │                         │
 ```
 
+**Finalize failure → auto-refund.** Capture happens before lane assignment, so a paid intent can occasionally have no remaining capacity (race with another booking/block). If the finalize transaction throws a capacity error (`SLOT_UNAVAILABLE_MESSAGE` / "Not enough lanes available") or exhausts its retries without creating a Booking, the webhook calls `refundCapturedPaymentWhenFinalizeFails` → `createRefund` (idempotency key `finalize-refund:<intentId>`) and returns without creating a Booking. Serializable-conflict and duplicate-`confirmation_code` errors are retried up to `BOOKING_FINALIZE_MAX_RETRIES` (3) before that fallback.
+
 ### 3.2 Refund (happy path)
 
 ```
@@ -78,10 +80,12 @@ Manager/Admin           Server                    Stripe
      │                     ├─ AuditLog.create        │
      │←─ "pending" UI ─────┤                         │
      │                     │                         │
-     │                     │←── charge.refunded ──── │
+     │                     │←─ refund.updated /───── │
+     │                     │   charge.refunded       │
      │                     ├─ StripeEvent.create     │
      │                     ├─ Payment.refundStatus=SUCCEEDED
-     │                     ├─ Booking.isRefunded=true│
+     │                     ├─ Payment.refundAmount + refundedAt + stripeRefundId
+     │                     ├─ Booking.isRefunded=true│   (only when fully refunded)
      │                     ├─ Booking.status=CANCELLED│
 ```
 
@@ -121,6 +125,8 @@ StripeEvent
 Payment
 ├─ … (unchanged) …
 ├─ refundStatus: RefundStatus enum (NONE | PENDING | SUCCEEDED | FAILED)
+├─ refundAmount (integer cents, cumulative), refundedAt (DateTime?)
+├─ stripeRefundId (set from refund.updated)
 └─ stripePaymentIntentId is UNIQUE — used as the webhook lookup key
 ```
 
@@ -146,7 +152,7 @@ Per the convention in `STACK_BASELINE.md §9`, all payment-adjacent code uses Vi
 - `src/lib/stripe.test.ts` — wraps the Stripe SDK in a fake class; tests dev fallback and SDK delegation.
 - `src/lib/actions/booking.test.ts` — mocks `@/lib/prisma`, `@/lib/stripe`, `@/lib/env`. Verifies hold lifecycle and PaymentIntent metadata shape.
 - `src/lib/actions/refund.test.ts` — mocks `@/lib/auth` (`requireRole`), `@/lib/stripe`, `@/lib/prisma`. Verifies role gating, refund clamping, Stripe vs manual paths, and that `Booking.isRefunded` is NOT touched by the Stripe refund action.
-- `src/app/api/webhooks/stripe/route.test.ts` — mocks Prisma, Stripe verification, email, and tenant lookup. Verifies idempotency (P2002 conflict), payment intent → Booking, charge.refunded reconciliation, and unknown event passthrough.
+- `src/app/api/webhooks/stripe/route.test.ts` — mocks Prisma, Stripe verification, email, and tenant lookup. Verifies idempotency (P2002 conflict + duplicate delivery), payment intent → Booking (incl. promo apply, lane assignment, confirmation-code retry), finalize-failure auto-refund, both refund paths (`charge.refunded` full + partial; `refund.updated` succeeded + failed), the clear-marker-and-500 retry path on handler error, and unknown-event 200 passthrough.
 
 When adding new payment-adjacent code, copy one of these test files as a template. The drift sentinel does NOT check test coverage, but unit-test density is what keeps webhooks honest.
 
@@ -194,6 +200,6 @@ When adding new payment-adjacent code, copy one of these test files as a templat
 ## 10. Open items / known v1 limits
 
 - **Payment resume staff affordance hidden.** Until the redesigned UI ships, staff cannot generate resume links from the app — use Stripe Dashboard to locate the Payment Intent; re-enable via `PaymentResumePanel` when wireframe is ready.
-- **No webhook retry tooling.** Stripe retries automatically. If we need to replay manually (rare), we can `DELETE FROM stripe_event WHERE id = '…'` and have Stripe redeliver — that's it.
+- **Webhook retries are automatic.** On a handler throw the route already deletes its own `StripeEvent` marker and returns 500, so Stripe's normal redelivery re-runs the side effects. To force a manual replay (rare), `DELETE FROM stripe_event WHERE id = '…'` and resend from the Stripe dashboard.
 - **Email sending is in-line with the webhook.** If Resend is slow we delay returning 200 to Stripe. Acceptable for v1; move to a background queue if it ever causes retries.
 - **Stripe partial refunds:** multiple partial refunds are allowed while `refundStatus !== PENDING` and remaining balance &gt; 0. `charge.refunded` sets `Booking.isRefunded` only when `amount_refunded >= payment.amount`.

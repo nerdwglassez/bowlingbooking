@@ -7,8 +7,9 @@ Status: locked. Canonical settings at `/staff/settings/*`; legacy `/admin/*` red
 | Concern                          | Lives in                                                       |
 | -------------------------------- | -------------------------------------------------------------- |
 | Route group + auth gating        | `src/app/(staff)/layout.tsx`, `src/app/(admin)/layout.tsx`     |
-| App shell (sidebar / top bar)    | `src/app/(staff)/staff-shell.tsx`                              |
+| App shell (sidebar / top bar)    | `src/components/chrome/app-shell.tsx`                          |
 | Navigation chrome                | `src/components/chrome/nav-rail.tsx`                           |
+| Support page                     | `src/app/(staff)/staff/support/page.tsx`                       |
 | Cockpit page                     | `src/app/(staff)/staff/page.tsx`                               |
 | Schedule + lane blocking         | `src/app/(staff)/staff/schedule/{page,blocking-panel,unblock-button}.tsx` |
 | Booking detail + refund          | `src/app/(staff)/staff/bookings/[id]/{page,refund-panel}.tsx`  |
@@ -25,7 +26,7 @@ Status: locked. Canonical settings at `/staff/settings/*`; legacy `/admin/*` red
 
 2. **Server actions enforce role independently.** Every export in `src/lib/actions/staff.ts` starts with `await requireRole(...)`. Layouts gate the UI; the server action gates the call. Both are required because a client can still try to call a server action directly.
 
-3. **Patterns are controlled, chrome positions the viewport.** `LaneBlockingForm` and `WalkInForm` are patterns — no `useState`, all state via props. The drift sentinel enforces this. Components that need `fixed`/`sticky` positioning (e.g. `NavRail`) live in `src/components/chrome/`, NOT `src/components/patterns/`.
+3. **Patterns are controlled, chrome positions the viewport.** `LaneBlockingForm` and `WalkInForm` are patterns — no `useState`, all state via props. The drift sentinel enforces this. Components that need `fixed`/`sticky` positioning (e.g. `NavRail`) live in `src/components/chrome/`, NOT `src/components/patterns/`. Chrome composes Untitled `application/` + `base/` (see UNTITLED.md).
 
 4. **Walk-ins do not touch Stripe.** `createWalkInBooking` writes the `Booking` row directly and stamps `Payment.status` with `'cash' | 'card_at_counter' | 'pending'` — the staff's choice. The webhook never processes a walk-in. v1's `refundBookingAction` cannot refund a walk-in (throws); a "manual refund" path is deferred to Phase 9.
 
@@ -106,4 +107,4 @@ When you add a new staff action, mirror the existing test layout: `vi.hoisted` f
 - Walk-in manual refunds (cash returned, mark `isRefunded`).
 - Booking modification lane editor — see `staff/03_MODIFICATION.md`.
 - Stripe Connect OAuth (integrations panel has dashboard URL stub only).
-- **Payment resume link UI redesign** — backend shipped: `createPaymentResumeLink` + `/book/resume-payment`. Cockpit `PaymentResumePanel` hidden pending wireframe; target: booking detail action or staff tools sheet.
+- **Payment resume link UI redesign** — backend shipped: `createPaymentResumeLink` + `/book/resume-payment`. Cockpit `PaymentResumePanel` hidden pending Figma; target: booking detail action or staff tools sheet.

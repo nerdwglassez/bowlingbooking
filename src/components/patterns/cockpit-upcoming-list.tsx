@@ -1,9 +1,14 @@
 'use client'
 
-// CockpitUpcomingList — upcoming + late row styling (staff-stat-hierarchy.html).
+import type { ReactNode } from 'react'
+import { CalendarDate } from '@untitledui/icons'
 
-import Link from 'next/link'
-
+import { EmptyState } from '@/components/application/empty-state/empty-state'
+import { Table, TableCard } from '@/components/application/table/table'
+import { Avatar } from '@/components/base/avatar/avatar'
+import { getInitials } from '@/components/base/avatar/utils'
+import { Badge } from '@/components/base/badges/badges'
+import { cx } from '@/lib/cx'
 import type { CockpitBookingRow } from '@/lib/actions/staff'
 import {
   formatBookingMeta,
@@ -16,124 +21,254 @@ export type CockpitUpcomingListProps = {
   bookings: CockpitBookingRow[]
   emptyQuery?: string | null
   referenceNow: string
+  title?: string
+  description?: string
+  trailing?: ReactNode
   onOpenBooking?: (bookingId: string) => void
 }
 
-const PIP_CLASS: Record<CockpitBookingRow['listStatus'], string> = {
-  pending: 'bg-[var(--color-action)]',
-  confirmed: 'bg-[var(--color-text-secondary)]',
-  checkedin: 'bg-[var(--status-ok-text)]',
-  payment: 'bg-[var(--status-error-text)]',
-  late: 'animate-pulse bg-[var(--status-error-text)]',
+const STATUS_COLOR: Record<
+  CockpitBookingRow['listStatus'],
+  'gray' | 'brand' | 'success' | 'error' | 'warning'
+> = {
+  pending: 'brand',
+  confirmed: 'gray',
+  checkedin: 'success',
+  payment: 'warning',
+  late: 'error',
 }
 
 export function CockpitUpcomingList({
   bookings,
   emptyQuery,
   referenceNow,
+  title = 'Upcoming',
+  description,
+  trailing,
   onOpenBooking,
 }: CockpitUpcomingListProps) {
   const now = new Date(referenceNow)
+  const empty = bookings.length === 0
+  const emptyTitle = emptyQuery ? 'No matching bookings' : 'No upcoming bookings'
+  const emptyDescription = emptyQuery
+    ? `No bookings match “${emptyQuery}”`
+    : 'Nothing on the board for the rest of today.'
 
-  if (bookings.length === 0) {
+  return (
+    <section className="flex flex-col gap-5 lg:gap-6">
+      <div className="flex flex-col gap-4 lg:hidden">
+        <div className="flex flex-col gap-0.5">
+          <h2
+            className={cx(
+              'text-md font-semibold',
+              title.startsWith('Late') ? 'text-error-primary' : 'text-primary',
+            )}
+          >
+            {title}
+          </h2>
+          {description ? (
+            <p className="text-sm text-tertiary">{description}</p>
+          ) : null}
+        </div>
+        {trailing}
+        {empty ? (
+          <UpcomingEmpty title={emptyTitle} description={emptyDescription} />
+        ) : (
+          <ul className="flex flex-col">
+            {bookings.map((booking) => (
+              <li
+                key={booking.id}
+                className="border-b border-secondary last:border-b-0"
+              >
+                <UpcomingRow
+                  booking={booking}
+                  now={now}
+                  onOpenBooking={onOpenBooking}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <TableCard.Root size="sm" className="hidden lg:block">
+        <TableCard.Header
+          title={title}
+          badge={empty ? undefined : bookings.length}
+          description={description}
+          contentTrailing={trailing}
+        />
+        {empty ? (
+          <UpcomingEmpty title={emptyTitle} description={emptyDescription} />
+        ) : (
+          <Table aria-label={title} size="sm">
+            <Table.Header>
+              <Table.Head id="time" isRowHeader>
+                Time
+              </Table.Head>
+              <Table.Head id="guest">Guest</Table.Head>
+              <Table.Head id="lane">Lane</Table.Head>
+              <Table.Head id="status">Status</Table.Head>
+            </Table.Header>
+            <Table.Body items={bookings}>
+              {(booking) => (
+                <Table.Row
+                  id={booking.id}
+                  onAction={
+                    onOpenBooking ? () => onOpenBooking(booking.id) : undefined
+                  }
+                >
+                  <Table.Cell>
+                    <UpcomingTime booking={booking} />
+                  </Table.Cell>
+                  <Table.Cell>
+                    <div className="flex items-center gap-3">
+                      <Avatar
+                        size="sm"
+                        initials={getInitials(booking.customerName)}
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium text-primary">
+                          {booking.customerName}
+                        </p>
+                        <p className="text-xs text-tertiary">
+                          {booking.listStatus === 'late'
+                            ? formatLateMeta(booking, now)
+                            : formatBookingMeta(booking)}
+                        </p>
+                      </div>
+                    </div>
+                  </Table.Cell>
+                  <Table.Cell>{formatLaneBadge(booking.laneNumbers)}</Table.Cell>
+                  <Table.Cell>
+                    <Badge
+                      size="sm"
+                      color={STATUS_COLOR[booking.listStatus]}
+                      type="pill-color"
+                    >
+                      {booking.listStatus}
+                    </Badge>
+                  </Table.Cell>
+                </Table.Row>
+              )}
+            </Table.Body>
+          </Table>
+        )}
+      </TableCard.Root>
+    </section>
+  )
+}
+
+function UpcomingEmpty({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <EmptyState size="sm" className="py-8">
+      <EmptyState.Header pattern="none">
+        <EmptyState.FeaturedIcon
+          icon={CalendarDate}
+          color="gray"
+          theme="modern"
+        />
+      </EmptyState.Header>
+      <EmptyState.Content>
+        <EmptyState.Title>{title}</EmptyState.Title>
+        <EmptyState.Description>{description}</EmptyState.Description>
+      </EmptyState.Content>
+    </EmptyState>
+  )
+}
+
+function UpcomingTime({ booking }: { booking: CockpitBookingRow }) {
+  const { hour, ampm } = formatUpcomingTimeParts(booking.startTime)
+  const late = booking.listStatus === 'late'
+
+  return (
+    <span
+      className={cx(
+        'text-sm font-semibold',
+        late ? 'text-error-primary' : 'text-primary',
+      )}
+    >
+      {hour} {ampm}
+    </span>
+  )
+}
+
+function UpcomingRow({
+  booking,
+  now,
+  onOpenBooking,
+}: {
+  booking: CockpitBookingRow
+  now: Date
+  onOpenBooking?: (bookingId: string) => void
+}) {
+  const late = booking.listStatus === 'late'
+  const checkedIn = booking.listStatus === 'checkedin'
+
+  const className = cx(
+    'flex w-full min-h-11 items-start gap-3 py-4 text-left',
+    late && 'text-error-primary',
+    checkedIn && 'opacity-60',
+  )
+
+  const body = (
+    <>
+      <Avatar size="md" initials={getInitials(booking.customerName)} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p
+            className={cx(
+              'truncate text-sm font-medium',
+              late ? 'text-error-primary' : 'text-primary',
+            )}
+          >
+            {booking.customerName}
+          </p>
+          {late ? (
+            <span className="size-2 shrink-0 rounded-full bg-error-solid" />
+          ) : null}
+        </div>
+        <p className="mt-0.5 truncate text-sm text-tertiary">
+          {late ? formatLateMeta(booking, now) : formatBookingMeta(booking)}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <UpcomingTime booking={booking} />
+        <Badge size="sm" color="gray" type="modern">
+          {formatLaneBadge(booking.laneNumbers)}
+        </Badge>
+        <Badge
+          size="sm"
+          color={STATUS_COLOR[booking.listStatus]}
+          type="pill-color"
+        >
+          {booking.listStatus}
+        </Badge>
+      </div>
+    </>
+  )
+
+  if (onOpenBooking) {
     return (
-      <p className="py-6 text-center text-sm text-[var(--color-text-secondary)]">
-        {emptyQuery
-          ? `No bookings match “${emptyQuery}”`
-          : 'No upcoming bookings today.'}
-      </p>
+      <button
+        type="button"
+        onClick={() => onOpenBooking(booking.id)}
+        className={className}
+      >
+        {body}
+      </button>
     )
   }
 
   return (
-    <ul className="flex flex-col gap-1.5">
-      {bookings.map((booking) => {
-        const { hour, ampm } = formatUpcomingTimeParts(booking.startTime)
-        const checkedIn = booking.listStatus === 'checkedin'
-        const paymentPending = booking.listStatus === 'payment'
-        const late = booking.listStatus === 'late'
-
-        const rowClass = `flex w-full items-center gap-2.5 rounded-[var(--radius-md)] border border-solid bg-[var(--surface-card)] px-3 py-2.5 text-left transition-colors hover:border-[var(--color-border-strong)] ${
-                late
-                  ? 'border-[color-mix(in_srgb,var(--status-error-border)_30%,transparent)] bg-[color-mix(in_srgb,var(--status-error-bg)_4%,transparent)]'
-                  : paymentPending
-                    ? 'border-[color-mix(in_srgb,var(--status-error-border)_30%,transparent)]'
-                    : 'border-[var(--color-border)]'
-              } ${checkedIn ? 'opacity-50' : ''}`
-
-        const rowBody = (
-          <>
-              <div className="min-w-[44px] text-center">
-                <div
-                  className={`text-sm [font-family:var(--font-display)] ${
-                    late
-                      ? 'text-[var(--status-error-text)]'
-                      : 'text-[var(--color-text-primary)]'
-                  }`}
-                >
-                  {hour}
-                </div>
-                <div className="text-[9px] text-[var(--color-text-secondary)]">
-                  {ampm}
-                </div>
-              </div>
-
-              <span
-                className={`h-8 w-px shrink-0 ${
-                  late
-                    ? 'bg-[color-mix(in_srgb,var(--status-error-border)_30%,transparent)]'
-                    : 'bg-[var(--color-border)]'
-                }`}
-                aria-hidden
-              />
-
-              <div className="min-w-0 flex-1">
-                <p
-                  className={`text-[13px] font-medium ${
-                    late
-                      ? 'text-[var(--status-error-text)]'
-                      : 'text-[var(--color-text-primary)]'
-                  }`}
-                >
-                  {booking.customerName}
-                </p>
-                <p className="mt-0.5 text-[11px] text-[var(--color-text-secondary)]">
-                  {late
-                    ? formatLateMeta(booking, now)
-                    : formatBookingMeta(booking)}
-                </p>
-              </div>
-
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="rounded-[var(--radius-full)] border border-solid border-[var(--color-border)] bg-[var(--surface-sunken)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)]">
-                  {formatLaneBadge(booking.laneNumbers)}
-                </span>
-                <span
-                  className={`size-2 rounded-full ${PIP_CLASS[booking.listStatus]}`}
-                  aria-hidden
-                />
-              </div>
-          </>
-        )
-
-        return (
-          <li key={booking.id}>
-            {onOpenBooking ? (
-              <button
-                type="button"
-                onClick={() => onOpenBooking(booking.id)}
-                className={rowClass}
-              >
-                {rowBody}
-              </button>
-            ) : (
-              <Link href={`/staff/bookings/${booking.id}`} className={rowClass}>
-                {rowBody}
-              </Link>
-            )}
-          </li>
-        )
-      })}
-    </ul>
+    <a href={`/staff/bookings/${booking.id}`} className={className}>
+      {body}
+    </a>
   )
 }

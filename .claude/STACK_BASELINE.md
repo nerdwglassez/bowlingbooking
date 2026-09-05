@@ -12,20 +12,10 @@ Every downstream agent reads this file first. It is the single source of truth f
 - **Choice:** `tailwindcss@^4` with `@tailwindcss/postcss@^4` (as installed).
 - **Configuration model:** CSS-first via `@theme` directives. Keep `tailwind.config.ts` for the `content` glob and `theme.extend.screens`/`maxWidth` only; **delete the v3-only `corePlugins: { backgroundColor: false }` block** — it is a no-op in v4.
 - **Color guardrail replacement:** the drift sentinel (see `.cursor/AGENTS.md` § 6) enforces "no Tailwind color utilities" at lint time, plus an ESLint rule banning `/(bg|text|border|ring|outline|placeholder|caret|accent|fill|stroke)-(amber|stone|red|green|blue|purple|zinc|slate|gray|neutral)-[0-9]+/`.
-- **`globals.css` shape (Infra agent target):**
-  ```css
-  @import "tailwindcss";
-  @import "../styles/tokens.css";
-  @import "../styles/themes/default.css";
-
-  body {
-    background: var(--surface-ground);
-    color: var(--color-text-primary);
-    font-family: var(--font-body);
-  }
-  ```
-- **Tailwind allowed for:** layout (`flex`, `grid`, `gap`, `p-*`, `m-*`, `w-*`, `h-*`, positioning, overflow, sizing).
-- **Tailwind forbidden for:** color, typography color, the `dark:` prefix (data-theme handles both modes).
+- **`globals.css` shape:** Tailwind → Untitled `theme.css` → legacy `tokens.css` → tenant themes. See `src/app/globals.css`.
+- **Tailwind allowed for:** layout (`flex`, `grid`, `gap`, `p-*`, `m-*`, `w-*`, `h-*`, positioning, overflow, sizing) **and Untitled semantic color utilities** (`bg-brand-solid`, `text-secondary`, `bg-primary`, …).
+- **`dark:` prefix:** allowed because `@custom-variant dark` maps to `[data-theme="dark"]`. Forbidden: `@media (prefers-color-scheme: dark)`.
+- **Tailwind forbidden for:** raw palette utilities (`bg-amber-500`, `text-stone-600`). Drift sentinel + ESLint enforce this.
 
 ## 2. Framework — Next.js 16 + React 19
 
@@ -44,9 +34,9 @@ Every downstream agent reads this file first. It is the single source of truth f
 - **Choice:** `next-auth@^5` (a.k.a. Auth.js), required for React 19. Decisions locked in Phase 6a.
 - **Session strategy:** **JWT, 24 h max age.** Token embeds `id`, `role`, and `tenantId`. No Prisma adapter today — switching to database sessions is a one-line edit in `src/lib/auth.ts` if/when instant revocation is needed.
 - **Provider(s):** **Credentials only.** Email + password, verified against `User.passwordHash` (bcryptjs, cost 12). OAuth and email magic-link explicitly deferred.
-- **Customer accounts:** **none in v1.** The booking flow is guest-first; only STAFF / MANAGER / ADMIN authenticate. Customer-facing accounts are a later, distinct surface.
+- **Customer accounts:** guests can book without signing in. Existing CUSTOMER (and employee) credentials share `/signin`; `getPostSignInPath` sends STAFF+ to `/staff` and customers to `/dashboard` or `/find-my-booking`. Public sign-up is not built; OAuth is deferred.
 - **Password storage:** `User.passwordHash` (nullable) — bcryptjs hash. Hashing function lives only in `src/lib/auth.ts` (`hashPassword`).
-- **Sign-in surface:** `/signin` (shared between staff and admin). `?from=…` query param drives post-login redirect.
+- **Sign-in surface:** `/signin` (shared). `?from=…` plus `getPostSignInPath` drive the landing route. Checkout is the only booking-header entry (`CHECKOUT_SIGN_IN_PATH` = `/signin?from=/book/confirm`). Employee deep links still use `STAFF_SIGN_IN_PATH`. Visual SoT: FIGMA.md Sign-in row.
 - **Wrapper rule:** all consumers go through `src/lib/auth.ts`. The drift sentinel rejects any direct `import` of `next-auth`, `next-auth/providers/*`, `next-auth/jwt`, or `bcryptjs` from anywhere else (one exception: `prisma/seed.ts` may import `bcryptjs` because the seed runs out-of-band of the app).
 - **Helpers exported from `lib/auth.ts`:**
   - `auth()` — Auth.js helper. Usable in Server Components, route handlers, `proxy.ts`.
@@ -83,19 +73,12 @@ Every downstream agent reads this file first. It is the single source of truth f
 - **Future migration to subdomains:** when tenant #2 arrives, rewrite `getTenant()` to read `host` from `headers()` and look up by slug derived from the subdomain. No page or component changes required — that's the SaaS validation step in Phase 6.
 - **Phase 6 canary test:** create a `kingpin-lanes` second tenant via seed + theme file (`src/styles/themes/kingpin-lanes.css` with 4 token overrides) and verify a different DEFAULT_TENANT_SLUG renders the entire app rebranded with zero source-file changes elsewhere.
 
-## 6. Button primitive — best-of-n-runner N=3, then single-pass
+## 6. Button primitive — Untitled UI CLI (locked)
 
-- **Choice:** launch the Button primitive (Phase 2's first agent) via `Task(subagent_type="best-of-n-runner")` with N=3 isolated worktrees. The other 6 primitives use plain `generalPurpose` agents that follow Button's chosen pattern.
-- **Constrained strategies for the three attempts:**
-  1. **CVA (`class-variance-authority`) variants** — declarative variant map, Tailwind utilities for layout, CSS variables for color.
-  2. **Pure variant function** — `getButtonStyles(variant, size)` returning inline `style={}` object built from CSS variables. No external dep.
-  3. **Headless + Radix Slot** — `@radix-ui/react-slot` for `asChild`, plus a small variant function. Matches shadcn/ui idioms.
-- **Selection criteria (orchestrator evaluates):**
-  - Token purity (zero `var(--palette-*)`, zero hex, zero color utility classes)
-  - Prop ergonomics for downstream agents
-  - Bundle size impact
-  - How well the same pattern scales to Card, Badge, Input, Select, Checkbox, Toggle
-- **Output:** the winning Button is copied into `src/components/ui/button.tsx`. The pattern is recorded in `.claude/contracts/PRIMITIVES.md` as the canonical strategy. The other primitives' prompts reference that file.
+- **Choice:** Layer 2 is Untitled UI React. Install via Untitled MCP `get_component` / `get_component_bundle` and the returned CLI. Canonical path is `@/components/base/buttons/button` (see `.claude/contracts/UNTITLED.md`).
+- **Do not** run best-of-n CVA vs Radix Slot experiments. Do not hand-roll `--color-action` class maps.
+- **Compatibility:** `src/components/ui/button.tsx` re-exports / wraps Untitled for unreworked `variant` / `fullWidth` / `loading` / `asChild` call sites.
+- **Output:** PRIMITIVES.md lists shims vs native files. New staff screens import Untitled `base/` directly.
 
 ---
 
@@ -311,13 +294,13 @@ These were introduced after the customer booking flow landed. Every future agent
 
 ### 9.3 Theme resolution (`src/lib/theme.ts` + `src/proxy.ts`)
 
-- Theme is resolved **server-side** in the root layout via `resolveTheme()`. The result is stamped on `<html data-theme="…">` during SSR — no client script, no `suppressHydrationWarning`, no FOUC.
+- Theme is resolved **server-side** in the root layout via `resolveTheme()`. The result is stamped on `<html data-theme="…">` during SSR. `resolveStaffBrand()` stamps `data-app="staff"` on `/staff`, `/admin`, and `/signin`.
 - Inputs to `resolveTheme()`:
-  1. **Pathname** (via the `x-pathname` header set by `src/proxy.ts`). Paths matching `/staff(/|$)` or `/admin(/|$)` are ALWAYS dark.
-  2. **`theme` cookie** for all other paths. Defaults to `'light'` when absent.
-- Customer-facing toggle (future) calls `setThemeCookie('dark' | 'light')` as a Server Action, then `router.refresh()`.
-- NEVER add another inline `<script>` to set `data-theme`. NEVER read `localStorage` for theme — cookies survive SSR; localStorage doesn't.
-- NEVER use Tailwind's `dark:` prefix (drift sentinel rejects it).
+  1. **Pathname** (via the `x-pathname` header set by `src/proxy.ts`). Customer paths are always light. `/signin` is light even though it uses staff brand.
+  2. **`theme` cookie** on `/staff` and `/admin`, written by `StaffThemeScope` from the device color scheme. Defaults to `'light'` when absent.
+- `data-app="staff"` keeps Untitled purple on employee chrome and the shared split login. Customer `/book` stays amber.
+- NEVER add an inline `<script>` to set `data-theme`. NEVER read `localStorage` for theme — cookies survive SSR.
+- NEVER use `@media (prefers-color-scheme: dark)` in CSS. Untitled `dark:` utilities are allowed because `@custom-variant dark` maps to `[data-theme="dark"]`. JS `matchMedia` in `StaffThemeScope` is the only device-scheme reader.
 
 ### 9.4 Date/value serialization across server actions
 
@@ -355,7 +338,7 @@ These were introduced after the customer booking flow landed. Every future agent
 
 - **Route-group layouts are the auth chokepoint.** `src/app/(staff)/layout.tsx` and `src/app/(admin)/layout.tsx` MUST call `requireRole(...)`. Pages never call it themselves — the drift sentinel fails verify if either layout omits the check. Don't add per-page guards; they drift.
 - **Chrome vs. patterns.** Components that own viewport positioning (`fixed`/`sticky` sidebars, tab bars, top bars) live in `src/components/chrome/`, not `src/components/patterns/`. Patterns render content cards; chrome positions the shell. The drift sentinel still bans `fixed` in patterns.
-- **Staff theme is locked to dark** via `proxy.ts → resolveTheme()` for `/staff/*` and `/admin/*`. The shell never sets `data-theme` directly.
+- **Staff theme follows the device scheme** via `StaffThemeScope` + the `theme` cookie. Customer `/book` stays light/amber.
 - **Staff actions live in `src/lib/actions/staff.ts`.** Every export starts with `await requireRole('STAFF', 'MANAGER', 'ADMIN')` (or stricter). Dev-without-DB returns deterministic mocks so the entire staff app is reviewable without Postgres.
 - **Walk-in bookings bypass Stripe.** `createWalkInBooking()` writes the `Booking` row directly with `status='CONFIRMED'` and `source='WALK_IN'`, plus a `Payment` row whose `status` is one of `cash` / `card_at_counter` / `pending` (set from the staff's choice on the form). The webhook never sees walk-ins. v1 cannot Stripe-refund a walk-in (the action throws); add a "manual refund" path in Phase 9 if needed.
 - **Lane blocking uses the existing `BlockedSlot` table.** `lanes: number[]` is lane numbers; empty array = all lanes. Bookings AND blocks both appear on `ScheduleTimeline`.

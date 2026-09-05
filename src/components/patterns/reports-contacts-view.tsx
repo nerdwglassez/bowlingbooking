@@ -28,6 +28,8 @@ export type ReportsContactsViewProps = {
   onCloseDetail: () => void
   contactDetail: StaffContactDetail | null
   contactDetailLoading: boolean
+  tenantId: string
+  bowlersPerLane?: number
 }
 
 export function ReportsContactsView({
@@ -41,6 +43,8 @@ export function ReportsContactsView({
   onCloseDetail,
   contactDetail,
   contactDetailLoading,
+  tenantId,
+  bowlersPerLane,
 }: ReportsContactsViewProps) {
   const router = useRouter()
   const filtered = useMemo(
@@ -171,7 +175,13 @@ export function ReportsContactsView({
               </p>
             ) : (
               <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--surface-card)] p-4">
-                <ContactDetailPanel contact={contactDetail} embedded />
+                <ContactDetailPanel
+                  contact={contactDetail}
+                  embedded
+                  tenantId={tenantId}
+                  bowlersPerLane={bowlersPerLane}
+                  canRefund
+                />
               </div>
             )
           ) : (
@@ -190,7 +200,13 @@ export function ReportsContactsView({
         >
           {contactDetail ? (
             <div className="p-4">
-              <ContactDetailPanel contact={contactDetail} embedded />
+              <ContactDetailPanel
+                contact={contactDetail}
+                embedded
+                tenantId={tenantId}
+                bowlersPerLane={bowlersPerLane}
+                canRefund
+              />
             </div>
           ) : null}
         </BottomSheet>

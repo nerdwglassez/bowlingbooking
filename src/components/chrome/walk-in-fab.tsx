@@ -1,6 +1,10 @@
-// Floating action button — walk-in entry point on the cockpit (wireframe FAB).
+'use client'
 
-import { Plus } from 'lucide-react'
+// Floating action button — walk-in entry point on the cockpit.
+
+import { Plus } from '@untitledui/icons'
+
+import { Button } from '@/components/base/buttons/button'
 
 export type WalkInFabProps = {
   onClick: () => void
@@ -11,13 +15,14 @@ export function WalkInFab({ onClick, hidden }: WalkInFabProps) {
   if (hidden) return null
 
   return (
-    <button
+    <Button
       type="button"
+      color="primary"
+      size="lg"
+      iconLeading={Plus}
       aria-label="New walk-in"
       onClick={onClick}
-      className="fixed bottom-20 right-4 z-10 flex size-11 items-center justify-center rounded-full bg-[var(--color-action)] text-[var(--color-text-on-action)] shadow-[0_4px_16px_color-mix(in_srgb,var(--color-action)_40%,transparent)] transition-opacity hover:opacity-90 md:bottom-8"
-    >
-      <Plus className="size-6" strokeWidth={2.5} aria-hidden />
-    </button>
+      className="fixed right-4 bottom-6 z-10 rounded-full lg:bottom-8"
+    />
   )
 }

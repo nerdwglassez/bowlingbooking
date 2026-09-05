@@ -1,8 +1,9 @@
 'use client'
 
 import { SettingsSaveButton } from '@/components/patterns/settings-save-button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { SettingsFieldRow } from '@/components/patterns/settings-field-row'
+import { Checkbox } from '@/components/base/checkbox/checkbox'
+import { NativeSelect } from '@/components/base/select/select-native'
 import type { SettingsSavePhase } from '@/lib/use-settings-form-state'
 
 export interface OperatingHourRow {
@@ -33,7 +34,15 @@ export interface OperatingHoursEditorProps {
   savePhase?: SettingsSavePhase
 }
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAY_LABELS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+]
 
 const DURATION_OPTIONS = [
   { value: 1, label: '1 hour' },
@@ -43,53 +52,39 @@ const DURATION_OPTIONS = [
   { value: 4, label: '4 hours' },
 ]
 
-function MiniToggle({
-  checked,
-  onChange,
-  disabled,
-  label,
-}: {
-  checked: boolean
-  onChange: (next: boolean) => void
-  disabled?: boolean
-  label: string
-}) {
-  return (
-    <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 has-[:disabled]:cursor-not-allowed">
-      <span
-        className={`text-[10px] font-semibold ${
-          checked
-            ? 'text-[var(--color-text-secondary)]'
-            : 'text-[var(--status-error-text)]'
-        }`}
-      >
-        {label}
-      </span>
-      <input
-        type="checkbox"
-        role="switch"
-        className="peer sr-only"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        aria-label={`${label} toggle`}
-      />
-      <span
-        className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
-          checked
-            ? 'bg-[var(--status-ok-text)]'
-            : 'bg-[var(--color-border-strong)]'
-        } peer-disabled:opacity-30`}
-        aria-hidden
-      >
-        <span
-          className={`absolute top-[2.5px] size-[13px] rounded-full bg-white shadow-[var(--shadow-sm)] transition-transform ${
-            checked ? 'translate-x-[14px] left-[2.5px]' : 'left-[2.5px]'
-          }`}
-        />
-      </span>
-    </label>
-  )
+const TIME_FORMAT = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+})
+
+function buildTimeOptions(stepMinutes = 30): { label: string; value: string }[] {
+  const options: { label: string; value: string }[] = []
+  for (let minutes = 0; minutes < 24 * 60; minutes += stepMinutes) {
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    const value = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
+    options.push({
+      label: TIME_FORMAT.format(new Date(2000, 0, 1, hours, mins)),
+      value,
+    })
+  }
+  return options
+}
+
+const TIME_OPTIONS = buildTimeOptions(30)
+
+function timeSelectOptions(current: string): { label: string; value: string }[] {
+  if (TIME_OPTIONS.some((opt) => opt.value === current)) return TIME_OPTIONS
+  const [h, m] = current.split(':').map(Number)
+  const hours = Number.isFinite(h) ? h : 0
+  const mins = Number.isFinite(m) ? m : 0
+  return [
+    ...TIME_OPTIONS,
+    {
+      label: TIME_FORMAT.format(new Date(2000, 0, 1, hours, mins)),
+      value: current,
+    },
+  ].sort((a, b) => a.value.localeCompare(b.value))
 }
 
 function Stepper({
@@ -111,19 +106,19 @@ function Stepper({
         type="button"
         disabled={disabled || value <= min}
         onClick={() => onChange(Math.max(min, value - 1))}
-        className="flex size-7 items-center justify-center rounded-[var(--radius-sm)] border border-solid border-[var(--color-border-strong)] bg-[var(--surface-sunken)] text-base leading-none text-[var(--color-text-primary)] disabled:opacity-30"
+        className="flex size-7 items-center justify-center rounded-lg border border-solid border-secondary bg-secondary text-base leading-none text-primary disabled:opacity-30"
         aria-label="Decrease"
       >
         −
       </button>
-      <span className="min-w-6 text-center [font-family:var(--font-display)] text-[17px] text-[var(--color-text-primary)]">
+      <span className="min-w-6 text-center [font-family:var(--font-display)] text-[17px] text-primary">
         {value}
       </span>
       <button
         type="button"
         disabled={disabled || value >= max}
         onClick={() => onChange(Math.min(max, value + 1))}
-        className="flex size-7 items-center justify-center rounded-[var(--radius-sm)] border border-solid border-[var(--color-border-strong)] bg-[var(--surface-sunken)] text-base leading-none text-[var(--color-text-primary)] disabled:opacity-30"
+        className="flex size-7 items-center justify-center rounded-lg border border-solid border-secondary bg-secondary text-base leading-none text-primary disabled:opacity-30"
         aria-label="Increase"
       >
         +
@@ -179,194 +174,158 @@ export function OperatingHoursEditor({
         e.preventDefault()
         if (!readOnly) onSubmit()
       }}
-      className="flex flex-col gap-4"
+      className="flex flex-col"
     >
-      <section className="flex flex-col gap-1">
-        <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Weekly schedule
-        </h2>
-        <ul className="flex flex-col">
+      <SettingsFieldRow
+        label="Weekly schedule"
+        hint="Unchecked days are closed. Times are stored as 24-hour HH:MM."
+      >
+        <ul className="flex flex-col gap-3">
           {sorted.map((row) => {
             const isOpen = !row.closed
+            const dayLabel = DAY_LABELS[row.dayOfWeek] ?? `Day ${row.dayOfWeek}`
             return (
               <li
                 key={row.dayOfWeek}
-                className="flex items-center gap-2 border-b border-solid border-[var(--color-border)] py-2.5 last:border-b-0"
+                className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4"
               >
-                <span
-                  className={`w-9 shrink-0 text-xs font-semibold ${
-                    isOpen
-                      ? 'text-[var(--color-text-primary)]'
-                      : 'text-[var(--color-text-secondary)] opacity-60'
-                  }`}
-                >
-                  {DAY_LABELS[row.dayOfWeek]}
-                </span>
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <Input
-                    type="time"
-                    inputSize="sm"
-                    className="w-[4.5rem] px-2 text-center text-xs"
-                    value={row.openTime}
-                    onChange={(e) =>
-                      patchRow(row.dayOfWeek, { openTime: e.target.value })
-                    }
-                    disabled={readOnly || row.closed}
-                  />
-                  <span className="text-[11px] text-[var(--color-text-secondary)]">
-                    –
-                  </span>
-                  <Input
-                    type="time"
-                    inputSize="sm"
-                    className="w-[4.5rem] px-2 text-center text-xs"
-                    value={row.closeTime}
-                    onChange={(e) =>
-                      patchRow(row.dayOfWeek, { closeTime: e.target.value })
-                    }
-                    disabled={readOnly || row.closed}
-                  />
-                </div>
-                <MiniToggle
-                  checked={isOpen}
-                  disabled={readOnly}
-                  label={isOpen ? 'Open' : 'Closed'}
+                <Checkbox
+                  isSelected={isOpen}
+                  isDisabled={readOnly}
                   onChange={(open) =>
                     patchRow(row.dayOfWeek, { closed: !open })
                   }
+                  label={dayLabel}
                 />
+                <div className="flex min-w-0 flex-1 items-end gap-2 sm:justify-end">
+                  <NativeSelect
+                    label="From"
+                    size="sm"
+                    className="min-w-[8.5rem]"
+                    value={row.openTime}
+                    disabled={readOnly || row.closed}
+                    onChange={(e) =>
+                      patchRow(row.dayOfWeek, { openTime: e.target.value })
+                    }
+                    options={timeSelectOptions(row.openTime)}
+                  />
+                  <NativeSelect
+                    label="To"
+                    size="sm"
+                    className="min-w-[8.5rem]"
+                    value={row.closeTime}
+                    disabled={readOnly || row.closed}
+                    onChange={(e) =>
+                      patchRow(row.dayOfWeek, { closeTime: e.target.value })
+                    }
+                    options={timeSelectOptions(row.closeTime)}
+                  />
+                </div>
               </li>
             )
           })}
         </ul>
         {!readOnly ? (
-          <div className="flex items-center justify-between gap-3 py-2">
-            <p className="text-[11px] text-[var(--color-text-secondary)]">
-              Apply Mon–Thu hours to all weekdays
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <p className="text-sm text-tertiary">
+              Apply Monday hours to Tuesday–Thursday
             </p>
             <button
               type="button"
               onClick={applyWeekdayHours}
-              className="text-[11px] font-semibold text-[var(--color-action)]"
+              className="text-sm font-semibold text-brand-secondary"
             >
               Apply
             </button>
           </div>
         ) : null}
-      </section>
+      </SettingsFieldRow>
 
       {laneConfig ? (
         <>
-          <div className="h-px bg-[var(--color-border)]" />
-          <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-              Lane configuration
-            </h2>
-            <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] px-3.5 py-3">
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                  Total lanes
-                </p>
-                <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-                  Physical lanes available
-                </p>
-              </div>
-              <Stepper
-                value={laneConfig.totalLanes}
-                min={1}
-                max={48}
+          <SettingsFieldRow
+            label="Total lanes"
+            hint="Physical lanes available for assignment."
+          >
+            <Stepper
+              value={laneConfig.totalLanes}
+              min={1}
+              max={48}
+              disabled={readOnly || !onLaneConfigChange}
+              onChange={(totalLanes) =>
+                onLaneConfigChange?.({ ...laneConfig, totalLanes })
+              }
+            />
+          </SettingsFieldRow>
+          <SettingsFieldRow
+            label="Max bowlers per lane"
+            hint="Drives lane assignment via getLaneCount."
+          >
+            <Stepper
+              value={laneConfig.maxBowlersPerLane}
+              min={4}
+              max={8}
+              disabled={readOnly || !onLaneConfigChange}
+              onChange={(maxBowlersPerLane) =>
+                onLaneConfigChange?.({ ...laneConfig, maxBowlersPerLane })
+              }
+            />
+          </SettingsFieldRow>
+          <SettingsFieldRow
+            label="Booking duration"
+            hint="Minimum and maximum session length customers can book."
+          >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <NativeSelect
+                label="Minimum"
+                value={String(laneConfig.minDurationHours)}
                 disabled={readOnly || !onLaneConfigChange}
-                onChange={(totalLanes) =>
-                  onLaneConfigChange?.({ ...laneConfig, totalLanes })
+                onChange={(e) =>
+                  onLaneConfigChange?.({
+                    ...laneConfig,
+                    minDurationHours: Number(e.target.value),
+                  })
                 }
+                options={DURATION_OPTIONS.map((opt) => ({
+                  label: opt.label,
+                  value: String(opt.value),
+                }))}
+              />
+              <NativeSelect
+                label="Maximum"
+                value={String(laneConfig.maxDurationHours)}
+                disabled={readOnly || !onLaneConfigChange}
+                onChange={(e) =>
+                  onLaneConfigChange?.({
+                    ...laneConfig,
+                    maxDurationHours: Number(e.target.value),
+                  })
+                }
+                options={DURATION_OPTIONS.map((opt) => ({
+                  label: opt.label,
+                  value: String(opt.value),
+                }))}
               />
             </div>
-            <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-solid border-[var(--color-border)] bg-[var(--surface-elevated)] px-3.5 py-3">
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                  Max bowlers per lane
-                </p>
-                <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-                  Drives lane assignment calculation
-                </p>
-              </div>
-              <Stepper
-                value={laneConfig.maxBowlersPerLane}
-                min={4}
-                max={8}
-                disabled={readOnly || !onLaneConfigChange}
-                onChange={(maxBowlersPerLane) =>
-                  onLaneConfigChange?.({ ...laneConfig, maxBowlersPerLane })
-                }
-              />
-            </div>
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-              Booking duration
-            </h2>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--color-text-secondary)]">
-                  Minimum
-                </span>
-                <Select
-                  value={String(laneConfig.minDurationHours)}
-                  disabled={readOnly || !onLaneConfigChange}
-                  onChange={(e) =>
-                    onLaneConfigChange?.({
-                      ...laneConfig,
-                      minDurationHours: Number(e.target.value),
-                    })
-                  }
-                >
-                  {DURATION_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--color-text-secondary)]">
-                  Maximum
-                </span>
-                <Select
-                  value={String(laneConfig.maxDurationHours)}
-                  disabled={readOnly || !onLaneConfigChange}
-                  onChange={(e) =>
-                    onLaneConfigChange?.({
-                      ...laneConfig,
-                      maxDurationHours: Number(e.target.value),
-                    })
-                  }
-                >
-                  {DURATION_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            </div>
-          </section>
+          </SettingsFieldRow>
         </>
       ) : null}
 
       {error ? (
-        <p className="text-sm text-[var(--status-error-text)]">{error}</p>
+        <p className="pt-4 text-sm text-error-primary">{error}</p>
       ) : null}
       {successMessage ? (
-        <p className="text-sm text-[var(--status-ok-text)]">{successMessage}</p>
+        <p className="pt-4 text-sm text-success-primary">{successMessage}</p>
       ) : null}
 
       {!readOnly ? (
-        <SettingsSaveButton
-          label="Save operating hours"
-          dirty={saveDirty}
-          phase={savePhase ?? (submitting ? 'saving' : 'idle')}
-        />
+        <div className="flex justify-end pt-4">
+          <SettingsSaveButton
+            label="Save operating hours"
+            dirty={saveDirty}
+            phase={savePhase ?? (submitting ? 'saving' : 'idle')}
+          />
+        </div>
       ) : null}
     </form>
   )

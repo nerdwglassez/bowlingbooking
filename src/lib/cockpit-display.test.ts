@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { CockpitBookingRow, BlockedSlotRow } from '@/lib/actions/staff'
 import {
   buildCockpitStats,
+  buildCockpitHourlyBookings,
   buildCockpitTimeline,
   bookingListStatus,
   filterCockpitBookings,
@@ -179,5 +180,29 @@ describe('filterCockpitBookings', () => {
       }),
     ]
     expect(filterCockpitBookings(rows, '555-0147')).toHaveLength(1)
+  })
+})
+
+describe('buildCockpitHourlyBookings', () => {
+  it('counts remaining-day bookings that overlap each hour', () => {
+    const now = new Date('2026-05-16T14:30:00')
+    const rows = [
+      booking({
+        id: '1',
+        startTime: new Date('2026-05-16T14:00:00'),
+        endTime: new Date('2026-05-16T16:00:00'),
+        status: 'CONFIRMED',
+      }),
+      booking({
+        id: '2',
+        startTime: new Date('2026-05-16T16:00:00'),
+        endTime: new Date('2026-05-16T17:00:00'),
+        status: 'CANCELLED',
+      }),
+    ]
+    const points = buildCockpitHourlyBookings(rows, now)
+    expect(points[0]?.hour).toMatch(/2/)
+    expect(points[0]?.count).toBe(1)
+    expect(points[2]?.count).toBe(0)
   })
 })

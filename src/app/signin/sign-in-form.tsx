@@ -1,14 +1,12 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { PasswordField } from '@/components/patterns/password-field'
+import { Button } from '@/components/base/buttons/button'
+import { Checkbox } from '@/components/base/checkbox/checkbox'
+import { Input } from '@/components/base/input/input'
 import {
   isSignInSubmitEnabled,
   SIGN_IN_EMAIL_MAX_LENGTH,
@@ -29,7 +27,7 @@ export function SignInForm({ from }: SignInFormProps) {
   const [state, formAction] = useActionState(signInAction, initialState)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [passwordVisible, setPasswordVisible] = useState(false)
+  const [rememberDevice, setRememberDevice] = useState(false)
   const errored = state.error != null
   const canSubmit = isSignInSubmitEnabled(email, password)
 
@@ -40,92 +38,96 @@ export function SignInForm({ from }: SignInFormProps) {
   }, [state.ok, state.redirectTo, router])
 
   return (
-    <form action={formAction} className="flex flex-col gap-4" noValidate>
+    <form action={formAction} className="flex w-full flex-col gap-6" noValidate>
       <input type="hidden" name="from" value={from} />
+      <input
+        type="hidden"
+        name="rememberDevice"
+        value={rememberDevice ? 'on' : ''}
+      />
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Email</span>
+      <div className="flex flex-col gap-5">
         <Input
-          type="email"
           name="email"
+          type="email"
+          label="Email"
+          placeholder="Enter your email"
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onChange={setEmail}
           autoComplete="username email"
           inputMode="email"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
           maxLength={SIGN_IN_EMAIL_MAX_LENGTH}
-          inputSize="md"
-          required
-          invalid={errored}
-          aria-invalid={errored || undefined}
+          size="md"
+          isRequired
+          hideRequiredIndicator
+          isInvalid={errored}
         />
-      </label>
-
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Password</span>
-        <PasswordField
+        <Input
           name="password"
+          type="password"
+          label="Password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          visible={passwordVisible}
-          onToggleVisible={() => setPasswordVisible((current) => !current)}
+          onChange={setPassword}
           autoComplete="current-password"
           maxLength={SIGN_IN_PASSWORD_MAX_LENGTH}
           minLength={SIGN_IN_PASSWORD_MIN_LENGTH}
-          inputSize="md"
-          required
-          invalid={errored}
-          aria-invalid={errored || undefined}
+          size="md"
+          isRequired
+          hideRequiredIndicator
+          isInvalid={errored}
         />
-      </label>
+      </div>
 
-      <Checkbox
-        name="rememberDevice"
-        label="Remember this device (30 days)"
-        className="w-full"
-      />
+      <div className="flex items-center justify-between gap-3">
+        <Checkbox
+          isSelected={rememberDevice}
+          onChange={setRememberDevice}
+          label="Remember for 30 days"
+          size="sm"
+        />
+        <Button
+          href={`/forgot-password?from=${encodeURIComponent(from)}`}
+          color="link-color"
+          size="sm"
+        >
+          Forgot password
+        </Button>
+      </div>
 
       {state.error === 'misconfigured' ? (
-        <p role="alert" className="text-sm text-[var(--status-error-text)]">
+        <p role="alert" className="text-sm text-error-primary">
           Sign-in is not configured on this deployment. Set{' '}
           <strong>AUTH_SECRET</strong> and <strong>AUTH_URL</strong> in Vercel
           (use your live site URL, not localhost), then redeploy.
         </p>
       ) : null}
       {state.error === 'invalid-credentials' ? (
-        <p role="alert" className="text-sm text-[var(--status-error-text)]">
+        <p role="alert" className="text-sm text-error-primary">
           Email or password is incorrect. Try again.
         </p>
       ) : null}
       {state.error === 'unknown' ? (
-        <p role="alert" className="text-sm text-[var(--status-error-text)]">
+        <p role="alert" className="text-sm text-error-primary">
           Sign-in failed unexpectedly. Check Vercel env vars and redeploy.
         </p>
       ) : null}
 
-      <SubmitButton disabled={!canSubmit} />
-
-      <Link
-        href={`/forgot-password?from=${encodeURIComponent(from)}`}
-        className="block w-full text-center text-sm font-medium text-[var(--color-action)]"
-      >
-        Forgot password?
-      </Link>
+      <SubmitButton isDisabled={!canSubmit} />
     </form>
   )
 }
 
-function SubmitButton({ disabled }: { disabled: boolean }) {
+function SubmitButton({ isDisabled }: { isDisabled: boolean }) {
   const { pending } = useFormStatus()
   return (
     <Button
       type="submit"
-      variant="primary"
-      size="md"
-      loading={pending}
-      disabled={disabled || pending}
+      color="primary"
+      size="lg"
+      className="w-full"
+      isLoading={pending}
+      isDisabled={isDisabled || pending}
+      showTextWhileLoading
     >
       Sign in
     </Button>

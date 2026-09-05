@@ -2,7 +2,6 @@
 
 import { unauthorized } from 'next/navigation'
 
-import { SettingsSubpageHeader } from '@/components/patterns/settings-subpage-header'
 import { requireRole } from '@/lib/auth'
 import { hasResendApiKey } from '@/lib/env'
 
@@ -44,13 +43,5 @@ export default async function StaffSettingsIntegrationsPage() {
     },
   ]
 
-  return (
-    <>
-      <SettingsSubpageHeader
-        title="Integrations"
-        subtitle="Payments, automation, and email delivery."
-      />
-      <IntegrationsSettingsPanel cards={cards} />
-    </>
-  )
+  return <IntegrationsSettingsPanel cards={cards} />
 }

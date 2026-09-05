@@ -1,7 +1,5 @@
 'use client'
 
-// WalkInStepIndicator — 3-dot step progress (walkin-booking-flow.html).
-
 export type WalkInStepIndicatorProps = {
   step: 1 | 2 | 3
 }
@@ -15,13 +13,13 @@ export function WalkInStepIndicator({ step }: WalkInStepIndicatorProps) {
         return (
           <span
             key={n}
-            className={`h-1.5 rounded-full ${
+            className={
               active
-                ? 'w-[18px] bg-[var(--color-action)]'
+                ? 'h-1.5 w-4 rounded-full bg-brand-solid'
                 : done
-                  ? 'w-1.5 bg-[var(--color-action)] opacity-40'
-                  : 'w-1.5 bg-[var(--color-border-strong)]'
-            }`}
+                  ? 'size-1.5 rounded-full bg-brand-solid opacity-40'
+                  : 'size-1.5 rounded-full bg-quaternary'
+            }
             aria-hidden
           />
         )

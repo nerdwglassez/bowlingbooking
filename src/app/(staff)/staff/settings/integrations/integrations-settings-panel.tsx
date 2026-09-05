@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { CreditCard02, Mail01, Zap } from '@untitledui/icons'
 
 import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
-import { Button } from '@/components/ui/button'
-import { Card, CardBody } from '@/components/ui/card'
+import { Button } from '@/components/base/buttons/button'
+import { Toggle } from '@/components/base/toggle/toggle'
+import { FeaturedIcon } from '@/components/foundations/featured-icon/featured-icon'
 import { getStripeConnectOnboardingUrl } from '@/lib/actions/admin'
 
 type IntegrationKey = 'stripe' | 'resend' | 'make'
@@ -16,6 +18,16 @@ type IntegrationCard = {
   status: string
   summary: string
   detail: string
+}
+
+const INTEGRATION_ICON = {
+  stripe: CreditCard02,
+  resend: Mail01,
+  make: Zap,
+} as const
+
+function isConnected(status: string) {
+  return status.trim().toLowerCase() === 'connected'
 }
 
 export function IntegrationsSettingsPanel({
@@ -30,32 +42,54 @@ export function IntegrationsSettingsPanel({
 
   return (
     <>
-      <ul className="flex flex-col gap-2">
-        {cards.map((card) => (
-          <li key={card.key}>
-            <button
-              type="button"
-              onClick={() => setOpenKey(card.key)}
-              className="w-full text-left"
+      <div className="flex flex-col gap-1 pb-5">
+        <h2 className="text-md font-semibold text-primary">Connected apps</h2>
+        <p className="text-sm text-tertiary">
+          Payments, email, and optional automation for this venue.
+        </p>
+      </div>
+
+      <ul className="flex flex-col">
+        {cards.map((card) => {
+          const connected = isConnected(card.status)
+          return (
+            <li
+              key={card.key}
+              className="flex flex-col gap-4 border-b border-secondary py-5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4"
             >
-              <Card variant="flat">
-                <CardBody className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-sm font-medium text-[var(--color-text-primary)]">
-                      {card.title}
-                    </h2>
-                    <span className="text-xs text-[var(--color-text-secondary)]">
-                      {card.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-[var(--color-text-secondary)]">
-                    {card.summary}
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <FeaturedIcon
+                  icon={INTEGRATION_ICON[card.key]}
+                  color="gray"
+                  theme="modern"
+                  size="md"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-primary">
+                    {card.title}
                   </p>
-                </CardBody>
-              </Card>
-            </button>
-          </li>
-        ))}
+                  <p className="text-sm text-tertiary">{card.summary}</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  color="link-color"
+                  size="sm"
+                  onClick={() => setOpenKey(card.key)}
+                >
+                  Learn more
+                </Button>
+                <Toggle
+                  size="sm"
+                  isSelected={connected}
+                  isDisabled
+                  aria-label={`${card.title} ${connected ? 'connected' : 'not connected'}`}
+                />
+              </div>
+            </li>
+          )
+        })}
       </ul>
 
       <BottomSheet
@@ -64,15 +98,16 @@ export function IntegrationsSettingsPanel({
         onClose={() => setOpenKey(null)}
       >
         {active ? (
-          <div className="flex flex-col gap-3 p-4 text-sm text-[var(--color-text-secondary)]">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-primary)]">
+          <div className="flex flex-col gap-3 text-sm text-tertiary">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
               {active.status}
             </p>
             <p>{active.detail}</p>
             {active.key === 'stripe' ? (
               <Button
                 type="button"
-                loading={pending}
+                isLoading={pending}
+                className="w-full lg:w-auto"
                 onClick={() => {
                   startTransition(async () => {
                     try {

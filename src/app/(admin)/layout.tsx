@@ -1,7 +1,7 @@
 // (admin)/layout.tsx — admin route group layout.
 //
-// Theme: ALWAYS dark. Resolved server-side via the root layout reading
-// `x-pathname` (set by proxy.ts) — see src/lib/theme.ts.
+// Theme: StaffThemeScope + theme cookie follow the device color scheme.
+// See src/lib/theme.ts.
 //
 // Auth: MANAGER or ADMIN required for settings sub-pages under /admin/*.
 // Uses the same AppShell and nav as the staff route group — one app, two
@@ -12,6 +12,7 @@
 export const dynamic = 'force-dynamic'
 
 import { AppShell } from '@/components/chrome/app-shell'
+import { StaffThemeScope } from '@/components/chrome/staff-theme-scope'
 import { requireRole } from '@/lib/auth'
 import { getTenant } from '@/lib/tenant'
 
@@ -24,11 +25,13 @@ export default async function AdminLayout({
   const tenant = await getTenant()
 
   return (
-    <AppShell
-      user={{ email: user.email, name: user.name, role: user.role }}
-      tenant={{ name: tenant.name }}
-    >
-      {children}
-    </AppShell>
+    <StaffThemeScope>
+      <AppShell
+        user={{ email: user.email, name: user.name, role: user.role }}
+        tenant={{ name: tenant.name }}
+      >
+        {children}
+      </AppShell>
+    </StaffThemeScope>
   )
 }

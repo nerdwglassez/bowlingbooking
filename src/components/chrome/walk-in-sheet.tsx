@@ -1,10 +1,9 @@
 'use client'
 
-// WalkInSheet — 3-step walk-in flow over dimmed cockpit (walkin-booking-flow.html).
-
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { BottomSheet } from '@/components/chrome/bottom-sheet'
 import { WalkInConfirmStep } from '@/components/patterns/walk-in-confirm-step'
 import {
   WalkInGuestStep,
@@ -177,90 +176,50 @@ export function WalkInSheet({
     })
   }
 
-  if (!open) return null
-
   const startedAt = resolveStartTime()
 
   return (
-    <>
-      <button
-        type="button"
-        className="fixed inset-0 bottom-16 z-30 bg-transparent md:right-[400px]"
-        aria-label="Close walk-in"
-        onClick={requestClose}
-      />
-      <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="walk-in-sheet-title"
-      className="fixed inset-x-0 bottom-16 z-40 flex max-h-[min(72dvh,640px)] flex-col border-t border-solid border-[var(--color-border)] bg-[var(--surface-raised)] shadow-[var(--shadow-xl)] md:inset-y-0 md:bottom-0 md:left-auto md:max-h-none md:w-[400px] md:border-l md:border-t-0"
-    >
-      <div
-        className="mx-auto mt-3 h-[3px] w-8 shrink-0 rounded-full bg-[var(--color-border-strong)] md:hidden"
-        aria-hidden
-      />
+    <BottomSheet open={open} title={STEP_TITLE[step]} onClose={requestClose}>
+      <WalkInStepIndicator step={step} />
 
-      <div className="flex items-center justify-between px-[18px] pb-3 pt-3.5">
-        <h2
-          id="walk-in-sheet-title"
-          className="text-[17px] [font-family:var(--font-display)] text-[var(--color-text-primary)]"
-        >
-          {STEP_TITLE[step]}
-        </h2>
-        <div className="flex items-center gap-3">
-          <WalkInStepIndicator step={step} />
-          <button
-            type="button"
-            className="text-[11px] font-semibold text-[var(--color-text-secondary)]"
-            onClick={requestClose}
-            aria-label="Close walk-in sheet"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
+      {step === 1 ? (
+        <WalkInGuestStep
+          values={guest}
+          onChange={setGuest}
+          onNext={() => setStep(2)}
+        />
+      ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-[18px] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        {step === 1 ? (
-          <WalkInGuestStep
-            values={guest}
-            onChange={setGuest}
-            onNext={() => setStep(2)}
-          />
-        ) : null}
+      {step === 2 ? (
+        <WalkInPackageLaneStep
+          values={packageLane}
+          packages={packages}
+          lanes={lanes}
+          autoLaneNumbers={autoLaneNumbers}
+          onChange={setPackageLane}
+          onBack={() => setStep(1)}
+          onNext={() => setStep(3)}
+        />
+      ) : null}
 
-        {step === 2 ? (
-          <WalkInPackageLaneStep
-            values={packageLane}
-            packages={packages}
-            lanes={lanes}
-            autoLaneNumbers={autoLaneNumbers}
-            onChange={setPackageLane}
-            onBack={() => setStep(1)}
-            onNext={() => setStep(3)}
-          />
-        ) : null}
-
-        {step === 3 ? (
-          <WalkInConfirmStep
-            values={{
-              source: guest.source,
-              customerName: guest.customerName.trim(),
-              bowlerCount: guest.bowlerCount,
-              packageName: selectedPackage?.name ?? '',
-              laneNumbers: resolvedLaneNumbers,
-              startedAt,
-              paymentMethod,
-            }}
-            onChangePayment={setPaymentMethod}
-            onBack={() => setStep(2)}
-            onSubmit={handleSubmit}
-            submitting={submitting}
-            error={error}
-          />
-        ) : null}
-      </div>
-    </div>
-    </>
+      {step === 3 ? (
+        <WalkInConfirmStep
+          values={{
+            source: guest.source,
+            customerName: guest.customerName.trim(),
+            bowlerCount: guest.bowlerCount,
+            packageName: selectedPackage?.name ?? '',
+            laneNumbers: resolvedLaneNumbers,
+            startedAt,
+            paymentMethod,
+          }}
+          onChangePayment={setPaymentMethod}
+          onBack={() => setStep(2)}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          error={error}
+        />
+      ) : null}
+    </BottomSheet>
   )
 }

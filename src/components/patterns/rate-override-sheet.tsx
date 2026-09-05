@@ -1,9 +1,9 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/base/buttons/button'
 import { formatPriceInputValue, parsePriceInputValue } from '@/lib/pricing'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Input } from '@/components/base/input/input'
+import { NativeSelect } from '@/components/base/select/select-native'
 import type { AdminPricingPeriodRow } from '@/lib/actions/admin'
 
 const DAY_OPTIONS = [
@@ -71,29 +71,27 @@ export function RateOverrideSheetForm({
       }}
     >
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Name</span>
+        <span className="text-tertiary">Name</span>
         <Input
           value={values.name}
-          onChange={(e) => patch({ name: e.target.value })}
-          required
+          onChange={(name) => patch({ name })}
+          isRequired
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Rate ($ / person / hour)</span>
+        <span className="text-tertiary">Rate ($ / person / hour)</span>
         <Input
           type="number"
-          min={0}
-          step={0.5}
           value={formatPriceInputValue(values.ratePerPersonPerHour)}
-          onChange={(e) => {
-            const cents = parsePriceInputValue(e.target.value)
+          onChange={(value) => {
+            const cents = parsePriceInputValue(value)
             if (cents !== null) patch({ ratePerPersonPerHour: cents })
           }}
-          required
+          isRequired
         />
       </label>
       <div className="flex flex-col gap-2">
-        <span className="text-sm text-[var(--color-text-secondary)]">Days</span>
+        <span className="text-sm text-tertiary">Days</span>
         <div className="flex flex-wrap gap-2">
           {DAY_OPTIONS.map((d) => {
             const active = values.daysOfWeek.includes(d.value)
@@ -102,10 +100,10 @@ export function RateOverrideSheetForm({
                 key={d.value}
                 type="button"
                 onClick={() => toggleDay(d.value)}
-                className={`rounded-[var(--radius-full)] border border-solid px-2.5 py-1 text-xs font-medium ${
+                className={`rounded-full border border-solid px-2.5 py-1 text-xs font-medium ${
                   active
-                    ? 'border-[var(--color-action)] bg-[color-mix(in_srgb,var(--color-action)_12%,transparent)] text-[var(--color-action)]'
-                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'
+                    ? 'border-brand bg-brand-primary_alt text-brand-secondary'
+                    : 'border-secondary text-tertiary'
                 }`}
               >
                 {d.label}
@@ -116,40 +114,38 @@ export function RateOverrideSheetForm({
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">Start</span>
+          <span className="text-tertiary">Start</span>
           <Input
             type="time"
             value={values.startTime}
-            onChange={(e) => patch({ startTime: e.target.value })}
+            onChange={(startTime) => patch({ startTime })}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--color-text-secondary)]">End</span>
+          <span className="text-tertiary">End</span>
           <Input
             type="time"
             value={values.endTime}
-            onChange={(e) => patch({ endTime: e.target.value })}
+            onChange={(endTime) => patch({ endTime })}
           />
         </label>
       </div>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-[var(--color-text-secondary)]">Priority</span>
-        <Select
+        <span className="text-tertiary">Priority</span>
+        <NativeSelect
           value={String(values.priority)}
           onChange={(e) => patch({ priority: Number(e.target.value) })}
-        >
-          {[0, 1, 2, 3, 4, 5].map((p) => (
-            <option key={p} value={p}>
-              Priority {p}
-            </option>
-          ))}
-        </Select>
+          options={[0, 1, 2, 3, 4, 5].map((p) => ({
+            label: `Priority ${p}`,
+            value: String(p),
+          }))}
+        />
       </label>
-      <Button type="submit" fullWidth loading={submitting}>
+      <Button type="submit" className="w-full" isLoading={submitting}>
         {isEdit ? 'Save period' : 'Add period'}
       </Button>
       {isEdit && onDelete ? (
-        <Button type="button" variant="danger" fullWidth onClick={onDelete}>
+        <Button type="button" color="primary-destructive" className="w-full" onClick={onDelete}>
           Delete period
         </Button>
       ) : null}

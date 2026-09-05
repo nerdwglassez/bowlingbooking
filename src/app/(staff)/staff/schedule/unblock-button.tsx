@@ -3,7 +3,7 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/base/buttons/button'
 import { unblockLanes } from '@/lib/actions/staff'
 
 export function UnblockButton({ blockId }: { blockId: string }) {
@@ -12,9 +12,9 @@ export function UnblockButton({ blockId }: { blockId: string }) {
 
   return (
     <Button
-      variant="ghost"
+      color="tertiary"
       size="sm"
-      loading={pending}
+      isLoading={pending}
       onClick={() =>
         startTransition(async () => {
           await unblockLanes(blockId)
