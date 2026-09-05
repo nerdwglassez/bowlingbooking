@@ -18,8 +18,7 @@
 //   2  → script error (e.g. invalid args, missing files)
 // ============================================================
 
-import { readFile } from 'node:fs/promises'
-import { glob } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { argv, exit } from 'node:process'
 
 const DEFAULT_GLOBS = ['src/**/*.{ts,tsx}']
@@ -196,11 +195,69 @@ const UI_SHIM_ALLOWLIST = new Set([
   'src/components/ui/toggle.tsx',
 ])
 
+/** Convert a simple glob pattern to a RegExp. */
+function globToRegExp(pattern) {
+  let i = 0
+  let out = '^'
+  while (i < pattern.length) {
+    const c = pattern[i]
+    if (c === '*') {
+      if (pattern[i + 1] === '*') {
+        i += 2
+        if (pattern[i] === '/') i++
+        out += '(?:.*/)?'
+        continue
+      }
+      out += '[^/]*'
+      i++
+      continue
+    }
+    if (c === '?') {
+      out += '[^/]'
+      i++
+      continue
+    }
+    if (c === '{') {
+      const end = pattern.indexOf('}', i)
+      const inner = pattern.slice(i + 1, end)
+      out += `(?:${inner.split(',').map(escapeRegex).join('|')})`
+      i = end + 1
+      continue
+    }
+    out += escapeRegex(c)
+    i++
+  }
+  return new RegExp(`${out}$`)
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+}
+
 async function expandGlobs(patterns) {
   const files = new Set()
   for (const pattern of patterns) {
-    for await (const file of glob(pattern)) {
-      files.add(file)
+    if (!/[*?{]/.test(pattern)) {
+      files.add(pattern.replaceAll('\\', '/'))
+      continue
+    }
+    const firstMeta = pattern.search(/[*?{]/)
+    const slashBefore = pattern.lastIndexOf('/', firstMeta)
+    const root = slashBefore <= 0 ? '.' : pattern.slice(0, slashBefore)
+    const relPattern =
+      slashBefore <= 0 ? pattern : pattern.slice(slashBefore + 1)
+    const regex = globToRegExp(relPattern)
+    let entries
+    try {
+      entries = await readdir(root, { recursive: true })
+    } catch {
+      continue
+    }
+    for (const rel of entries) {
+      const normalized = rel.replaceAll('\\', '/')
+      if (regex.test(normalized)) {
+        files.add(root === '.' ? normalized : `${root}/${normalized}`)
+      }
     }
   }
   return [...files].sort()
