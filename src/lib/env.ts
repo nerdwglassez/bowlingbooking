@@ -225,15 +225,35 @@ export function getRateLimitPolicy(bucket: RateLimitBucket): {
   }
 }
 
+function parseSentrySampleRate(
+  raw: string | undefined,
+  fallback: number,
+): number {
+  if (!raw) return fallback
+  const n = Number.parseFloat(raw)
+  if (!Number.isFinite(n) || n < 0 || n > 1) return fallback
+  return n
+}
+
 /**
- * Sentry performance trace sample rate. Always 0 outside production.
- * Production default 0.1 when SENTRY_TRACES_SAMPLE_RATE is unset.
+ * Default (non-staff) Sentry performance sample rate.
+ * Production fallback 0.2; development 1.0 so local DSN verification works.
+ * Tests stay at 0 unless SENTRY_TRACES_SAMPLE_RATE is set.
  */
 export function getSentryTracesSampleRate(): number {
-  if (process.env.NODE_ENV !== 'production') return 0
   const raw = process.env['SENTRY_TRACES_SAMPLE_RATE']?.trim()
-  if (!raw) return 0.1
-  const n = Number.parseFloat(raw)
-  if (!Number.isFinite(n) || n < 0 || n > 1) return 0.1
-  return n
+  if (process.env.NODE_ENV === 'test' && !raw) return 0
+  const fallback = process.env.NODE_ENV === 'production' ? 0.2 : 1
+  return parseSentrySampleRate(raw, fallback)
+}
+
+/**
+ * Staff/admin dashboard traces. Employee traffic is low-volume — default 1.0
+ * so Web Vitals for `/staff` actually land. Override with
+ * SENTRY_STAFF_TRACES_SAMPLE_RATE (0–1).
+ */
+export function getSentryStaffTracesSampleRate(): number {
+  const raw = process.env['SENTRY_STAFF_TRACES_SAMPLE_RATE']?.trim()
+  if (process.env.NODE_ENV === 'test' && !raw) return 0
+  return parseSentrySampleRate(raw, 1)
 }
