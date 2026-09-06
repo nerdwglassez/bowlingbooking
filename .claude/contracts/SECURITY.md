@@ -76,3 +76,8 @@ Run `.cursor/skills/security-review/SKILL.md` (or `/security-review`) on every P
 ## When to extend this contract
 
 Add a new drift grep when the same vulnerability class appears twice (e.g. a second SDK imported outside its wrapper). Add a Vitest test when a security rule has non-trivial branching.
+
+## Superseded drafts
+
+- Audit-log tenant scoping from draft PR #48 is landed in the employee-experience hardening branch (supersedes #48).
+- Prefer this branch over stale stacks #47 / #48.
