@@ -267,8 +267,9 @@ export function DashboardClient({
         title="Cancel booking"
         onClose={() => setCancelTarget(null)}
         placement="bottom"
+        desktopPlacement="center"
       >
-        <div className="flex flex-col gap-3 p-4 text-sm">
+        <div className="flex flex-col gap-3 text-sm">
           {cancelTarget ? (
             <>
               <p>
@@ -300,8 +301,9 @@ export function DashboardClient({
         title="Reschedule booking"
         onClose={() => setRescheduleTarget(null)}
         placement="bottom"
+        desktopPlacement="center"
       >
-        <div className="flex flex-col gap-3 p-4 text-sm">
+        <div className="flex flex-col gap-3 text-sm">
           <label className="flex flex-col gap-1">
             <span className="text-xs text-[var(--color-text-secondary)]">
               New start
@@ -448,7 +450,7 @@ function BookingCard({
           <div className="flex gap-2">
             <button
               type="button"
-              className="flex-1 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--color-text-inverted)_12%,transparent)] bg-[color-mix(in_srgb,var(--color-text-inverted)_8%,transparent)] px-3 py-2.5 text-xs font-semibold text-[var(--color-text-inverted)] disabled:cursor-not-allowed disabled:opacity-35"
+              className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--color-text-inverted)_12%,transparent)] bg-[color-mix(in_srgb,var(--color-text-inverted)_8%,transparent)] px-3 py-2.5 text-xs font-semibold text-[var(--color-text-inverted)] disabled:cursor-not-allowed disabled:opacity-35"
               disabled={!row.reschedulable || selfServeLocked}
               onClick={onReschedule}
             >
@@ -456,7 +458,7 @@ function BookingCard({
             </button>
             <button
               type="button"
-              className="flex-1 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--status-error-text)_20%,transparent)] bg-[color-mix(in_srgb,var(--status-error-text)_10%,transparent)] px-3 py-2.5 text-xs font-semibold text-[var(--status-error-text)] disabled:cursor-not-allowed disabled:opacity-35"
+              className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--status-error-text)_20%,transparent)] bg-[color-mix(in_srgb,var(--status-error-text)_10%,transparent)] px-3 py-2.5 text-xs font-semibold text-[var(--status-error-text)] disabled:cursor-not-allowed disabled:opacity-35"
               disabled={!row.cancellable || selfServeLocked}
               onClick={onCancel}
             >
@@ -529,7 +531,7 @@ function BookingCard({
           <div className="flex gap-1.5">
             <button
               type="button"
-              className="flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--surface-sunken)] px-2.5 py-2 text-[11px] font-semibold text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-35"
+              className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--surface-sunken)] px-2.5 py-2 text-[11px] font-semibold text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-35"
               disabled={!row.reschedulable || selfServeLocked}
               onClick={onReschedule}
             >
@@ -537,7 +539,7 @@ function BookingCard({
             </button>
             <button
               type="button"
-              className="flex-1 rounded-[var(--radius-sm)] border border-[color-mix(in_srgb,var(--status-error-text)_20%,transparent)] bg-[var(--status-error-bg)] px-2.5 py-2 text-[11px] font-semibold text-[var(--status-error-text)] disabled:cursor-not-allowed disabled:opacity-35"
+              className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-sm)] border border-[color-mix(in_srgb,var(--status-error-text)_20%,transparent)] bg-[var(--status-error-bg)] px-2.5 py-2 text-[11px] font-semibold text-[var(--status-error-text)] disabled:cursor-not-allowed disabled:opacity-35"
               disabled={!row.cancellable || selfServeLocked}
               onClick={onCancel}
             >

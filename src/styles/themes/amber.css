@@ -1,0 +1,21 @@
+[data-theme-preset='amber'] {
+  --color-brand-50: rgb(255 251 235);
+  --color-brand-100: rgb(254 243 199);
+  --color-brand-200: rgb(253 230 138);
+  --color-brand-300: rgb(252 211 77);
+  --color-brand-400: rgb(251 191 36);
+  --color-brand-500: rgb(245 158 11);
+  --color-brand-600: rgb(217 119 6);
+  --color-brand-700: rgb(180 83 9);
+  --color-brand-800: rgb(146 64 14);
+  --color-brand-900: rgb(120 53 15);
+  --color-brand-950: rgb(69 26 3);
+  --color-action: #F59E0B;
+  --color-action-hover: #D97706;
+  --color-action-subtle: #FFFBEB;
+  --color-action-tint: #FEF3C7;
+  --color-action-text: #92400E;
+  --color-action-dark: #FBBF24;
+  --surface-dark: #1C1917;
+  --surface-booking-chrome: #1C1917;
+}

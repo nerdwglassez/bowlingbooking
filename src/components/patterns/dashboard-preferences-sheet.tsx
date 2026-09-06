@@ -14,8 +14,8 @@ export function DashboardPreferencesSheet({
   displayName: string
 }) {
   return (
-    <BottomSheet open={open} title="Preferences" onClose={onClose} placement="bottom">
-      <div className="flex flex-col gap-4 p-4 text-sm">
+    <BottomSheet open={open} title="Preferences" onClose={onClose} placement="bottom" desktopPlacement="end">
+      <div className="flex flex-col gap-4 text-sm">
         <p className="text-[var(--color-text-secondary)]">
           Signed in as{' '}
           <span className="font-medium text-[var(--color-text-primary)]">

@@ -1,24 +1,29 @@
 /* ============================================================
-   default.css — Royal Z Lanes default theme preset
-   
-   This file intentionally applies no overrides: `tokens.css` is the default.
-   
-   Other presets live in sibling files (`midnight.css`, `sunset.css`, …).
-   Each non-default preset uses a root selector:
+   default.css — stock Untitled brand (no overrides)
+
+   Base tokens in theme.css + tokens.css already use Untitled purple.
+   This preset is a no-op so `data-theme-preset="default"` is valid.
+
+   Other presets live in sibling files (`amber.css`, `midnight.css`, `sunset.css`).
+   Each non-default preset uses:
      [data-theme-preset="<slug>"] { … }
    Set `data-theme-preset` on `<html>` (alongside `data-theme="light|dark"`).
-   The two attributes are orthogonal: light/dark mode vs brand palette.
-   
-   Override ONLY these semantic tokens (nothing else in components):
+   Light/dark mode and brand palette are orthogonal.
+
+   Override brand + action together for tenant rebrands:
+     --color-brand-50 … --color-brand-950
      --color-action
      --color-action-hover
      --color-action-subtle
      --color-action-tint
-     --color-action-text   (text on tint backgrounds — keep WCAG AA)
-     --color-action-dark   (accent on dark surfaces)
+     --color-action-text
+     --color-action-dark
    Optional:
-     --surface-dark        (staff chrome / brand stripe)
-   
+     --surface-dark / --surface-booking-chrome
+
+   Staff (`data-app="staff"`) always reasserts stock Untitled purple so
+   employee chrome does not pick up a tenant customer brand.
+
    After adding a new preset CSS file, import it in `src/app/globals.css`
    and register it in `src/lib/themes.ts` (`THEME_PRESETS`).
    ============================================================ */

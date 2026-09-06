@@ -97,7 +97,7 @@ export function PackageCard({
 
       <button
         type="button"
-        className="block border-0 bg-transparent p-0 text-[11px] font-semibold text-[var(--color-action)]"
+        className="inline-flex min-h-11 items-center border-0 bg-transparent p-0 text-[11px] font-semibold text-[var(--color-action)]"
         onClick={(e) => {
           e.stopPropagation()
           onOpenDetails(pkg)

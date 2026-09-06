@@ -113,7 +113,7 @@ changes per venue — not component files.
 
 - Customer: `data-theme="light"` (amber until `/book` is redesigned).
 - Staff / admin: device color scheme via `StaffThemeScope` + `theme` cookie. `data-app="staff"` keeps Untitled purple on light.
-- Sign-in (`/signin`) and password reset (`/forgot-password`, `/reset-password`): always light + `data-app="staff"` so Figma auth screens use Untitled purple, not customer amber.
+- Sign-in (`/signin`) and password reset (`/forgot-password`, `/reset-password`): always light + `data-app="staff"` so Figma auth screens use Untitled purple (staff brand), independent of tenant presets.
 - Do not introduce `.dark-mode` or `next-themes` as a second system.
 
 ## Assets

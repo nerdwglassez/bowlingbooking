@@ -43,7 +43,7 @@ export function BookingAppHeader({
       {showSignIn && !signedIn && signInHref ? (
         <Link
           href={signInHref}
-          className="shrink-0 text-xs font-medium text-[var(--color-booking-chrome-link)]"
+          className="inline-flex min-h-11 shrink-0 items-center text-xs font-medium text-[var(--color-booking-chrome-link)]"
         >
           Sign in
         </Link>

@@ -52,7 +52,7 @@ These files must stay **re-exports or thin wrappers**, not independent implement
 
 1. Untitled MCP `search_components` → `get_component` → run CLI.
 2. Point `cx` / helpers at `@/lib/cx` (and `@/lib/is-react-component` if needed).
-3. Ensure colors use theme semantic utilities (stock Untitled brand on staff dark; amber brand on customer light).
+3. Ensure colors use theme semantic utilities (stock Untitled brand by default; tenant presets may remap brand/action).
 4. Run `npm run drift` and `npm run verify`.
 
 ## Related

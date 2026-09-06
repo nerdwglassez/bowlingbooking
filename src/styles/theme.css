@@ -1,7 +1,8 @@
 /* ============================================================
    theme.css — Untitled UI @theme (bridged for Royal Z Lanes)
-   - Light (customer): brand scale remapped to amber
-   - Dark (staff): stock Untitled brand (purple). Custom venue colors later.
+   - Default brand: stock Untitled purple (shared by staff + customer)
+   - Tenant presets may remap --color-brand-* / --color-action* via
+     [data-theme-preset]; staff keeps stock purple via [data-app="staff"]
    - Fonts: Fraunces / DM Sans via next/font CSS variables
    - Dark mode: [data-theme="dark"] (not .dark-mode)
    ============================================================ */
@@ -111,17 +112,17 @@
     --color-alpha-white: rgb(255 255 255);
     --color-alpha-black: rgb(0 0 0);
 
-    --color-brand-50: rgb(255 251 235);
-    --color-brand-100: rgb(254 243 199);
-    --color-brand-200: rgb(253 230 138);
-    --color-brand-300: rgb(252 211 77);
-    --color-brand-400: rgb(251 191 36);
-    --color-brand-500: rgb(245 158 11);
-    --color-brand-600: rgb(217 119 6);
-    --color-brand-700: rgb(180 83 9);
-    --color-brand-800: rgb(146 64 14);
-    --color-brand-900: rgb(120 53 15);
-    --color-brand-950: rgb(69 26 3);
+    --color-brand-50: rgb(249 245 255);
+    --color-brand-100: rgb(244 235 255);
+    --color-brand-200: rgb(233 215 254);
+    --color-brand-300: rgb(214 187 251);
+    --color-brand-400: rgb(182 146 246);
+    --color-brand-500: rgb(158 119 237);
+    --color-brand-600: rgb(127 86 217);
+    --color-brand-700: rgb(105 65 198);
+    --color-brand-800: rgb(83 56 158);
+    --color-brand-900: rgb(66 48 125);
+    --color-brand-950: rgb(42 29 80);
 
     /* LIGHT MODE VARIABLES */
 
@@ -482,7 +483,7 @@
 }
 
 @layer base {
-    /* Staff light: stock Untitled brand (purple). Customer light stays amber. */
+    /* Staff always stock Untitled purple — wins over tenant brand presets. */
     [data-app="staff"] {
         --color-brand-50: rgb(249 245 255);
         --color-brand-100: rgb(244 235 255);
@@ -495,7 +496,16 @@
         --color-brand-800: rgb(83 56 158);
         --color-brand-900: rgb(66 48 125);
         --color-brand-950: rgb(42 29 80);
+
+        --color-action: var(--color-brand-600);
+        --color-action-hover: var(--color-brand-700);
+        --color-action-subtle: var(--color-brand-50);
+        --color-action-tint: var(--color-brand-100);
+        --color-action-text: var(--color-brand-800);
+        --color-action-dark: var(--color-brand-400);
+        --color-chrome-link: var(--color-brand-300);
     }
+
 
     /* DARK MODE VARIABLES */
 
@@ -503,7 +513,7 @@
         --color-alpha-white: rgb(12 14 18);
         --color-alpha-black: rgb(255 255 255);
 
-        /* Stock Untitled brand (purple). Light theme keeps amber for /book. */
+        /* Stock Untitled brand (purple) in dark mode. */
         --color-brand-50: rgb(249 245 255);
         --color-brand-100: rgb(244 235 255);
         --color-brand-200: rgb(233 215 254);

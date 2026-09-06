@@ -83,7 +83,7 @@ export function PackageDetailSheet({
   return (
     <div
       className={cn(
-        'fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center md:p-4',
+        'fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center lg:p-4',
         className,
       )}
     >
@@ -103,14 +103,14 @@ export function PackageDetailSheet({
           'relative mx-auto flex max-h-[min(88dvh,720px)] w-full max-w-md flex-col',
           'border-[var(--color-border)] bg-[var(--surface-raised)]',
           'px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-xl)]',
-          'max-md:sheet-slide-up border-t md:max-w-lg md:rounded-[var(--radius-xl)] md:border',
+          'max-lg:sheet-slide-up border-t lg:max-w-lg lg:rounded-[var(--radius-xl)] lg:border',
         )}
       >
         <button
           type="button"
           className={cn(
             buttonVariants({ variant: 'ghost', size: 'sm' }),
-            'absolute right-2 top-2 z-10 size-9 p-0',
+            'absolute right-2 top-2 z-10 size-11 p-0',
           )}
           onClick={onClose}
           aria-label="Close package details"
@@ -119,7 +119,7 @@ export function PackageDetailSheet({
         </button>
 
         <div
-          className="mx-auto mb-3.5 h-[3px] w-8 shrink-0 rounded-full bg-[var(--color-border-strong)] md:hidden"
+          className="mx-auto mb-3.5 h-[3px] w-8 shrink-0 rounded-full bg-[var(--color-border-strong)] lg:hidden"
           aria-hidden
         />
 

@@ -23,7 +23,7 @@ export function DashboardPageChrome({
 
   return (
     <>
-      <header className="-mx-4 -mt-6 mb-2 flex items-center justify-between gap-3 bg-[var(--surface-dark)] px-4 py-4">
+      <header className="-mx-4 -mt-6 mb-2 flex items-center justify-between gap-3 bg-[var(--surface-dark)] px-4 py-4 lg:-mx-8 lg:-mt-8 lg:px-8">
         <div className="min-w-0 flex-1">
           <h2 className="text-base [font-family:var(--font-display)] text-[var(--color-text-inverted)]">
             {venueName}
@@ -37,7 +37,7 @@ export function DashboardPageChrome({
         </div>
         <button
           type="button"
-          className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-full)] border-[1.5px] border-[var(--color-border-on-dark)] bg-[var(--surface-dark)]"
+          className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-full)] border-[1.5px] border-[var(--color-border-on-dark)] bg-[var(--surface-dark)]"
           aria-label="Open preferences"
           onClick={() => setPreferencesOpen(true)}
         >
