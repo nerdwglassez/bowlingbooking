@@ -271,6 +271,7 @@ Then import `globals.css` once in root `layout.tsx`.
 - **Imports:** types and `Prisma` namespace from `@/generated/prisma/client`. Runtime singleton via `@/lib/prisma` only.
 - **Adapter:** `@prisma/adapter-pg` + `pg` — `createPrismaClient()` in `src/lib/prisma.ts`. Never `new PrismaClient()` without an adapter.
 - **CI generate:** `prisma.config.ts` uses a placeholder URL when `DATABASE_URL` is unset so `prisma generate` works without a live DB.
+- **Deploy migrations:** `npm run build` runs `scripts/migrate-deploy.mjs` (`prisma migrate deploy`) when `DATABASE_URL` is a real Postgres URL (Vercel Production/Preview). Skips offline when unset so CI stays DB-free.
 - **Seed:** `npx prisma db seed` — v7 does not auto-seed after `migrate dev`.
 
 ---

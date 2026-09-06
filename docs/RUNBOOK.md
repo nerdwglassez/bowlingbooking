@@ -109,11 +109,11 @@ npx prisma db seed
 8. **Build and start**
 
 ```bash
-npm run build    # runs prisma generate, then next build
+npm run build    # prisma generate → migrate deploy (if DATABASE_URL) → next build
 npm run start
 ```
 
-(On Vercel/similar, the platform runs `build` / `start` for you; ensure env vars are set on the project.)
+(On Vercel/similar, the platform runs `build` / `start` for you; ensure env vars are set on the project. **`npm run build` applies pending Prisma migrations** when `DATABASE_URL` is a real Postgres URL, so Neon stays in sync with `prisma/migrations/` on each deploy.)
 
 9. **DNS + TLS** — Point the production hostname at the host; enable HTTPS.
 
@@ -196,7 +196,7 @@ The app’s **root layout** calls `getTenant()` on every page. In **production**
    - **`DATABASE_URL`** — Neon (or Postgres) connection string with `sslmode=verify-full` (or `require`; normalized automatically)
    - **`DEFAULT_TENANT_SLUG`** — `royalz` (must match `prisma/seed.ts`)
    - **`AUTH_SECRET`** — `npx auth secret`
-3. **Apply schema + seed** against that same database (from your laptop, not on Vercel):
+3. **Apply schema + seed** against that same database (from your laptop, or let the next Vercel build do migrate deploy):
 
    ```bash
    set -a && source .env.local && set +a   # or export DATABASE_URL=...
@@ -204,9 +204,9 @@ The app’s **root layout** calls `getTenant()` on every page. In **production**
    npx prisma db seed
    ```
 
-4. **Redeploy** after env changes (Vercel rebuilds; migrations are not run automatically during `npm run build`).
+4. **Redeploy** after env changes. Vercel’s `npm run build` runs **`prisma migrate deploy`** when `DATABASE_URL` is set, so pending migrations (e.g. `AuditLog.tenant_id`) apply before the new app serves traffic.
 
-Common mistakes: `DATABASE_URL` points at an **old** database (wrong tables), migrations never deployed, or seed never run so slug **`royalz`** is missing.
+Common mistakes: `DATABASE_URL` points at an **old** database (wrong tables), seed never run so slug **`royalz`** is missing, or Preview/Production env is missing `DATABASE_URL` so migrate was skipped.
 
 ### Stripe webhook is failing
 
@@ -329,7 +329,7 @@ From `package.json`:
 
 ```bash
 npm run verify   # tsc --noEmit + eslint + drift-check + vitest
-npm run build    # prisma generate + next build --turbopack
+npm run build    # prisma generate + migrate deploy (if DATABASE_URL) + next build --turbopack
 npm run start    # next start
 ```
 
