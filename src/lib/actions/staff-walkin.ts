@@ -1,5 +1,3 @@
-'use server'
-
 // staff-walkin.ts — Walk-in booking creation.
 
 export {

@@ -1,8 +1,7 @@
-'use server'
-
-// staff.ts — Facade re-exports for staff server actions.
-// Implementations live in staff-impl.ts; domain modules group exports:
-//   staff-cockpit, staff-schedule, staff-walkin, staff-booking-ops
+// staff.ts — Public facade for staff server actions.
+// Implementations live in staff-impl.ts (`'use server'`). Domain modules only
+// group re-exports — they must NOT be `'use server'` files, because Next.js
+// forbids `export *` / non-async re-exports in server-action modules.
 
 export * from '@/lib/actions/staff-cockpit'
 export * from '@/lib/actions/staff-schedule'

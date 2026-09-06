@@ -1,5 +1,3 @@
-'use server'
-
 // staff-booking-ops.ts — Booking detail, modify/cancel, check-in, and payment ops.
 
 export {

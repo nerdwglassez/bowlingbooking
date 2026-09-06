@@ -1,5 +1,3 @@
-'use server'
-
 // staff-schedule.ts — Schedule month/day views and lane blocking.
 
 export {

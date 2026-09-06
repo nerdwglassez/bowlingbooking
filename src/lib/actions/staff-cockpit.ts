@@ -1,6 +1,4 @@
-'use server'
-
-// staff-cockpit.ts — Cockpit / day-of ops reads.
+// staff-cockpit.ts — Cockpit / day-of ops reads (re-exports from staff-impl).
 
 export {
   getTodayBookings,
