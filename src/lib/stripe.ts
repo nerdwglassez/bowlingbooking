@@ -64,6 +64,13 @@ export interface CreatePaymentIntentInput {
   customerEmail?: string
   description?: string
   idempotencyKey?: string
+  /**
+   * Stripe Connect Express/Standard account id (`acct_…`). Used only when
+   * `isStripeConnectDestinationChargesEnabled()` is true.
+   */
+  connectedAccountId?: string | null
+  /** Platform application fee in cents (destination charges only). */
+  applicationFeeAmountCents?: number
 }
 
 export interface CreatePaymentIntentResult {
@@ -78,6 +85,20 @@ export interface CreatePaymentIntentResult {
  * Create a Stripe PaymentIntent. Returns the id + client_secret so the
  * client-side Stripe.js can confirm the card.
  */
+
+/**
+ * Feature flag for Stripe Connect destination charges.
+ * Default off: PaymentIntents charge the platform account only (Connect
+ * onboarding helpers may still exist). Set
+ * `STRIPE_CONNECT_DESTINATION_CHARGES=true` to attach
+ * `transfer_data.destination` (+ optional `application_fee_amount`) when
+ * `connectedAccountId` is provided.
+ */
+export function isStripeConnectDestinationChargesEnabled(): boolean {
+  const raw = process.env.STRIPE_CONNECT_DESTINATION_CHARGES?.trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on'
+}
+
 export async function createPaymentIntent(
   input: CreatePaymentIntentInput,
 ): Promise<CreatePaymentIntentResult> {
@@ -92,7 +113,7 @@ export async function createPaymentIntent(
       mocked: true,
     }
   }
-  const intentParams = {
+  const intentParams: Record<string, unknown> = {
     amount: input.amountCents,
     currency: 'usd',
     automatic_payment_methods: { enabled: true },
@@ -100,11 +121,30 @@ export async function createPaymentIntent(
     receipt_email: input.customerEmail,
     description: input.description,
   }
+
+  const destination =
+    isStripeConnectDestinationChargesEnabled() &&
+    input.connectedAccountId?.trim()
+      ? input.connectedAccountId.trim()
+      : null
+  if (destination) {
+    intentParams.transfer_data = { destination }
+    if (
+      input.applicationFeeAmountCents != null &&
+      input.applicationFeeAmountCents > 0
+    ) {
+      intentParams.application_fee_amount = input.applicationFeeAmountCents
+    }
+  }
+
   const intent = input.idempotencyKey
-    ? await stripe.paymentIntents.create(intentParams, {
-        idempotencyKey: input.idempotencyKey,
-      })
-    : await stripe.paymentIntents.create(intentParams)
+    ? await stripe.paymentIntents.create(
+        intentParams as unknown as unknown as Parameters<typeof stripe.paymentIntents.create>[0],
+        { idempotencyKey: input.idempotencyKey },
+      )
+    : await stripe.paymentIntents.create(
+        intentParams as unknown as unknown as Parameters<typeof stripe.paymentIntents.create>[0],
+      )
   return {
     id: intent.id,
     clientSecret: intent.client_secret ?? '',
