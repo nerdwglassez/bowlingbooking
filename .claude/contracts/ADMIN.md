@@ -208,7 +208,18 @@ Reads `AuditLog` rows ordered by `createdAt` DESC. User name + email are joined 
 
 ### Route
 
-`/admin/reports` redirects to `/staff/reports`. Live analytics/contacts are **MANAGER+** under `/staff/reports` (see `.claude/staff/05_REPORTS.md`). Audit log remains ADMIN-only.
+`/admin/reports` redirects to `/staff/reports`. Live analytics/contacts are **MANAGER+** under `/staff/reports` (see `.claude/staff/05_REPORTS.md`).
+
+### Metric dictionary (shared with staff reports)
+
+- **Gross revenue** — paid CONFIRMED/COMPLETED `Booking.totalAmount` (integer cents).
+- **Refund total** — succeeded `Payment.refundAmount` in the same window (not netted from gross in KPI tiles that show both).
+- **Net revenue** — gross minus succeeded refunds (floored at 0); exposed on staff analytics summary + CSV.
+- **Source mix** — ONLINE / WALK_IN / PHONE paid booking counts and revenue.
+- **Timezone** — window edges and daily buckets use `Tenant.timezone` via `staff-report-metrics`.
+- **Export audit** — `exportStaffAnalyticsCsvAction` writes `REPORT_EXPORTED`.
+
+Audit log remains ADMIN-only.
 
 ### Why ADMIN-only
 

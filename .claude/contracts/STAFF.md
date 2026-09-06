@@ -112,3 +112,7 @@ When you add a new staff action, mirror the existing test layout: `vi.hoisted` f
 - Booking modification lane editor — see `staff/03_MODIFICATION.md`.
 - Stripe Connect OAuth (integrations panel has dashboard URL stub only).
 - **Payment resume link UI redesign** — backend shipped: `createPaymentResumeLink({ paymentIntentId })` verifies the PI is owned by a booking in the caller's tenant, then returns `/book/resume-payment?payment_intent=…`. Cockpit `PaymentResumePanel` hidden pending Figma; target: booking detail action or staff tools sheet.
+
+## Reports export
+
+`exportStaffAnalyticsCsvAction` (MANAGER+) returns CSV and writes `AuditLog` `REPORT_EXPORTED`. Metrics: `.claude/staff/05_REPORTS.md`.
