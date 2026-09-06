@@ -39,6 +39,7 @@ describe('staff-reports actions', () => {
       id: 'u1',
       role: 'MANAGER',
       email: 'mgr@test.com',
+      tenantId: 't1',
     })
     mocks.isDevWithoutDbMock.mockReturnValue(true)
   })
@@ -66,5 +67,15 @@ describe('staff-reports actions', () => {
     const detail = await getStaffContactDetail('t1', id)
     expect(detail?.name).toBe('Jordan Rivera')
     expect(detail?.history.length).toBeGreaterThan(1)
+  })
+
+  it('rejects cross-tenant analytics tenantId', async () => {
+    await expect(
+      getStaffAnalyticsSummary('other-tenant', 'month'),
+    ).rejects.toThrow(/not found/i)
+  })
+
+  it('rejects cross-tenant contacts tenantId', async () => {
+    await expect(listStaffContacts('other-tenant')).rejects.toThrow(/not found/i)
   })
 })

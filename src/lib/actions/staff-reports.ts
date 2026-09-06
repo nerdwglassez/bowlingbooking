@@ -5,6 +5,7 @@
 import { requireRole } from '@/lib/auth'
 import { shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
+import { assertStaffTenantAccess } from '@/lib/tenant-access'
 import {
   busiestDayFromBookings,
   buildWeeklyBars,
@@ -425,7 +426,8 @@ export async function getStaffAnalyticsSummary(
   customStart?: string,
   customEnd?: string,
 ): Promise<StaffAnalyticsSummary> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
   const period = normalizeStaffReportsPeriod(periodInput)
 
   if (shouldUseDevDbFallback()) {
@@ -467,7 +469,8 @@ export async function getStaffAnalyticsSummary(
 export async function listStaffContacts(
   tenantId: string,
 ): Promise<StaffContactRow[]> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
 
   if (shouldUseDevDbFallback()) {
     return MOCK_CONTACTS
@@ -526,7 +529,8 @@ export async function getStaffContactDetail(
   tenantId: string,
   contactId: string,
 ): Promise<StaffContactDetail | null> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
 
   if (shouldUseDevDbFallback()) {
     return mockContactDetail(contactId)

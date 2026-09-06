@@ -35,22 +35,15 @@ import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import type { Tenant } from '@/types'
 import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
+import {
+  assertStaffTenantAccess,
+  requireUserTenantId,
+} from '@/lib/tenant-access'
 
 const WALK_IN_CODE_MAX_RETRIES = 5
 
 function requireStaffTenantId(user: CurrentUser): string {
-  if (!user.tenantId) {
-    throw new Error('Staff user has no tenant context.')
-  }
-  return user.tenantId
-}
-
-function assertStaffTenantAccess(user: CurrentUser, tenantId: string): string {
-  const staffTenantId = requireStaffTenantId(user)
-  if (staffTenantId !== tenantId) {
-    throw new Error('Resource not found.')
-  }
-  return staffTenantId
+  return requireUserTenantId(user)
 }
 
 // ── Shared types ──────────────────────────────────────────
@@ -773,7 +766,8 @@ export interface BlockLanesResult {
 export async function blockLanes(
   input: BlockLanesInput,
 ): Promise<BlockLanesResult> {
-  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  // Spec (.claude/staff/04_SCHEDULE.md): only Admin may create lane blocks.
+  const user = await requireRole('ADMIN')
   if (input.endTime <= input.startTime) {
     throw new Error('blockLanes: endTime must be after startTime')
   }
@@ -795,6 +789,7 @@ export async function blockLanes(
     })
     await tx.auditLog.create({
       data: {
+        tenantId: input.tenantId,
         userId: user.id,
         action: 'LANE_BLOCK_CREATED',
         entityType: 'BlockedSlot',
@@ -1159,7 +1154,8 @@ export async function autoCompletePastBookingsAction(
 }
 
 export async function unblockLanes(blockId: string): Promise<void> {
-  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  // Spec (.claude/staff/04_SCHEDULE.md): only Admin may delete lane blocks.
+  const user = await requireRole('ADMIN')
   if (isDevWithoutDb()) return
   const tenantId = requireStaffTenantId(user)
   await prisma.$transaction(async (tx) => {
@@ -1171,6 +1167,7 @@ export async function unblockLanes(blockId: string): Promise<void> {
     }
     await tx.auditLog.create({
       data: {
+        tenantId,
         userId: user.id,
         action: 'LANE_BLOCK_REMOVED',
         entityType: 'BlockedSlot',

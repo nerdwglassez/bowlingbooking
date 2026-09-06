@@ -58,6 +58,8 @@ router.push(`/staff/bookings/${result.bookingId}`)
 
 ## Lifecycle: lane block
 
+**Authorization:** only **ADMIN** may create or delete lane blocks (`blockLanes` / `unblockLanes`). The schedule UI already hides the form from STAFF/MANAGER; the server action enforces the same rule.
+
 ```
 Staff opens /staff/schedule
   ↓

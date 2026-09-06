@@ -52,6 +52,10 @@ Run `.cursor/skills/security-review/SKILL.md` (or `/security-review`) on every P
 - [ ] Server actions validate and bound all `FormData` / JSON inputs (length, format, enums)
 - [ ] Monetary values are integer cents; no float money
 - [ ] IDs from the client are re-validated server-side (exist, tenant scope, status)
+- [ ] Staff/admin reads that accept `tenantId` call `assertStaffTenantAccess` / `assertAdminTenantAccess` (session-bound). Platform ADMIN is only `role === 'ADMIN' && tenantId == null`.
+- [ ] `listAuditLogs` scopes by `AuditLog.tenantId` for tenant-bound ADMIN; platform ADMIN may read all tenants.
+- [ ] Payment resume links are minted only for PaymentIntents owned by the caller\'s tenant booking.
+- [ ] Lane block mutations (`blockLanes` / `unblockLanes`) are ADMIN-only.
 
 ### Public abuse surfaces
 

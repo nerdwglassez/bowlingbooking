@@ -194,6 +194,14 @@ function adminUser() {
     tenantId: 't1',
   }
 }
+
+function platformAdminUser() {
+  return {
+    ...adminUser(),
+    tenantId: null as string | null,
+  }
+}
+
 function managerUser() {
   return {
     id: 'user_mgr',
@@ -1009,7 +1017,7 @@ describe('updateProfileAction', () => {
 })
 
 describe('listAuditLogs', () => {
-  let auditAuthUser: ReturnType<typeof adminUser> | ReturnType<typeof managerUser> | ReturnType<typeof staffUser> | null
+  let auditAuthUser: ReturnType<typeof adminUser> | ReturnType<typeof platformAdminUser> | ReturnType<typeof managerUser> | ReturnType<typeof staffUser> | null
 
   beforeEach(() => {
     auditAuthUser = adminUser()
@@ -1065,6 +1073,40 @@ describe('listAuditLogs', () => {
     expect(page.entries[0].userName).toBe('Admin')
     expect(page.entries[0].userEmail).toBe('admin@royalz.local')
     expect(mocks.requireRoleMock).toHaveBeenCalledWith('ADMIN')
+  })
+
+  it('scopes audit rows to the tenant for tenant-bound ADMIN users', async () => {
+    auditAuthUser = adminUser()
+    mocks.auditFindMany.mockResolvedValue([])
+    mocks.auditCount.mockResolvedValue(0)
+
+    await listAuditLogs({})
+
+    expect(mocks.auditFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { tenantId: 't1' },
+              ]),
+            }),
+          ],
+        }),
+      }),
+    )
+  })
+
+  it('does not tenant-scope platform ADMIN users without a tenant context', async () => {
+    auditAuthUser = platformAdminUser()
+    mocks.auditFindMany.mockResolvedValue([])
+    mocks.auditCount.mockResolvedValue(0)
+
+    await listAuditLogs({})
+
+    expect(mocks.auditFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} }),
+    )
   })
 
   it('returns deterministic mock entries in dev-without-db', async () => {

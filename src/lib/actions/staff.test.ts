@@ -197,7 +197,13 @@ describe('staff actions: role gating', () => {
     )
   })
 
-  it('blockLanes requires STAFF, MANAGER, or ADMIN', async () => {
+  it('blockLanes requires ADMIN only', async () => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_admin',
+      email: 'admin@royalz.local',
+      role: 'ADMIN',
+      tenantId: 't1',
+    })
     mocks.blockCreate.mockResolvedValue({ id: 'block_1' })
     await blockLanes({
       tenantId: 't1',
@@ -205,11 +211,7 @@ describe('staff actions: role gating', () => {
       endTime: new Date(Date.now() + 3600_000),
       lanes: [3, 4],
     })
-    expect(mocks.requireRoleMock).toHaveBeenCalledWith(
-      'STAFF',
-      'MANAGER',
-      'ADMIN',
-    )
+    expect(mocks.requireRoleMock).toHaveBeenCalledWith('ADMIN')
   })
 })
 
@@ -561,6 +563,15 @@ describe('createWalkInBooking', () => {
 })
 
 describe('blockLanes', () => {
+  beforeEach(() => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_admin',
+      email: 'admin@royalz.local',
+      role: 'ADMIN',
+      tenantId: 't1',
+    })
+  })
+
   it('rejects endTime <= startTime', async () => {
     const t = new Date()
     await expect(
@@ -601,6 +612,15 @@ describe('blockLanes', () => {
 })
 
 describe('unblockLanes', () => {
+  beforeEach(() => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_admin',
+      email: 'admin@royalz.local',
+      role: 'ADMIN',
+      tenantId: 't1',
+    })
+  })
+
   it('is a no-op in dev-without-db', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
     await unblockLanes('clxyz123productioncuid')

@@ -24,6 +24,10 @@ import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
 import { appBaseUrl } from '@/lib/secure-tokens'
 import {
+  assertAdminTenantAccess as assertAdminTenantBound,
+  isPlatformAdmin,
+} from '@/lib/tenant-access'
+import {
   createConnectAccountLink,
   createConnectExpressAccount,
   getConnectAccountStatus,
@@ -118,12 +122,7 @@ function assertAdminTenantAccess(
   tenantId: string | null | undefined,
   action: string,
 ): void {
-  if (!tenantId) {
-    throw new Error(`${action}: tenant not found.`)
-  }
-  if (user.tenantId && tenantId !== user.tenantId) {
-    throw new Error(`${action}: cannot access resources outside your tenant.`)
-  }
+  assertAdminTenantBound(user, tenantId, action)
 }
 
 // ── Venue / tenant ────────────────────────────────────────
@@ -1894,7 +1893,10 @@ function normalizeAuditPaging(filter: AuditLogFilter): {
   return { page, pageSize }
 }
 
-function buildAuditWhere(filter: AuditLogFilter): Prisma.AuditLogWhereInput {
+function buildAuditWhere(
+  filter: AuditLogFilter,
+  tenantId?: string | null,
+): Prisma.AuditLogWhereInput {
   const where: Prisma.AuditLogWhereInput = {}
   if (filter.action !== undefined && filter.action !== '') {
     where.action = filter.action
@@ -1913,6 +1915,25 @@ function buildAuditWhere(filter: AuditLogFilter): Prisma.AuditLogWhereInput {
     if (filter.endDate !== undefined) {
       where.createdAt.lte = filter.endDate
     }
+  }
+  if (tenantId) {
+    // Prefer the denormalized tenantId column; fall back to relation
+    // probes for any pre-migration rows that were not backfilled.
+    where.AND = [
+      {
+        OR: [
+          { tenantId },
+          {
+            tenantId: null,
+            OR: [
+              { booking: { is: { tenantId } } },
+              { user: { is: { tenantId } } },
+              { entityType: 'Tenant', entityId: tenantId },
+            ],
+          },
+        ],
+      },
+    ]
   }
   return where
 }
@@ -2039,14 +2060,16 @@ function mockAuditLogPage(filter: AuditLogFilter): AuditLogPage {
 export async function listAuditLogs(
   filter: AuditLogFilter,
 ): Promise<AuditLogPage> {
-  await requireRole('ADMIN')
+  const user = await requireRole('ADMIN')
 
   if (isDevWithoutDb()) {
     return mockAuditLogPage(filter)
   }
 
   const { page, pageSize } = normalizeAuditPaging(filter)
-  const where = buildAuditWhere(filter)
+  // Platform ADMIN (null tenantId) sees all tenants; tenant-bound ADMIN is scoped.
+  const scopeTenantId = isPlatformAdmin(user) ? null : user.tenantId
+  const where = buildAuditWhere(filter, scopeTenantId)
   const skip = (page - 1) * pageSize
 
   const [rows, total] = await Promise.all([
