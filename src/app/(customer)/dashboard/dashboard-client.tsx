@@ -94,11 +94,17 @@ export function DashboardClient({
   const { showToast } = useToast()
   const now = useMemo(() => new Date(), [])
   const upcoming = bookings.filter(
-    (b) => b.startTime > now && b.status === 'CONFIRMED',
+    (b) =>
+      b.startTime > now &&
+      (b.status === 'CONFIRMED' || b.status === 'PENDING_PAYMENT'),
   )
-  const past = bookings.filter(
-    (b) => b.startTime <= now || b.status !== 'CONFIRMED',
-  )
+  const past = bookings.filter((b) => {
+    if (b.status === 'CANCELLED' || b.status === 'COMPLETED' || b.status === 'NO_SHOW') {
+      return true
+    }
+    if (b.startTime <= now) return true
+    return false
+  })
   const featured = upcoming[0] ?? null
   const rest = upcoming.slice(1)
 
@@ -141,10 +147,22 @@ export function DashboardClient({
     setRescheduleTarget(row)
   }
 
+  function handleRescheduleStartChange(value: string) {
+    setDraftStart(value)
+    if (!rescheduleTarget) return
+    const start = new Date(value)
+    if (Number.isNaN(start.getTime())) return
+    const durationMs =
+      rescheduleTarget.endTime.getTime() - rescheduleTarget.startTime.getTime()
+    setDraftEnd(toDatetimeLocal(new Date(start.getTime() + durationMs)))
+  }
+
   function handleRescheduleSave() {
     if (!rescheduleTarget) return
     const start = new Date(draftStart)
-    const end = new Date(draftEnd)
+    const durationMs =
+      rescheduleTarget.endTime.getTime() - rescheduleTarget.startTime.getTime()
+    const end = new Date(start.getTime() + durationMs)
     setError(null)
     startTransition(async () => {
       try {
@@ -311,7 +329,7 @@ export function DashboardClient({
             <Input
               type="datetime-local"
               value={draftStart}
-              onChange={(e) => setDraftStart(e.target.value)}
+              onChange={(e) => handleRescheduleStartChange(e.target.value)}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -321,9 +339,13 @@ export function DashboardClient({
             <Input
               type="datetime-local"
               value={draftEnd}
-              onChange={(e) => setDraftEnd(e.target.value)}
+              disabled
+              readOnly
             />
           </label>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Booking length stays the same.
+          </p>
           {error ? (
             <p className="text-xs text-[var(--status-error-text)]">{error}</p>
           ) : null}
@@ -521,7 +543,7 @@ function BookingCard({
         {showNoSelfServeBadge ? (
           <p className="inline-flex w-fit items-center gap-1 rounded-[var(--radius-full)] border border-[var(--color-border)] bg-[var(--surface-sunken)] px-[7px] py-0.5 text-[9px] font-semibold text-[var(--color-text-muted)]">
             <Users className="size-2.5" strokeWidth={2} aria-hidden />
-            Large group · contact venue to modify
+            Self-serve window closed · contact venue
           </p>
         ) : null}
 

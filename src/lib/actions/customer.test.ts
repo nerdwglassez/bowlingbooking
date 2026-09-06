@@ -426,6 +426,70 @@ describe('cancelBookingAction', () => {
     expect(mocks.bookingUpdate).not.toHaveBeenCalled()
   })
 
+  it('does not issue a second policy refund after a settled partial cancel', async () => {
+    mocks.bookingFindFirst.mockResolvedValue({
+      ...bookingFixture({ totalAmount: 4500 }),
+      cancellationRefundPercentSnapshot: 50,
+    })
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      status: 'succeeded',
+      refundStatus: 'SUCCEEDED',
+      refundAmount: 2250,
+    })
+
+    const result = await cancelBookingAction({
+      email: 'jane@example.com',
+      confirmationCode: 'ABC123',
+    })
+
+    expect(mocks.createRefundMock).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: {
+        status: 'CANCELLED',
+        isRefunded: false,
+        cancellationReason: 'CUSTOMER_REQUEST',
+      },
+    })
+    expect(result.refundAmountCents).toBe(0)
+    expect(result.refundPending).toBe(false)
+  })
+
+  it('refunds only the remaining policy amount after a smaller staff partial', async () => {
+    mocks.bookingFindFirst.mockResolvedValue({
+      ...bookingFixture({ totalAmount: 4500 }),
+      cancellationRefundPercentSnapshot: 50,
+    })
+    mocks.paymentFindUnique.mockResolvedValue({
+      id: 'pay_1',
+      bookingId: 'bk_1',
+      stripePaymentIntentId: 'pi_abc',
+      amount: 4500,
+      status: 'succeeded',
+      refundStatus: 'SUCCEEDED',
+      refundAmount: 1000,
+    })
+
+    const result = await cancelBookingAction({
+      email: 'jane@example.com',
+      confirmationCode: 'ABC123',
+    })
+
+    expect(mocks.createRefundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountCents: 1250,
+        idempotencyKey: 'customer-cancel-refund:bk_1:2250',
+      }),
+    )
+    expect(result.refundAmountCents).toBe(1250)
+    expect(result.refundPending).toBe(true)
+  })
+
   it('limits customer refunds to the remaining Stripe balance', async () => {
     mocks.bookingFindFirst.mockResolvedValue(bookingFixture())
     mocks.paymentFindUnique.mockResolvedValue({
@@ -594,5 +658,75 @@ describe('rescheduleDashboardBookingAction', () => {
     })
 
     expect(mocks.reassignBookingLanesMock).toHaveBeenCalled()
+  })
+
+  it('keeps the original paid duration when the client sends a longer end', async () => {
+    const start = new Date(Date.now() + 48 * 3_600_000)
+    const end = new Date(start.getTime() + 3_600_000)
+    const newStart = new Date(start.getTime() + 24 * 3_600_000)
+    const stretchedEnd = new Date(newStart.getTime() + 4 * 3_600_000)
+    const expectedEnd = new Date(newStart.getTime() + 3_600_000)
+
+    mocks.bookingFindFirst.mockResolvedValue({
+      id: 'bk_1',
+      tenantId: 't1',
+      status: 'CONFIRMED',
+      isRefunded: false,
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime: start,
+      endTime: end,
+      rescheduleWindowHoursSnapshot: 24,
+      bowlersPerLaneSnapshot: 6,
+    })
+
+    await rescheduleDashboardBookingAction({
+      bookingId: 'bk_1',
+      startTime: newStart,
+      endTime: stretchedEnd,
+    })
+
+    expect(mocks.bookingUpdate).toHaveBeenCalledWith({
+      where: { id: 'bk_1' },
+      data: {
+        startTime: newStart,
+        endTime: expectedEnd,
+        laneCount: 1,
+      },
+    })
+    expect(mocks.reassignBookingLanesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        startTime: newStart,
+        endTime: expectedEnd,
+      }),
+    )
+  })
+
+  it('rejects a new start time in the past', async () => {
+    const start = new Date(Date.now() + 48 * 3_600_000)
+    const end = new Date(start.getTime() + 3_600_000)
+
+    mocks.bookingFindFirst.mockResolvedValue({
+      id: 'bk_1',
+      tenantId: 't1',
+      status: 'CONFIRMED',
+      isRefunded: false,
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime: start,
+      endTime: end,
+      rescheduleWindowHoursSnapshot: 24,
+      bowlersPerLaneSnapshot: 6,
+    })
+
+    await expect(
+      rescheduleDashboardBookingAction({
+        bookingId: 'bk_1',
+        startTime: new Date(Date.now() - 3_600_000),
+        endTime: new Date(Date.now()),
+      }),
+    ).rejects.toThrow(/future/i)
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
   })
 })

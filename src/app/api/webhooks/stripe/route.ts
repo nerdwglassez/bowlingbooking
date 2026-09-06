@@ -3,8 +3,10 @@
 // Responsibilities (in order):
 //   1. Verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET.
 //   2. Insert the event into the StripeEvent table for idempotency. A unique
-//      conflict on `id` means we've already processed this event successfully —
-//      return 200 without re-running side effects.
+//      conflict on `id` is not proof of successful side effects: for
+//      payment_intent.succeeded, re-run finalization when no Payment row
+//      exists for the intent (timeout/kill after insert, before Booking).
+//      Other event types stay deduped.
 //   3. Switch on event type:
 //        - payment_intent.succeeded → create Booking from the intent's
 //          metadata, delete the matching BookingHold, send confirmation email.
@@ -458,6 +460,13 @@ async function handlePaymentIntentSucceeded(
       )
       break
     } catch (err) {
+      // Concurrent Stripe retries can both pass the pre-transaction Payment
+      // lookup; the loser hits the unique intent id and must not 500/refund.
+      if (
+        isUniqueConstraintOnField(err, ['stripe_payment_intent_id'])
+      ) {
+        return
+      }
       const retryable =
         attempt < BOOKING_FINALIZE_MAX_RETRIES - 1 &&
         (isSerializableConflict(err) ||
@@ -657,6 +666,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const fresh = await recordStripeEvent(event)
   if (!fresh) {
+    if (event.type === 'payment_intent.succeeded') {
+      try {
+        await handlePaymentIntentSucceeded(
+          event.data.object as Stripe.PaymentIntent,
+        )
+        return NextResponse.json({ received: true, replayed: true })
+      } catch (err) {
+        console.error(
+          `[stripe-webhook] handler error for ${event.type} (replay):`,
+          err,
+        )
+        return NextResponse.json(
+          { error: 'handler-error' },
+          { status: 500 },
+        )
+      }
+    }
     return NextResponse.json({ received: true, duplicate: true })
   }
 

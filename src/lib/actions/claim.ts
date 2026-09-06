@@ -1,8 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { unstable_rethrow } from 'next/navigation'
 
-import { hashPassword } from '@/lib/auth'
+import { AuthError, hashPassword, signIn } from '@/lib/auth'
 import { isDevWithoutDb } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 
@@ -67,6 +68,24 @@ export async function claimBookingAccountAction(
       data: { claimedAt: new Date() },
     })
   })
+
+  // Establish a session before the success page sends the customer to
+  // /dashboard — otherwise requireUser() bounces them to /signin.
+  try {
+    await signIn('credentials', {
+      email,
+      password: input.password,
+      redirect: false,
+    })
+  } catch (err) {
+    unstable_rethrow(err)
+    if (err instanceof AuthError) {
+      throw new Error(
+        'Account created, but sign-in failed. Please sign in with your new password.',
+      )
+    }
+    throw err
+  }
 
   revalidatePath('/dashboard')
   return { ok: true, signInEmail: email }

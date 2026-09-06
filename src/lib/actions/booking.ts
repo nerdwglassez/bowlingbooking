@@ -23,6 +23,8 @@
 //
 // All monetary amounts in args/returns are integer cents.
 
+import { createHash } from 'node:crypto'
+
 import { validatePromoCode } from '@/lib/actions/promo'
 import { generateConfirmationCode } from '@/lib/booking-codes'
 import { policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
@@ -59,6 +61,29 @@ const HOLD_TIMEOUT_MINS_DEFAULT = 10
 const HOLD_TRANSACTION_MAX_ATTEMPTS = 3
 
 import { loadPricingPeriodsForTenant } from '@/lib/pricing-periods-data'
+
+/**
+ * Stripe rejects reuse of an idempotency key with different parameters.
+ * The confirm page recreates the PaymentIntent when promo/package/addons
+ * change, so the key must fingerprint amount + metadata — not just holdId.
+ */
+function paymentIntentIdempotencyKey(
+  holdId: string,
+  amountCents: number,
+  metadata: Record<string, string>,
+): string {
+  const canonical = JSON.stringify({
+    amountCents,
+    metadata: Object.keys(metadata)
+      .sort()
+      .map((key) => [key, metadata[key]]),
+  })
+  const digest = createHash('sha256')
+    .update(canonical)
+    .digest('hex')
+    .slice(0, 32)
+  return `booking-hold:${holdId}:${digest}`
+}
 
 function lanePricingContextForHold(
   tenant: Awaited<ReturnType<typeof getTenant>>,
@@ -102,6 +127,18 @@ export interface AvailableDate {
 const DATE_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
 })
+
+const SLOT_ALREADY_STARTED_MESSAGE =
+  'That time slot has already started. Pick a later time.'
+
+function assertOnlineSlotHasNotStarted(
+  startTime: Date,
+  now: Date = new Date(),
+): void {
+  if (startTime.getTime() <= now.getTime()) {
+    throw new Error(SLOT_ALREADY_STARTED_MESSAGE)
+  }
+}
 
 export async function getAvailableDates(
   tenantId: string,
@@ -196,9 +233,12 @@ function enrichTimeSlotAvailability(
   laneCount: number,
   totalLanes: number,
   reservedLanes: number,
+  now: Date,
 ): TimeSlot {
   const freeLanes = Math.max(0, totalLanes - reservedLanes)
-  const available = totalLanes > 0 && freeLanes >= laneCount
+  const slotInFuture = slot.startTime.getTime() > now.getTime()
+  const available =
+    slotInFuture && totalLanes > 0 && freeLanes >= laneCount
   const spotsRemaining = available ? Math.floor(freeLanes / laneCount) : 0
   return {
     ...slot,
@@ -243,6 +283,7 @@ export async function getAvailableTimeSlots(
   const laneCount = getLaneCount(bowlerCount, bowlersPerLane)
   const slotDurationHours = await resolveSlotDurationHours(tenantId)
   const slots = buildMockSlotsFor(dateISO, slotDurationHours)
+  const now = new Date()
 
   if (isDevWithoutDb()) {
     return slots.map((slot) => {
@@ -253,6 +294,7 @@ export async function getAvailableTimeSlots(
         laneCount,
         MOCK_TOTAL_LANES_DEV,
         reserved,
+        now,
       )
     })
   }
@@ -301,7 +343,13 @@ export async function getAvailableTimeSlots(
       slot.endTime,
       totalLanes,
     )
-    return enrichTimeSlotAvailability(slot, laneCount, totalLanes, reserved)
+    return enrichTimeSlotAvailability(
+      slot,
+      laneCount,
+      totalLanes,
+      reserved,
+      now,
+    )
   })
 }
 
@@ -374,6 +422,7 @@ export async function acquireBookingHold(
   ) {
     throw new Error('Invalid booking time slot.')
   }
+  assertOnlineSlotHasNotStarted(input.startTime)
 
   const tenant = await getTenant()
   if (!isDevWithoutDb() && tenant.id !== input.tenantId) {
@@ -891,7 +940,11 @@ export async function confirmBooking(
     customerEmail: input.customerEmail,
     description: `Booking for ${bowlerCount} bowlers`,
     metadata,
-    idempotencyKey: `booking-hold:${input.holdId}`,
+    idempotencyKey: paymentIntentIdempotencyKey(
+      input.holdId,
+      chargeCents,
+      metadata,
+    ),
   })
 
   return {

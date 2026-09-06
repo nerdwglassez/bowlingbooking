@@ -69,7 +69,9 @@ export async function getDashboardBookings(): Promise<DashboardBookingRow[]> {
     where: {
       tenantId: tenant.id,
       OR: [{ userId: user.id }, ...(email ? [{ customerEmail: email }] : [])],
-      status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT'] },
+      status: {
+        in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'PENDING_PAYMENT', 'CANCELLED'],
+      },
     },
     include: { package: { select: { name: true } } },
     orderBy: { startTime: 'asc' },

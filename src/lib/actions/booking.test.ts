@@ -78,6 +78,15 @@ import {
   releaseBookingHold,
 } from './booking'
 
+/** Local calendar day used for availability tests — must be in the future. */
+const FUTURE_SLOT_DATE = '2027-06-15'
+
+function futureHoldWindow(hoursFromNow = 2): { startTime: Date; endTime: Date } {
+  const startTime = new Date(Date.now() + hoursFromNow * 3_600_000)
+  const endTime = new Date(startTime.getTime() + 2 * 3_600_000)
+  return { startTime, endTime }
+}
+
 beforeEach(() => {
   Object.values(mocks).forEach((m) => {
     if (typeof m === 'function' && 'mockReset' in m) {
@@ -141,7 +150,7 @@ describe('acquireBookingHold', () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
     const result = await acquireBookingHold({
       tenantId: 't1',
-      startTime: new Date(),
+      startTime: new Date(Date.now() + 3_600_000),
       endTime: new Date(Date.now() + 2 * 3_600_000),
       bowlerCount: 6,
     })
@@ -158,8 +167,7 @@ describe('acquireBookingHold', () => {
     const expiresAt = new Date(Date.now() + 7 * 60_000)
     mocks.bookingHoldCreate.mockResolvedValue({ id: 'h1', expiresAt })
 
-    const startTime = new Date('2026-01-01T18:00:00Z')
-    const endTime = new Date('2026-01-01T20:00:00Z')
+    const { startTime, endTime } = futureHoldWindow()
     const result = await acquireBookingHold({
       tenantId: 't1',
       startTime,
@@ -186,8 +194,7 @@ describe('acquireBookingHold', () => {
       maxOnlineBowlers: 18,
     })
     mocks.laneCount.mockResolvedValue(2)
-    const slotStart = new Date('2026-01-01T18:00:00Z')
-    const slotEnd = new Date('2026-01-01T20:00:00Z')
+    const { startTime: slotStart, endTime: slotEnd } = futureHoldWindow()
     mocks.bookingFindMany.mockResolvedValue([
       { startTime: slotStart, endTime: slotEnd, laneCount: 1 },
     ])
@@ -212,8 +219,7 @@ describe('acquireBookingHold', () => {
       maxOnlineBowlers: 18,
     })
     mocks.laneCount.mockResolvedValue(2)
-    const slotStart = new Date('2026-01-01T18:00:00Z')
-    const slotEnd = new Date('2026-01-01T20:00:00Z')
+    const { startTime: slotStart, endTime: slotEnd } = futureHoldWindow()
     mocks.bookingFindMany.mockResolvedValue([])
     mocks.bookingHoldFindMany.mockResolvedValue([])
     mocks.blockedSlotFindMany.mockResolvedValue([
@@ -240,11 +246,23 @@ describe('acquireBookingHold', () => {
     await expect(
       acquireBookingHold({
         tenantId: 'missing',
-        startTime: new Date('2026-01-01T18:00:00Z'),
-        endTime: new Date('2026-01-01T19:00:00Z'),
+        startTime: new Date(Date.now() + 3_600_000),
+        endTime: new Date(Date.now() + 2 * 3_600_000),
         bowlerCount: 1,
       }),
     ).rejects.toThrow(/Tenant not found/i)
+  })
+
+  it('rejects a hold for a slot that has already started', async () => {
+    await expect(
+      acquireBookingHold({
+        tenantId: 't1',
+        startTime: new Date(Date.now() - 3_600_000),
+        endTime: new Date(Date.now() + 3_600_000),
+        bowlerCount: 1,
+      }),
+    ).rejects.toThrow(/already started/i)
+    expect(mocks.bookingHoldCreate).not.toHaveBeenCalled()
   })
 })
 
@@ -271,22 +289,22 @@ describe('releaseBookingHold', () => {
 describe('getAvailableTimeSlots', () => {
   it('returns mock slots with availability fields in dev-without-db', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
-    const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
+    const slots = await getAvailableTimeSlots('t1', FUTURE_SLOT_DATE, 6)
     expect(slots.length).toBe(8)
     expect(mocks.bookingHoldDeleteMany).not.toHaveBeenCalled()
     expect(mocks.bookingFindMany).not.toHaveBeenCalled()
 
-    const hour16 = slots.find((s) => s.id === '2026-01-01-16')
+    const hour16 = slots.find((s) => s.id === `${FUTURE_SLOT_DATE}-16`)
     expect(hour16?.available).toBe(false)
     expect(hour16?.lanesFree).toBe(0)
     expect(hour16?.spotsRemaining).toBe(0)
 
-    const hour20 = slots.find((s) => s.id === '2026-01-01-20')
+    const hour20 = slots.find((s) => s.id === `${FUTURE_SLOT_DATE}-20`)
     expect(hour20?.available).toBe(true)
     expect(hour20?.lanesFree).toBe(6)
     expect(hour20?.spotsRemaining).toBe(6)
 
-    const hour22 = slots.find((s) => s.id === '2026-01-01-22')
+    const hour22 = slots.find((s) => s.id === `${FUTURE_SLOT_DATE}-22`)
     expect(hour22?.available).toBe(true)
     expect(hour22?.lanesFree).toBe(8)
     expect(hour22?.spotsRemaining).toBe(8)
@@ -296,7 +314,7 @@ describe('getAvailableTimeSlots', () => {
     mocks.laneCount.mockResolvedValue(8)
     mocks.bookingFindMany.mockResolvedValue([])
     mocks.bookingHoldFindMany.mockResolvedValue([])
-    await getAvailableTimeSlots('t1', '2026-01-01', 6)
+    await getAvailableTimeSlots('t1', FUTURE_SLOT_DATE, 6)
     expect(mocks.bookingHoldDeleteMany).toHaveBeenCalledWith({
       where: { tenantId: 't1', expiresAt: { lt: expect.any(Date) } },
     })
@@ -306,21 +324,21 @@ describe('getAvailableTimeSlots', () => {
     mocks.laneCount.mockResolvedValue(2)
     mocks.bookingFindMany.mockResolvedValue([
       {
-        startTime: new Date('2026-01-01T18:00:00'),
-        endTime: new Date('2026-01-01T19:00:00'),
+        startTime: new Date(`${FUTURE_SLOT_DATE}T18:00:00`),
+        endTime: new Date(`${FUTURE_SLOT_DATE}T19:00:00`),
         laneCount: 1,
       },
     ])
     mocks.bookingHoldFindMany.mockResolvedValue([
       {
-        startTime: new Date('2026-01-01T18:00:00'),
-        endTime: new Date('2026-01-01T19:00:00'),
+        startTime: new Date(`${FUTURE_SLOT_DATE}T18:00:00`),
+        endTime: new Date(`${FUTURE_SLOT_DATE}T19:00:00`),
         laneCount: 1,
       },
     ])
-    const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
-    const occupied = slots.find((s) => s.id === '2026-01-01-18')
-    const free = slots.find((s) => s.id === '2026-01-01-20')
+    const slots = await getAvailableTimeSlots('t1', FUTURE_SLOT_DATE, 6)
+    const occupied = slots.find((s) => s.id === `${FUTURE_SLOT_DATE}-18`)
+    const free = slots.find((s) => s.id === `${FUTURE_SLOT_DATE}-20`)
     expect(occupied?.available).toBe(false)
     expect(occupied?.spotsRemaining).toBe(0)
     expect(free?.available).toBe(true)
@@ -334,13 +352,13 @@ describe('getAvailableTimeSlots', () => {
     mocks.bookingHoldFindMany.mockResolvedValue([])
     mocks.blockedSlotFindMany.mockResolvedValue([
       {
-        startTime: new Date('2026-01-01T18:00:00'),
-        endTime: new Date('2026-01-01T19:00:00'),
+        startTime: new Date(`${FUTURE_SLOT_DATE}T18:00:00`),
+        endTime: new Date(`${FUTURE_SLOT_DATE}T19:00:00`),
         lanes: [1, 2],
       },
     ])
-    const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
-    const blockedSlot = slots.find((s) => s.id === '2026-01-01-18')
+    const slots = await getAvailableTimeSlots('t1', FUTURE_SLOT_DATE, 6)
+    const blockedSlot = slots.find((s) => s.id === `${FUTURE_SLOT_DATE}-18`)
     expect(blockedSlot?.available).toBe(false)
     expect(blockedSlot?.spotsRemaining).toBe(0)
   })
@@ -349,7 +367,7 @@ describe('getAvailableTimeSlots', () => {
     mocks.laneCount.mockResolvedValue(8)
     mocks.bookingFindMany.mockResolvedValue([])
     mocks.bookingHoldFindMany.mockResolvedValue([])
-    await getAvailableTimeSlots('t1', '2026-01-01', 6)
+    await getAvailableTimeSlots('t1', FUTURE_SLOT_DATE, 6)
     expect(mocks.bookingFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -381,13 +399,22 @@ describe('getAvailableTimeSlots', () => {
       config: { minBookingDurationHours: 1.5 },
     })
 
-    const slots = await getAvailableTimeSlots('t1', '2026-01-01', 6)
+    const slots = await getAvailableTimeSlots('t1', FUTURE_SLOT_DATE, 6)
     const first = slots[0]
     expect(first?.startTime.getHours()).toBe(16)
     expect(first?.endTime.getTime() - first!.startTime.getTime()).toBe(
       1.5 * 60 * 60 * 1000,
     )
     expect(slots.length).toBe(5)
+  })
+
+  it('marks elapsed slots unavailable even when lanes are free', async () => {
+    mocks.laneCount.mockResolvedValue(8)
+    mocks.bookingFindMany.mockResolvedValue([])
+    mocks.bookingHoldFindMany.mockResolvedValue([])
+    const slots = await getAvailableTimeSlots('t1', '2020-01-15', 6)
+    expect(slots.length).toBeGreaterThan(0)
+    expect(slots.every((slot) => slot.available === false)).toBe(true)
   })
 })
 
@@ -548,7 +575,7 @@ describe('confirmBooking', () => {
       expect.objectContaining({
         amountCents: 4500,
         customerEmail: 'jane@example.com',
-        idempotencyKey: 'booking-hold:h1',
+        idempotencyKey: expect.stringMatching(/^booking-hold:h1:[a-f0-9]{32}$/),
         metadata: expect.objectContaining({
           holdId: 'h1',
           tenantId: 't1',
@@ -769,6 +796,64 @@ describe('confirmBooking', () => {
         }),
       }),
     )
+  })
+
+  it('reuses the Stripe idempotency key for identical confirm retries', async () => {
+    const input = {
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_classic',
+      partyType: 'OPEN' as const,
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+    }
+    await confirmBooking(input)
+    await confirmBooking(input)
+    const keys = mocks.createPaymentIntentMock.mock.calls.map(
+      (call) => call[0]?.idempotencyKey,
+    )
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatch(/^booking-hold:h1:[a-f0-9]{32}$/)
+    expect(keys[1]).toBe(keys[0])
+  })
+
+  it('uses a new Stripe idempotency key when promo changes the charge', async () => {
+    const base = {
+      tenantId: 't1',
+      holdId: 'h1',
+      packageId: 'pkg_classic',
+      partyType: 'OPEN' as const,
+      bowlerCount: 4,
+      laneCount: 1,
+      startTime,
+      endTime,
+      totalAmount: 4500,
+      customerName: 'Jane',
+      customerEmail: 'jane@example.com',
+      customerPhone: '555',
+    }
+    await confirmBooking(base)
+    mocks.validatePromoCodeMock.mockResolvedValue({
+      code: 'save10',
+      description: null,
+      discountType: 'FIXED',
+      discountValue: 500,
+      discountCents: 500,
+    })
+    await confirmBooking({ ...base, promoCode: 'SAVE10' })
+    const keys = mocks.createPaymentIntentMock.mock.calls.map(
+      (call) => call[0]?.idempotencyKey,
+    )
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatch(/^booking-hold:h1:[a-f0-9]{32}$/)
+    expect(keys[1]).toMatch(/^booking-hold:h1:[a-f0-9]{32}$/)
+    expect(keys[1]).not.toBe(keys[0])
   })
 })
 
