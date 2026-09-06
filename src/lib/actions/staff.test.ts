@@ -156,7 +156,7 @@ beforeEach(() => {
           findFirst: mocks.bookingFindFirst,
           findMany: mocks.bookingFindMany,
         },
-        payment: { create: mocks.paymentCreate },
+        payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
         auditLog: { create: mocks.auditCreate },
         blockedSlot: {
           create: mocks.blockCreate,
@@ -167,7 +167,7 @@ beforeEach(() => {
         package: { findFirst: mocks.packageFindFirst },
         bookingHold: { findMany: mocks.bookingHoldFindMany },
         lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
-      } as Parameters<typeof fn>[0]),
+      } as unknown as Parameters<typeof fn>[0]),
   )
   mocks.tenantFindUniqueOrThrow.mockResolvedValue({
     id: 't1',
@@ -824,10 +824,17 @@ describe('staffCancelBookingAction', () => {
     mocks.sendCancellationMock.mockResolvedValue({ id: null })
     mocks.txMock.mockImplementation(async (fn) =>
       fn({
-        booking: { update: mocks.bookingUpdate },
+        booking: {
+          create: mocks.bookingCreate,
+          update: mocks.bookingUpdate,
+          updateMany: mocks.bookingUpdateMany,
+          findUnique: mocks.bookingFindUnique,
+          findFirst: mocks.bookingFindFirst,
+          findMany: mocks.bookingFindMany,
+        },
         auditLog: { create: mocks.auditCreate },
-        payment: { update: mocks.paymentUpdate },
-      }),
+        payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
+      } as never),
     )
 
     const result = await staffCancelBookingAction({
@@ -868,10 +875,17 @@ describe('staffCancelBookingAction', () => {
     mocks.sendCancellationMock.mockResolvedValue({ id: null })
     mocks.txMock.mockImplementation(async (fn) =>
       fn({
-        booking: { update: mocks.bookingUpdate },
+        booking: {
+          create: mocks.bookingCreate,
+          update: mocks.bookingUpdate,
+          updateMany: mocks.bookingUpdateMany,
+          findUnique: mocks.bookingFindUnique,
+          findFirst: mocks.bookingFindFirst,
+          findMany: mocks.bookingFindMany,
+        },
         auditLog: { create: mocks.auditCreate },
-        payment: { update: mocks.paymentUpdate },
-      }),
+        payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
+      } as never),
     )
 
     const result = await staffCancelBookingAction({
