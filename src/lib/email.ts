@@ -3,7 +3,7 @@
 // sentinel enforces this.
 //
 // Dev-without-Resend: when `RESEND_API_KEY` is missing in a non-production
-// environment, `sendBookingConfirmation` logs the email payload to the
+// environment, `sendBookingConfirmation` / `sendBookingUpdateConfirmation` log the email payload to the
 // console instead of dispatching. Production refuses to fall back.
 
 import { Resend } from 'resend'
@@ -11,6 +11,7 @@ import QRCode from 'qrcode'
 
 import {
   hasResendApiKey,
+  resolveAppBaseUrl,
   resolveResendFromEmail,
   warnOnce,
 } from '@/lib/env'
@@ -61,16 +62,27 @@ const DATETIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
 })
 
+type BookingEmailKind = 'confirmation' | 'update'
+
 function renderHtml(
   args: BookingConfirmationArgs,
   qrDataUri: string,
+  kind: BookingEmailKind = 'confirmation',
 ): string {
   const dateLine = DATETIME_FORMATTER.format(args.startTime)
+  const heading =
+    kind === 'update'
+      ? `Your reservation at ${escapeHtml(args.venueName)} was updated`
+      : `You're booked at ${escapeHtml(args.venueName)}`
+  const intro =
+    kind === 'update'
+      ? `Hi ${escapeHtml(args.customerName)}, your reservation details have changed. Here is the updated confirmation.`
+      : `Hi ${escapeHtml(args.customerName)}, your reservation is confirmed.`
   return [
     '<!doctype html>',
     '<html><body style="font-family:system-ui,Helvetica,Arial,sans-serif;line-height:1.5;color:#111">',
-    `<h1>You're booked at ${escapeHtml(args.venueName)}</h1>`,
-    `<p>Hi ${escapeHtml(args.customerName)}, your reservation is confirmed.</p>`,
+    `<h1>${heading}</h1>`,
+    `<p>${intro}</p>`,
     '<table cellpadding="6" style="border-collapse:collapse">',
     `<tr><td><strong>Confirmation</strong></td><td>${escapeHtml(args.confirmationCode)}</td></tr>`,
     `<tr><td><strong>When</strong></td><td>${escapeHtml(dateLine)}</td></tr>`,
@@ -94,10 +106,17 @@ function renderHtml(
   ].join('')
 }
 
-function renderText(args: BookingConfirmationArgs): string {
+function renderText(
+  args: BookingConfirmationArgs,
+  kind: BookingEmailKind = 'confirmation',
+): string {
   const dateLine = DATETIME_FORMATTER.format(args.startTime)
+  const title =
+    kind === 'update'
+      ? `${args.venueName} — booking updated`
+      : `${args.venueName} — booking confirmed`
   return [
-    `${args.venueName} — booking confirmed`,
+    title,
     `Confirmation: ${args.confirmationCode}`,
     `When: ${dateLine}`,
     `Package: ${args.packageName}`,
@@ -338,11 +357,64 @@ export async function sendBookingConfirmation(
     to: args.to,
     ...(replyTo ? { reply_to: replyTo } : {}),
     subject: `${args.venueName} — booking confirmed (${args.confirmationCode})`,
-    html: renderHtml(args, qrDataUri),
-    text: renderText(args),
+    html: renderHtml(args, qrDataUri, 'confirmation'),
+    text: renderText(args, 'confirmation'),
   })
   if (error) {
     throw new Error(`Resend send failed: ${error.message ?? 'unknown error'}`)
   }
   return { id: data?.id ?? null }
 }
+
+/** Absolute customer links used in booking emails. */
+export function bookingCustomerEmailLinks(
+  confirmationCode: string,
+  emailAddress: string,
+): { manageUrl: string; dashboardUrl: string; icsUrl: string } {
+  const base = resolveAppBaseUrl()
+  const encodedEmail = encodeURIComponent(emailAddress)
+  const encodedCode = encodeURIComponent(confirmationCode)
+  return {
+    manageUrl: `${base}/find-my-booking/${confirmationCode}?email=${encodedEmail}`,
+    dashboardUrl: `${base}/dashboard`,
+    icsUrl: `${base}/api/bookings/${encodedCode}/ics?email=${encodedEmail}`,
+  }
+}
+
+/**
+ * Send a reservation-update email after customer reschedule or staff modify.
+ * Call sites should treat this as best-effort (log failures; do not roll back).
+ */
+export async function sendBookingUpdateConfirmation(
+  args: BookingConfirmationArgs,
+): Promise<{ id: string | null }> {
+  const qrDataUri = await QRCode.toDataURL(args.confirmationCode, {
+    margin: 1,
+    width: 320,
+  })
+
+  const resend = resolveResend()
+  if (!resend) {
+    console.log(
+      `[email-mock] would send booking update to ${args.to} ` +
+        `(code=${args.confirmationCode})`,
+    )
+    return { id: null }
+  }
+
+  const from = resolveResendFromEmail()
+  const replyTo = args.replyTo?.trim()
+  const { data, error } = await resend.emails.send({
+    from,
+    to: args.to,
+    ...(replyTo ? { reply_to: replyTo } : {}),
+    subject: `${args.venueName} — booking updated (${args.confirmationCode})`,
+    html: renderHtml(args, qrDataUri, 'update'),
+    text: renderText(args, 'update'),
+  })
+  if (error) {
+    throw new Error(`Resend send failed: ${error.message ?? 'unknown error'}`)
+  }
+  return { id: data?.id ?? null }
+}
+

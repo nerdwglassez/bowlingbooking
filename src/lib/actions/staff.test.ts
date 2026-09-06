@@ -19,6 +19,12 @@ const mocks = vi.hoisted(() => {
   const paymentUpdate = vi.fn()
   const createRefundMock = vi.fn()
   const sendCancellationMock = vi.fn()
+  const sendUpdateMock = vi.fn()
+  const bookingLinksMock = vi.fn(() => ({
+    manageUrl: 'https://example.com/manage',
+    dashboardUrl: 'https://example.com/dashboard',
+    icsUrl: 'https://example.com/ics',
+  }))
   const txStub = {
     booking: {
       create: bookingCreate,
@@ -53,6 +59,8 @@ const mocks = vi.hoisted(() => {
     paymentUpdate,
     createRefundMock,
     sendCancellationMock,
+    sendUpdateMock,
+    bookingLinksMock,
     auditCreate,
     blockCreate,
     blockDeleteMany,
@@ -61,7 +69,8 @@ const mocks = vi.hoisted(() => {
     packageFindFirst,
     bookingHoldFindMany,
     reassignBookingLanesMock,
-    txMock: vi.fn(
+    tenantFindUnique: vi.fn(),
+  txMock: vi.fn(
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
   }
@@ -96,6 +105,7 @@ vi.mock('@/lib/prisma', () => ({
     blockedSlot: { findMany: mocks.blockFindMany },
     lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
     package: { findFirst: mocks.packageFindFirst },
+    tenant: { findUnique: mocks.tenantFindUnique },
     $transaction: mocks.txMock,
   },
 }))
@@ -113,6 +123,8 @@ vi.mock('@/lib/email', async (importOriginal) => {
   return {
     ...actual,
     sendBookingCancellation: mocks.sendCancellationMock,
+    sendBookingUpdateConfirmation: mocks.sendUpdateMock,
+    bookingCustomerEmailLinks: mocks.bookingLinksMock,
   }
 })
 
@@ -137,6 +149,19 @@ beforeEach(() => {
     if (typeof m === 'function' && 'mockReset' in m) {
       ;(m as ReturnType<typeof vi.fn>).mockReset()
     }
+  })
+  mocks.sendUpdateMock.mockResolvedValue({ id: null })
+  mocks.bookingLinksMock.mockReturnValue({
+    manageUrl: 'https://example.com/manage',
+    dashboardUrl: 'https://example.com/dashboard',
+    icsUrl: 'https://example.com/ics',
+  })
+  mocks.tenantFindUnique.mockResolvedValue({
+    id: 't1',
+    name: 'Test Lanes',
+    address: '1 Test St',
+    phone: '555-0100',
+    config: {},
   })
   mocks.isDevWithoutDbMock.mockReturnValue(false)
   mocks.requireRoleMock.mockResolvedValue({
@@ -693,6 +718,18 @@ describe('staffModifyBookingAction', () => {
       packageId: 'pkg_1',
       partyType: 'OPEN',
       bowlersPerLaneSnapshot: 6,
+      customerEmail: 'jane@example.com',
+      customerName: 'Jane',
+      confirmationCode: 'ABC123',
+      totalAmount: 12000,
+      package: { name: 'Standard' },
+    })
+    mocks.tenantFindUnique.mockResolvedValue({
+      id: 't1',
+      name: 'Test Lanes',
+      address: '1 Test St',
+      phone: '555-0100',
+      config: {},
     })
 
     await staffModifyBookingAction({
@@ -719,6 +756,8 @@ describe('staffModifyBookingAction', () => {
         endTime: newEnd,
       }),
     )
+    expect(mocks.sendUpdateMock).toHaveBeenCalled()
+
   })
 
   it('does not reassign lanes when only notes change', async () => {
@@ -736,6 +775,10 @@ describe('staffModifyBookingAction', () => {
       packageId: 'pkg_1',
       partyType: 'OPEN',
       bowlersPerLaneSnapshot: 6,
+      customerEmail: 'jane@example.com',
+      customerName: 'Jane',
+      confirmationCode: 'ABC123',
+      totalAmount: 12000,
     })
 
     await staffModifyBookingAction({
@@ -744,6 +787,8 @@ describe('staffModifyBookingAction', () => {
     })
 
     expect(mocks.reassignBookingLanesMock).not.toHaveBeenCalled()
+    expect(mocks.sendUpdateMock).not.toHaveBeenCalled()
+
   })
 
   it('rejects modification when the booking belongs to another tenant', async () => {

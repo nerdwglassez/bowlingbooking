@@ -35,7 +35,12 @@ import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import type { Tenant } from '@/types'
 import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
-import { sendBookingCancellation } from '@/lib/email'
+import { getContactEmail } from '@/lib/tenant'
+import {
+  bookingCustomerEmailLinks,
+  sendBookingCancellation,
+  sendBookingUpdateConfirmation,
+} from '@/lib/email'
 import { createRefund } from '@/lib/stripe'
 import {
   assertStaffTenantAccess,
@@ -1069,7 +1074,7 @@ export async function staffModifyBookingAction(
 
   const tenantId = requireStaffTenantId(user)
 
-  await prisma.$transaction(
+  const modifyResult = await prisma.$transaction(
     async (tx) => {
     const existing = await tx.booking.findFirst({
       where: { id: input.bookingId, tenantId },
@@ -1161,6 +1166,11 @@ export async function staffModifyBookingAction(
       endTime.getTime() !== existing.endTime.getTime() ||
       laneCount !== existing.laneCount
 
+    const customerFacingChanged =
+      timesOrLanesChanged ||
+      bowlerCount !== existing.bowlerCount ||
+      packageId !== existing.packageId
+
     await tx.booking.update({
       where: { id: input.bookingId },
       data: {
@@ -1201,9 +1211,48 @@ export async function staffModifyBookingAction(
         },
       },
     })
+
+    return {
+      customerFacingChanged,
+      customerEmail: existing.customerEmail,
+    }
   },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   )
+
+  if (modifyResult.customerFacingChanged && modifyResult.customerEmail) {
+    const updated = await prisma.booking.findFirst({
+      where: { id: input.bookingId, tenantId },
+      include: { package: { select: { name: true } } },
+    })
+    const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId } })
+    if (updated && tenantRow) {
+      const links = bookingCustomerEmailLinks(
+        updated.confirmationCode,
+        updated.customerEmail,
+      )
+      await sendBookingUpdateConfirmation({
+        to: updated.customerEmail,
+        customerName: updated.customerName,
+        confirmationCode: updated.confirmationCode,
+        startTime: updated.startTime,
+        endTime: updated.endTime,
+        laneCount: updated.laneCount,
+        bowlerCount: updated.bowlerCount,
+        packageName: updated.package?.name ?? 'Bowling package',
+        totalCents: updated.totalAmount,
+        venueName: tenantRow.name,
+        venueAddress: tenantRow.address,
+        venuePhone: tenantRow.phone,
+        manageUrl: links.manageUrl,
+        dashboardUrl: links.dashboardUrl,
+        icsUrl: links.icsUrl,
+        replyTo: getContactEmail(tenantRow as unknown as Tenant),
+      }).catch((err) => {
+        console.error('[staffModifyBookingAction] update email failed', err)
+      })
+    }
+  }
 
   revalidatePath('/staff')
   revalidatePath(`/staff/bookings/${input.bookingId}`)

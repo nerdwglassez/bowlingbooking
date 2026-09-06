@@ -172,6 +172,8 @@ Use Stripe **test** mode keys on a staging hostname first if possible; same step
 5. **Promo code E2E:** In **`/admin/promos`**, create an active promo; run checkout again and apply the code on the confirm step; confirm Stripe charged the discounted amount and the booking row shows **`discount_amount`** (and **`promo_code_id`** when the code was still valid when the webhook ran).
 6. In Stripe Dashboard → **Developers → Events**, confirm **`payment_intent.succeeded`** delivered **200** to your endpoint; check app logs for `[stripe-webhook]` lines on failure.
 7. Confirm the **booking confirmation email** arrived (inbox or Resend dashboard).
+7b. Reschedule or staff-modify a booking; confirm the **booking updated** email arrived.
+7c. Invite a staff member from Settings → Team; confirm the **team invite** email arrived.
 8. Open **`/staff/bookings/[id]`** for that booking (navigate from staff UI). As **`MANAGER`** or **`ADMIN`** (seeded admin qualifies), issue a **refund**. UI should show refund **pending** first.
 9. Confirm **`charge.refunded`** webhook fired and **`Payment.refundStatus`** moved to **`SUCCEEDED`** (and booking cancelled / refunded flags per webhook).
 10. Visit **`/find-my-booking`**, enter the **confirmation code** and **customer email** from the booking.
