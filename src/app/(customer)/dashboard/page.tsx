@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 
@@ -23,7 +22,7 @@ export default async function CustomerDashboardPage() {
 
   return (
     <ToastProvider>
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8 pt-6">
+      <main className="mx-auto flex min-h-dvh w-full max-w-[600px] flex-col gap-4 px-4 pb-8 pt-6 lg:gap-6 lg:px-8 lg:pb-10 lg:pt-8">
         <DashboardPageChrome
           venueName={tenant.name}
           address={tenant.address}

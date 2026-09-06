@@ -58,6 +58,7 @@ export function ShoeSizeRow({
           type="button"
           variant="ghost"
           size="sm"
+          className="min-h-11 min-w-11"
           aria-label={`Remove bowler ${bowlerIndex + 1}`}
           onClick={onRemove}
         >

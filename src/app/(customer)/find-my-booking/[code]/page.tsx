@@ -48,7 +48,7 @@ export default async function BookingDetailPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-4 py-8">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[600px] flex-col gap-6 px-4 py-8 lg:px-8 lg:py-10">
       <header className="flex flex-col gap-1">
         <Link
           href="/find-my-booking"

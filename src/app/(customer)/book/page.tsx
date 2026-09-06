@@ -233,8 +233,8 @@ export default function BookStepOnePage() {
           Pick a date
         </h2>
 
-        {/* Mobile: week strip, optional expand to full calendar */}
-        <div className="md:hidden">
+        {/* < lg: week strip, optional expand to full calendar (staff chrome breakpoint) */}
+        <div className="lg:hidden">
           {!mobileCalendarOpen ? (
             weekPending ? (
               <WeekStripSkeleton />
@@ -252,7 +252,7 @@ export default function BookStepOnePage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="w-fit px-2"
+                className="min-h-11 w-fit px-2"
                 onClick={() => setMobileCalendarOpen(false)}
               >
                 ← This week
@@ -270,8 +270,8 @@ export default function BookStepOnePage() {
           )}
         </div>
 
-        {/* md+: full calendar */}
-        <div className="hidden md:block">
+        {/* lg+: full calendar */}
+        <div className="hidden lg:block">
           <BookingCalendar
             year={year}
             month={month}

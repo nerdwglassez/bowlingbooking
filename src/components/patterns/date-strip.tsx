@@ -41,7 +41,7 @@ export function DateStrip({
             disabled={unavailable}
             onClick={() => onSelect(d.date)}
             className={[
-              'flex min-w-[50px] shrink-0 flex-col items-center rounded-[var(--radius-md)]',
+              'flex min-h-11 min-w-11 shrink-0 flex-col items-center justify-center rounded-[var(--radius-md)]',
               'border-[1.5px] px-3 py-[9px] transition-all',
               unavailable
                 ? 'cursor-not-allowed border-[var(--color-border)] bg-[var(--surface-card)] opacity-30'
@@ -79,7 +79,7 @@ export function DateStrip({
           type="button"
           onClick={onOpenCalendar}
           className={[
-            'flex min-w-[80px] shrink-0 items-center justify-center',
+            'flex min-h-11 min-w-[80px] shrink-0 items-center justify-center',
             'rounded-[var(--radius-md)] border-[1.5px] border-dashed border-[var(--color-border-strong)]',
             'bg-[var(--color-action-subtle)] px-3 py-[9px]',
             'text-[11px] font-medium whitespace-nowrap text-[var(--color-action)]',

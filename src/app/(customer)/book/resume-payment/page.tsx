@@ -26,7 +26,7 @@ function ResumePaymentShell({
 }) {
   const tenant = useTenant()
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-32 pt-6">
+    <main className="mx-auto flex min-h-dvh max-w-[600px] flex-col gap-4 px-4 pb-32 pt-6 lg:px-8 lg:pt-8">
       <VenueHeader venueName={tenant.name} address={tenant.address} />
       <h1 className="text-2xl">Complete your payment</h1>
       <p className="text-sm text-[var(--color-text-secondary)]">

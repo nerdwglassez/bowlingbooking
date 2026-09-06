@@ -39,7 +39,7 @@ export function TimeSlotGrid({
         aria-label="Loading available times"
       >
         {Array.from({ length: 9 }, (_, i) => (
-          <Skeleton key={i} className="min-h-[3.25rem] w-full rounded-[var(--radius-md)]" />
+          <Skeleton key={i} className="min-h-11 w-full rounded-[var(--radius-md)]" />
         ))}
       </div>
     )
@@ -69,7 +69,7 @@ export function TimeSlotGrid({
             disabled={unavailable}
             onClick={() => onSelect(slot)}
             className={[
-              'rounded-[var(--radius-md)] border-[1.5px] px-1.5 py-2.5 text-center transition-all',
+              'min-h-11 rounded-[var(--radius-md)] border-[1.5px] px-1.5 py-2.5 text-center transition-all',
               unavailable
                 ? 'cursor-not-allowed border-[var(--color-border)] bg-[var(--surface-card)] opacity-30'
                 : selected

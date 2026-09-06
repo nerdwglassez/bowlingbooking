@@ -18,7 +18,7 @@ export type BookingSurfaceProps = {
  */
 export function BookingSurface({ children, className }: BookingSurfaceProps) {
   return (
-    <div className="min-h-dvh bg-[var(--surface-ground)] md:bg-[var(--surface-app-backdrop)] md:px-6 md:py-8 lg:px-10 lg:py-10">
+    <div className="min-h-dvh bg-[var(--surface-ground)] md:bg-[var(--surface-app-backdrop)] md:px-6 md:py-8 lg:px-8 lg:py-8">
       <div
         className={cn(
           'mx-auto flex min-h-dvh w-full max-w-md flex-col bg-[var(--surface-ground)]',

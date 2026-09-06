@@ -123,6 +123,7 @@ export function BookingCalendar({
           type="button"
           variant="ghost"
           size="sm"
+          className="min-h-11 min-w-11"
           aria-label="Previous month"
           onClick={() => shiftMonth(-1)}
         >
@@ -138,6 +139,7 @@ export function BookingCalendar({
           type="button"
           variant="ghost"
           size="sm"
+          className="min-h-11 min-w-11"
           aria-label="Next month"
           onClick={() => shiftMonth(1)}
         >
@@ -166,7 +168,7 @@ export function BookingCalendar({
               const disabled = !cell.inMonth || !cell.available
 
               let cellClass =
-                'flex aspect-square w-full items-center justify-center rounded-[var(--radius-md)] text-sm font-medium transition-colors'
+                'flex aspect-square min-h-11 w-full items-center justify-center rounded-[var(--radius-md)] text-sm font-medium transition-colors'
 
               if (!cell.inMonth) {
                 cellClass = cn(
