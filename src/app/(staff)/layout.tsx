@@ -10,13 +10,23 @@
 
 export const dynamic = 'force-dynamic'
 
+import type { Metadata, Viewport } from 'next'
+
 import { AppShell } from '@/components/chrome/app-shell'
 import { StaffObservabilityScope } from '@/components/chrome/staff-observability-scope'
 import { StaffThemeScope } from '@/components/chrome/staff-theme-scope'
 import { StaffToastProvider } from '@/components/chrome/staff-toast-provider'
 import { requireRole } from '@/lib/auth'
 import { setObservabilitySurface } from '@/lib/observability'
+import { staffPwaMetadata, staffPwaViewport } from '@/lib/pwa-manifest'
 import { getTenant } from '@/lib/tenant'
+
+/** Standalone PWA chrome for Add to Home Screen (iOS Safari + Android). */
+export async function generateMetadata(): Promise<Metadata> {
+  return staffPwaMetadata(await getTenant())
+}
+
+export const viewport: Viewport = staffPwaViewport
 
 export default async function StaffLayout({
   children,

@@ -25,6 +25,15 @@ const PKG_DOT = [
   'bg-error-solid',
 ] as const
 
+const SOURCE_LABEL: Record<
+  StaffAnalyticsSummary['sourceMix'][number]['source'],
+  string
+> = {
+  ONLINE: 'Online',
+  WALK_IN: 'Walk-in',
+  PHONE: 'Phone',
+}
+
 const CARD =
   'flex flex-col gap-5 rounded-xl bg-primary px-4 py-5 shadow-xs ring-1 ring-secondary ring-inset md:px-5'
 
@@ -102,6 +111,56 @@ export function ReportsAnalyticsView({ summary }: ReportsAnalyticsViewProps) {
         </div>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className={CARD}>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-tertiary">Net revenue</p>
+            <p className="text-display-sm font-semibold text-primary">
+              {formatMetricMoney(summary.netRevenueCents)}
+            </p>
+            <p className="text-xs text-tertiary">
+              Gross {formatMetricMoney(summary.revenueCents)}
+              {summary.refundTotalCents > 0
+                ? ` · Refunds −${formatMetricMoney(summary.refundTotalCents)}`
+                : null}
+            </p>
+          </div>
+        </div>
+        <div className={CARD}>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-tertiary">Timezone</p>
+            <p className="text-sm font-semibold text-primary">
+              {summary.timezone}
+            </p>
+            <p className="text-xs text-tertiary">
+              Metric windows use this venue timezone.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {summary.sourceMix.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold text-secondary">Source mix</h2>
+          {summary.sourceMix.map((row) => (
+            <div
+              key={row.source}
+              className="flex items-center gap-3 border-b border-secondary py-2 last:border-0"
+            >
+              <span className="flex-1 text-sm text-primary">
+                {SOURCE_LABEL[row.source]}
+              </span>
+              <span className="text-xs text-tertiary">
+                {row.bookingCount} booking{row.bookingCount === 1 ? '' : 's'}
+              </span>
+              <span className="text-sm font-semibold text-brand-secondary">
+                {formatMetricMoney(row.revenueCents)}
+              </span>
+            </div>
+          ))}
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-secondary">

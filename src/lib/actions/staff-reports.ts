@@ -5,12 +5,14 @@
 import { requireRole } from '@/lib/auth'
 import { shouldUseDevDbFallback, warnOnce } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
+import { assertStaffTenantAccess } from '@/lib/tenant-access'
 import {
   busiestDayFromBookings,
   buildWeeklyBars,
   computeDelta,
   contactIdFromEmail,
   emailFromContactId,
+  exportAnalyticsCsv,
   normalizeStaffReportsPeriod,
   periodComparisonLabel,
   resolveStaffReportsWindow,
@@ -22,17 +24,34 @@ import {
   type StaffContactRow,
   type StaffPromoUsageRow,
   type StaffReportsPeriod,
+  type StaffSourceMixRow,
 } from '@/lib/reports-display'
+import {
+  computeNoShowRate,
+  computeRevenueBreakdown,
+  computeSourceMix,
+  enumerateZonedYmdRange,
+  resolveStaffReportsWindowInTimezone,
+  zonedYmd,
+  type MetricsBookingRow,
+} from '@/lib/staff-report-metrics'
 
 type AnalyticsBookingRow = {
   id: string
   startTime: Date
+  endTime: Date
   totalAmount: number
   status: string
+  source: string
+  laneCount: number
   packageId: string
   discountAmount: number
   package: { id: string; name: string }
-  payment: { status: string } | null
+  payment: {
+    status: string
+    refundAmount: number | null
+    refundStatus: string
+  } | null
   promoCode: { code: string } | null
 }
 
@@ -68,70 +87,71 @@ function formatLaneLabel(numbers: number[]): string {
   return sorted.map((n) => `Lane ${n}`).join(', ')
 }
 
+function toMetricsRows(rows: AnalyticsBookingRow[]): MetricsBookingRow[] {
+  return rows.map((b) => ({
+    id: b.id,
+    startTime: b.startTime,
+    endTime: b.endTime,
+    totalAmount: b.totalAmount,
+    status: b.status,
+    source: b.source,
+    laneCount: b.laneCount,
+    payment: b.payment
+      ? {
+          status: b.payment.status,
+          refundAmount: b.payment.refundAmount,
+          refundStatus: b.payment.refundStatus,
+        }
+      : null,
+  }))
+}
+
 function buildAnalyticsFromRows(
   period: StaffReportsPeriod,
   window: ReturnType<typeof resolveStaffReportsWindow>,
   currentRows: AnalyticsBookingRow[],
   previousRows: AnalyticsBookingRow[],
+  timeZone: string,
 ): StaffAnalyticsSummary {
   const comparisonLabel = periodComparisonLabel(period)
-  const paidCurrent = currentRows.filter(
-    (b) =>
-      (b.status === 'CONFIRMED' || b.status === 'COMPLETED') &&
-      isCapturedPayment(b.payment),
-  )
-  const paidPrevious = previousRows.filter(
-    (b) =>
-      (b.status === 'CONFIRMED' || b.status === 'COMPLETED') &&
-      isCapturedPayment(b.payment),
-  )
+  const currentMetrics = toMetricsRows(currentRows)
+  const previousMetrics = toMetricsRows(previousRows)
 
-  const revenueCents = paidCurrent.reduce((s, b) => s + b.totalAmount, 0)
-  const prevRevenue = paidPrevious.reduce((s, b) => s + b.totalAmount, 0)
-  const bookingCount = paidCurrent.length
-  const prevBookings = paidPrevious.length
-  const avgValueCents =
-    bookingCount > 0 ? Math.floor(revenueCents / bookingCount) : 0
-  const prevAvg =
-    prevBookings > 0
-      ? Math.floor(
-          paidPrevious.reduce((s, b) => s + b.totalAmount, 0) / prevBookings,
-        )
-      : 0
-
-  const noShowCurrent = currentRows.filter((b) => b.status === 'NO_SHOW').length
-  const noShowDenom =
-    currentRows.filter((b) =>
-      ['CONFIRMED', 'COMPLETED', 'NO_SHOW'].includes(b.status),
-    ).length || 1
-  const noShowRate = Math.round((noShowCurrent / noShowDenom) * 1000) / 10
-
-  const prevNoShow = previousRows.filter((b) => b.status === 'NO_SHOW').length
-  const prevNoShowDenom =
-    previousRows.filter((b) =>
-      ['CONFIRMED', 'COMPLETED', 'NO_SHOW'].includes(b.status),
-    ).length || 1
-  const prevNoShowRate = Math.round((prevNoShow / prevNoShowDenom) * 1000) / 10
+  const current = computeRevenueBreakdown(currentMetrics)
+  const previous = computeRevenueBreakdown(previousMetrics)
+  const noShowRate = computeNoShowRate(currentMetrics)
+  const prevNoShowRate = computeNoShowRate(previousMetrics)
+  const sourceMix: StaffSourceMixRow[] = computeSourceMix(currentMetrics)
 
   const dailyMap = new Map<string, number>()
-  let cur = new Date(window.startDate)
-  const endDay = new Date(window.endDate)
-  while (cur <= endDay) {
-    dailyMap.set(cur.toISOString().slice(0, 10), 0)
-    cur = new Date(cur)
-    cur.setUTCDate(cur.getUTCDate() + 1)
+  for (const key of enumerateZonedYmdRange(
+    window.startDate,
+    window.endDate,
+    timeZone,
+  )) {
+    dailyMap.set(key, 0)
   }
-  for (const b of paidCurrent) {
-    const key = b.startTime.toISOString().slice(0, 10)
+  for (const b of currentMetrics) {
+    if (!isCapturedPayment(b.payment)) continue
+    if (b.status !== 'CONFIRMED' && b.status !== 'COMPLETED') continue
+    const key = zonedYmd(b.startTime, timeZone)
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + b.totalAmount)
   }
-  const daily = [...dailyMap.entries()].map(([date, revenueCentsDay]) => ({
+  const daily = [...dailyMap.entries()].map(([date, revenueCents]) => ({
     date,
-    revenueCents: revenueCentsDay,
+    revenueCents,
   }))
 
   const pkgMap = new Map<string, StaffAnalyticsPackageRow>()
-  for (const b of paidCurrent) {
+  for (const b of currentRows) {
+    if (
+      !(
+        (b.status === 'CONFIRMED' || b.status === 'COMPLETED') &&
+        isCapturedPayment(b.payment)
+      )
+    ) {
+      continue
+    }
     const curPkg = pkgMap.get(b.packageId) ?? {
       packageId: b.packageId,
       packageName: b.package.name,
@@ -162,24 +182,47 @@ function buildAnalyticsFromRows(
     (a, b) => b.savedCents - a.savedCents,
   )
 
+  const paidCurrent = currentRows.filter(
+    (b) =>
+      (b.status === 'CONFIRMED' || b.status === 'COMPLETED') &&
+      isCapturedPayment(b.payment),
+  )
+
   return {
     period,
     startDate: toIso(window.startDate),
     endDate: toIso(window.endDate),
-    revenueCents,
-    revenueDelta: computeDelta(revenueCents, prevRevenue, comparisonLabel),
+    revenueCents: current.grossRevenueCents,
+    revenueDelta: computeDelta(
+      current.grossRevenueCents,
+      previous.grossRevenueCents,
+      comparisonLabel,
+    ),
+    refundTotalCents: current.refundTotalCents,
+    netRevenueCents: current.netRevenueCents,
     weeklyBars: buildWeeklyBars(period, daily),
-    bookingCount,
-    bookingsDelta: computeDelta(bookingCount, prevBookings, comparisonLabel),
-    avgValueCents,
-    avgValueDelta: computeDelta(avgValueCents, prevAvg, comparisonLabel),
+    bookingCount: current.bookingCount,
+    bookingsDelta: computeDelta(
+      current.bookingCount,
+      previous.bookingCount,
+      comparisonLabel,
+    ),
+    avgValueCents: current.avgValueCents,
+    avgValueDelta: computeDelta(
+      current.avgValueCents,
+      previous.avgValueCents,
+      comparisonLabel,
+    ),
     busiestDay: busiestDayFromBookings(paidCurrent),
     noShowRate,
     noShowDelta: computeDelta(noShowRate, prevNoShowRate, comparisonLabel),
     packages,
     promoUsage,
+    sourceMix,
+    timezone: timeZone,
   }
 }
+
 
 function mockStaffAnalyticsSummary(
   period: StaffReportsPeriod,
@@ -238,6 +281,14 @@ function mockStaffAnalyticsSummary(
       { code: 'ACME20', uses: 3, savedCents: 64_800 },
       { code: 'SUMMER10', uses: 11, savedCents: 20_300 },
     ],
+    refundTotalCents: 42_000,
+    netRevenueCents: 1_386_000,
+    sourceMix: [
+      { source: 'ONLINE', bookingCount: 120, revenueCents: 980_000 },
+      { source: 'WALK_IN', bookingCount: 48, revenueCents: 320_000 },
+      { source: 'PHONE', bookingCount: 16, revenueCents: 128_000 },
+    ],
+    timezone: 'America/New_York',
   }
 }
 
@@ -408,12 +459,17 @@ async function fetchAnalyticsBookings(
     select: {
       id: true,
       startTime: true,
+      endTime: true,
       totalAmount: true,
       status: true,
+      source: true,
+      laneCount: true,
       packageId: true,
       discountAmount: true,
       package: { select: { id: true, name: true } },
-      payment: { select: { status: true } },
+      payment: {
+        select: { status: true, refundAmount: true, refundStatus: true },
+      },
       promoCode: { select: { code: true } },
     },
   })
@@ -425,7 +481,8 @@ export async function getStaffAnalyticsSummary(
   customStart?: string,
   customEnd?: string,
 ): Promise<StaffAnalyticsSummary> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
   const period = normalizeStaffReportsPeriod(periodInput)
 
   if (shouldUseDevDbFallback()) {
@@ -436,13 +493,19 @@ export async function getStaffAnalyticsSummary(
     return mockStaffAnalyticsSummary(period)
   }
 
-  const window = resolveStaffReportsWindow(
-    period,
-    customStart,
-    customEnd,
-  )
-
   try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { timezone: true },
+    })
+    const timeZone = tenant?.timezone ?? 'America/New_York'
+    const window = resolveStaffReportsWindowInTimezone(
+      period,
+      timeZone,
+      customStart,
+      customEnd,
+    )
+
     const [currentRows, previousRows] = await Promise.all([
       fetchAnalyticsBookings(tenantId, window.startDate, window.endDate),
       fetchAnalyticsBookings(
@@ -451,7 +514,13 @@ export async function getStaffAnalyticsSummary(
         window.previousEnd,
       ),
     ])
-    return buildAnalyticsFromRows(period, window, currentRows, previousRows)
+    return buildAnalyticsFromRows(
+      period,
+      window,
+      currentRows,
+      previousRows,
+      timeZone,
+    )
   } catch (err) {
     if (shouldUseDevDbFallback(err)) {
       warnOnce(
@@ -467,7 +536,8 @@ export async function getStaffAnalyticsSummary(
 export async function listStaffContacts(
   tenantId: string,
 ): Promise<StaffContactRow[]> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
 
   if (shouldUseDevDbFallback()) {
     return MOCK_CONTACTS
@@ -526,7 +596,8 @@ export async function getStaffContactDetail(
   tenantId: string,
   contactId: string,
 ): Promise<StaffContactDetail | null> {
-  await requireRole('MANAGER', 'ADMIN')
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
 
   if (shouldUseDevDbFallback()) {
     return mockContactDetail(contactId)
@@ -596,4 +667,53 @@ export async function getStaffContactDetail(
     }
     throw err
   }
+}
+
+
+export async function exportStaffAnalyticsCsvAction(
+  tenantId: string,
+  periodInput: string | undefined,
+  customStart?: string,
+  customEnd?: string,
+): Promise<{ csv: string; filename: string }> {
+  const user = await requireRole('MANAGER', 'ADMIN')
+  assertStaffTenantAccess(user, tenantId)
+  const period = normalizeStaffReportsPeriod(periodInput)
+  const summary = await getStaffAnalyticsSummary(
+    tenantId,
+    periodInput,
+    customStart,
+    customEnd,
+  )
+  const csv = exportAnalyticsCsv(summary)
+  const filename = `staff-analytics-${period}-${summary.startDate.slice(0, 10)}.csv`
+
+  if (!shouldUseDevDbFallback()) {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          tenantId,
+          userId: user.id,
+          action: 'REPORT_EXPORTED',
+          entityType: 'Report',
+          entityId: tenantId,
+          details: {
+            kind: 'analytics_csv',
+            period: summary.period,
+            startDate: summary.startDate,
+            endDate: summary.endDate,
+            timezone: summary.timezone,
+          },
+        },
+      })
+    } catch (err) {
+      if (!shouldUseDevDbFallback(err)) throw err
+      warnOnce(
+        'staff-reports-export-audit',
+        'Database unavailable — skipped REPORT_EXPORTED audit row.',
+      )
+    }
+  }
+
+  return { csv, filename }
 }

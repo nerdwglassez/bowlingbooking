@@ -945,6 +945,7 @@ export async function confirmBooking(
       chargeCents,
       metadata,
     ),
+    connectedAccountId: tenantForPricing.stripeConnectAccountId,
   })
 
   return {

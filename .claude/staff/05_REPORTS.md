@@ -273,3 +273,36 @@ Each history item:
 - Make booking history items non-tappable — they open the booking detail sheet
 - Use the same color for all packages in the breakdown — each gets a distinct color
 - Show "Issue refund" for cancelled bookings that were already refunded
+
+
+## Metric dictionary (backend SoT)
+
+Canonical definitions live in `src/lib/staff-report-metrics.ts` and are consumed by
+`getStaffAnalyticsSummary` / `exportStaffAnalyticsCsvAction` in `src/lib/actions/staff-reports.ts`.
+
+| Metric | Definition |
+|--------|------------|
+| **Gross revenue** | Sum of `Booking.totalAmount` for `CONFIRMED`/`COMPLETED` bookings with captured payment (`Payment.status` in `succeeded` \| `cash`) whose `startTime` falls in the window. Integer cents. |
+| **Refund total** | Sum of `Payment.refundAmount` where `refundStatus = SUCCEEDED` for bookings in the same window. |
+| **Net revenue** | `max(0, gross − refund total)`. |
+| **Booking count** | Count of paid CONFIRMED/COMPLETED bookings in the window (same filter as gross). |
+| **Avg value** | `floor(gross / booking count)` (0 when count is 0). |
+| **No-show rate** | `NO_SHOW / (CONFIRMED + COMPLETED + NO_SHOW)` × 100, one decimal. |
+| **Source mix** | Paid booking counts + revenue by `Booking.source` (`ONLINE` \| `WALK_IN` \| `PHONE`). |
+| **Lane utilization inputs** | Pure helpers: booked lane-minutes / (lanes × operating minutes). UI may adopt later. |
+
+### Timezone windows
+
+Period chips resolve with `resolveStaffReportsWindowInTimezone` using `Tenant.timezone`
+(IANA). Daily chart buckets use zoned `YYYY-MM-DD` keys — not UTC midnight.
+
+### CSV export + audit
+
+`exportStaffAnalyticsCsvAction` (MANAGER+) returns CSV text + filename and writes
+`AuditLog` action `REPORT_EXPORTED` with period/window/timezone details. Browser-only
+Blob download may still exist in UI; prefer the server action for audited exports.
+
+### Access
+
+MANAGER and ADMIN only. STAFF cannot call analytics/contacts/export actions
+(`requireRole('MANAGER', 'ADMIN')` + `assertStaffTenantAccess`).

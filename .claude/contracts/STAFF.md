@@ -28,9 +28,11 @@ Status: locked. Canonical settings at `/staff/settings/*`; legacy `/admin/*` red
 
 3. **Patterns are controlled, chrome positions the viewport.** `LaneBlockingForm` and `WalkInForm` are patterns — no `useState`, all state via props. The drift sentinel enforces this. Components that need `fixed`/`sticky` positioning (e.g. `NavRail`) live in `src/components/chrome/`, NOT `src/components/patterns/`. Chrome composes Untitled `application/` + `base/` (see UNTITLED.md).
 
-4. **Walk-ins do not touch Stripe.** `createWalkInBooking` writes the `Booking` row directly and stamps `Payment.status` with `'cash' | 'card_at_counter' | 'pending'` — the staff's choice. The webhook never processes a walk-in. v1's `refundBookingAction` cannot refund a walk-in (throws); a "manual refund" path is deferred to Phase 9.
+4. **Walk-ins do not touch Stripe.** `createWalkInBooking` writes the `Booking` row directly and stamps `Payment.status` with `'cash' | 'card_at_counter' | 'pending'` — the staff's choice. The webhook never processes a walk-in. Online `refundBookingAction` cannot refund a walk-in (throws); use `manualRefundBookingAction` (MANAGER+) for cash/card-at-counter refunds.
 
-5. **Refund UI is double-gated.** The booking detail page hides the `RefundPanel` for STAFF (UI only). `refundBookingAction` itself enforces `requireRole('MANAGER', 'ADMIN')` server-side. Never lower the server-side check.
+5. **Refund UI is double-gated.** The booking detail page hides the `RefundPanel` for STAFF (UI only). `refundBookingAction` / `manualRefundBookingAction` enforce `requireRole('MANAGER', 'ADMIN')` server-side. Never lower the server-side check.
+
+5b. **Staff cancel.** `staffCancelBookingAction` (STAFF+): cancel without refund for any role; optional Stripe refund only when `issueRefund: true` and caller is MANAGER+. Reasons: `CUSTOMER_REQUEST` | `NO_SHOW` | `VENUE_ISSUE`.
 
 6. **Dev-without-DB returns mocks, never throws.** Every read in `staff.ts` (`getTodayBookings`, `getScheduleForDate`, `getBookingDetail`) returns deterministic mock data when `isDevWithoutDb()` is true. Writes (`createWalkInBooking`, `blockLanes`, `unblockLanes`) log and return a synthesized id with `mocked: true`. The full staff app is clickable without Postgres for design review.
 
@@ -57,6 +59,8 @@ router.push(`/staff/bookings/${result.bookingId}`)
 ```
 
 ## Lifecycle: lane block
+
+**Authorization:** only **ADMIN** may create or delete lane blocks (`blockLanes` / `unblockLanes`). The schedule UI already hides the form from STAFF/MANAGER; the server action enforces the same rule.
 
 ```
 Staff opens /staff/schedule
@@ -107,4 +111,8 @@ When you add a new staff action, mirror the existing test layout: `vi.hoisted` f
 - Walk-in manual refunds (cash returned, mark `isRefunded`).
 - Booking modification lane editor — see `staff/03_MODIFICATION.md`.
 - Stripe Connect OAuth (integrations panel has dashboard URL stub only).
-- **Payment resume link UI redesign** — backend shipped: `createPaymentResumeLink` + `/book/resume-payment`. Cockpit `PaymentResumePanel` hidden pending Figma; target: booking detail action or staff tools sheet.
+- **Payment resume link UI redesign** — backend shipped: `createPaymentResumeLink({ paymentIntentId })` verifies the PI is owned by a booking in the caller's tenant, then returns `/book/resume-payment?payment_intent=…`. Cockpit `PaymentResumePanel` hidden pending Figma; target: booking detail action or staff tools sheet.
+
+## Reports export
+
+`exportStaffAnalyticsCsvAction` (MANAGER+) returns CSV and writes `AuditLog` `REPORT_EXPORTED`. Metrics: `.claude/staff/05_REPORTS.md`.

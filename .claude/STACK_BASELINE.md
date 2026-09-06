@@ -416,3 +416,22 @@ These were introduced after the customer booking flow landed. Every future agent
 - **Multi-tenant subdomain routing.** Currently single-tenant; `getTenant()` is the chokepoint that future routing will rewrite.
 
 These do not block v1 launch.
+
+
+## Stripe Connect destination charges (feature-flagged)
+
+- **Default:** PaymentIntents charge the platform Stripe account (`createPaymentIntent` in `src/lib/stripe.ts`). Connect Express onboarding helpers may still create `Tenant.stripeConnectAccountId`.
+- **Flag:** `STRIPE_CONNECT_DESTINATION_CHARGES=true` enables destination charges: when `connectedAccountId` is passed, the intent includes `transfer_data.destination` and optional `application_fee_amount`.
+- **Call site:** `confirmBooking` passes `tenant.stripeConnectAccountId` into `createPaymentIntent`. With the flag off, the id is ignored.
+- **Do not** scatter Connect params into staff/admin actions — keep all Stripe shapes behind `stripe.ts`.
+
+## Tenant host routing roadmap (not yet implemented)
+
+Today `getTenant()` resolves via `DEFAULT_TENANT_SLUG` (single-venue). Planned progression:
+
+1. Keep env-slug resolution for local/dev and the first production venue.
+2. Add host → slug mapping (subdomain or custom domain table) inside `getTenant()` only.
+3. No page/component changes for rebrand — theme still comes from tenant tokens.
+4. Defer rewriting the App Router middleware until step 2 is signed off and tested with a second seed tenant.
+
+Staff action modules (`staff-cockpit` / `staff-schedule` / `staff-walkin` / `staff-booking-ops`) are organizational; import from `@/lib/actions/staff` remains the public surface.

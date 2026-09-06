@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Security
+
+- Tenant-scope audit logs (`AuditLog.tenantId` + backfill); `listAuditLogs` filters by session tenant (platform ADMIN with null tenantId remains global).
+- Staff reports and payment-resume links bind to the caller’s tenant; mismatched client `tenantId` values are rejected.
+- Lane block/unblock server actions require ADMIN (UI was already Admin-only).
+
+### Added
+
+- `staffCancelBookingAction`: STAFF+ can cancel; optional Stripe refund only for MANAGER+; audited + customer email.
+- Staff report metrics module (`staff-report-metrics`): gross/net revenue, source mix, no-show rate, tenant-timezone windows.
+- `exportStaffAnalyticsCsvAction` (MANAGER+) with `REPORT_EXPORTED` audit trail.
+- Stripe Connect destination-charge path behind `STRIPE_CONNECT_DESTINATION_CHARGES` (default off) in `stripe.ts`.
+- Staff Contacts table (Untitled `TableCard` + right slideout), Support venue contacts from `getTenant()`, booking-detail payment-resume control, and packages search/sort.
+- Installable staff + customer PWAs: dynamic `/manifest-staff.json` and `/manifest-customer.json` (tenant name, `display: standalone`), Apple `apple-mobile-web-app-capable` meta, and home-screen icons.
+
+### Changed
+
+- Staff server actions split into domain modules (`staff-cockpit`, `staff-schedule`, `staff-walkin`, `staff-booking-ops`) over `staff-impl`; public import remains `@/lib/actions/staff`.
+- Staff/admin contracts and `05_REPORTS` metric dictionary aligned with shipped MANAGER+ `/staff/reports` behavior.
+- Documented host→tenant routing roadmap in `STACK_BASELINE` (still env-slug today).
+- Reports rail URLs are the source of truth (no in-page Analytics|Contacts toggle); analytics shows net revenue + source mix.
+
 ### Added
 
 - Unified staff employee portal: cockpit with booking detail sheet (mobile sheet / desktop 400px panel), schedule with lane blocking, walk-in FAB, reports (analytics + contacts, MANAGER+), and shared AppShell + NavRail chrome.
