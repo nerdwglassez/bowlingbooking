@@ -20,6 +20,7 @@ import {
   updateTeamUserAction,
 } from '@/lib/actions/admin'
 import { resendTeamInviteAction } from '@/lib/actions/team-invite'
+import { refreshAfterAction } from '@/lib/refresh-after-action'
 
 type CallerRole = 'MANAGER' | 'ADMIN'
 type TeamRole = 'STAFF' | 'MANAGER' | 'ADMIN'
@@ -249,7 +250,7 @@ export function TeamSettingsPanel({
         onSuccess={(result) => {
           setInviteOpen(false)
           handleInviteDeliveryResult(result, false)
-          router.refresh()
+          refreshAfterAction(() => router.refresh())
         }}
       />
 
@@ -266,20 +267,20 @@ export function TeamSettingsPanel({
         onSaved={() => {
           setDetailUser(null)
           showToast({ message: 'Team member updated', variant: 'success' })
-          router.refresh()
+          refreshAfterAction(() => router.refresh())
         }}
         onResent={(result) => {
           handleInviteDeliveryResult(result, true)
-          router.refresh()
+          refreshAfterAction(() => router.refresh())
         }}
         onPasswordReset={() => {
           showToast({ message: 'Password updated', variant: 'success' })
-          router.refresh()
+          refreshAfterAction(() => router.refresh())
         }}
         onRemoved={() => {
           setDetailUser(null)
           showToast({ message: 'Team member removed', variant: 'success' })
-          router.refresh()
+          refreshAfterAction(() => router.refresh())
         }}
       />
 

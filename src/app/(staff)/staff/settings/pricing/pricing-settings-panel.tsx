@@ -21,7 +21,7 @@ import { formatPrice } from '@/lib/pricing'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
 import type { AdminPricingPeriodRow, AdminTenantDetail } from '@/lib/actions/admin'
-import { refreshAfterAction } from '@/lib/refresh-after-action'
+import { runStaffAction } from '@/lib/refresh-after-action'
 import {
   deletePricingPeriodAction,
   updateTenantAction,
@@ -96,9 +96,10 @@ export function PricingSettingsPanel({
   function handleSavePricing() {
     setError(null)
     form.startSaving()
-    startTransition(async () => {
-      try {
-        await updateTenantAction({
+    runStaffAction({
+      startTransition,
+      action: () =>
+        updateTenantAction({
           tenantId: initial.id,
           name: initial.name,
           address: initial.address,
@@ -113,22 +114,25 @@ export function PricingSettingsPanel({
           shoeRentalPriceCents: form.values.shoeRentalCents,
           laneReservationCentsPerLane: form.values.defaultRateCents,
           pricingStrategy: form.values.strategy,
-        })
+        }),
+      onSuccess: () => {
         form.commitBaseline()
         showToast({ message: 'Pricing saved', variant: 'success' })
-        refreshAfterAction(() => router.refresh())
-      } catch (err) {
+      },
+      onError: (err) => {
         form.setError()
         setError(err instanceof Error ? err.message : 'Could not save pricing.')
         showToast({ message: 'Failed to save — try again', variant: 'error' })
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 
   function savePeriod() {
-    startPeriodTransition(async () => {
-      try {
-        const result = await upsertPricingPeriodAction({
+    runStaffAction({
+      startTransition: startPeriodTransition,
+      action: () =>
+        upsertPricingPeriodAction({
           tenantId: initial.id,
           id: editingId ?? undefined,
           name: periodValues.name,
@@ -137,10 +141,10 @@ export function PricingSettingsPanel({
           startTime: periodValues.startTime || null,
           endTime: periodValues.endTime || null,
           priority: periodValues.priority,
-        })
+        }),
+      onSuccess: (result) => {
         setSheetOpen(false)
         showToast({ message: 'Rate override saved', variant: 'success' })
-        refreshAfterAction(() => router.refresh())
         if (!editingId) {
           setPeriods((prev) => [
             ...prev,
@@ -155,24 +159,28 @@ export function PricingSettingsPanel({
             },
           ])
         }
-      } catch {
+      },
+      onError: () => {
         showToast({ message: 'Failed to save period', variant: 'error' })
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 
   function deletePeriod() {
     if (!editingId) return
-    startPeriodTransition(async () => {
-      try {
-        await deletePricingPeriodAction(initial.id, editingId)
+    runStaffAction({
+      startTransition: startPeriodTransition,
+      action: () => deletePricingPeriodAction(initial.id, editingId),
+      onSuccess: () => {
         setSheetOpen(false)
         setPeriods((prev) => prev.filter((p) => p.id !== editingId))
         showToast({ message: 'Period deleted', variant: 'success' })
-        refreshAfterAction(() => router.refresh())
-      } catch {
+      },
+      onError: () => {
         showToast({ message: 'Could not delete period', variant: 'error' })
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

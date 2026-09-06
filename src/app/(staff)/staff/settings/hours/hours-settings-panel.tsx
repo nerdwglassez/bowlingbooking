@@ -15,7 +15,7 @@ import {
   updateOperatingHoursAction,
   updateTenantAction,
 } from '@/lib/actions/admin'
-import { refreshAfterAction } from '@/lib/refresh-after-action'
+import { runStaffAction } from '@/lib/refresh-after-action'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
 
@@ -77,8 +77,9 @@ export function HoursSettingsPanel({
     savingRef.current = true
     setError(null)
     form.startSaving()
-    startTransition(async () => {
-      try {
+    runStaffAction({
+      startTransition,
+      action: async () => {
         await updateOperatingHoursAction({
           tenantId,
           hours: form.values.hours,
@@ -100,10 +101,13 @@ export function HoursSettingsPanel({
           minBookingDurationHours: form.values.laneConfig.minDurationHours,
           maxBookingDurationHours: form.values.laneConfig.maxDurationHours,
         })
+      },
+      onSuccess: () => {
         form.commitBaseline()
         showToast({ message: 'Operating hours saved', variant: 'success' })
-        refreshAfterAction(() => router.refresh())
-      } catch (err) {
+        savingRef.current = false
+      },
+      onError: (err) => {
         form.setError()
         setError(
           err instanceof Error
@@ -111,9 +115,9 @@ export function HoursSettingsPanel({
             : 'Could not save operating hours.',
         )
         showToast({ message: 'Failed to save — try again', variant: 'error' })
-      } finally {
         savingRef.current = false
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

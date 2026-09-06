@@ -11,6 +11,7 @@ import {
   type LaneBlockingFormValues,
 } from '@/components/patterns/lane-blocking-form'
 import { blockLanes } from '@/lib/actions/staff'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 interface BlockingPanelProps {
   dateISO: string
@@ -48,22 +49,23 @@ export function BlockingPanel({ dateISO, tenantId }: BlockingPanelProps) {
       setError('End must be after start.')
       return
     }
-    startTransition(async () => {
-      try {
-        await blockLanes({
+    runStaffAction({
+      startTransition,
+      action: () =>
+        blockLanes({
           tenantId,
           startTime: start,
           endTime: end,
           lanes: parseLanes(values.lanes),
           reason: values.reason || undefined,
-        })
-        setValues(defaultValues(dateISO))
-        router.refresh()
-      } catch (err) {
+        }),
+      onSuccess: () => setValues(defaultValues(dateISO)),
+      onError: (err) => {
         setError(
           err instanceof Error ? err.message : 'Could not create block.',
         )
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

@@ -13,6 +13,7 @@ import {
   type AdminPromoDetail,
   type PromoInput,
 } from '@/lib/actions/admin'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 function expiresToLocal(d: Date | null): string {
   if (!d) return ''
@@ -78,20 +79,32 @@ export function PromoEditor({
   function handleSubmit() {
     setError(null)
     setSuccess(null)
-    startTransition(async () => {
-      try {
-        if (mode === 'create') {
-          const result = await createPromoAction(toInput(tenantId, values))
+    if (mode === 'create') {
+      runStaffAction({
+        startTransition,
+        action: () => createPromoAction(toInput(tenantId, values)),
+        onSuccess: (result) => {
           router.push(`/admin/promos/${result.id}`)
-          return
-        }
-        if (!initial) throw new Error('Missing promo id.')
-        await updatePromoAction({ ...toInput(tenantId, values), id: initial.id })
-        setSuccess('Promo saved.')
-        router.refresh()
-      } catch (err) {
+        },
+        onError: (err) => {
+          setError(err instanceof Error ? err.message : 'Could not save promo.')
+        },
+      })
+      return
+    }
+    if (!initial) {
+      setError('Missing promo id.')
+      return
+    }
+    runStaffAction({
+      startTransition,
+      action: () =>
+        updatePromoAction({ ...toInput(tenantId, values), id: initial.id }),
+      onSuccess: () => setSuccess('Promo saved.'),
+      onError: (err) => {
         setError(err instanceof Error ? err.message : 'Could not save promo.')
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

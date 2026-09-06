@@ -10,7 +10,7 @@ import {
 } from '@/components/patterns/booking-policies-form'
 import type { AdminTenantDetail } from '@/lib/actions/admin'
 import { updateTenantAction } from '@/lib/actions/admin'
-import { refreshAfterAction } from '@/lib/refresh-after-action'
+import { runStaffAction } from '@/lib/refresh-after-action'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
 
@@ -51,9 +51,10 @@ export function PoliciesSettingsPanel({
     savingRef.current = true
     setError(null)
     form.startSaving()
-    startTransition(async () => {
-      try {
-        await updateTenantAction({
+    runStaffAction({
+      startTransition,
+      action: () =>
+        updateTenantAction({
           tenantId: initial.id,
           name: initial.name,
           address: initial.address,
@@ -73,17 +74,19 @@ export function PoliciesSettingsPanel({
           allowWalkInBookings: form.values.allowWalkInBookings,
           requireAccountToModify: form.values.requireAccountToModify,
           contactEmail: initial.contactEmail,
-        })
+        }),
+      onSuccess: () => {
         form.commitBaseline()
         showToast({ message: 'Policies saved', variant: 'success' })
-        refreshAfterAction(() => router.refresh())
-      } catch (err) {
+        savingRef.current = false
+      },
+      onError: (err) => {
         form.setError()
         setError(err instanceof Error ? err.message : 'Could not save policies.')
         showToast({ message: 'Failed to save — try again', variant: 'error' })
-      } finally {
         savingRef.current = false
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

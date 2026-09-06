@@ -11,6 +11,7 @@ import {
   manualRefundBookingAction,
   refundBookingAction,
 } from '@/lib/actions/refund'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 interface RefundPanelProps {
   bookingId: string
@@ -68,8 +69,9 @@ export function RefundPanel({
       setError(`Amount must be between 1 and ${amountCents} cents.`)
       return
     }
-    startTransition(async () => {
-      try {
+    runStaffAction({
+      startTransition,
+      action: async () => {
         if (isManual) {
           await manualRefundBookingAction({
             bookingId,
@@ -85,13 +87,14 @@ export function RefundPanel({
             notes: notes || undefined,
           })
         }
-        router.refresh()
-        setOpen(false)
-      } catch (err) {
+      },
+      onSuccess: () => setOpen(false),
+      onError: (err) => {
         setError(
           err instanceof Error ? err.message : 'Refund failed unexpectedly.',
         )
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

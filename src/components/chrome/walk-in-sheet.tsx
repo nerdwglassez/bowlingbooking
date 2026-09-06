@@ -25,6 +25,7 @@ import {
   walkInStartNow,
 } from '@/lib/walk-in-display'
 import type { Package } from '@/types'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 export type WalkInSheetProps = {
   open: boolean
@@ -147,9 +148,10 @@ export function WalkInSheet({
     const endTime = new Date(startTime.getTime() + 60 * 60_000)
     const partyType = selectedPackage?.partyTypes[0] ?? 'OPEN'
 
-    startTransition(async () => {
-      try {
-        await createWalkInBooking({
+    runStaffAction({
+      startTransition,
+      action: () =>
+        createWalkInBooking({
           tenantId,
           packageId: packageLane.packageId || null,
           partyType,
@@ -162,17 +164,19 @@ export function WalkInSheet({
           source: walkInSourceToDb(guest.source),
           laneNumbers: resolvedLaneNumbers,
           paymentMethod,
-        })
+        }),
+      onSuccess: () => {
         resetForm()
         onClose()
-        router.refresh()
-      } catch (err) {
+      },
+      onError: (err) => {
         setError(
           err instanceof Error
             ? err.message
             : 'Could not create walk-in booking.',
         )
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

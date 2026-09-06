@@ -10,7 +10,7 @@ import {
   type OperatingHourRow,
 } from '@/components/patterns/operating-hours-editor'
 import type { AdminOperatingHour } from '@/lib/actions/admin'
-import { refreshAfterAction } from '@/lib/refresh-after-action'
+import { runStaffAction } from '@/lib/refresh-after-action'
 import { updateOperatingHoursAction } from '@/lib/actions/admin'
 
 function ensureSevenDays(initial: AdminOperatingHour[]): OperatingHourRow[] {
@@ -47,18 +47,18 @@ export function OperatingHoursPanel({
   function handleSubmit() {
     setError(null)
     setSuccess(null)
-    startTransition(async () => {
-      try {
-        await updateOperatingHoursAction({ tenantId, hours: values })
-        setSuccess('Operating hours saved.')
-        refreshAfterAction(() => router.refresh())
-      } catch (err) {
+    runStaffAction({
+      startTransition,
+      action: () => updateOperatingHoursAction({ tenantId, hours: values }),
+      onSuccess: () => setSuccess('Operating hours saved.'),
+      onError: (err) => {
         setError(
           err instanceof Error
             ? err.message
             : 'Could not save operating hours.',
         )
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

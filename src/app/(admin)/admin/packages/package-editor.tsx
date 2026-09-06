@@ -21,6 +21,7 @@ import {
   type AdminPackageRow,
   type PackageInput,
 } from '@/lib/actions/admin'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 interface PackageEditorProps {
   mode: 'create' | 'edit'
@@ -83,20 +84,31 @@ export function PackageEditor({
   function handleSubmit() {
     setError(null)
     setSuccess(null)
-    startTransition(async () => {
-      try {
-        if (mode === 'create') {
-          const result = await createPackageAction(tenantId, toInput(values))
+    if (mode === 'create') {
+      runStaffAction({
+        startTransition,
+        action: () => createPackageAction(tenantId, toInput(values)),
+        onSuccess: (result) => {
           router.push(`${listPath}/${result.packageId}`)
-          return
-        }
-        if (!initial) throw new Error('Missing package id for edit.')
-        await updatePackageAction(initial.id, toInput(values))
-        setSuccess('Package saved.')
-        router.refresh()
-      } catch (err) {
+        },
+        onError: (err) => {
+          setError(err instanceof Error ? err.message : 'Could not save package.')
+        },
+      })
+      return
+    }
+    if (!initial) {
+      setError('Missing package id for edit.')
+      return
+    }
+    runStaffAction({
+      startTransition,
+      action: () => updatePackageAction(initial.id, toInput(values)),
+      onSuccess: () => setSuccess('Package saved.'),
+      onError: (err) => {
         setError(err instanceof Error ? err.message : 'Could not save package.')
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

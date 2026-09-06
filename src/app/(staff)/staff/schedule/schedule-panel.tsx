@@ -36,6 +36,7 @@ import {
   parseMonthParam,
   weekOfMonth,
 } from '@/lib/schedule-display'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 export type ScheduleView = 'calendar' | 'list'
 
@@ -197,34 +198,34 @@ export function SchedulePanel({
       return
     }
 
-    startSubmit(async () => {
-      try {
-        await blockLanes({
+    runStaffAction({
+      startTransition: startSubmit,
+      action: () =>
+        blockLanes({
           tenantId,
           startTime: start,
           endTime: end,
           lanes,
           reason: formValues.reason.trim(),
-        })
-        setSheetOpen(false)
-        router.refresh()
-      } catch (err) {
+        }),
+      onSuccess: () => setSheetOpen(false),
+      onError: (err) => {
         setFormError(
           err instanceof Error ? err.message : 'Could not create block.',
         )
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 
   function handleUnblock(blockId: string) {
     setUnblockingId(blockId)
-    startSubmit(async () => {
-      try {
-        await unblockLanes(blockId)
-        router.refresh()
-      } finally {
-        setUnblockingId(null)
-      }
+    runStaffAction({
+      startTransition: startSubmit,
+      action: () => unblockLanes(blockId),
+      onSuccess: () => setUnblockingId(null),
+      onError: () => setUnblockingId(null),
+      refresh: () => router.refresh(),
     })
   }
 
