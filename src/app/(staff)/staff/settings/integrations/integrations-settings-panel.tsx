@@ -40,10 +40,14 @@ export function IntegrationsSettingsPanel({
   const [mode, setMode] = useState<PanelMode>('connect')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [rows, setRows] = useState(cards)
+  const [cardsSnapshot, setCardsSnapshot] = useState(cards)
 
-  useEffect(() => {
+  // Sync server props into local optimistic rows without an effect (avoids
+  // react-hooks/set-state-in-effect cascading-render lint).
+  if (cards !== cardsSnapshot) {
+    setCardsSnapshot(cards)
     setRows(cards)
-  }, [cards])
+  }
 
   useEffect(() => {
     if (!stripeFlash) return
