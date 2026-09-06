@@ -4,7 +4,7 @@
 // cookie. The root layout stamps `data-theme` on `<html>` during SSR.
 //
 // Rules:
-//   - Customer paths are always light (amber brand until /book is redesigned).
+//   - Customer paths are always light (Untitled purple brand by default; tenant presets may rebrand).
 //   - /staff/* and /admin/* follow the `theme` cookie written by
 //     StaffThemeScope from the device color scheme. No cookie → light.
 //   - /signin, /forgot-password, and /reset-password use light theme + staff
@@ -12,7 +12,7 @@
 //     the employee device scheme.
 //   - CSS never uses prefers-color-scheme. Untitled `dark:` maps to
 //     [data-theme="dark"]. Staff also sets data-app="staff" so light staff
-//     uses stock Untitled purple, not customer amber.
+//     uses stock Untitled purple regardless of tenant brand preset.
 //
 // NEVER use Tailwind's `dark:` against prefers-color-scheme.
 // NEVER read `localStorage` for theme; cookies survive SSR.
@@ -56,7 +56,8 @@ export async function resolveTheme(): Promise<Theme> {
 
 /**
  * Stock Untitled purple (`data-app="staff"`) for employee chrome and the
- * shared `/signin` split login and password-reset screens. Customer `/book` stays amber.
+ * shared `/signin` split login and password-reset screens. Keeps staff brand
+ * independent of tenant customer presets.
  */
 export async function resolveStaffBrand(): Promise<boolean> {
   const h = await headers()

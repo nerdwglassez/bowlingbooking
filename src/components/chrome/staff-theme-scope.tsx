@@ -19,7 +19,7 @@ function persistThemeCookie(theme: Theme) {
 
 /**
  * Staff/admin theme follows the device color scheme via `data-theme`.
- * Sets `data-app="staff"` so light staff uses Untitled purple, not amber.
+ * Sets `data-app="staff"` so employee chrome keeps stock Untitled purple over tenant presets.
  */
 export function StaffThemeScope({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light')

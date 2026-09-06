@@ -68,34 +68,35 @@
   --palette-white:      #FFFFFF;
 
   /* ── LAYER 2: Surfaces ── */
-  --surface-ground:     #F5F2EE;
-  --surface-card:       #FDFCFA;
+  --surface-ground:     #F9FAFB;
+  --surface-card:       #FFFFFF;
   --surface-raised:     var(--palette-white);
-  --surface-sunken:     #EDE9E3;
-  --surface-app-backdrop: var(--surface-sunken);
+  --surface-sunken:     #F3F4F6;
+  --surface-app-backdrop: #F3F4F6;
   --surface-dark:       #1E0A2E;
   --surface-dark-mid:   var(--palette-stone-800);
   --surface-overlay:    rgba(0, 0, 0, 0.18);
 
-  /* Customer booking header/footer — stone chrome per booking wireframes (not staff purple) */
-  --surface-booking-chrome: var(--palette-stone-900);
-  --color-booking-chrome-link: var(--color-text-muted);
+  /* Customer booking header/footer — neutral chrome; accents come from brand/action tokens */
+  --surface-booking-chrome: #0A0D12;
+  --color-booking-chrome-link: var(--color-brand-300);
 
-  /* ── LAYER 2: Brand Action ── */
-  --color-action:        var(--palette-amber-500);
-  --color-action-hover:  var(--palette-amber-600);
-  --color-action-subtle: var(--palette-amber-50);
-  --color-action-tint:   var(--palette-amber-100);
-  --color-action-text:   var(--palette-amber-800);  /* text ON tint bg — WCAG AA */
-  --color-action-dark:   var(--palette-amber-400);  /* action on dark surfaces */
-  --color-action-on:     var(--palette-white);       /* text ON filled action button */
-  --color-chrome-link:   var(--palette-purple-300); /* Sign in / profile on dark chrome */
+  /* ── LAYER 2: Brand Action (bridged to Untitled --color-brand-*) ── */
+  /* Tenant presets override these + --color-brand-* together for rebrands. */
+  --color-action:        var(--color-brand-600);
+  --color-action-hover:  var(--color-brand-700);
+  --color-action-subtle: var(--color-brand-50);
+  --color-action-tint:   var(--color-brand-100);
+  --color-action-text:   var(--color-brand-800);  /* text ON tint bg — WCAG AA */
+  --color-action-dark:   var(--color-brand-400);  /* action on dark surfaces */
+  --color-action-on:     var(--palette-white);     /* text ON filled action button */
+  --color-chrome-link:   var(--color-brand-300); /* Sign in / profile on dark chrome */
 
   /* ── LAYER 2: Text ── */
   --color-text-primary:   var(--palette-stone-900);
   --color-text-secondary: var(--palette-stone-600);
   --color-text-muted:     var(--palette-stone-400);
-  --color-text-inverted:  #FDFCFA;
+  --color-text-inverted:  #FFFFFF;
   --color-text-on-action: var(--palette-white);
 
   /* ── LAYER 2: Borders ── */
@@ -148,7 +149,7 @@
   --surface-card:       #1C1917;
   --surface-raised:     #292524;
   --surface-sunken:     #141211;
-  --surface-app-backdrop: var(--surface-sunken);
+  --surface-app-backdrop: #F3F4F6;
   --surface-dark:       #0D0517;
   --surface-overlay:    rgba(0, 0, 0, 0.45);
 
@@ -161,10 +162,10 @@
   --color-border-strong:  #44403C;
   --color-border-subtle:  #1C1917;
 
-  --color-action-subtle: rgba(245, 158, 11, 0.07);
-  --color-action-tint:   rgba(245, 158, 11, 0.12);
-  --color-action-text:   var(--palette-amber-400);
-  --color-action-dark:   var(--palette-amber-400);
+  --color-action-subtle: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
+  --color-action-tint:   color-mix(in srgb, var(--color-brand-500) 18%, transparent);
+  --color-action-text:   var(--color-brand-300);
+  --color-action-dark:   var(--color-brand-400);
 
   --status-ok-bg:          rgba(16, 185, 129, 0.12);
   --status-ok-text:        #6EE7B7;

@@ -116,7 +116,7 @@ Refunds:       server-side only at POST /api/staff/bookings/[id]/refund
 ## Dark mode
 
 Staff app: data-theme follows the device scheme (`StaffThemeScope`)
-Customer app: data-theme="light" (amber until /book is redesigned)
+Customer app: data-theme="light" (Untitled purple by default; tenant presets may rebrand)
 Untitled `dark:` utilities follow `data-theme`. Never a second theme system.
 
 ---

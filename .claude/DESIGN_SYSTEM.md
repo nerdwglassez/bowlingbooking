@@ -89,8 +89,8 @@ not yet rewritten from Figma. Prefer Untitled utilities when touching a file.
 
 ### Semantic tokens — action (primary interactive color)
 ```css
---color-action:        #F59E0B;
---color-action-hover:  #D97706;
+--color-action:        var(--color-brand-600);  /* Untitled purple by default */
+--color-action-hover:  var(--color-brand-700);
 --color-action-subtle: #FFFBEB;  /* hover bg */
 --color-action-tint:   #FEF3C7;  /* selected bg */
 --color-action-text:   #92400E;  /* text ON action-tint bg — WCAG AA */
@@ -204,8 +204,8 @@ see `.claude/contracts/UNTITLED.md` and `.claude/contracts/PRIMITIVES.md`.
 - Colors: Untitled semantic utilities from `src/styles/theme.css`
   (`bg-brand-solid`, `text-secondary`, `bg-primary`, …).
   **Staff (`data-app="staff"`):** stock Untitled brand (purple) in light and dark.
-  **Customer light:** brand remapped to amber until `/book` is redesigned.
-  Do not remap employee `bg-brand-solid` to amber.
+  **Default brand:** stock Untitled purple for customer and staff.
+  Tenant presets may remap `--color-brand-*` / `--color-action*`; staff keeps purple via `data-app="staff"`.
 - Dark mode: `dark:` utilities via `@custom-variant dark` → `[data-theme="dark"]`.
 - Do **not** resurrect Radix Slot / `--color-action` button class maps.
 - When Figma needs a component not in `base/` / `application/`, install it with
@@ -236,10 +236,12 @@ Key patterns:
 
 ## Tenant theme override
 
-File: src/styles/themes/{tenant-slug}.css
-Override brand / action family (and dark chrome if needed). Prefer remapping
-`--color-brand-*` in theme.css for Untitled components; keep `--color-action*`
-aliases in sync for unreworked patterns.
+File: `src/styles/themes/{slug}.css` under `[data-theme-preset="<slug>"]`.
+Registered presets: `default` (Untitled purple, no-op), `amber`, `midnight`, `sunset`
+(see `src/lib/themes.ts`). Remap `--color-brand-*` and `--color-action*` together
+so Untitled utilities and legacy patterns stay in sync. Optional: dark chrome
+(`--surface-dark`, `--surface-booking-chrome`).
+Staff keeps stock purple via `[data-app="staff"]` regardless of preset.
 No component files should need to change for a rebrand.
 
 ---
@@ -250,7 +252,7 @@ Theme controlled by `data-theme` on `<html>`.
 Untitled `dark:` utilities are remapped to `[data-theme="dark"]` in `globals.css`.
 Never use `prefers-color-scheme` for app theming.
 
-Customer app → data-theme="light" (amber brand until /book is redesigned)
+Customer app → data-theme="light" (Untitled purple brand by default; tenant presets may rebrand)
 Staff app    → data-theme follows device scheme (`StaffThemeScope` + cookie);
                `data-app="staff"` keeps Untitled purple on light staff pages
 Sign-in      → data-theme="light" + `data-app="staff"` (Figma purple split login)

@@ -1,6 +1,11 @@
 /**
  * Theme preset registry for per-tenant branding (`Tenant.themeSlug`).
  * CSS overrides live in `src/styles/themes/<slug>.css` under `[data-theme-preset="<slug>"]`.
+ *
+ * Default = stock Untitled purple (same direction as the employee app).
+ * Presets remap `--color-brand-*` and legacy `--color-action*` together so
+ * both Untitled utilities and older patterns rebrand. Staff chrome keeps
+ * stock purple via `[data-app="staff"]` regardless of preset.
  */
 
 export interface ThemePreset {
@@ -15,9 +20,15 @@ export interface ThemePreset {
 export const THEME_PRESETS: ThemePreset[] = [
   {
     slug: 'default',
-    name: 'Royal default',
+    name: 'Untitled default',
+    swatchHex: '#7F56D9',
+    description: 'Stock Untitled purple — shared with the employee experience.',
+  },
+  {
+    slug: 'amber',
+    name: 'Amber',
     swatchHex: '#F59E0B',
-    description: 'Amber accent from the base design tokens.',
+    description: 'Warm amber accent (optional tenant brand).',
   },
   {
     slug: 'midnight',

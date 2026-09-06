@@ -73,7 +73,7 @@ export function TimeSlotGrid({
               unavailable
                 ? 'cursor-not-allowed border-[var(--color-border)] bg-[var(--surface-card)] opacity-30'
                 : selected
-                  ? 'border-[var(--color-action)] bg-[var(--color-action)] shadow-[0_0_16px_rgba(245,158,11,0.25)]'
+                  ? 'border-[var(--color-action)] bg-[var(--color-action)] shadow-[0_0_16px_color-mix(in_srgb,var(--color-action)_35%,transparent)]'
                   : 'cursor-pointer border-[var(--color-border)] bg-[var(--surface-card)]',
             ].join(' ')}
           >
