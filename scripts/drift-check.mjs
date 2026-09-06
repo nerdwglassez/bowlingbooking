@@ -46,12 +46,14 @@ const CHECKS = [
   {
     name: 'raw hex colors',
     regex: /#[0-9a-fA-F]{3,8}\b/g,
-    // src/lib/email.ts is the ONE exception: email HTML must use raw hex
-    // because most clients (Gmail, Outlook, Apple Mail) strip CSS variables.
-    // src/lib/themes.ts holds swatchHex metadata for the admin theme picker only.
+    // Exceptions where the platform requires literal hex:
+    // - src/lib/email.ts — email HTML clients strip CSS variables
+    // - src/lib/themes.ts — admin theme picker swatchHex metadata
+    // - src/lib/pwa-manifest.ts — Web App Manifest + iOS theme_color must be hex
     appliesTo: (file) =>
       !file.endsWith('src/lib/email.ts') &&
       !file.endsWith('src/lib/themes.ts') &&
+      !file.endsWith('src/lib/pwa-manifest.ts') &&
       !isUntitledVendor(file),
     hint: 'Use semantic CSS variables (var(--color-*), var(--surface-*), var(--status-*)) instead. Untitled CLI files under base/application/foundations may contain vendor SVG fills.',
   },

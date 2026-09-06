@@ -185,7 +185,7 @@ When you add a new admin action, mirror the existing test layout: `vi.hoisted` f
 
 ### Why ADMIN-only
 
-Audit logs can contain PII in the `details` JSON column (cancelled booking emails, refund reasons). Restricting to ADMIN keeps blast radius small. MANAGER can view bookings + refunds + walk-ins through the normal pages; the audit log adds nothing they need for daily ops.
+Audit rows are tenant-scoped via `AuditLog.tenantId` for tenant-bound ADMIN users. Platform ADMIN (`tenantId == null`) may read across tenants. Audit logs can contain PII in the `details` JSON column (cancelled booking emails, refund reasons). Restricting to ADMIN keeps blast radius small. MANAGER can view bookings + refunds + walk-ins through the normal pages; the audit log adds nothing they need for daily ops.
 
 ### Filters
 
@@ -208,7 +208,18 @@ Reads `AuditLog` rows ordered by `createdAt` DESC. User name + email are joined 
 
 ### Route
 
-`/admin/reports` — read-only charts and KPIs, **ADMIN role only** (same posture as the audit log: MANAGER is excluded in v1).
+`/admin/reports` redirects to `/staff/reports`. Live analytics/contacts are **MANAGER+** under `/staff/reports` (see `.claude/staff/05_REPORTS.md`).
+
+### Metric dictionary (shared with staff reports)
+
+- **Gross revenue** — paid CONFIRMED/COMPLETED `Booking.totalAmount` (integer cents).
+- **Refund total** — succeeded `Payment.refundAmount` in the same window (not netted from gross in KPI tiles that show both).
+- **Net revenue** — gross minus succeeded refunds (floored at 0); exposed on staff analytics summary + CSV.
+- **Source mix** — ONLINE / WALK_IN / PHONE paid booking counts and revenue.
+- **Timezone** — window edges and daily buckets use `Tenant.timezone` via `staff-report-metrics`.
+- **Export audit** — `exportStaffAnalyticsCsvAction` writes `REPORT_EXPORTED`.
+
+Audit log remains ADMIN-only.
 
 ### Why ADMIN-only
 

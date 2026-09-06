@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { Badge } from '@/components/base/badges/badges'
 import { StaffPageHeader } from '@/components/chrome/staff-page-header'
+import { StaffPaymentResumeButton } from '@/components/chrome/staff-payment-resume-button'
 import { getCurrentUser } from '@/lib/auth'
 import { getBookingDetail } from '@/lib/actions/staff'
 import { formatPrice } from '@/lib/pricing'
@@ -153,6 +154,12 @@ export default async function StaffBookingDetailPage({ params }: PageProps) {
         ) : (
           <p className="text-tertiary">No payment recorded (comp).</p>
         )}
+        {booking.payment?.stripePaymentIntentId &&
+        booking.payment.status !== 'succeeded' ? (
+          <StaffPaymentResumeButton
+            paymentIntentId={booking.payment.stripePaymentIntentId}
+          />
+        ) : null}
       </section>
 
       {canRefund &&

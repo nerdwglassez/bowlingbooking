@@ -85,6 +85,8 @@ Load **one** section file for the surface at hand (plus Figma URL from FIGMA.md)
 @.claude/staff/02_LANES_WALKIN.md — lanes sub-view, walk-in
 @.claude/staff/03_MODIFICATION.md — modification, cancel
 @.claude/staff/04_SCHEDULE.md — schedule, lane blocking
+@.claude/staff/05_REPORTS.md — analytics, contacts, metric dictionary, CSV export
+@.claude/staff/07_RESPONSIVE_PWA.md — staff responsive / PWA notes
 
 ---
 

@@ -404,3 +404,24 @@ adapter (`@prisma/adapter-pg` + `pg`) for runtime queries.
 Depends on: nothing
 Blocks: nothing (no schema DDL change)
 
+
+---
+
+## Migration 10 — AuditLog.tenantId (tenant scope)
+Status: COMPLETE (2026-09-06)
+
+### Why
+`listAuditLogs` was ADMIN-only but not tenant-scoped. Tenant-bound ADMIN
+users could read other venues' audit rows (PII in `details`). Staff reports
+and payment-resume links had the same class of trust-the-argument risk.
+
+### Changes
+- `AuditLog.tenantId` nullable FK + index `(tenant_id, created_at)`
+- Backfill from booking / user / Tenant entity rows
+- `listAuditLogs` scopes by caller tenant; platform ADMIN (`role=ADMIN` &&
+  `tenantId == null`) remains global
+- Staff reports + payment-resume bind to session tenant
+- `blockLanes` / `unblockLanes` require ADMIN (match schedule spec)
+
+Depends on: nothing
+Blocks: multi-tenant audit / reports correctness

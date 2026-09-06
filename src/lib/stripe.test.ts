@@ -90,6 +90,50 @@ describe('stripe.ts', () => {
     })
   })
 
+
+    it('omits transfer_data when Connect destination flag is off', async () => {
+      vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_xyz')
+      vi.stubEnv('STRIPE_CONNECT_DESTINATION_CHARGES', 'false')
+      paymentIntentsCreate.mockResolvedValue({
+        id: 'pi_plat',
+        client_secret: 'pi_plat_secret',
+        amount: 4500,
+        status: 'requires_payment_method',
+      })
+      const { createPaymentIntent } = await freshImport()
+      await createPaymentIntent({
+        amountCents: 4500,
+        metadata: { holdId: 'h_1' },
+        connectedAccountId: 'acct_123',
+      })
+      const args = paymentIntentsCreate.mock.calls[0][0]
+      expect(args.transfer_data).toBeUndefined()
+      expect(args.application_fee_amount).toBeUndefined()
+    })
+
+    it('attaches destination + fee when Connect flag is on', async () => {
+      vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_xyz')
+      vi.stubEnv('STRIPE_CONNECT_DESTINATION_CHARGES', 'true')
+      paymentIntentsCreate.mockResolvedValue({
+        id: 'pi_dest',
+        client_secret: 'pi_dest_secret',
+        amount: 4500,
+        status: 'requires_payment_method',
+      })
+      const { createPaymentIntent, isStripeConnectDestinationChargesEnabled } =
+        await freshImport()
+      expect(isStripeConnectDestinationChargesEnabled()).toBe(true)
+      await createPaymentIntent({
+        amountCents: 4500,
+        metadata: { holdId: 'h_1' },
+        connectedAccountId: 'acct_123',
+        applicationFeeAmountCents: 250,
+      })
+      const args = paymentIntentsCreate.mock.calls[0][0]
+      expect(args.transfer_data).toEqual({ destination: 'acct_123' })
+      expect(args.application_fee_amount).toBe(250)
+    })
+
   describe('createRefund', () => {
     it('returns mock refund when client is not configured', async () => {
       vi.stubEnv('STRIPE_SECRET_KEY', '')

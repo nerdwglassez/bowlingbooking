@@ -8,6 +8,8 @@ import {
 } from '@/lib/payment-resume-token'
 import { requireRole } from '@/lib/auth'
 import { isDevWithoutDb } from '@/lib/env'
+import { prisma } from '@/lib/prisma'
+import { requireUserTenantId } from '@/lib/tenant-access'
 
 export interface CreatePaymentResumeLinkResult {
   url: string
@@ -21,11 +23,14 @@ export interface CreatePaymentResumeLinkResult {
 /**
  * Staff generates a signed URL so a customer can finish an uncaptured
  * PaymentIntent (e.g. after 3DS failure or abandoned checkout).
+ *
+ * The PaymentIntent must belong to a booking in the caller's tenant.
  */
 export async function createPaymentResumeLink(
   paymentIntentId: string,
 ): Promise<CreatePaymentResumeLinkResult> {
-  await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const tenantId = requireUserTenantId(user)
 
   const trimmed = paymentIntentId.trim()
   if (!trimmed.startsWith('pi_')) {
@@ -34,7 +39,8 @@ export async function createPaymentResumeLink(
 
   if (isDevWithoutDb()) {
     const token = signPaymentResumeToken(trimmed)
-    const base = process.env['NEXT_PUBLIC_APP_URL']?.trim() || 'http://localhost:3000'
+    const base =
+      process.env['NEXT_PUBLIC_APP_URL']?.trim() || 'http://localhost:3000'
     return {
       url: `${base.replace(/\/$/, '')}/book/resume-payment?t=${encodeURIComponent(token)}`,
       expiresAt: paymentResumeExpiresAt(),
@@ -45,9 +51,21 @@ export async function createPaymentResumeLink(
     }
   }
 
+  const payment = await prisma.payment.findFirst({
+    where: {
+      stripePaymentIntentId: trimmed,
+      booking: { tenantId },
+    },
+    select: { id: true, bookingId: true },
+  })
+  if (!payment) {
+    throw new Error('Payment intent not found for this venue.')
+  }
+
   const intent = await retrievePaymentIntent(trimmed)
   const token = signPaymentResumeToken(intent.id)
-  const base = process.env['NEXT_PUBLIC_APP_URL']?.trim() || 'http://localhost:3000'
+  const base =
+    process.env['NEXT_PUBLIC_APP_URL']?.trim() || 'http://localhost:3000'
   return {
     url: `${base.replace(/\/$/, '')}/book/resume-payment?t=${encodeURIComponent(token)}`,
     expiresAt: paymentResumeExpiresAt(),

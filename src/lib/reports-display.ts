@@ -34,12 +34,23 @@ export type StaffPromoUsageRow = {
   savedCents: number
 }
 
+export type StaffSourceMixRow = {
+  source: 'ONLINE' | 'WALK_IN' | 'PHONE'
+  bookingCount: number
+  revenueCents: number
+}
+
 export type StaffAnalyticsSummary = {
   period: StaffReportsPeriod
   startDate: string
   endDate: string
+  /** Gross: sum of paid CONFIRMED/COMPLETED Booking.totalAmount (integer cents). */
   revenueCents: number
   revenueDelta: StaffMetricDelta
+  /** Sum of Payment.refundAmount where refundStatus = SUCCEEDED in the window. */
+  refundTotalCents: number
+  /** Gross minus succeeded refunds (floored at 0). */
+  netRevenueCents: number
   weeklyBars: StaffWeeklyBar[]
   bookingCount: number
   bookingsDelta: StaffMetricDelta
@@ -50,6 +61,10 @@ export type StaffAnalyticsSummary = {
   noShowDelta: StaffMetricDelta
   packages: StaffAnalyticsPackageRow[]
   promoUsage: StaffPromoUsageRow[]
+  /** Channel mix for paid bookings in the window. */
+  sourceMix: StaffSourceMixRow[]
+  /** IANA timezone used for window edges and daily buckets. */
+  timezone: string
 }
 
 export type StaffContactRow = {
@@ -403,10 +418,18 @@ export function paginateContacts(
 export function exportAnalyticsCsv(summary: StaffAnalyticsSummary): string {
   const lines = [
     'metric,value',
-    `revenue_cents,${summary.revenueCents}`,
+    `timezone,${summary.timezone}`,
+    `gross_revenue_cents,${summary.revenueCents}`,
+    `refund_total_cents,${summary.refundTotalCents}`,
+    `net_revenue_cents,${summary.netRevenueCents}`,
     `bookings,${summary.bookingCount}`,
     `avg_value_cents,${summary.avgValueCents}`,
     `no_show_rate,${summary.noShowRate}`,
+    '',
+    'source,bookings,revenue_cents',
+    ...summary.sourceMix.map(
+      (s) => `${s.source},${s.bookingCount},${s.revenueCents}`,
+    ),
     '',
     'package,bookings,revenue_cents',
     ...summary.packages.map(

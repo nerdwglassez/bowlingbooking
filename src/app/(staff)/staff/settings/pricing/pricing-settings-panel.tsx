@@ -21,6 +21,7 @@ import { formatPrice } from '@/lib/pricing'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
 import type { AdminPricingPeriodRow, AdminTenantDetail } from '@/lib/actions/admin'
+import { refreshAfterAction } from '@/lib/refresh-after-action'
 import {
   deletePricingPeriodAction,
   updateTenantAction,
@@ -115,7 +116,7 @@ export function PricingSettingsPanel({
         })
         form.commitBaseline()
         showToast({ message: 'Pricing saved', variant: 'success' })
-        router.refresh()
+        refreshAfterAction(() => router.refresh())
       } catch (err) {
         form.setError()
         setError(err instanceof Error ? err.message : 'Could not save pricing.')
@@ -139,7 +140,7 @@ export function PricingSettingsPanel({
         })
         setSheetOpen(false)
         showToast({ message: 'Rate override saved', variant: 'success' })
-        router.refresh()
+        refreshAfterAction(() => router.refresh())
         if (!editingId) {
           setPeriods((prev) => [
             ...prev,
@@ -168,7 +169,7 @@ export function PricingSettingsPanel({
         setSheetOpen(false)
         setPeriods((prev) => prev.filter((p) => p.id !== editingId))
         showToast({ message: 'Period deleted', variant: 'success' })
-        router.refresh()
+        refreshAfterAction(() => router.refresh())
       } catch {
         showToast({ message: 'Could not delete period', variant: 'error' })
       }

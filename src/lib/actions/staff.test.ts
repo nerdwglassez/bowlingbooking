@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => {
   const bookingHoldFindMany = vi.fn()
   const laneCount = vi.fn()
   const reassignBookingLanesMock = vi.fn()
+  const paymentUpdate = vi.fn()
+  const createRefundMock = vi.fn()
+  const sendCancellationMock = vi.fn()
   const txStub = {
     booking: {
       create: bookingCreate,
@@ -25,7 +28,7 @@ const mocks = vi.hoisted(() => {
       findFirst: bookingFindFirst,
       findMany: bookingFindMany,
     },
-    payment: { create: paymentCreate },
+    payment: { create: paymentCreate, update: paymentUpdate },
     auditLog: { create: auditCreate },
     blockedSlot: { create: blockCreate, deleteMany: blockDeleteMany, findMany: blockedSlotFindMany },
     tenant: { findUniqueOrThrow: tenantFindUniqueOrThrow },
@@ -47,6 +50,9 @@ const mocks = vi.hoisted(() => {
     bookingUpdate,
     bookingUpdateMany,
     paymentCreate,
+    paymentUpdate,
+    createRefundMock,
+    sendCancellationMock,
     auditCreate,
     blockCreate,
     blockDeleteMany,
@@ -84,13 +90,31 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: mocks.bookingFindUnique,
       findFirst: mocks.bookingFindFirst,
       updateMany: mocks.bookingUpdateMany,
+      update: mocks.bookingUpdate,
     },
+    payment: { update: mocks.paymentUpdate },
     blockedSlot: { findMany: mocks.blockFindMany },
     lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
     package: { findFirst: mocks.packageFindFirst },
     $transaction: mocks.txMock,
   },
 }))
+
+vi.mock('@/lib/stripe', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/stripe')>()
+  return {
+    ...actual,
+    createRefund: mocks.createRefundMock,
+  }
+})
+
+vi.mock('@/lib/email', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/email')>()
+  return {
+    ...actual,
+    sendBookingCancellation: mocks.sendCancellationMock,
+  }
+})
 
 import {
   blockLanes,
@@ -103,6 +127,7 @@ import {
   getTodayBookings,
   markBookingCompletedAction,
   markBookingNoShowAction,
+  staffCancelBookingAction,
   staffModifyBookingAction,
   unblockLanes,
 } from './staff'
@@ -131,7 +156,7 @@ beforeEach(() => {
           findFirst: mocks.bookingFindFirst,
           findMany: mocks.bookingFindMany,
         },
-        payment: { create: mocks.paymentCreate },
+        payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
         auditLog: { create: mocks.auditCreate },
         blockedSlot: {
           create: mocks.blockCreate,
@@ -142,7 +167,7 @@ beforeEach(() => {
         package: { findFirst: mocks.packageFindFirst },
         bookingHold: { findMany: mocks.bookingHoldFindMany },
         lane: { count: mocks.laneCount, findMany: mocks.laneFindMany },
-      } as Parameters<typeof fn>[0]),
+      } as unknown as Parameters<typeof fn>[0]),
   )
   mocks.tenantFindUniqueOrThrow.mockResolvedValue({
     id: 't1',
@@ -197,7 +222,13 @@ describe('staff actions: role gating', () => {
     )
   })
 
-  it('blockLanes requires STAFF, MANAGER, or ADMIN', async () => {
+  it('blockLanes requires ADMIN only', async () => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_admin',
+      email: 'admin@royalz.local',
+      role: 'ADMIN',
+      tenantId: 't1',
+    })
     mocks.blockCreate.mockResolvedValue({ id: 'block_1' })
     await blockLanes({
       tenantId: 't1',
@@ -205,11 +236,7 @@ describe('staff actions: role gating', () => {
       endTime: new Date(Date.now() + 3600_000),
       lanes: [3, 4],
     })
-    expect(mocks.requireRoleMock).toHaveBeenCalledWith(
-      'STAFF',
-      'MANAGER',
-      'ADMIN',
-    )
+    expect(mocks.requireRoleMock).toHaveBeenCalledWith('ADMIN')
   })
 })
 
@@ -561,6 +588,15 @@ describe('createWalkInBooking', () => {
 })
 
 describe('blockLanes', () => {
+  beforeEach(() => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_admin',
+      email: 'admin@royalz.local',
+      role: 'ADMIN',
+      tenantId: 't1',
+    })
+  })
+
   it('rejects endTime <= startTime', async () => {
     const t = new Date()
     await expect(
@@ -601,6 +637,15 @@ describe('blockLanes', () => {
 })
 
 describe('unblockLanes', () => {
+  beforeEach(() => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_admin',
+      email: 'admin@royalz.local',
+      role: 'ADMIN',
+      tenantId: 't1',
+    })
+  })
+
   it('is a no-op in dev-without-db', async () => {
     mocks.isDevWithoutDbMock.mockReturnValue(true)
     await unblockLanes('clxyz123productioncuid')
@@ -752,5 +797,110 @@ describe('booking lifecycle tenant guards', () => {
       /cannot be completed/,
     )
     expect(mocks.auditCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('staffCancelBookingAction', () => {
+  const confirmedBooking = {
+    id: 'bk_cancel',
+    tenantId: 't1',
+    status: 'CONFIRMED',
+    isRefunded: false,
+    customerEmail: 'guest@example.com',
+    customerName: 'Guest',
+    confirmationCode: 'ABC123',
+    startTime: new Date('2026-06-01T18:00:00Z'),
+    payment: {
+      id: 'pay_1',
+      amount: 4500,
+      refundAmount: 0,
+      stripePaymentIntentId: 'pi_123',
+      refundStatus: 'NONE',
+    },
+  }
+
+  it('allows STAFF to cancel without refund', async () => {
+    mocks.bookingFindFirst.mockResolvedValue(confirmedBooking)
+    mocks.sendCancellationMock.mockResolvedValue({ id: null })
+    mocks.txMock.mockImplementation(async (fn) =>
+      fn({
+        booking: {
+          create: mocks.bookingCreate,
+          update: mocks.bookingUpdate,
+          updateMany: mocks.bookingUpdateMany,
+          findUnique: mocks.bookingFindUnique,
+          findFirst: mocks.bookingFindFirst,
+          findMany: mocks.bookingFindMany,
+        },
+        auditLog: { create: mocks.auditCreate },
+        payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
+      } as never),
+    )
+
+    const result = await staffCancelBookingAction({
+      bookingId: 'bk_cancel',
+      reason: 'CUSTOMER_REQUEST',
+    })
+
+    expect(result.cancelled).toBe(true)
+    expect(result.refundAmountCents).toBe(0)
+    expect(mocks.createRefundMock).not.toHaveBeenCalled()
+    expect(mocks.requireRoleMock).toHaveBeenCalledWith('STAFF', 'MANAGER', 'ADMIN')
+  })
+
+  it('rejects STAFF when issueRefund is true', async () => {
+    await expect(
+      staffCancelBookingAction({
+        bookingId: 'bk_cancel',
+        reason: 'CUSTOMER_REQUEST',
+        issueRefund: true,
+      }),
+    ).rejects.toThrow(/managers can issue refunds/i)
+  })
+
+  it('MANAGER cancel with refund creates Stripe refund', async () => {
+    mocks.requireRoleMock.mockResolvedValue({
+      id: 'user_mgr',
+      email: 'mgr@royalz.local',
+      role: 'MANAGER',
+      tenantId: 't1',
+    })
+    mocks.bookingFindFirst.mockResolvedValue(confirmedBooking)
+    mocks.createRefundMock.mockResolvedValue({
+      id: 're_1',
+      status: 'pending',
+      amount: 4500,
+      mocked: false,
+    })
+    mocks.sendCancellationMock.mockResolvedValue({ id: null })
+    mocks.txMock.mockImplementation(async (fn) =>
+      fn({
+        booking: {
+          create: mocks.bookingCreate,
+          update: mocks.bookingUpdate,
+          updateMany: mocks.bookingUpdateMany,
+          findUnique: mocks.bookingFindUnique,
+          findFirst: mocks.bookingFindFirst,
+          findMany: mocks.bookingFindMany,
+        },
+        auditLog: { create: mocks.auditCreate },
+        payment: { create: mocks.paymentCreate, update: mocks.paymentUpdate },
+      } as never),
+    )
+
+    const result = await staffCancelBookingAction({
+      bookingId: 'bk_cancel',
+      reason: 'VENUE_ISSUE',
+      issueRefund: true,
+    })
+
+    expect(result.refundPending).toBe(true)
+    expect(result.refundAmountCents).toBe(4500)
+    expect(mocks.createRefundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentIntentId: 'pi_123',
+        amountCents: 4500,
+      }),
+    )
   })
 })

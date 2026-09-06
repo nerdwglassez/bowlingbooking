@@ -103,6 +103,7 @@ model Tenant {
   pricingPeriods          PricingPeriod[]
   claimTokens             ClaimToken[]
   stripeConnectAccountId  String?          @map("stripe_connect_account_id")
+  auditLogs               AuditLog[]
 }
 
 model User {
@@ -301,6 +302,7 @@ model BlockedSlot {
 
 model AuditLog {
   id         String   @id @default(cuid())
+  tenantId   String?  @map("tenant_id")
   bookingId  String?  @map("booking_id")
   userId     String?  @map("user_id")
   action     String
@@ -308,8 +310,11 @@ model AuditLog {
   entityId   String   @map("entity_id")
   details    Json?
   createdAt  DateTime @default(now()) @map("created_at")
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id])
   booking    Booking? @relation(fields: [bookingId], references: [id])
   user       User?    @relation("AuditLogUser", fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt])
 }
 
 model BookingHold {
