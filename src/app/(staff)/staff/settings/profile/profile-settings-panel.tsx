@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
@@ -10,6 +10,7 @@ import {
 } from '@/components/patterns/profile-form'
 import { updateProfileAction } from '@/lib/actions/admin'
 import { joinDisplayName, splitDisplayName } from '@/lib/display-name'
+import { refreshAfterAction } from '@/lib/refresh-after-action'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { formatStaffRole } from '@/lib/staff-nav'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
@@ -32,6 +33,7 @@ export function ProfileSettingsPanel({
   })
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  const savingRef = useRef(false)
 
   useSettingsFormReporter(
     form.dirty,
@@ -40,6 +42,7 @@ export function ProfileSettingsPanel({
   )
 
   function handleSubmit() {
+    if (savingRef.current || form.phase === 'saving') return
     setError(null)
     const emailChanged =
       form.values.email.trim().toLowerCase() !==
@@ -54,6 +57,7 @@ export function ProfileSettingsPanel({
       return
     }
 
+    savingRef.current = true
     form.startSaving()
     startTransition(async () => {
       try {
@@ -74,11 +78,13 @@ export function ProfileSettingsPanel({
         form.setValues(cleared)
         form.commitBaseline(cleared)
         showToast({ message: 'Profile updated', variant: 'success' })
-        router.refresh()
+        refreshAfterAction(() => router.refresh())
       } catch (err) {
         form.setError()
         setError(err instanceof Error ? err.message : 'Could not save profile.')
         showToast({ message: 'Failed to save — try again', variant: 'error' })
+      } finally {
+        savingRef.current = false
       }
     })
   }

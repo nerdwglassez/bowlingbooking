@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selecting one fills city, state, and ZIP (`/api/address/autocomplete`).
   Uses Google Places when `GOOGLE_PLACES_API_KEY` is set; otherwise Photon (OSM).
 
+### Fixed
+
+- Settings saves no longer throw React #441 after success: wrap post-await
+  `router.refresh()` in `startTransition` (`refreshAfterAction`), and guard
+  venue/policies/hours/profile against double-submit.
+
 ### Security
 
 - Tenant-scope audit logs (`AuditLog.tenantId` + backfill); `listAuditLogs` filters by session tenant (platform ADMIN with null tenantId remains global).
