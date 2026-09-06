@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
@@ -13,6 +13,7 @@ import {
 import { SettingsSaveButton } from '@/components/patterns/settings-save-button'
 import type { AdminTenantDetail } from '@/lib/actions/admin'
 import { updateTenantAction } from '@/lib/actions/admin'
+import { refreshAfterAction } from '@/lib/refresh-after-action'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
 
@@ -29,6 +30,7 @@ export function VenueInfoPanel({ initial }: { initial: AdminTenantDetail }) {
   )
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  const savingRef = useRef(false)
 
   useSettingsFormReporter(
     form.dirty,
@@ -37,6 +39,8 @@ export function VenueInfoPanel({ initial }: { initial: AdminTenantDetail }) {
   )
 
   function handleSubmit() {
+    if (savingRef.current || form.phase === 'saving') return
+    savingRef.current = true
     setError(null)
     form.startSaving()
     startTransition(async () => {
@@ -56,13 +60,15 @@ export function VenueInfoPanel({ initial }: { initial: AdminTenantDetail }) {
         })
         form.commitBaseline()
         showToast({ message: 'Venue info updated', variant: 'success' })
-        router.refresh()
+        refreshAfterAction(() => router.refresh())
       } catch (err) {
         form.setError()
         setError(
           err instanceof Error ? err.message : 'Could not save venue info.',
         )
         showToast({ message: 'Failed to save — try again', variant: 'error' })
+      } finally {
+        savingRef.current = false
       }
     })
   }
