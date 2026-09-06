@@ -1,47 +1,31 @@
-// /staff/settings/integrations — integration status (ADMIN only).
+// /staff/settings/integrations — connection management (ADMIN only).
 
 import { unauthorized } from 'next/navigation'
 
 import { requireRole } from '@/lib/auth'
-import { hasResendApiKey } from '@/lib/env'
+import { listIntegrationCardStates } from '@/lib/actions/admin'
 
 import { IntegrationsSettingsPanel } from './integrations-settings-panel'
 
-export default async function StaffSettingsIntegrationsPage() {
+export default async function StaffSettingsIntegrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
   if (user.role !== 'ADMIN') unauthorized()
 
-  const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY?.trim())
-  const resendConfigured = hasResendApiKey()
+  const params = await searchParams
+  const stripeParam = params.stripe
+  const stripeFlash =
+    typeof stripeParam === 'string' &&
+    (stripeParam === 'return' || stripeParam === 'refresh')
+      ? stripeParam
+      : null
 
-  const cards = [
-    {
-      key: 'stripe' as const,
-      title: 'Stripe',
-      status: stripeConfigured ? 'Connected' : 'Required · not connected',
-      summary: 'Online payments go directly to your Stripe account.',
-      detail: stripeConfigured
-        ? 'Stripe secret key is configured in the server environment. Connect OAuth and payout details are managed in the Stripe Dashboard for now.'
-        : 'Add STRIPE_SECRET_KEY to enable card payments. Without Stripe, online checkout cannot capture payments.',
-    },
-    {
-      key: 'resend' as const,
-      title: 'Resend',
-      status: resendConfigured ? 'Connected' : 'Optional · not configured',
-      summary: 'Transactional email for confirmations and receipts.',
-      detail: resendConfigured
-        ? 'Resend API key is set. Booking confirmations, receipts, and team invite emails send through Resend.'
-        : 'Optional: set RESEND_API_KEY to send booking and team invite emails. Without it, invite links are shown in the app for you to copy manually.',
-    },
-    {
-      key: 'make' as const,
-      title: 'Make',
-      status: 'Optional',
-      summary: 'Webhook automation for external workflows.',
-      detail:
-        'Make (Integromat) webhooks are optional. Configure a scenario URL in your Make account and point it at venue automation endpoints when available.',
-    },
-  ]
+  const cards = await listIntegrationCardStates()
 
-  return <IntegrationsSettingsPanel cards={cards} />
+  return (
+    <IntegrationsSettingsPanel cards={cards} stripeFlash={stripeFlash} />
+  )
 }

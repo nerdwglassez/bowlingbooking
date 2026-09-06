@@ -23,7 +23,7 @@
 | `/staff/settings/policies` | Built (wireframe policy rows) |
 | `/staff/settings/packages` | Built (Public / Code-gated tabs) |
 | `/staff/settings/team` | Built (ADMIN invite + detail sheets) |
-| `/staff/settings/integrations` | Partial (status cards + Stripe Dashboard link; OAuth open) |
+| `/staff/settings/integrations` | Built (add / connect panel, enable toggle, view details + remove; Stripe OAuth return) |
 | `/staff/settings/profile` | Built |
 | Legacy `/admin/packages`, `/admin/promos` | Redirect to settings packages |
 
@@ -446,65 +446,32 @@ Admin only (Manager and Staff cannot see Team in settings list).
 
 Admin only.
 
-### Integration Card
+### Row states
 
-**Connected state:**
-- Border: rgba(16,185,129,0.2) — green tint
-- Status badge: "Connected" — --status-available-bg, --status-available-text
-- Top row: logo + name + description + badge
-- Connected details block (below top row):
-  Background: rgba(16,185,129,0.06)
-  Rows: label + value (e.g. "Account: Royal Z Lanes", "Mode: Live")
-  All values in --status-ok-text-dark
+**Not connected**
+- Status badge: "Required" (Stripe) or omitted for optional apps
+- Primary control: **Add integration** — opens the right panel in connect mode
 
-**Not connected state:**
-- Border: border-secondary (neutral)
-- Status badge: "Required" (for Stripe) — --status-critical-bg, --status-critical-text
-  OR: "Optional" — bg-secondary, text-tertiary
+**Connected**
+- Status badge: "Connected"
+- **View details** link opens the right panel in manage mode
+- **Enable toggle** turns the integration on/off without deleting the connection
 
-**Error state:**
-- Border: rgba(248,113,113,0.3) — red tint
-- Status badge: "Error" — --status-critical-bg, --status-critical-text
+### Connect panel
+- Explains the integration and lists permissions the venue will grant
+- Stripe: **Connect with Stripe** redirects to Stripe Connect onboarding; return/refresh URLs land back on `/staff/settings/integrations?stripe=return|refresh`
+- Resend / Make: confirm permissions in-app, then soft-connect via tenant `config.integrations`
+- Cancel closes the panel without changes
 
-**Tapping an integration card:**
-- Detail slideout from the right
-- Background dims to 18%
+### Manage panel
+- Enable toggle (same as row)
+- Permissions granted summary
+- **Remove integration** with confirm — clears Stripe Connect account id and/or config prefs
 
-### Stripe Detail Sheet
-
-**Not connected:**
-- Logo + "Stripe" title + "Required for online payments" sub
-- Explanation: "Payments go directly to your account — platform never holds funds."
-- Warning note: amber tint — "Online booking is disabled until Stripe is connected."
-- "Connect with Stripe" button: Stripe purple (#6772E5) bg, white text
-  Icon: credit card SVG
-- Note: "You'll be redirected to Stripe to authorize the connection."
-- Docs link: "Stripe Connect setup guide →" in blue
-
-**Connected:**
-- Connected details block (account name, mode, connected date)
-- "Disconnect" text button: --status-error-text-dark
-  Requires confirmation — disconnecting disables online booking
-
-### Make Detail Sheet
-
-**Error state:**
-- Logo + "Make" title + error summary in red (e.g. "Webhook unreachable · last event failed 2h ago")
-- Error detail card: red tint bg, error description
-- Webhook URL field: editable, shows current URL
-- "Test webhook" button: bg-secondary
-- "Save webhook URL" button: bg-brand-solid / text-brand-secondary bg
-- Docs link
-
-**Connected:**
-- Shows webhook URL (masked)
-- Last event timestamp
-- "Test" + "Disconnect" actions
-
-### Integration Categories on Main Page
+### Categories
 - Payments: Stripe (required)
+- Email: Resend (optional; needs `RESEND_API_KEY` on the server)
 - Automation: Make (optional)
-- Email: configured separately (transactional email provider)
 
 ---
 
