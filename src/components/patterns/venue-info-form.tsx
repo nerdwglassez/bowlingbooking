@@ -3,6 +3,7 @@
 import { Button } from '@/components/base/buttons/button'
 import { Input } from '@/components/base/input/input'
 import { SettingsFieldRow } from '@/components/patterns/settings-field-row'
+import { StreetAddressAutocomplete } from '@/components/chrome/street-address-autocomplete'
 import {
   formatTenantAddress,
   parseTenantAddress,
@@ -93,12 +94,15 @@ export function VenueInfoForm({
         />
       </SettingsFieldRow>
 
-      <SettingsFieldRow label="Street address" required>
-        <Input
-          type="text"
-          aria-label="Street address"
+      <SettingsFieldRow
+        label="Street address"
+        hint="Suggestions fill city, state, and ZIP when you pick an address."
+        required
+      >
+        <StreetAddressAutocomplete
           value={values.street}
           onChange={(street) => patch({ street })}
+          onSelectAddress={(fields) => patch(fields)}
           isDisabled={readOnly}
           isRequired
         />
