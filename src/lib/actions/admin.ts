@@ -117,13 +117,7 @@ export interface AdminUserRow {
   createdAt: Date
 }
 
-function assertAdminTenantAccess(
-  user: CurrentUser,
-  tenantId: string | null | undefined,
-  action: string,
-): void {
-  assertAdminTenantBound(user, tenantId, action)
-}
+const assertAdminTenantAccess = assertAdminTenantBound
 
 // ── Venue / tenant ────────────────────────────────────────
 

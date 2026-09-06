@@ -35,6 +35,8 @@ import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
 import type { Tenant } from '@/types'
 import { isUniqueConstraintOnField } from '@/lib/prisma-errors'
 import { prisma } from '@/lib/prisma'
+import { sendBookingCancellation } from '@/lib/email'
+import { createRefund } from '@/lib/stripe'
 import {
   assertStaffTenantAccess,
   requireUserTenantId,
@@ -868,6 +870,171 @@ export async function markBookingNoShowAction(
   })
   revalidatePath(`/staff/bookings/${bookingId}`)
   revalidatePath('/staff')
+}
+
+export type StaffCancelReason = 'CUSTOMER_REQUEST' | 'NO_SHOW' | 'VENUE_ISSUE'
+
+export interface StaffCancelBookingInput {
+  bookingId: string
+  reason: StaffCancelReason
+  /** MANAGER+ only. Ignored/rejected for STAFF. Requires a Stripe payment. */
+  issueRefund?: boolean
+}
+
+export interface StaffCancelBookingResult {
+  cancelled: true
+  refundPending: boolean
+  refundAmountCents: number
+  mocked: boolean
+}
+
+/**
+ * Staff cancel per `.claude/staff/03_MODIFICATION.md`.
+ * STAFF may cancel without refund. MANAGER/ADMIN may optionally issue a
+ * Stripe refund for card payments (walk-ins stay non-Stripe).
+ */
+export async function staffCancelBookingAction(
+  input: StaffCancelBookingInput,
+): Promise<StaffCancelBookingResult> {
+  const user = await requireRole('STAFF', 'MANAGER', 'ADMIN')
+  const issueRefund = input.issueRefund === true
+
+  if (issueRefund && user.role === 'STAFF') {
+    throw new Error('Only managers can issue refunds when cancelling.')
+  }
+
+  if (isDevWithoutDb()) {
+    console.log(`[staff] mock cancel booking ${input.bookingId}`, input)
+    revalidatePath('/staff')
+    return {
+      cancelled: true,
+      refundPending: issueRefund,
+      refundAmountCents: issueRefund ? 4500 : 0,
+      mocked: true,
+    }
+  }
+
+  const tenantId = requireStaffTenantId(user)
+  const booking = await prisma.booking.findFirst({
+    where: { id: input.bookingId, tenantId },
+    include: { payment: true },
+  })
+  if (!booking) throw new Error('Booking not found.')
+  if (booking.status === 'CANCELLED') {
+    throw new Error('Booking is already cancelled.')
+  }
+  if (booking.status !== 'CONFIRMED' && booking.status !== 'PENDING_PAYMENT') {
+    throw new Error('Only active bookings can be cancelled.')
+  }
+
+  if (issueRefund) {
+    if (!booking.payment?.stripePaymentIntentId) {
+      throw new Error(
+        'Stripe refund is not available for this booking. Use a manual refund instead.',
+      )
+    }
+    if (booking.isRefunded) {
+      throw new Error('Booking is already refunded.')
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: {
+        status: 'CANCELLED',
+        cancellationReason: input.reason,
+      },
+    })
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        bookingId: booking.id,
+        userId: user.id,
+        action: 'BOOKING_STAFF_CANCELLED',
+        entityType: 'Booking',
+        entityId: booking.id,
+        details: {
+          reason: input.reason,
+          issueRefund,
+          cancelledByRole: user.role,
+        },
+      },
+    })
+  })
+
+  let refundPending = false
+  let refundAmountCents = 0
+  if (issueRefund && booking.payment?.stripePaymentIntentId) {
+    const payment = booking.payment
+    const alreadyRefunded = payment.refundAmount ?? 0
+    const remaining = Math.max(payment.amount - alreadyRefunded, 0)
+    if (remaining > 0) {
+      const refund = await createRefund({
+        paymentIntentId: payment.stripePaymentIntentId,
+        amountCents: remaining,
+        reason: 'requested_by_customer',
+        idempotencyKey: `staff-cancel-refund:${booking.id}:${alreadyRefunded + remaining}`,
+        metadata: {
+          bookingId: booking.id,
+          source: 'staff_cancel',
+          reason: input.reason,
+        },
+      })
+      await prisma.$transaction(async (tx) => {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            stripeRefundId: refund.id,
+            refundAmount: alreadyRefunded + remaining,
+            refundStatus: 'PENDING',
+            refundReason: `Staff cancel (${input.reason})`,
+            refundedBy: user.id,
+          },
+        })
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            bookingId: booking.id,
+            userId: user.id,
+            action: 'BOOKING_REFUND_REQUESTED',
+            entityType: 'Booking',
+            entityId: booking.id,
+            details: {
+              stripeRefundId: refund.id,
+              amount: remaining,
+              source: 'staff_cancel',
+              reason: input.reason,
+            },
+          },
+        })
+      })
+      refundPending = true
+      refundAmountCents = remaining
+    }
+  }
+
+  await sendBookingCancellation({
+    customerEmail: booking.customerEmail,
+    customerName: booking.customerName,
+    confirmationCode: booking.confirmationCode,
+    startTime: booking.startTime,
+    refundAmountCents,
+    refundPending,
+  }).catch((err) => {
+    console.error('[staffCancelBookingAction] cancellation email failed', err)
+  })
+
+  revalidatePath(`/staff/bookings/${booking.id}`)
+  revalidatePath('/staff')
+  revalidatePath('/staff/schedule')
+
+  return {
+    cancelled: true,
+    refundPending,
+    refundAmountCents,
+    mocked: false,
+  }
 }
 
 export async function staffUpdateBookingNotesAction(

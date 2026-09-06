@@ -247,8 +247,9 @@ export async function refundBookingAction(
     })
   })
 
-  revalidatePath(`/admin/bookings/${booking.id}`)
-  revalidatePath('/admin/bookings')
+  revalidatePath(`/staff/bookings/${booking.id}`)
+  revalidatePath('/staff')
+  revalidatePath('/staff/schedule')
 
   return {
     refundId: refund.id,
