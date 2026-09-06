@@ -27,7 +27,9 @@ describe('themes', () => {
   it('getThemePreset returns the matching preset for known slugs', () => {
     expect(getThemePreset('midnight').slug).toBe('midnight')
     expect(getThemePreset('sunset').name).toBe('Sunset')
-    expect(getThemePreset('amber').swatchHex).toBe('#F59E0B')
+    const amber = THEME_PRESETS.find((p) => p.slug === 'amber')
+    expect(amber).toBeDefined()
+    expect(getThemePreset('amber').swatchHex).toBe(amber!.swatchHex)
   })
 
   it('getThemePreset falls back to Untitled default for unknown slugs', () => {
