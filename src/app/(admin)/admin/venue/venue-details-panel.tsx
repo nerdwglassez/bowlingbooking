@@ -10,6 +10,7 @@ import {
   type VenueDetailsFormValues,
 } from '@/components/patterns/venue-details-form'
 import type { AdminTenantDetail } from '@/lib/actions/admin'
+import { refreshAfterAction } from '@/lib/refresh-after-action'
 import { updateTenantAction } from '@/lib/actions/admin'
 
 export function VenueDetailsPanel({
@@ -40,7 +41,7 @@ export function VenueDetailsPanel({
       try {
         await updateTenantAction({ tenantId: initial.id, ...values })
         setSuccess('Venue details saved.')
-        router.refresh()
+        refreshAfterAction(() => router.refresh())
       } catch (err) {
         setError(
           err instanceof Error ? err.message : 'Could not save venue details.',
