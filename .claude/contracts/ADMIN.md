@@ -257,7 +257,6 @@ Read-only report loads are **not** written to `AuditLog` (too noisy for v1).
 
 ## Deferred
 
-- **Stripe Connect OAuth** — `getStripeConnectOnboardingUrl()` redirects to Stripe Connect onboarding and returns to Integrations (`?stripe=return|refresh`).
 - **Advance booking policy** — deposit %, advance-booking window, and other `Tenant.config` knobs beyond cancellation window / refund % (see [Booking policy (Phase 11)](#booking-policy-phase-11)).
 - **Deeper analytics** — cohorting, warehouse sync, and exports beyond the v1 `/staff/reports` KPIs and charts.
 - **Legacy admin editors** — redirect `/admin/packages/[id]`, `/admin/team/*` to settings equivalents.
