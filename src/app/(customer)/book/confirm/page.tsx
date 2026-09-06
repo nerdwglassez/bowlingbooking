@@ -31,6 +31,7 @@ import {
 } from '@/lib/actions/booking'
 import { paymentFooterLineItems } from '@/lib/booking-display'
 import { isContactComplete } from '@/lib/customer-name'
+import { withPaymentIntentQuery } from '@/lib/payment-success-url'
 import { calculateBookingTotal, calculatePackageStepTotal, formatPrice } from '@/lib/pricing'
 import { useHoldExpiry } from '@/lib/use-hold-expiry'
 import { useWallClockNow } from '@/lib/use-wall-clock'
@@ -365,7 +366,10 @@ export default function ConfirmBookingPage() {
   const returnUrl =
     typeof window === 'undefined'
       ? ''
-      : `${window.location.origin}/book/success`
+      : withPaymentIntentQuery(
+          `${window.location.origin}/book/success`,
+          session.stripePaymentIntentId ?? '',
+        )
 
   const payCtaLabel = paymentError
     ? 'Try again'

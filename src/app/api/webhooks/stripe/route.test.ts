@@ -462,15 +462,71 @@ describe('POST /api/webhooks/stripe', () => {
     })
   })
 
-  it('returns duplicate:true on Stripe event re-delivery', async () => {
+  it('replays payment_intent.succeeded when the event is a duplicate but no Payment exists', async () => {
     mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
+    mocks.paymentFindUnique.mockResolvedValue(null)
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toEqual({ received: true, replayed: true })
+    expect(mocks.bookingCreate).toHaveBeenCalledOnce()
+    expect(mocks.paymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        stripePaymentIntentId: 'pi_1',
+      }),
+    })
+  })
+
+  it('returns duplicate:true on payment_intent re-delivery after Payment already exists', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
+    mocks.paymentFindUnique.mockResolvedValue({ id: 'pay_existing' })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toEqual({ received: true, replayed: true })
+    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns duplicate:true on charge.refunded re-delivery without re-running side effects', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue({
+      id: 'evt_refund_dup',
+      type: 'charge.refunded',
+      data: {
+        object: {
+          id: 'ch_dup',
+          payment_intent: 'pi_1',
+          amount_refunded: 4500,
+          refunded: true,
+        },
+      },
+    })
     mocks.stripeEventCreate.mockRejectedValue({ code: 'P2002' })
 
     const res = await POST(makeRequest('{}') as never)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ received: true, duplicate: true })
-    expect(mocks.bookingCreate).not.toHaveBeenCalled()
+    expect(mocks.paymentUpdate).not.toHaveBeenCalled()
+    expect(mocks.bookingUpdate).not.toHaveBeenCalled()
+  })
+
+  it('treats concurrent finalize unique on stripe_payment_intent_id as already completed', async () => {
+    mocks.constructWebhookEventMock.mockReturnValue(paymentIntentEvent)
+    mocks.stripeEventCreate.mockResolvedValue({})
+    mocks.paymentFindUnique.mockResolvedValue(null)
+    mocks.paymentCreate.mockRejectedValue({
+      code: 'P2002',
+      meta: { target: ['stripe_payment_intent_id'] },
+    })
+
+    const res = await POST(makeRequest('{}') as never)
+    expect(res.status).toBe(200)
+    expect(mocks.stripeEventDeleteMany).not.toHaveBeenCalled()
+    expect(mocks.createRefundMock).not.toHaveBeenCalled()
   })
 
   it('retries finalize when confirmation_code collides (P2002)', async () => {

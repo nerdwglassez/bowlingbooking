@@ -38,6 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stripe `payment_intent.succeeded` retries now replay booking finalization when the event was recorded but no Payment row exists, so a webhook timeout cannot capture a payment without creating the reservation.
+- PaymentIntent idempotency key fingerprints amount + metadata so promo/package changes on confirm no longer block checkout.
+- Customer cancel caps refunds by remaining policy amount after settled partials (no double payout on retry).
+- Customer reschedule preserves original paid duration; end time is derived server-side.
+- Peak pricing periods match clock windows; unmatched overrides fall through to the tenant default rate.
+- Online booking rejects time slots that have already started.
+- Card confirmation success URL includes `payment_intent` so `/book/success` can resolve the booking.
+- Account claim signs the customer in before redirecting to `/dashboard`.
+- Dashboard treats future `PENDING_PAYMENT` as upcoming and includes cancelled bookings in past history.
+- Outside self-serve window badge no longer mislabels the booking as a large group.
 - Confirmation email used venue name instead of package name.
 - Online checkout failed when optional package add-ons were selected.
 - `maxOnlineBowlers` tenant setting ignored on booking Step 1 UI.
