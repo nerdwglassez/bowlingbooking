@@ -75,6 +75,15 @@ const eslintConfig = defineConfig([
       'no-restricted-syntax': 'off',
     },
   },
+  {
+    // Web Manifest + iOS theme-color meta require literal hex; CSS variables
+    // are not resolved by browsers for those fields. UI still uses tokens.
+    name: 'royalz/pwa-manifest-hex-exception',
+    files: ['src/lib/pwa-manifest.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
   globalIgnores([
     '.next/**',
     'out/**',

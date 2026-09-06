@@ -6,7 +6,7 @@
 # Code contract: contracts/STAFF.md (NavRail breakpoints)
 # Visual: Figma URL TBD — paste into FIGMA.md. Historical HTML under docs/wireframes/ is not visual SoT.
 # Colors: Untitled semantic utilities (theme.css). Do not introduce --staff-* tokens.
-# Build status:  Chrome + interiors on Untitled (`lg` 1024px); PWA TBD
+# Build status:  Chrome + interiors on Untitled (`lg` 1024px); PWA manifests + Apple meta shipped
 
 ---
 
@@ -222,16 +222,18 @@ They save as **separate apps** with distinct icons, names, and start URLs.
 
 ### Two Manifests
 
+Dynamic route handlers (tenant name injected — never hardcoded static JSON):
+
 ```
-public/
-  manifest-customer.json   ← customer booking app
-  manifest-staff.json      ← staff cockpit app
-  icons/
-    customer-192.png        ← amber icon on warm stone
-    customer-512.png
-    staff-192.png           ← amber icon on deep purple
-    staff-512.png
+src/app/
+  manifest-customer.json/route.ts   ← GET /manifest-customer.json
+  manifest-staff.json/route.ts      ← GET /manifest-staff.json
+public/icons/
+  customer-180.png / customer-192.png / customer-512.png
+  staff-180.png / staff-192.png / staff-512.png
 ```
+
+Builders live in `src/lib/pwa-manifest.ts`. Layout metadata points at these URLs.
 
 ### Customer Manifest
 ```json
@@ -326,6 +328,11 @@ venue without any code changes.
 Safari → visit /staff URL → Share button → "Add to Home Screen" → Add.
 Takes 10 seconds. Full-screen, no browser chrome, home screen icon.
 Works identically on iPad and iPhone.
+
+**Re-add required after this ships:** Home Screen icons added before
+`apple-mobile-web-app-capable` / standalone manifest were present still open
+as Safari bookmarks with chrome. Delete the old icon, then Add to Home Screen
+again from `/staff` over HTTPS (or localhost).
 
 ---
 

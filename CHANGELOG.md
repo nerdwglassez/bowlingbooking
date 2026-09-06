@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `exportStaffAnalyticsCsvAction` (MANAGER+) with `REPORT_EXPORTED` audit trail.
 - Stripe Connect destination-charge path behind `STRIPE_CONNECT_DESTINATION_CHARGES` (default off) in `stripe.ts`.
 - Staff Contacts table (Untitled `TableCard` + right slideout), Support venue contacts from `getTenant()`, booking-detail payment-resume control, and packages search/sort.
+- Installable staff + customer PWAs: dynamic `/manifest-staff.json` and `/manifest-customer.json` (tenant name, `display: standalone`), Apple `apple-mobile-web-app-capable` meta, and home-screen icons.
 
 ### Changed
 
