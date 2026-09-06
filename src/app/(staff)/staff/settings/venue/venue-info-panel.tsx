@@ -13,7 +13,7 @@ import {
 import { SettingsSaveButton } from '@/components/patterns/settings-save-button'
 import type { AdminTenantDetail } from '@/lib/actions/admin'
 import { updateTenantAction } from '@/lib/actions/admin'
-import { refreshAfterAction } from '@/lib/refresh-after-action'
+import { runStaffAction } from '@/lib/refresh-after-action'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
 
@@ -43,9 +43,10 @@ export function VenueInfoPanel({ initial }: { initial: AdminTenantDetail }) {
     savingRef.current = true
     setError(null)
     form.startSaving()
-    startTransition(async () => {
-      try {
-        await updateTenantAction({
+    runStaffAction({
+      startTransition,
+      action: () =>
+        updateTenantAction({
           tenantId: initial.id,
           name: form.values.name.trim(),
           address: venueInfoToAddress(form.values),
@@ -57,19 +58,21 @@ export function VenueInfoPanel({ initial }: { initial: AdminTenantDetail }) {
           cancellationWindowHours: initial.cancellationWindowHours,
           cancellationRefundPercent: initial.cancellationRefundPercent,
           contactEmail: form.values.contactEmail.trim(),
-        })
+        }),
+      onSuccess: () => {
         form.commitBaseline()
         showToast({ message: 'Venue info updated', variant: 'success' })
-        refreshAfterAction(() => router.refresh())
-      } catch (err) {
+        savingRef.current = false
+      },
+      onError: (err) => {
         form.setError()
         setError(
           err instanceof Error ? err.message : 'Could not save venue info.',
         )
         showToast({ message: 'Failed to save — try again', variant: 'error' })
-      } finally {
         savingRef.current = false
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

@@ -182,6 +182,20 @@ const CHECKS = [
       (file.endsWith('/page.tsx') || file.endsWith('/layout.tsx')),
     hint: 'Pages/layouts must use server actions or lib helpers — never import Prisma directly.',
   },
+  {
+    // React error 441: bare router.refresh() after await suspends outside a
+    // transition. Allowed only via refreshAfterAction(...) or runStaffAction's
+    // `refresh: () => router.refresh()` callback.
+    name: 'bare router.refresh() in staff/admin/chrome clients',
+    regex:
+      /^(?!.*(?:refreshAfterAction\s*\(|refresh\s*:\s*\(\)\s*=>)).*router\.refresh\s*\(/gm,
+    appliesTo: (file) =>
+      !file.endsWith('src/lib/refresh-after-action.ts') &&
+      (file.includes('/app/(staff)/') ||
+        file.includes('/app/(admin)/') ||
+        file.includes('/components/chrome/')),
+    hint: 'Wrap post-action refresh with refreshAfterAction(() => router.refresh()) or runStaffAction({ refresh: () => router.refresh() }). Bare refresh after await causes React error 441.',
+  },
 ]
 
 /** Temporary customer-booking shims. New files under ui/ must be re-exports, not new primitives. */

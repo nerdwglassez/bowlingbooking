@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Staff/admin mutations no longer throw React #441 after success: invoke
+  server actions as thenables inside `startTransition` via `runStaffAction`,
+  and always wrap `router.refresh()` with `refreshAfterAction`. Covers venue
+  (residual #441 after #131), integrations, team, packages/promos, booking
+  ops/refunds, walk-in, and schedule block/unblock. Drift check bans bare
+  `router.refresh()` in staff/admin/chrome clients.
 - Settings saves no longer throw React #441 after success: wrap post-await
   `router.refresh()` in `startTransition` (`refreshAfterAction`), and guard
   venue/policies/hours/profile against double-submit.

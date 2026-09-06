@@ -22,6 +22,7 @@ import {
   updateTeamUserAction,
 } from '@/lib/actions/admin'
 import { resendTeamInviteAction } from '@/lib/actions/team-invite'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 interface TeamEditorProps {
   mode: 'create' | 'edit'
@@ -72,32 +73,45 @@ export function TeamEditor({
   function handleSubmit() {
     setError(null)
     setSuccess(null)
-    startTransition(async () => {
-      try {
-        if (mode === 'create') {
-          const result = await createTeamUserAction({
+    if (mode === 'create') {
+      runStaffAction({
+        startTransition,
+        action: () =>
+          createTeamUserAction({
             tenantId,
             email: values.email,
             name: values.name || undefined,
             phone: values.phone || undefined,
             role: values.role,
             personalMessage: values.personalMessage.trim() || undefined,
-          })
+          }),
+        onSuccess: (result) => {
           router.push(`/admin/team/${result.userId}`)
-          return
-        }
-        if (!initial) throw new Error('Missing user id for edit.')
-        await updateTeamUserAction({
+        },
+        onError: (err) => {
+          setError(err instanceof Error ? err.message : 'Could not save.')
+        },
+      })
+      return
+    }
+    if (!initial) {
+      setError('Missing user id for edit.')
+      return
+    }
+    runStaffAction({
+      startTransition,
+      action: () =>
+        updateTeamUserAction({
           userId: initial.id,
           name: values.name || null,
           phone: values.phone || null,
           role: values.role,
-        })
-        setSuccess('Team member saved.')
-        router.refresh()
-      } catch (err) {
+        }),
+      onSuccess: () => setSuccess('Team member saved.'),
+      onError: (err) => {
         setError(err instanceof Error ? err.message : 'Could not save.')
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 
@@ -105,22 +119,25 @@ export function TeamEditor({
     if (!initial) return
     setResetError(null)
     setResetSuccess(null)
-    startReset(async () => {
-      try {
-        await resetUserPasswordAction({
+    runStaffAction({
+      startTransition: startReset,
+      action: () =>
+        resetUserPasswordAction({
           userId: initial.id,
           newPassword: resetPw,
-        })
+        }),
+      onSuccess: () => {
         setResetPw('')
         setResetSuccess(
           'Password reset. Share the new password with the team member out of band.',
         )
-        router.refresh()
-      } catch (err) {
+      },
+      onError: (err) => {
         setResetError(
           err instanceof Error ? err.message : 'Could not reset password.',
         )
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 
@@ -142,14 +159,14 @@ export function TeamEditor({
   function handleResendInvite() {
     if (!initial) return
     setResendSuccess(null)
-    startResend(async () => {
-      try {
-        await resendTeamInviteAction({ userId: initial.id })
-        setResendSuccess('Invite resent.')
-        router.refresh()
-      } catch (err) {
+    runStaffAction({
+      startTransition: startResend,
+      action: () => resendTeamInviteAction({ userId: initial.id }),
+      onSuccess: () => setResendSuccess('Invite resent.'),
+      onError: (err) => {
         setError(err instanceof Error ? err.message : 'Could not resend invite.')
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

@@ -10,6 +10,7 @@ import {
   markBookingNoShowAction,
   staffConfirmPendingPaymentAction,
 } from '@/lib/actions/staff'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 export type StaffBookingOpsPanelProps = {
   bookingId: string
@@ -28,13 +29,13 @@ export function StaffBookingOpsPanel({
 
   function run(action: () => Promise<void>) {
     setError(null)
-    startTransition(async () => {
-      try {
-        await action()
-        router.refresh()
-      } catch (err) {
+    runStaffAction({
+      startTransition,
+      action,
+      onError: (err) => {
         setError(err instanceof Error ? err.message : 'Action failed')
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

@@ -17,6 +17,7 @@ import {
   type IntegrationCardState,
 } from '@/lib/actions/admin'
 import type { IntegrationId } from '@/lib/integrations'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 const INTEGRATION_ICON = {
   stripe: CreditCard02,
@@ -92,17 +93,18 @@ export function IntegrationsSettingsPanel({
     setRows((prev) =>
       prev.map((row) => (row.id === card.id ? { ...row, enabled } : row)),
     )
-    startTransition(async () => {
-      try {
-        await setIntegrationEnabledAction(card.id, enabled)
+    runStaffAction({
+      startTransition,
+      action: () => setIntegrationEnabledAction(card.id, enabled),
+      onSuccess: () => {
         showToast({
           message: enabled
             ? `${card.title} turned on.`
             : `${card.title} turned off.`,
           variant: 'success',
         })
-        router.refresh()
-      } catch (err) {
+      },
+      onError: (err) => {
         setRows((prev) =>
           prev.map((row) =>
             row.id === card.id ? { ...row, enabled: card.enabled } : row,
@@ -113,31 +115,50 @@ export function IntegrationsSettingsPanel({
             err instanceof Error ? err.message : 'Could not update integration.',
           variant: 'error',
         })
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 
   function onConnect(card: IntegrationCardState) {
-    startTransition(async () => {
-      try {
-        if (card.id === 'stripe') {
-          const { url, message } = await getStripeConnectOnboardingUrl()
+    if (card.id === 'stripe') {
+      runStaffAction({
+        startTransition,
+        action: () => getStripeConnectOnboardingUrl(),
+        onSuccess: ({ url, message }) => {
           if (!url) {
             showToast({ message, variant: 'error' })
             return
           }
           showToast({ message, variant: 'success' })
           window.location.assign(url)
-          return
-        }
-        await connectSoftIntegrationAction(card.id)
+        },
+        onError: (err) => {
+          showToast({
+            message:
+              err instanceof Error
+                ? err.message
+                : 'Could not connect integration.',
+            variant: 'error',
+          })
+        },
+      })
+      return
+    }
+    runStaffAction({
+      startTransition,
+      action: () =>
+        connectSoftIntegrationAction(
+          card.id as Exclude<IntegrationId, 'stripe'>,
+        ),
+      onSuccess: () => {
         showToast({
           message: `${card.title} connected.`,
           variant: 'success',
         })
         closePanel()
-        router.refresh()
-      } catch (err) {
+      },
+      onError: (err) => {
         showToast({
           message:
             err instanceof Error
@@ -145,21 +166,23 @@ export function IntegrationsSettingsPanel({
               : 'Could not connect integration.',
           variant: 'error',
         })
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 
   function onDisconnect(card: IntegrationCardState) {
-    startTransition(async () => {
-      try {
-        await disconnectIntegrationAction(card.id)
+    runStaffAction({
+      startTransition,
+      action: () => disconnectIntegrationAction(card.id),
+      onSuccess: () => {
         showToast({
           message: `${card.title} removed.`,
           variant: 'success',
         })
         closePanel()
-        router.refresh()
-      } catch (err) {
+      },
+      onError: (err) => {
         showToast({
           message:
             err instanceof Error
@@ -167,7 +190,8 @@ export function IntegrationsSettingsPanel({
               : 'Could not remove integration.',
           variant: 'error',
         })
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 

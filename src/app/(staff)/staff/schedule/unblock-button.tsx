@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/base/buttons/button'
 import { unblockLanes } from '@/lib/actions/staff'
+import { runStaffAction } from '@/lib/refresh-after-action'
 
 export function UnblockButton({ blockId }: { blockId: string }) {
   const router = useRouter()
@@ -16,9 +17,10 @@ export function UnblockButton({ blockId }: { blockId: string }) {
       size="sm"
       isLoading={pending}
       onClick={() =>
-        startTransition(async () => {
-          await unblockLanes(blockId)
-          router.refresh()
+        runStaffAction({
+          startTransition,
+          action: () => unblockLanes(blockId),
+          refresh: () => router.refresh(),
         })
       }
     >

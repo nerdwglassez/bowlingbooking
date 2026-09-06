@@ -10,7 +10,7 @@ import {
 } from '@/components/patterns/profile-form'
 import { updateProfileAction } from '@/lib/actions/admin'
 import { joinDisplayName, splitDisplayName } from '@/lib/display-name'
-import { refreshAfterAction } from '@/lib/refresh-after-action'
+import { runStaffAction } from '@/lib/refresh-after-action'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { formatStaffRole } from '@/lib/staff-nav'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
@@ -59,9 +59,10 @@ export function ProfileSettingsPanel({
 
     savingRef.current = true
     form.startSaving()
-    startTransition(async () => {
-      try {
-        await updateProfileAction({
+    runStaffAction({
+      startTransition,
+      action: () =>
+        updateProfileAction({
           name: joinDisplayName(
             form.values.firstName,
             form.values.lastName,
@@ -69,7 +70,8 @@ export function ProfileSettingsPanel({
           email: form.values.email,
           currentPassword: form.values.currentPassword || undefined,
           newPassword: form.values.newPassword || undefined,
-        })
+        }),
+      onSuccess: () => {
         const cleared = {
           ...form.values,
           currentPassword: '',
@@ -78,14 +80,15 @@ export function ProfileSettingsPanel({
         form.setValues(cleared)
         form.commitBaseline(cleared)
         showToast({ message: 'Profile updated', variant: 'success' })
-        refreshAfterAction(() => router.refresh())
-      } catch (err) {
+        savingRef.current = false
+      },
+      onError: (err) => {
         form.setError()
         setError(err instanceof Error ? err.message : 'Could not save profile.')
         showToast({ message: 'Failed to save — try again', variant: 'error' })
-      } finally {
         savingRef.current = false
-      }
+      },
+      refresh: () => router.refresh(),
     })
   }
 
