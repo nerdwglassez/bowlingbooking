@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { useStaffToast } from '@/components/chrome/staff-toast-provider'
@@ -10,6 +10,7 @@ import {
 } from '@/components/patterns/booking-policies-form'
 import type { AdminTenantDetail } from '@/lib/actions/admin'
 import { updateTenantAction } from '@/lib/actions/admin'
+import { refreshAfterAction } from '@/lib/refresh-after-action'
 import { useSettingsFormReporter } from '@/lib/settings-form-context'
 import { useSettingsFormState } from '@/lib/use-settings-form-state'
 
@@ -37,6 +38,7 @@ export function PoliciesSettingsPanel({
   })
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  const savingRef = useRef(false)
 
   useSettingsFormReporter(
     form.dirty,
@@ -45,6 +47,8 @@ export function PoliciesSettingsPanel({
   )
 
   function handleSubmit() {
+    if (savingRef.current || form.phase === 'saving') return
+    savingRef.current = true
     setError(null)
     form.startSaving()
     startTransition(async () => {
@@ -72,11 +76,13 @@ export function PoliciesSettingsPanel({
         })
         form.commitBaseline()
         showToast({ message: 'Policies saved', variant: 'success' })
-        router.refresh()
+        refreshAfterAction(() => router.refresh())
       } catch (err) {
         form.setError()
         setError(err instanceof Error ? err.message : 'Could not save policies.')
         showToast({ message: 'Failed to save — try again', variant: 'error' })
+      } finally {
+        savingRef.current = false
       }
     })
   }
