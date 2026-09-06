@@ -20,13 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staff report metrics module (`staff-report-metrics`): gross/net revenue, source mix, no-show rate, tenant-timezone windows.
 - `exportStaffAnalyticsCsvAction` (MANAGER+) with `REPORT_EXPORTED` audit trail.
 - Stripe Connect destination-charge path behind `STRIPE_CONNECT_DESTINATION_CHARGES` (default off) in `stripe.ts`.
+- Staff Contacts table (Untitled `TableCard` + right slideout), Support venue contacts from `getTenant()`, booking-detail payment-resume control, and packages search/sort.
 
 ### Changed
 
 - Staff server actions split into domain modules (`staff-cockpit`, `staff-schedule`, `staff-walkin`, `staff-booking-ops`) over `staff-impl`; public import remains `@/lib/actions/staff`.
 - Staff/admin contracts and `05_REPORTS` metric dictionary aligned with shipped MANAGER+ `/staff/reports` behavior.
 - Documented host→tenant routing roadmap in `STACK_BASELINE` (still env-slug today).
-
+- Reports rail URLs are the source of truth (no in-page Analytics|Contacts toggle); analytics shows net revenue + source mix.
 
 ### Added
 
