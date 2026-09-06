@@ -28,10 +28,18 @@ import {
   isPlatformAdmin,
 } from '@/lib/tenant-access'
 import {
+  isIntegrationEnabled,
+  mergeIntegrationsConfig,
+  readIntegrationsConfig,
+  removeIntegrationFromConfig,
+  type IntegrationId,
+} from '@/lib/integrations'
+import {
   createConnectAccountLink,
   createConnectExpressAccount,
   getConnectAccountStatus,
 } from '@/lib/stripe'
+import { hasResendApiKey } from '@/lib/env'
 import { getTenant } from '@/lib/tenant'
 import { isValidThemeSlug } from '@/lib/themes'
 
@@ -2585,8 +2593,8 @@ export async function getStripeConnectOnboardingUrl(): Promise<{
   return {
     url: link.url,
     message: link.mocked
-      ? 'Mock Stripe Connect link opened.'
-      : 'Complete Stripe Connect onboarding in the new tab.',
+      ? 'Mock Stripe Connect — returning to Integrations.'
+      : 'Sign in to Stripe and confirm permissions. You will return here when finished.',
   }
 }
 
@@ -2614,6 +2622,194 @@ export async function getStripeConnectStatus(): Promise<{
     payoutsEnabled: status.payoutsEnabled,
     accountId,
   }
+}
+
+export type IntegrationCardState = {
+  id: IntegrationId
+  title: string
+  summary: string
+  detail: string
+  /** Platform credentials available (env / Connect account). */
+  platformReady: boolean
+  /** Tenant has completed connect (or Stripe account linked). */
+  connected: boolean
+  /** Toggle — false pauses use without deleting the connection. */
+  enabled: boolean
+  required: boolean
+  permissions: string[]
+}
+
+export async function listIntegrationCardStates(): Promise<IntegrationCardState[]> {
+  await requireRole('ADMIN')
+  const tenant = await getTenant()
+  const prefs = readIntegrationsConfig(tenant.config)
+
+  const stripeAccountId = tenant.stripeConnectAccountId?.trim() ?? null
+  let stripeLinked = Boolean(stripeAccountId)
+  if (stripeAccountId && !isDevWithoutDb()) {
+    const status = await getConnectAccountStatus(stripeAccountId)
+    stripeLinked = status.detailsSubmitted || Boolean(stripeAccountId)
+  }
+  const stripePlatformReady = Boolean(process.env.STRIPE_SECRET_KEY?.trim())
+  const resendPlatformReady = hasResendApiKey()
+  const makePlatformReady = Boolean(process.env.MAKE_WEBHOOK_URL?.trim())
+
+  const resendConnected = Boolean(prefs.resend?.connected) && resendPlatformReady
+  const makeConnected = Boolean(prefs.make?.connected)
+
+  return [
+    {
+      id: 'stripe',
+      title: 'Stripe',
+      summary: 'Online payments go directly to your Stripe account.',
+      detail: stripeLinked
+        ? 'Stripe Connect is linked. Charges settle to your connected account.'
+        : 'Connect Stripe so customers can pay online. You will sign in with Stripe and approve payout permissions, then return here.',
+      platformReady: stripePlatformReady,
+      connected: stripeLinked,
+      enabled: isIntegrationEnabled(prefs.stripe, stripeLinked),
+      required: true,
+      permissions: [
+        'Create and manage payment intents for lane bookings',
+        'Receive payouts to your bank account',
+        'View charge and refund status for this venue',
+      ],
+    },
+    {
+      id: 'resend',
+      title: 'Resend',
+      summary: 'Transactional email for confirmations, updates, and invites.',
+      detail: resendConnected
+        ? 'Resend is connected. Booking and team emails send through Resend.'
+        : resendPlatformReady
+          ? 'Connect Resend to send booking confirmations, updates, cancellations, and team invites from this venue.'
+          : 'Platform Resend credentials are not configured yet. Ask your operator to set RESEND_API_KEY before connecting.',
+      platformReady: resendPlatformReady,
+      connected: resendConnected,
+      enabled: isIntegrationEnabled(prefs.resend, resendConnected),
+      required: false,
+      permissions: [
+        'Send booking confirmation, update, and cancellation emails',
+        'Send team invite and password-reset emails',
+        'Use your venue name on outbound messages',
+      ],
+    },
+    {
+      id: 'make',
+      title: 'Make',
+      summary: 'Webhook automation for external workflows.',
+      detail: makeConnected
+        ? 'Make is connected. Outbound automation webhooks can run for this venue.'
+        : makePlatformReady
+          ? 'Connect Make to forward booking events to your automation scenarios.'
+          : 'Optional. Set MAKE_WEBHOOK_URL on the server, then connect here to enable venue automation.',
+      platformReady: makePlatformReady || isDevWithoutDb(),
+      connected: makeConnected,
+      enabled: isIntegrationEnabled(prefs.make, makeConnected),
+      required: false,
+      permissions: [
+        'Receive booking created / cancelled event payloads',
+        'Receive team invite lifecycle hooks (when configured)',
+      ],
+    },
+  ]
+}
+
+async function loadTenantRowForConfig() {
+  await requireRole('ADMIN')
+  const venue = await getTenant()
+  if (isDevWithoutDb()) {
+    return { tenantId: venue.id, config: venue.config, mocked: true as const }
+  }
+  const tenant = await prisma.tenant.findUnique({ where: { id: venue.id } })
+  if (!tenant) throw new Error('Venue not found.')
+  return {
+    tenantId: tenant.id,
+    config: tenant.config,
+    mocked: false as const,
+  }
+}
+
+function revalidateIntegrations() {
+  revalidatePath('/staff/settings/integrations')
+  revalidatePath('/staff/settings')
+}
+
+/** Soft-connect Resend or Make after the admin confirms permissions in-app. */
+export async function connectSoftIntegrationAction(
+  id: Exclude<IntegrationId, 'stripe'>,
+): Promise<{ ok: true; mocked?: boolean }> {
+  const { tenantId, config, mocked } = await loadTenantRowForConfig()
+  if (id === 'resend' && !hasResendApiKey() && !mocked) {
+    throw new Error('Resend is not configured on the server (RESEND_API_KEY).')
+  }
+  if (mocked) {
+    revalidateIntegrations()
+    return { ok: true, mocked: true }
+  }
+  const next = mergeIntegrationsConfig(config, {
+    [id]: {
+      connected: true,
+      enabled: true,
+      connectedAt: new Date().toISOString(),
+    },
+  })
+  await prisma.tenant.update({
+    where: { id: tenantId },
+    data: { config: next as Prisma.InputJsonValue },
+  })
+  revalidateIntegrations()
+  return { ok: true }
+}
+
+export async function setIntegrationEnabledAction(
+  id: IntegrationId,
+  enabled: boolean,
+): Promise<{ ok: true; mocked?: boolean }> {
+  const { tenantId, config, mocked } = await loadTenantRowForConfig()
+  if (mocked) {
+    revalidateIntegrations()
+    return { ok: true, mocked: true }
+  }
+  if (id === 'stripe') {
+    const tenant = await getTenant()
+    if (!tenant.stripeConnectAccountId?.trim()) {
+      throw new Error('Connect Stripe before enabling it.')
+    }
+  } else {
+    const prefs = readIntegrationsConfig(config)
+    if (!prefs[id]?.connected) {
+      throw new Error('Connect this integration before enabling it.')
+    }
+  }
+  const next = mergeIntegrationsConfig(config, { [id]: { enabled } })
+  await prisma.tenant.update({
+    where: { id: tenantId },
+    data: { config: next as Prisma.InputJsonValue },
+  })
+  revalidateIntegrations()
+  return { ok: true }
+}
+
+/** Remove the integration connection (Stripe account id and/or config prefs). */
+export async function disconnectIntegrationAction(
+  id: IntegrationId,
+): Promise<{ ok: true; mocked?: boolean }> {
+  const { tenantId, config, mocked } = await loadTenantRowForConfig()
+  if (mocked) {
+    revalidateIntegrations()
+    return { ok: true, mocked: true }
+  }
+  const nextConfig = removeIntegrationFromConfig(config, id)
+  await prisma.tenant.update({
+    where: { id: tenantId },
+    data: {
+      config: nextConfig as Prisma.InputJsonValue,
+      ...(id === 'stripe' ? { stripeConnectAccountId: null } : {}),
+    },
+  })
+  revalidateIntegrations()
+  return { ok: true }
 }
 
 function mockUsers(): AdminUserRow[] {

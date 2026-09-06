@@ -13,7 +13,7 @@ Status: locked. Canonical manager settings live under `/staff/settings/*`; legac
 | Booking policies | `/staff/settings/policies` | — |
 | Packages (unified + code-gated) | `/staff/settings/packages` | `/admin/packages`, `/admin/promos` |
 | Team | `/staff/settings/team` | `/admin/team` redirects; legacy `/admin/team/new`, `/admin/team/[id]` editors remain |
-| Integrations | `/staff/settings/integrations` | Stripe Connect OAuth open (dashboard URL stub) |
+| Integrations | `/staff/settings/integrations` | Add/connect panel, enable toggle, view details + remove; Stripe Connect OAuth return |
 | Profile | `/staff/settings/profile` | — |
 | Audit log | `/admin/audit` | ADMIN only |
 | Admin KPI reports | `/admin/reports` | ADMIN only |
@@ -257,7 +257,6 @@ Read-only report loads are **not** written to `AuditLog` (too noisy for v1).
 
 ## Deferred
 
-- **Stripe Connect OAuth** — `getStripeConnectOnboardingUrl()` opens Stripe Dashboard only; full OAuth flow open.
 - **Advance booking policy** — deposit %, advance-booking window, and other `Tenant.config` knobs beyond cancellation window / refund % (see [Booking policy (Phase 11)](#booking-policy-phase-11)).
 - **Deeper analytics** — cohorting, warehouse sync, and exports beyond the v1 `/staff/reports` KPIs and charts.
 - **Legacy admin editors** — redirect `/admin/packages/[id]`, `/admin/team/*` to settings equivalents.
