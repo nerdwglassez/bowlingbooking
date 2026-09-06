@@ -118,7 +118,11 @@ dashboard chrome.
   Note: "Appears in the app header and all customer emails."
 
 **Address:**
-- Street address (full width)
+- Street address (full width) with autosuggest
+  Typing 3+ characters shows US address suggestions. Selecting one fills
+  street + city + state + ZIP. Optional `GOOGLE_PLACES_API_KEY` for Google
+  Places; otherwise Photon (OpenStreetMap) via `/api/address/autocomplete`
+  (ADMIN-only).
 - City + State (two-column row)
 - ZIP code
   Note: "Address links to maps in the customer app and confirmation emails."

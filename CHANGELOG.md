@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Venue settings street-address autosuggest: typing suggests US addresses and
+  selecting one fills city, state, and ZIP (`/api/address/autocomplete`).
+  Uses Google Places when `GOOGLE_PLACES_API_KEY` is set; otherwise Photon (OSM).
 
 ### Security
 

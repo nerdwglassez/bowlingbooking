@@ -13,6 +13,7 @@ export type RateLimitBucket =
   | 'booking_ics'
   | 'promo_validate'
   | 'password_reset'
+  | 'address_autocomplete'
 
 export class RateLimitExceededError extends Error {
   readonly retryAfterSec: number
