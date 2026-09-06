@@ -13,7 +13,7 @@ The Stripe wrapper (`src/lib/stripe.ts`) is the **only** place that imports `str
 | Concern | Module | Notes |
 |---|---|---|
 | Stripe SDK client + PaymentIntent + Refund | `src/lib/stripe.ts` | Singleton. Exposes `createPaymentIntent`, `createRefund`, `constructWebhookEvent`, `isStripeMocked`, and re-exports `Stripe` types. |
-| Outbound email + QR rendering | `src/lib/email.ts` | Singleton Resend client + `sendBookingConfirmation` (manage link + optional .ics link). |
+| Outbound email + QR rendering | `src/lib/email.ts` | Singleton Resend client + `sendBookingConfirmation` / `sendBookingUpdateConfirmation` (manage link + optional .ics link). |
 | Booking calendar (.ics) | `src/app/api/bookings/[code]/ics/route.ts` | `GET` with `email` query; delegates lookup to `getBookingByLookup`. |
 | Hold acquisition / release / availability | `src/lib/actions/booking.ts` | `acquireBookingHold`, `releaseBookingHold`, `getAvailableTimeSlots`, `confirmBooking`. |
 | Webhook entrypoint | `src/app/api/webhooks/stripe/route.ts` | Signature verification, idempotency, event routing. Handles `payment_intent.succeeded`, `charge.refunded`, and `refund.updated`; all other types are logged + ignored. ONLY place that creates Booking + Payment rows from Stripe state. |

@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
   return {
     isDevWithoutDbMock: vi.fn(() => false),
     revalidatePathMock: vi.fn(),
+    bookingFindUnique: vi.fn(),
     bookingFindFirst: vi.fn(),
     paymentFindUnique: vi.fn(),
     bookingUpdate,
@@ -37,9 +38,16 @@ const mocks = vi.hoisted(() => {
       async (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     ),
     getTenantMock: vi.fn(),
+    getContactEmailMock: vi.fn(() => 'hello@test.com'),
     getCancellationPolicyMock: vi.fn(),
     createRefundMock: vi.fn(),
     sendCancellationMock: vi.fn(),
+    sendUpdateMock: vi.fn(),
+    bookingLinksMock: vi.fn(() => ({
+      manageUrl: 'https://example.com/manage',
+      dashboardUrl: 'https://example.com/dashboard',
+      icsUrl: 'https://example.com/ics',
+    })),
     isStripeMockedMock: vi.fn(() => false),
   }
 })
@@ -51,7 +59,7 @@ vi.mock('@/lib/env', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    booking: { findFirst: mocks.bookingFindFirst },
+    booking: { findUnique: mocks.bookingFindUnique, findFirst: mocks.bookingFindFirst },
     payment: { findUnique: mocks.paymentFindUnique },
     $transaction: mocks.txMock,
   },
@@ -59,6 +67,7 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/lib/tenant', () => ({
   getTenant: mocks.getTenantMock,
   getCancellationPolicy: mocks.getCancellationPolicyMock,
+  getContactEmail: mocks.getContactEmailMock,
 }))
 vi.mock('@/lib/stripe', () => ({
   createRefund: mocks.createRefundMock,
@@ -66,6 +75,8 @@ vi.mock('@/lib/stripe', () => ({
 }))
 vi.mock('@/lib/email', () => ({
   sendBookingCancellation: mocks.sendCancellationMock,
+  sendBookingUpdateConfirmation: mocks.sendUpdateMock,
+  bookingCustomerEmailLinks: mocks.bookingLinksMock,
 }))
 vi.mock('@/lib/lane-assignment', () => ({
   reassignBookingLanes: mocks.reassignBookingLanesMock,
@@ -144,6 +155,13 @@ beforeEach(() => {
     config: {},
   })
   mocks.sendCancellationMock.mockResolvedValue({ id: null })
+  mocks.sendUpdateMock.mockResolvedValue({ id: null })
+  mocks.bookingLinksMock.mockReturnValue({
+    manageUrl: 'https://example.com/manage',
+    dashboardUrl: 'https://example.com/dashboard',
+    icsUrl: 'https://example.com/ics',
+  })
+  mocks.getContactEmailMock.mockReturnValue('hello@test.com')
   mocks.createRefundMock.mockResolvedValue({ id: 're_1', status: 'pending' })
   mocks.laneCount.mockResolvedValue(8)
   mocks.bookingFindMany.mockResolvedValue([])
@@ -155,6 +173,7 @@ beforeEach(() => {
       const tx = {
         booking: {
           update: mocks.bookingUpdate,
+          findUnique: mocks.bookingFindUnique,
           findFirst: mocks.bookingFindFirst,
           findMany: mocks.bookingFindMany,
         },
@@ -607,6 +626,19 @@ describe('rescheduleDashboardBookingAction', () => {
         endTime: end,
       })
 
+    mocks.bookingFindUnique.mockResolvedValue({
+      id: 'bk_1',
+      customerEmail: 'jane@example.com',
+      customerName: 'Jane',
+      confirmationCode: 'ABC123',
+      startTime: newStart,
+      endTime: newEnd,
+      laneCount: 1,
+      bowlerCount: 4,
+      totalAmount: 12000,
+      package: { name: 'Standard' },
+    })
+
     await rescheduleDashboardBookingAction({
       bookingId: 'bk_1',
       startTime: newStart,
@@ -629,6 +661,12 @@ describe('rescheduleDashboardBookingAction', () => {
         laneCount: 1,
         startTime: newStart,
         endTime: newEnd,
+      }),
+    )
+    expect(mocks.sendUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'jane@example.com',
+        confirmationCode: 'ABC123',
       }),
     )
   })

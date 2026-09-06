@@ -21,7 +21,11 @@ import { Prisma } from '@/generated/prisma/client'
 import { policySnapshotFromBooking, policySnapshotFromTenantRow } from '@/lib/booking-snapshots'
 import { requireUser } from '@/lib/auth'
 import { isDevWithoutDb } from '@/lib/env'
-import { sendBookingCancellation } from '@/lib/email'
+import {
+  bookingCustomerEmailLinks,
+  sendBookingCancellation,
+  sendBookingUpdateConfirmation,
+} from '@/lib/email'
 import { reassignBookingLanes } from '@/lib/lane-assignment'
 import {
   findOverlappingBlockedSlots,
@@ -35,7 +39,7 @@ import { assertPublicRateLimit } from '@/lib/rate-limit-request'
 import { prisma } from '@/lib/prisma'
 import { createRefund, isStripeMocked } from '@/lib/stripe'
 import { assertBookingDurationWithinLimits } from '@/lib/tenant-config'
-import { getTenant } from '@/lib/tenant'
+import { getContactEmail, getTenant } from '@/lib/tenant'
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -556,6 +560,38 @@ export async function rescheduleDashboardBookingAction(input: {
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   )
+
+  const updated = await prisma.booking.findUnique({
+    where: { id: input.bookingId },
+    include: { package: { select: { name: true } } },
+  })
+  if (updated?.customerEmail) {
+    const tenant = await getTenant()
+    const links = bookingCustomerEmailLinks(
+      updated.confirmationCode,
+      updated.customerEmail,
+    )
+    await sendBookingUpdateConfirmation({
+      to: updated.customerEmail,
+      customerName: updated.customerName,
+      confirmationCode: updated.confirmationCode,
+      startTime: updated.startTime,
+      endTime: updated.endTime,
+      laneCount: updated.laneCount,
+      bowlerCount: updated.bowlerCount,
+      packageName: updated.package?.name ?? 'Bowling package',
+      totalCents: updated.totalAmount,
+      venueName: tenant.name,
+      venueAddress: tenant.address,
+      venuePhone: tenant.phone,
+      manageUrl: links.manageUrl,
+      dashboardUrl: links.dashboardUrl,
+      icsUrl: links.icsUrl,
+      replyTo: getContactEmail(tenant),
+    }).catch((err) => {
+      console.error('[rescheduleDashboardBookingAction] update email failed:', err)
+    })
+  }
 
   revalidatePath('/dashboard')
 }
